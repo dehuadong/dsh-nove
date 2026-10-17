@@ -21,10 +21,10 @@ const ctx = {
 tools.apply(ctx, { mode: 'longform' })
 
 const names = registered.map(definition => definition.name).sort()
-check('registers twelve actions', names.length === 12, names.join(','))
+check('registers thirteen actions', names.length === 13, names.join(','))
 check('action names', names.join(',') === [
-  'story_bible', 'story_bible_import', 'story_bible_write', 'story_brief', 'story_init', 'story_plan',
-  'story_review', 'story_revise', 'story_state', 'story_status', 'story_summarize', 'story_write',
+  'story_bible', 'story_bible_import', 'story_bible_write', 'story_brief', 'story_init', 'story_next',
+  'story_plan', 'story_review', 'story_revise', 'story_state', 'story_status', 'story_summarize', 'story_write',
 ].sort().join(','), names.join(','))
 check('every action declares output schema', registered.every(definition => definition.output?.schema && typeof definition.output?.render === 'function'))
 check('every action declares execute', registered.every(definition => typeof definition.execute === 'function'))
@@ -145,6 +145,9 @@ try {
 
   const summary = await byName.get('story_summarize').execute({ work, chapter: 1, summary: '林澈在塌方里救人，决定北上。' }, exec)
   check('story_summarize ok', summary.ok === true && summary.truncated === false, JSON.stringify(summary))
+
+  const next = await byName.get('story_next').execute({ work }, exec)
+  check('story_next moves to the next chapter after settling', next.ok === true && next.action === 'story_plan' && next.chapter === 2, JSON.stringify(next))
 
   const status = await byName.get('story_status').execute({ work }, exec)
   check('story_status ok', status.ok === true && status.status.writtenChapters === 1, JSON.stringify(status.status ?? status))

@@ -109,6 +109,36 @@ export function chapterNumber(value) {
 }
 
 /** Count CJK characters plus latin words. */
+/**
+ * The ordered stage of one chapter. Stages only move forward unless a settled
+ * chapter is explicitly reopened.
+ */
+export const STAGES = ['planned', 'written', 'reviewed', 'revised', 'settled']
+
+/**
+ * Read a chapter's stage, falling back to the legacy `status` field.
+ * @param {object} entry - chapter entry.
+ * @returns {string} one of {@link STAGES}.
+ */
+export function stageOf(entry) {
+  if (entry !== null && typeof entry === 'object' && STAGES.includes(entry.stage)) return entry.stage
+  const legacy = entry?.status
+  return STAGES.includes(legacy) ? legacy : 'planned'
+}
+
+/**
+ * Refuse an action whose stage precondition is not met.
+ * @param {object} entry - chapter entry.
+ * @param {string[]} allowed - stages the action accepts.
+ * @param {string} message - failure message naming the next step.
+ * @param {string} code - failure code.
+ * @returns {void}
+ */
+function assertStage(entry, allowed, message, code = 'chapter-settled') {
+  if (allowed.includes(stageOf(entry))) return
+  throw new StoryError(code, message)
+}
+
 export function countWords(text) {
   const cjk = String(text).match(/[\u3400-\u4dbf\u4e00-\u9fff]/g)?.length ?? 0
   const latin = String(text).match(/[A-Za-z][A-Za-z'-]*/g)?.length ?? 0
@@ -218,6 +248,7 @@ export async function readManifest(root, workId) {
   if (manifest?.version !== MANIFEST_VERSION || !Array.isArray(manifest?.chapters)) {
     throw new StoryError('manifest-invalid', `作品 ${workId} 的进度清单版本不受支持`)
   }
+  for (const entry of manifest.chapters) entry.stage = stageOf(entry)
   return manifest
 }
 
@@ -365,6 +396,8 @@ export async function writePlan(root, input) {
       .map(([key]) => key)
     if (missing.length > 0) throw new StoryError('plan-incomplete', `章纲缺少：${missing.join('、')}`)
     const entry = chapterEntry(manifest, number)
+    assertStage(entry, ['planned', 'written', 'reviewed', 'revised'],
+      `第 ${number} 章已结算：改章纲前先带 reopen 重写正文回退`)
     const file = join(workDirectory(root, manifest.workId), 'outline', `${entry.id}.plan.md`)
     const journal = { undo: [] }
     return withRollback(journal, async () => {
@@ -383,6 +416,7 @@ export async function writePlan(root, input) {
         if (previous === undefined) await rm(file, { force: true })
         else await writeAtomic(file, previous)
       })
+      entry.stage = 'planned'
       entry.updatedAt = now()
       const written = await writeManifest(root, manifest.workId, manifest)
       return { manifest: written, entry, artifact: { path: rootRelative(root, file) } }
@@ -403,6 +437,15 @@ export async function writeChapter(root, input) {
     const body = String(input.body ?? '')
     if (body.trim() === '') throw new StoryError('empty-body', '正文不能为空')
     const entry = chapterEntry(manifest, number)
+    const planFile = join(workDirectory(root, manifest.workId), 'outline', `${entry.id}.plan.md`)
+    if ((await readOptional(planFile)) === undefined) {
+      throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲：先 story_plan，再写正文`)
+    }
+    const settled = stageOf(entry) === 'settled'
+    if (settled && input.reopen !== true) {
+      throw new StoryError('chapter-settled',
+        `第 ${number} 章已结算：改正文请传 reopen: true，回退到已写并作废本章旧的结算`)
+    }
     const dir = join(workDirectory(root, manifest.workId), 'chapters')
     let revision = 1
     let file = join(dir, `${entry.id}.md`)
@@ -422,9 +465,11 @@ export async function writeChapter(root, input) {
       if (typeof input.title === 'string' && input.title.trim() !== '') entry.title = input.title.trim()
       await writeAtomic(file, body.endsWith('\n') ? body : `${body}\n`)
       journal.undo.push(() => rm(file, { force: true }))
+      if (settled) await appendStateEvent(root, manifest.workId, journal, { kind: 'reopen', chapter: number })
       entry.currentRevision = revision
       entry.words = countWords(body)
-      entry.status = entry.status === 'planned' ? 'written' : 'revised'
+      entry.status = 'written'
+      entry.stage = 'written'
       entry.updatedAt = now()
       const written = await writeManifest(root, manifest.workId, manifest)
       return { manifest: written, entry, artifact: { path: rootRelative(root, file), revision }, words: entry.words }
@@ -493,6 +538,7 @@ export async function writeReview(root, input) {
       await writeAtomic(file, lines.join('\n'))
       journal.undo.push(() => rm(file, { force: true }))
       entry.status = 'reviewed'
+      entry.stage = 'reviewed'
       entry.updatedAt = now()
       await refreshCounters(root, manifest)
       const written = await writeManifest(root, manifest.workId, manifest)
@@ -614,12 +660,30 @@ export async function reviseChapter(root, input) {
       entry.currentRevision = revision
       entry.words = countWords(body)
       entry.status = 'revised'
+      entry.stage = 'revised'
       entry.updatedAt = now()
       await refreshCounters(root, manifest)
       const written = await writeManifest(root, manifest.workId, manifest)
       return { manifest: written, entry, artifact: { path: rootRelative(root, file), revision }, resolved: ids }
     })
   })
+}
+
+/**
+ * Append one event to the state log, recording how to undo it.
+ * @param {string} root - workspace directory.
+ * @param {string} workId - work identity.
+ * @param {{undo: Function[]}} journal - rollback journal.
+ * @param {object} event - event body.
+ * @returns {Promise<void>} resolves after the append lands.
+ */
+async function appendStateEvent(root, workId, journal, event) {
+  const file = join(workDirectory(root, workId), 'state', 'events.jsonl')
+  const previous = (await readOptional(file)) ?? ''
+  const seq = previous.split(/\r?\n/).filter(line => line.trim() !== '').length + 1
+  const line = JSON.stringify({ seq, at: now(), ...event })
+  await writeAtomic(file, previous === '' || previous.endsWith('\n') ? `${previous}${line}\n` : `${previous}\n${line}\n`)
+  journal.undo.push(() => writeAtomic(file, previous))
 }
 
 /**
@@ -638,6 +702,15 @@ export async function foldState(root, input) {
     const hooks = Array.isArray(input.hooks) ? input.hooks : []
     if (entities.length === 0 && hooks.length === 0) {
       throw new StoryError('empty-state', '状态结算至少要给出一条人物事实或伏笔变化')
+    }
+    const latest = await latestReview(root, manifest, entry)
+    if (latest === undefined) {
+      throw new StoryError('review-required', `第 ${number} 章还没有审稿清单：先审稿与修订，再结算`)
+    }
+    const open = parseReview(latest.text).filter(item => !item.done)
+    if (open.length > 0) {
+      throw new StoryError('review-required',
+        `第 ${number} 章还有 ${open.length} 条未处理审稿：${open.map(item => item.id).join('、')}；先修订再结算`)
     }
     const dir = workDirectory(root, manifest.workId)
     const eventsFile = join(dir, 'state', 'events.jsonl')
@@ -667,6 +740,7 @@ export async function foldState(root, input) {
       lines.push(JSON.stringify({ seq: offset, at: now(), chapter: number, kind: 'hook', text, state }))
       counts[state] += 1
     }
+    lines.push(JSON.stringify({ seq: offset + 1, at: now(), chapter: number, kind: 'settle' }))
     const journal = { undo: [] }
     return withRollback(journal, async () => {
       await writeAtomic(
@@ -683,6 +757,8 @@ export async function foldState(root, input) {
         else await writeAtomic(hooksFile, previousHooks)
       })
       counts.open = folded.hooks.filter(hook => hook.state !== 'resolved').length
+      entry.stage = 'settled'
+      entry.status = 'settled'
       entry.updatedAt = now()
       const written = await writeManifest(root, manifest.workId, manifest)
       return { manifest: written, counts, artifact: { path: rootRelative(root, eventsFile) } }
@@ -698,7 +774,20 @@ export async function foldState(root, input) {
 export function foldEvents(text) {
   const entities = new Map()
   const hooks = new Map()
-  for (const line of String(text).split(/\r?\n/)) {
+  const lines = String(text).split(/\r?\n/)
+  // A reopened chapter's events before its last reopen no longer describe the
+  // current state: the author rewrote the body, so the old settlement is void.
+  const reopenAt = new Map()
+  for (const [index, line] of lines.entries()) {
+    let event
+    try {
+      event = JSON.parse(line)
+    } catch {
+      continue
+    }
+    if (event?.kind === 'reopen' && Number.isInteger(event.chapter)) reopenAt.set(event.chapter, index)
+  }
+  for (const [index, line] of lines.entries()) {
     if (line.trim() === '') continue
     let event
     try {
@@ -706,6 +795,8 @@ export function foldEvents(text) {
     } catch {
       continue
     }
+    const reopenedAt = reopenAt.get(event?.chapter)
+    if (reopenedAt !== undefined && index < reopenedAt) continue
     if (event?.kind === 'entity') {
       const existing = entities.get(event.name) ?? { name: event.name, facts: [] }
       existing.facts.push(...(event.facts ?? []))
@@ -760,6 +851,7 @@ export async function status(root, work) {
     chapters: manifest.chapters.map(chapter => ({
       number: chapter.number,
       status: chapter.status,
+      stage: stageOf(chapter),
       revision: chapter.currentRevision,
       words: chapter.words,
     })),
@@ -773,6 +865,50 @@ export async function status(root, work) {
       resolved: folded.hooks.filter(hook => hook.state === 'resolved').length,
     },
   }
+}
+
+/**
+ * The next step of one work, derived from the stage machine.
+ *
+ * Read-only: it never writes, so the page and the model can both ask it what to
+ * do next without changing the work.
+ * @param {string} root - workspace directory.
+ * @param {string} work - work identity.
+ * @returns {Promise<{workId: string, chapter: number, stage: string, action: string, reason: string, missing: string[]}>} next step.
+ */
+export async function nextStep(root, work) {
+  const manifest = await readManifest(root, work)
+  const last = manifest.chapters.length === 0 ? undefined : manifest.chapters[manifest.chapters.length - 1]
+  const chapter = last === undefined ? 1 : last.number
+  if (last === undefined) {
+    return { workId: manifest.workId, chapter, stage: 'planned', action: 'story_plan', reason: '还没有任何章节：先写第 1 章章纲', missing: ['outline'] }
+  }
+  const stage = stageOf(last)
+  const dir = workDirectory(root, manifest.workId)
+  const planFile = join(dir, 'outline', `${last.id}.plan.md`)
+  const hasPlan = (await readOptional(planFile)) !== undefined
+  if (stage === 'settled') {
+    const next = last.number + 1
+    return { workId: manifest.workId, chapter: next, stage: 'planned', action: 'story_plan', reason: `第 ${last.number} 章已结算：写第 ${next} 章章纲`, missing: ['outline'] }
+  }
+  if (!hasPlan) {
+    return { workId: manifest.workId, chapter: last.number, stage, action: 'story_plan', reason: `第 ${last.number} 章缺章纲`, missing: ['outline'] }
+  }
+  if (stage === 'planned') {
+    return { workId: manifest.workId, chapter: last.number, stage, action: 'story_write', reason: `第 ${last.number} 章已有章纲，写正文`, missing: [] }
+  }
+  if (stage === 'written') {
+    return { workId: manifest.workId, chapter: last.number, stage, action: 'story_review', reason: `第 ${last.number} 章已有正文，先审稿`, missing: ['review'] }
+  }
+  const latest = await latestReview(root, manifest, last)
+  const open = latest === undefined ? [] : parseReview(latest.text).filter(item => !item.done)
+  if (open.length > 0) {
+    return {
+      workId: manifest.workId, chapter: last.number, stage, action: 'story_revise',
+      reason: `第 ${last.number} 章还有 ${open.length} 条未处理审稿`, missing: open.map(item => item.id),
+    }
+  }
+  return { workId: manifest.workId, chapter: last.number, stage, action: 'story_state', reason: `第 ${last.number} 章审稿已处理完，结算状态`, missing: [] }
 }
 
 /**
@@ -835,6 +971,7 @@ export async function readWork(root, work) {
       status: chapter.status,
       revision: chapter.currentRevision,
       words: chapter.words,
+      stage: stageOf(chapter),
       hasPlan: plan !== undefined,
       reviewRound: latest?.round ?? 0,
       openProblems: latest === undefined ? 0 : parseReview(latest.text).filter(item => !item.done).length,

@@ -15,7 +15,8 @@
  */
 
 import {
-  StoryError, foldState, initWork, reviseChapter, status as readStatus, writeChapter, writePlan, writeReview,
+  StoryError, foldState, initWork, nextStep as nextStepFor, reviseChapter, status as readStatus, writeChapter, writePlan,
+  writeReview,
 } from './storage.js'
 import {
   assembleBrief as assembleBriefFor, importBible as importFromDesign, readBible as readBibleEntries,
@@ -176,6 +177,9 @@ const OUTPUT_PROPERTIES = {
   skipped: { type: 'array', description: 'Files the import left untouched because they already hold content.', items: { type: 'string' } },
   names: { type: 'array', description: 'Character names found in the old cast file.', items: { type: 'string' } },
   truncated: { type: 'boolean' },
+  action: { type: 'string', description: 'Action to run next, e.g. story_write.' },
+  reason: { type: 'string', description: 'Why that action is next.' },
+  stage: { type: 'string', description: 'Current stage of the chapter being worked on.' },
   status: {
     type: 'object',
     additionalProperties: false,
@@ -205,6 +209,7 @@ const OUTPUT_PROPERTIES = {
           properties: {
             number: { type: 'integer' },
             status: { type: 'string' },
+            stage: { type: 'string', description: 'Pipeline stage; later stages require the earlier ones.' },
             revision: { type: 'integer' },
             words: { type: 'integer' },
           },
@@ -324,6 +329,7 @@ function definitions() {
           title: { type: 'string', description: '章标题，可覆盖上一次的值。' },
           body: { type: 'string', description: '完整正文 Markdown。' },
           rewrite: { type: 'boolean', description: '已有正文时是否另存为新版本。' },
+          reopen: { type: 'boolean', description: '已结算章要改正文时传 true：回退到已写，旧结算作废。' },
         },
         required: ['work', 'chapter', 'body'],
       },
@@ -542,6 +548,25 @@ function definitions() {
         const root = workspaceOf(exec)
         const receipt = await writeSummaryEntry(root, args.work, args.chapter, args.summary)
         return { ok: true, workId: args.work, artifact: { path: receipt.path }, words: receipt.words, truncated: receipt.truncated }
+      },
+    }),
+
+    action({
+      name: 'story_next',
+      description: '查询这部作品下一步该做什么：动作名、章号、原因、缺什么（章纲/审稿/条目 id）。'
+        + ' 每写完一步先调它，不要凭记忆猜下一步；它只读，不改任何文件。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+        },
+        required: ['work'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const next = await nextStepFor(root, args.work)
+        return { ok: true, ...next }
       },
     }),
 

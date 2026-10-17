@@ -70,6 +70,15 @@ try {
   check('Q1 marked done', reviewText.includes('- [x] Q1'), reviewText.split('\n').find(line => line.startsWith('- [')))
   check('Q2 still open', reviewText.includes('- [ ] Q2'))
 
+  await rejects('settle blocked while review items are open', 'review-required', () => s.foldState(root, {
+    work, chapter: 1, hooks: [{ text: '合同是假的', state: 'opened' }],
+  }))
+  await s.reviseChapter(root, {
+    work, chapter: 1, body: '再改一版，补上母亲的旧照片。'.repeat(20), problemIds: ['Q2'],
+  })
+  const settledReview = await readFile(join(root, review.artifact.path), 'utf8')
+  check('Q2 marked done', settledReview.includes('- [x] Q2'))
+
   await rejects('hook used before opened rejected', 'hook-not-open', () => s.foldState(root, {
     work, chapter: 1, hooks: [{ text: '合同是假的', state: 'used' }],
   }))
@@ -92,11 +101,12 @@ try {
 
   const detail = await s.readWork(root, work)
   check('detail chapters include plan flag', detail.chapters[0].hasPlan === true)
-  check('detail review openProblems', detail.chapters[0].openProblems === 1, String(detail.chapters[0].openProblems))
+  check('detail review openProblems', detail.chapters[0].openProblems === 0, String(detail.chapters[0].openProblems))
+  check('detail stage is settled', detail.chapters[0].stage === 'settled', String(detail.chapters[0].stage))
   check('detail entities folded', detail.state.entities.length === 1)
 
   const chapter = await s.readChapter(root, { work, chapter: 1 })
-  check('chapter current revision = 2', chapter.revision === 2)
+  check('chapter current revision = 3', chapter.revision === 3, String(chapter.revision))
   const planRead = await s.readChapter(root, { work, chapter: 1, view: 'plan' })
   check('plan read', planRead.content.includes('结尾变化'))
   const reviewRead = await s.readReview(root, work, 1)
@@ -121,7 +131,7 @@ try {
   check('unwritable root fails cleanly', blocked, 'no error raised')
   // Atomicity: a failing write must not change the manifest.
   const manifestBefore = await readFile(join(root, 'works', work, 'manifest.json'), 'utf8')
-  await rejects('duplicate write rejected again', 'chapter-exists', () => s.writeChapter(root, { work, chapter: 1, body: 'x' }))
+  await rejects('reopened write without flag is rejected', 'chapter-settled', () => s.writeChapter(root, { work, chapter: 1, body: 'x' }))
   const manifestAfter = await readFile(join(root, 'works', work, 'manifest.json'), 'utf8')
   check('manifest unchanged after failure', manifestBefore === manifestAfter)
 } finally {

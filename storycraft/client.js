@@ -307,6 +307,18 @@ window.__ModuleLoader__.load({
       return blocks.length === 0 ? [h('p', { key: 'empty', className: 'sc-muted' }, '（空）')] : blocks
     }
 
+    /** Human label of a pipeline stage. */
+    function stageLabel(stage) {
+      const map = {
+        planned: '已规划',
+        written: '已写',
+        reviewed: '已审',
+        revised: '已修订',
+        settled: '已结算',
+      }
+      return map[stage] ?? stage
+    }
+
     /** Badge for a chapter state. */
     function statusBadge(status) {
       const map = {
@@ -400,12 +412,23 @@ window.__ModuleLoader__.load({
           h('div', null,
             h('h2', { className: 'sc-detail-title' }, `第 ${chapter.number} 章${chapter.title === '' ? '' : ` · ${chapter.title}`}`),
             h('p', { className: 'sc-detail-tagline' },
-              `${statusBadge(chapter.status)} · 当前版本 r${chapter.revision} · ${chapter.words} 字 · 审稿 ${chapter.reviewRound} 轮 · 未处理 ${chapter.openProblems} 条`),
+              `${stageLabel(chapter.stage)} · 当前版本 r${chapter.revision} · ${chapter.words} 字 · 审稿 ${chapter.reviewRound} 轮 · 未处理 ${chapter.openProblems} 条`),
           ),
           h('div', { className: 'sc-header-actions' },
             h('button', { type: 'button', className: 'sc-btn sc-btn-primary', onClick: () => { void send(INSTRUCTIONS.review(workId, chapter.number)) }, disabled: chapter.revision === 0 }, '审稿'),
             h('button', { type: 'button', className: 'sc-btn', onClick: () => { void send(INSTRUCTIONS.revise(workId, chapter.number)) }, disabled: chapter.openProblems === 0 }, '按清单修订'),
-            h('button', { type: 'button', className: 'sc-btn', onClick: () => { void send(INSTRUCTIONS.fold(workId, chapter.number)) }, disabled: chapter.revision === 0 }, '结算状态'),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn',
+              onClick: () => {
+                if (chapter.openProblems > 0) {
+                  onNotice({ kind: 'error', text: `第 ${chapter.number} 章还有 ${chapter.openProblems} 条未处理审稿：先按清单修订，再结算。` })
+                  return
+                }
+                void send(INSTRUCTIONS.fold(workId, chapter.number))
+              },
+              disabled: chapter.revision === 0,
+            }, '结算状态'),
           ),
         ),
         h('div', { className: 'sc-tabs' },
@@ -542,7 +565,7 @@ window.__ModuleLoader__.load({
             },
               h('span', { className: 'sc-chapter-no' }, `第 ${item.number} 章`),
               h('span', { className: 'sc-chapter-title' }, item.title === '' ? '（未命名）' : item.title),
-              h('span', { className: 'sc-badge' }, statusBadge(item.status)),
+              h('span', { className: 'sc-badge' }, stageLabel(item.stage)),
               h('span', { className: 'sc-badge' }, item.hasPlan ? '有章纲' : '无章纲'),
               h('span', { className: 'sc-badge' }, `r${item.revision}`),
               h('span', { className: 'sc-badge' }, `${item.words} 字`),
