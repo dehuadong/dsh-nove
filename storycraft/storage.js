@@ -764,32 +764,21 @@ export async function foldState(root, input) {
     if (entities.length === 0 && hooks.length === 0) {
       throw new StoryError('empty-state', '状态结算至少要给出一条人物事实或伏笔变化')
     }
-    const latest = await latestReview(root, manifest, entry)
-    if (latest === undefined) {
-      throw new StoryError('review-required', `第 ${number} 章还没有审稿清单：先审稿与修订，再结算`)
-    }
-    const open = parseReview(latest.text).filter(item => !item.done)
-    if (open.length > 0) {
-      throw new StoryError('review-required',
-        `第 ${number} 章还有 ${open.length} 条未处理审稿：${open.map(item => item.id).join('、')}；先修订再结算`)
-    }
-    if (!reviewCoversRevision(latest, entry, true)) {
-      throw new StoryError('review-required', `第 ${number} 章的审稿针对旧版本 r${latest.revision ?? '?'}：先重新审稿`)
-    }
-    if (stageOf(entry) !== 'revised') {
-      throw new StoryError('review-required',
-        `第 ${number} 章还没走完修订（当前阶段：${stageOf(entry)}）：先 story_revise 提交改动，再结算`)
-    }
     const dir = workDirectory(root, manifest.workId)
     const eventsFile = join(dir, 'state', 'events.jsonl')
     const previous = (await readOptional(eventsFile)) ?? ''
     const current = foldEvents(previous)
     const lines = []
     let offset = previous.split(/\r?\n/).filter(line => line.trim() !== '').length
-    for (const entity of entities) {
+    for (const [index, entity] of entities.entries()) {
       const name = String(entity?.name ?? '').trim()
-      const facts = Array.isArray(entity?.facts) ? entity.facts.map(fact => String(fact).trim()).filter(Boolean) : []
-      if (name === '' || facts.length === 0) throw new StoryError('invalid-entity', '人物事实需要名字与非空事实')
+      // A single fact as a plain string is accepted: the model often sends one.
+      const rawFacts = typeof entity?.facts === 'string' ? [entity.facts] : entity?.facts
+      const facts = Array.isArray(rawFacts) ? rawFacts.map(fact => String(fact).trim()).filter(Boolean) : []
+      if (name === '' || facts.length === 0) {
+        throw new StoryError('invalid-entity',
+          `第 ${index + 1} 条人物${name === '' ? '' : `（${name}）`}的 facts 必须是非空字符串或字符串数组；收到的类型：${typeof entity?.facts}`)
+      }
       offset += 1
       lines.push(JSON.stringify({ seq: offset, at: now(), chapter: number, kind: 'entity', name, facts }))
     }
@@ -807,6 +796,22 @@ export async function foldState(root, input) {
       offset += 1
       lines.push(JSON.stringify({ seq: offset, at: now(), chapter: number, kind: 'hook', text, state }))
       counts[state] += 1
+    }
+    const latest = await latestReview(root, manifest, entry)
+    if (latest === undefined) {
+      throw new StoryError('review-required', `第 ${number} 章还没有审稿清单：先审稿与修订，再结算`)
+    }
+    const open = parseReview(latest.text).filter(item => !item.done)
+    if (open.length > 0) {
+      throw new StoryError('review-required',
+        `第 ${number} 章还有 ${open.length} 条未处理审稿：${open.map(item => item.id).join('、')}；先修订再结算`)
+    }
+    if (!reviewCoversRevision(latest, entry, true)) {
+      throw new StoryError('review-required', `第 ${number} 章的审稿针对旧版本 r${latest.revision ?? '?'}：先重新审稿`)
+    }
+    if (stageOf(entry) !== 'revised') {
+      throw new StoryError('review-required',
+        `第 ${number} 章还没走完修订（当前阶段：${stageOf(entry)}）：先 story_revise 提交改动，再结算`)
     }
     lines.push(JSON.stringify({ seq: offset + 1, at: now(), chapter: number, kind: 'settle' }))
     const journal = { undo: [] }

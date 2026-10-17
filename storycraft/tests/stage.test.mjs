@@ -135,6 +135,20 @@ try {
   const inferred = await s.status(root, legacyWork)
   check('legacy settled chapter infers settled', inferred.chapters[0].stage === 'settled', JSON.stringify(inferred.chapters[0]))
 
+  // State facts: one string is accepted; a bad record names the person.
+  const factsWork = (await s.initWork(root, { title: '事实容错' })).workId
+  await s.writePlan(root, { ...plan, work: factsWork, chapter: 1 })
+  await s.writeChapter(root, { work: factsWork, chapter: 1, body: '事实正文。'.repeat(40) })
+  await s.writeReview(root, { work: factsWork, chapter: 1, problems: [{ problem: '一处' }] })
+  await s.reviseChapter(root, { work: factsWork, chapter: 1, body: '事实改稿。'.repeat(40), problemIds: ['Q1'] })
+  const factsFolded = await s.foldState(root, {
+    work: factsWork, chapter: 1, entities: [{ name: '林澈', facts: '欠三个月房租' }],
+  })
+  check('single-string facts accepted', factsFolded.counts.entities === 1, JSON.stringify(factsFolded.counts))
+  await rejects('bad facts name the person', 'invalid-entity', () => s.foldState(root, {
+    work: factsWork, chapter: 1, entities: [{ name: '沈彻' }],
+  }))
+
   // A fresh work with no chapters points at chapter 1 plan.
   const empty = await s.initWork(root, { title: '空作品' })
   next = await s.nextStep(root, empty.workId)

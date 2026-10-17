@@ -420,7 +420,7 @@ function definitions() {
               additionalProperties: false,
               properties: {
                 name: { type: 'string' },
-                facts: { type: 'array', items: { type: 'string' } },
+                facts: { type: 'array', items: { type: 'string' }, description: '一条或几条事实；单个字符串也接受。' },
               },
               required: ['name', 'facts'],
             },
