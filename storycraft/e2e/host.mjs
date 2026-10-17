@@ -18,7 +18,7 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const projectRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
 const repoRoot = path.resolve(projectRoot, '..')
@@ -82,12 +82,50 @@ function copyTree(from, to) {
   copyFileSync(from, to)
 }
 
-/** Register one fixture workspace so the page has a workspace to read. */
-function seedWorkspace() {
-  const fixtureWork = path.join(repoRoot, 'works', '开国工程队')
-  if (!existsSync(fixtureWork)) fail(`样例作品不存在：${fixtureWork}`)
-  copyTree(fixtureWork, path.join(fixtureWorkspace, 'works', '开国工程队'))
+/**
+ * Build the fixture through the same actions a session uses, so every number the
+ * page shows is computed here and returned to the specs.
+ * @returns {Promise<object>} facts the specs assert against.
+ */
+async function buildFixture() {
+  const store = await import(pathToFileURL(path.join(projectRoot, 'storage.js')).href)
+  const created = await store.initWork(fixtureWorkspace, { title: '示例短篇' })
+  const work = created.workId
+  await store.writePlan(fixtureWorkspace, {
+    work, chapter: 1, perspective: '甲', goal: '救火', obstacle: '断电', cost: '时间', turn: '找到出口',
+  })
+  const first = '灰旗在风里翻了一夜。'.repeat(60)
+  await store.writeChapter(fixtureWorkspace, { work, chapter: 1, title: '灰旗', body: first })
+  await store.writeReview(fixtureWorkspace, {
+    work, chapter: 1,
+    problems: [
+      { location: '开头', problem: '光线写得太满', suggestion: '收一收' },
+      { location: '结尾', problem: '收束太快', suggestion: '补一拍' },
+    ],
+  })
+  const second = '灰旗在风里翻了一夜。火在渠里烧着。'.repeat(45)
+  await store.reviseChapter(fixtureWorkspace, { work, chapter: 1, body: second, problemIds: ['Q1', 'Q2'] })
+  await store.foldState(fixtureWorkspace, {
+    work, chapter: 1,
+    entities: [{ name: '甲', facts: ['丢了半袋粮'] }],
+    hooks: [{ text: '灰旗是谁挂的', state: 'opened' }],
+  })
+  const status = await store.status(fixtureWorkspace, work)
+  const events = (await readFileSync(path.join(fixtureWorkspace, 'works', work, 'state', 'events.jsonl'), 'utf8'))
+    .split(/\r?\n/).filter(line => line.trim() !== '').length
+  return {
+    workId: status.workId,
+    title: status.title,
+    words: status.chapters[0].words,
+    events,
+    hooksOpen: status.hooks.opened,
+    revision: status.chapters[0].revision,
+    reviewRound: 1,
+  }
+}
 
+/** Register one fixture workspace so the page has a workspace to read. */
+function seedWorkspace(facts) {
   const storageDir = path.join(home, 'storages')
   mkdirSync(storageDir, { recursive: true })
   const workspaceId = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa'
@@ -102,7 +140,7 @@ function seedWorkspace() {
     },
   }
   writeFileSync(path.join(storageDir, 'workspace.json'), `${JSON.stringify(storage, null, 2)}\n`)
-  console.log(`[e2e-host] 已注册 fixture 工作区：${fixtureWorkspace}`)
+  console.log(`[e2e-host] 已注册 fixture 工作区：${fixtureWorkspace}（${facts.words} 字、${facts.events} 条事件）`)
 }
 
 /** Initialize the temp profile from DSH's own template, then declare this bundle. */
@@ -139,7 +177,7 @@ function prepareProfile() {
 }
 
 /** Start the host and hold this process open for as long as Playwright wants it. */
-function startHost() {
+function startHost(facts) {
   console.log(`[e2e-host] 启动临时实例：http://127.0.0.1:${port}/（DSH_HOME=${home}）`)
   const child = spawn(appExe, [appEntry, 'web', '--port', String(port), '--no-open'], {
     cwd: projectRoot, env: dshEnv(), stdio: ['ignore', 'pipe', 'pipe'],
@@ -171,7 +209,7 @@ function startHost() {
     clearTimeout(deadline)
     const url = found[1]
     writeFileSync(runtimeFile, `${JSON.stringify({
-      url, baseUrl: `http://127.0.0.1:${port}`, token: new URL(url).searchParams.get('token'), home, fixtureWorkspace,
+      url, baseUrl: `http://127.0.0.1:${port}`, token: new URL(url).searchParams.get('token'), home, fixtureWorkspace, facts,
     }, null, 2)}\n`)
     console.log(`[e2e-host] 就绪：${url}`)
   }
@@ -195,5 +233,6 @@ rmSync(home, { recursive: true, force: true })
 rmSync(fixtureWorkspace, { recursive: true, force: true })
 mkdirSync(tempRoot, { recursive: true })
 prepareProfile()
-seedWorkspace()
-startHost()
+const facts = await buildFixture()
+seedWorkspace(facts)
+startHost(facts)

@@ -415,11 +415,26 @@ window.__ModuleLoader__.load({
               `${stageLabel(chapter.stage)} · 当前版本 r${chapter.revision} · ${chapter.words} 字 · 审稿 ${chapter.reviewRound} 轮 · 未处理 ${chapter.openProblems} 条`),
           ),
           h('div', { className: 'sc-header-actions' },
-            h('button', { type: 'button', className: 'sc-btn sc-btn-primary', onClick: () => { void send(INSTRUCTIONS.review(workId, chapter.number)) }, disabled: chapter.revision === 0 }, '审稿'),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn sc-btn-primary',
+              onClick: () => {
+                if (chapter.stage === 'settled') {
+                  onNotice({ kind: 'error', text: `第 ${chapter.number} 章已结算：要再审，先让模型带 reopen 重写正文。` })
+                  return
+                }
+                void send(INSTRUCTIONS.review(workId, chapter.number))
+              },
+              disabled: chapter.revision === 0,
+            }, '审稿'),
             h('button', { type: 'button', className: 'sc-btn', onClick: () => { void send(INSTRUCTIONS.revise(workId, chapter.number)) }, disabled: chapter.openProblems === 0 }, '按清单修订'),
             h('button', {
               type: 'button',
               className: 'sc-btn',
+              disabled: chapter.revision === 0 || chapter.stage === 'settled',
+              title: chapter.stage === 'settled'
+                ? '本章已结算：结算把本章事实写进书里并锁定该章，不需要再点'
+                : '把本章的人物变化与伏笔记进书里，并把该章锁为已结算',
               onClick: () => {
                 if (chapter.openProblems > 0) {
                   onNotice({ kind: 'error', text: `第 ${chapter.number} 章还有 ${chapter.openProblems} 条未处理审稿：先按清单修订，再结算。` })
@@ -427,10 +442,13 @@ window.__ModuleLoader__.load({
                 }
                 void send(INSTRUCTIONS.fold(workId, chapter.number))
               },
-              disabled: chapter.revision === 0,
-            }, '结算状态'),
+            }, chapter.stage === 'settled' ? '已结算' : '结算状态'),
           ),
         ),
+        chapter.stage === 'settled'
+          ? h('p', { className: 'sc-muted' },
+            '本章已结算：人物变化与伏笔已记进书里，该章锁定。要再改正文，让模型带 reopen 重写（会回到「已写」并作废本章旧结算）。')
+          : null,
         h('div', { className: 'sc-tabs' },
           h('button', { type: 'button', className: 'sc-tab', 'aria-selected': view === 'body' ? 'true' : 'false', onClick: () => setView('body') }, '正文'),
           h('button', { type: 'button', className: 'sc-tab', 'aria-selected': view === 'plan' ? 'true' : 'false', onClick: () => setView('plan') }, '章纲'),
@@ -653,9 +671,9 @@ window.__ModuleLoader__.load({
                 )),
               h('h3', { className: 'sc-section-title' }, '伏笔'),
               h('p', { className: 'sc-item-body' },
-                `新增 ${detail.state.hooks.filter(hook => hook.state === 'opened').length} 条 · `
-                + `已用 ${detail.state.hooks.filter(hook => hook.state === 'used').length} 条 · `
-                + `未解 ${detail.state.hooks.filter(hook => hook.state !== 'resolved').length} 条`),
+                `未解 ${detail.state.hooks.filter(hook => hook.state !== 'resolved').length} 条`
+                + `（其中已用 ${detail.state.hooks.filter(hook => hook.state === 'used').length} 条）· `
+                + `已解 ${detail.state.hooks.filter(hook => hook.state === 'resolved').length} 条`),
               detail.state.hooks.length === 0
                 ? h('p', { className: 'sc-muted' }, '还没有记录伏笔。')
                 : detail.state.hooks.map(hook => h('div', { className: 'sc-item', key: hook.text },

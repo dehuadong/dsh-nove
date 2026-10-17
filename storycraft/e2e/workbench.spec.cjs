@@ -1,16 +1,15 @@
 // Storycraft workbench specs: the browser half is only real inside a running
 // GUI, so these check the three things unit tests cannot see — the sidebar
-// entry, the page reading real work files, and the session gate on the
-// instruction buttons. No model is called, so a run costs nothing.
-//
-// A fresh profile opens with the shell's "Preview Notice" dialog and no
-// session. The helper dismisses the notice, opens the fixture workspace (which
-// creates the session the page reads its workspace from), then opens the
-// workbench. The sidebar entry is activated with a DOM click because the shell
-// overlay still intercepts pointer events at that moment.
+// entry, the page reading a real work, and the session gate on instructions.
+// The fixture is built by the host through the same actions a session uses, so
+// every asserted number comes from runtime.json instead of a moving sample.
+const fs = require('node:fs')
 const { test, expect } = require('@playwright/test')
 
-const url = process.env.STORYCRAFT_E2E_URL
+const runtimePath = process.env.STORYCRAFT_E2E_RUNTIME
+const runtime = runtimePath && fs.existsSync(runtimePath) ? JSON.parse(fs.readFileSync(runtimePath, 'utf8')) : {}
+const url = runtime.url
+const facts = runtime.facts ?? {}
 
 async function openWorkbench(page) {
   await page.goto(url, { waitUntil: 'domcontentloaded' })
@@ -39,32 +38,31 @@ test.describe('故事工坊工作台', () => {
 
   test('页面读到 fixture 作品的读数', async ({ page }) => {
     await openWorkbench(page)
-    await expect(page.getByRole('button', { name: /开国工程队/ })).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByRole('button', { name: /示例短篇/ })).toBeVisible({ timeout: 15_000 })
     await expect(page.getByText(/longform · 已写 1\/1 章 · 最新第 1 章 · 未处理 0/)).toBeVisible()
-    await expect(page.getByText(/更新 2026-10-17/)).toBeVisible()
 
-    await expect(page.locator('button.sc-chapter').filter({ hasText: '塌方' })).toBeVisible()
-    await expect(page.getByText('已修订 · 当前版本 r2 · 3890 字 · 审稿 1 轮 · 未处理 0 条')).toBeVisible()
+    await expect(page.locator('button.sc-chapter').filter({ hasText: '灰旗' })).toBeVisible()
+    await expect(page.getByText(`已结算 · 当前版本 r2 · ${facts.words} 字 · 审稿 1 轮 · 未处理 0 条`)).toBeVisible()
+    await expect(page.getByText(/本章已结算：人物变化与伏笔已记进书里/)).toBeVisible()
+    await expect(page.getByRole('button', { name: '已结算', exact: true })).toBeDisabled()
 
     await expect(page.getByRole('button', { name: '正文', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: '章纲', exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'r1', exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'r2', exact: true })).toBeVisible()
-    await page.getByRole('button', { name: 'r1', exact: true }).evaluate(node => node.click())
+    const olderVersion = page.getByRole('button', { name: 'r1', exact: true })
+    await expect(olderVersion).toBeVisible()
+    await olderVersion.evaluate(node => node.click())
     await expect(page.getByText('ch-0001.md（r1）')).toBeVisible()
-    await page.getByRole('button', { name: '章纲', exact: true }).evaluate(node => node.click())
-    await expect(page.getByText(/结尾变化/)).toBeVisible()
 
-    await expect(page.getByText('状态事件 15')).toBeVisible()
-    await expect(page.getByText('伏笔 未解 6')).toBeVisible()
+    await expect(page.getByText(`状态事件 ${facts.events}`)).toBeVisible()
+    await expect(page.getByText(`伏笔 未解 ${facts.hooksOpen}`)).toBeVisible()
   })
 
   test('非长篇会话里下发指令只得到说明', async ({ page }) => {
     await openWorkbench(page)
     await expect(page.getByText(/当前会话是 standard 模式|当前会话不是/)).toBeVisible({ timeout: 15_000 })
-    const review = page.getByRole('button', { name: '审稿', exact: true })
-    await expect(review).toBeEnabled()
-    await review.evaluate(node => node.click())
+    const nextChapter = page.getByRole('button', { name: /写第 2 章/ })
+    await expect(nextChapter).toBeEnabled()
+    await nextChapter.evaluate(node => node.click())
     await expect(page.getByText(/不是「长篇小说」模式/)).toBeVisible({ timeout: 10_000 })
   })
 })
