@@ -24,6 +24,12 @@ window.__ModuleLoader__.load({
 .sc-title{margin:0;font-size:16px;font-weight:600;letter-spacing:.01em}
 .sc-subtitle{margin:4px 0 0;color:var(--dsw-alias-label-secondary);font-size:12px}
 .sc-header-actions{display:flex;gap:8px;flex-shrink:0}
+.sc-guide-card{display:flex;gap:10px;align-items:center;width:100%;padding:12px;border:1px solid var(--dsh-border,rgba(127,127,127,.25));border-radius:10px;background:transparent;cursor:pointer;text-align:left;font:inherit;color:inherit}
+.sc-guide-card:hover{background:rgba(127,127,127,.08)}
+.sc-guide-icon{font-size:18px;line-height:1}
+.sc-guide-text{display:flex;flex-direction:column;gap:2px}
+.sc-guide-title{font-weight:600}
+.sc-guide-desc{opacity:.65;font-size:12px}
 .sc-draft{margin:10px 0 4px;padding:10px;border:1px solid var(--dsh-border,rgba(127,127,127,.25));border-radius:8px}
 .sc-draft .sc-muted{margin:0 0 6px}
 .sc-draft-text{width:100%;box-sizing:border-box;font:inherit;resize:vertical}
@@ -924,8 +930,27 @@ window.__ModuleLoader__.load({
       )
     }
 
+    /**
+     * The right sidebar's start tab card: a second way into the workbench.
+     * A plain button, because the shell's own cards are private components;
+     * opening the workbench only needs the layout service.
+     */
+    function GuideCard({ openWorkbench }) {
+      return h('button', {
+        type: 'button',
+        className: 'sc-guide-card',
+        onClick: () => { openWorkbench() },
+      },
+        h('span', { className: 'sc-guide-icon', 'aria-hidden': true }, '\u25A4'),
+        h('span', { className: 'sc-guide-text' },
+          h('span', { className: 'sc-guide-title' }, '故事工坊'),
+          h('span', { className: 'sc-guide-desc' }, '作品编排、真值与章节生产'),
+        ),
+      )
+    }
+
     return {
-      inject: ['slots'],
+      inject: ['slots', 'layout'],
       /**
        * Register the sidebar entry and the workbench it opens.
        *
@@ -949,6 +974,11 @@ window.__ModuleLoader__.load({
           order: 5,
           label: '故事工坊',
         }, StorycraftIcon))
+        const disposeGuide = ctx.slots.inject('sidebar.right.tab.guide.entry', () => ctx.slots.register({
+          name: 'sidebar.right.tab.guide.entry',
+          key: 'storycraft',
+          inject: () => ({ openWorkbench: () => { ctx.layout.selectPanel('storycraft') } }),
+        }, GuideCard))
         let disposeBindings
         try {
           disposeBindings = ctx.inject(['remote.session'], (scope) => {
@@ -961,6 +991,7 @@ window.__ModuleLoader__.load({
           disposeBindings?.()
           disposePage()
           disposeEntry()
+          disposeGuide()
         }, 'dsh-storycraft: sidebar entry and workbench')
       },
     }
