@@ -3,7 +3,7 @@ title: 故事工坊：章节阶段闸门与下一步查询的技术设计
 status: implemented
 created: 2026-10-17
 updated: 2026-10-17
-verification: 离线断言五套全过（storage 39、tools 29、presets 6、bible 39、stage 26）；E2E 三条页面 spec 全过（临时实例、随机端口、不调模型）；实现评审两轴各一轮并修完 8 项。真实长篇会话的实跑未做（用户跳过），残余风险：模型在真实会话里能否按 story_next 顺序调用未被观察。证据见工作项 dehuadong/dsh-nove#5。
+verification: 离线断言五套全过（storage 39、tools 29、presets 6、bible 39、stage 26）；E2E 三条页面 spec 全过（临时实例、随机端口、不调模型）；实现评审两轴各一轮并修完 8 项。真实长篇会话实跑：作品「大朔营造」第 1、2 章都走到 stage=settled 并持久化，事件 13 条（7 entity / 5 hook / 1 settle），审稿条目全部处理；模型按 story_next → story_plan → story_brief → story_write 的顺序调用；对已结算章发起审稿被拒（chapter-settled）并在会话里如实报告。证据见工作项 dehuadong/dsh-nove#5。
 ---
 
 # Agent Note：故事工坊：章节阶段闸门与下一步查询的技术设计
