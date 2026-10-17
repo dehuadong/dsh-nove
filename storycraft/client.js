@@ -838,21 +838,25 @@ window.__ModuleLoader__.load({
         }
         setDraft(saved === null || saved === '' ? undefined : saved)
       }, [draftKey])
-      const redirected = useRef(false)
-      useEffect(() => {
-        if (props.compact === true || redirected.current) return
-        redirected.current = true
-        if (face.openSidebarTab('storycraft')) face.showConversation()
-      }, [face, props.compact])
-
       const compose = useCallback((text) => {
+        // Prefilling the real composer bypasses the workbench's own gate, so the
+        // gate runs here first: only a long-form session may receive an action.
+        if (sessionPreset !== 'storycraft-longform') {
+          const shown = sessionPreset === undefined ? '没有记录预设' : `当前是 ${sessionPreset}`
+          setNotice({
+            kind: 'error',
+            text: `当前会话不是「长篇小说」模式（${shown}）：新建会话时选择长篇小说，或在这里复制指令到目标会话。`,
+          })
+          writeDraft(text)
+          return
+        }
         if (typeof props.prefill === 'function') {
           props.prefill(text)
           setNotice({ kind: 'ok', text: '已填入聊天输入框：可以继续改，改完发送。' })
           return
         }
         writeDraft(text)
-      }, [props.prefill, writeDraft])
+      }, [props.prefill, sessionPreset, writeDraft])
 
 
       const load = useCallback(async () => {
@@ -988,59 +992,24 @@ window.__ModuleLoader__.load({
       )
     }
 
-    /** Sidebar entry icon: a book being written. */
-    function StorycraftIcon(props) {
-      const size = typeof props?.size === 'number' ? props.size : 18
-      return h('svg', {
-        viewBox: '0 0 24 24',
-        width: size,
-        height: size,
-        fill: 'none',
-        stroke: 'currentColor',
-        strokeWidth: 1.6,
-        strokeLinecap: 'round',
-        strokeLinejoin: 'round',
-        'aria-hidden': true,
-        focusable: false,
-      },
-        h('path', { d: 'M4 5.5A1.5 1.5 0 0 1 5.5 4H11v15H5.5A1.5 1.5 0 0 1 4 17.5z' }),
-        h('path', { d: 'M20 5.5A1.5 1.5 0 0 0 18.5 4H13v15h5.5A1.5 1.5 0 0 0 20 17.5z' }),
-        h('path', { d: 'M8.5 19.5h7' }),
-        h('path', { d: 'M14.5 8.5l3-3' }),
-      )
-    }
-
     return {
-      inject: ['slots', 'layout'],
+      inject: ['slots', 'layout', 'sidebarRight', 'sidebarRightTabs'],
       /**
-       * Register the sidebar entry and the workbench it opens.
+       * Register the right-sidebar tab that hosts the workbench.
        *
-       * The entry and the panel share one id (`storycraft`) because that id is
-       * what the sidebar's panel selection dispatches. The Remote namespaces
-       * are bound lazily: the page stays reachable when a deployment exposes
-       * none, it just cannot push instructions.
+       * There is deliberately no main-panel entry and no left-sidebar row: the
+       * workbench keeps the conversation (and its composer) on screen. The
+       * Remote namespace is bound lazily: without it the workbench still reads,
+       * it just cannot push instructions.
        * @param {object} ctx - the browser plugin context.
        */
       apply(ctx) {
         const bindings = { prompt: undefined }
         const face = createFace(ctx, bindings)
-        const disposePage = ctx.slots.inject('main', () => ctx.slots.register({
-          name: 'main',
-          key: 'storycraft',
-          inject: () => ({ storycraft: face }),
-        }, StorycraftPage))
-        const disposeEntry = ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
-          name: 'sidebar.panellist',
-          id: 'storycraft',
-          order: 5,
-          label: '故事工坊',
-        }, StorycraftIcon))
         const tabId = 'dsh-storycraft'
         // Registration is an effect: the type lives exactly as long as this plugin.
         const disposeType = ctx.effect(() => {
-          const tabs = ctx.get('sidebarRightTabs')
-          if (tabs === undefined) return undefined
-          return tabs.register({
+          return ctx.sidebarRightTabs.register({
             id: tabId,
             kind: 'storycraft',
             multiple: false,
@@ -1069,8 +1038,6 @@ window.__ModuleLoader__.load({
         }
         ctx.effect(() => () => {
           disposeBindings?.()
-          disposePage()
-          disposeEntry()
           disposeTabBody()
           disposeTabTitle()
         }, 'dsh-storycraft: sidebar entry and workbench')
