@@ -403,8 +403,7 @@ window.__ModuleLoader__.load({
       )
     }
 
-    function ChapterPanel({ face, root, workId, chapter, onNotice, canSend }) {
-      const [draft, setDraft] = useState(undefined)
+    function ChapterPanel({ face, root, workId, chapter, onNotice, canSend, compose }) {
       const [view, setView] = useState('body')
       const [revision, setRevision] = useState(0)
 
@@ -451,7 +450,7 @@ window.__ModuleLoader__.load({
             h('button', {
               type: 'button',
               className: 'sc-btn sc-btn-primary',
-              onClick: () => setDraft(INSTRUCTIONS.review(workId, chapter.number)),
+              onClick: () => compose(INSTRUCTIONS.review(workId, chapter.number)),
               disabled: chapter.revision === 0 || chapter.stage === 'settled',
               title: chapter.stage === 'settled'
                 ? '本章已结算并锁定：先「撤销结算」再审稿'
@@ -460,7 +459,7 @@ window.__ModuleLoader__.load({
             h('button', {
               type: 'button',
               className: 'sc-btn',
-              onClick: () => setDraft(INSTRUCTIONS.revise(workId, chapter.number)),
+              onClick: () => compose(INSTRUCTIONS.revise(workId, chapter.number)),
               disabled: chapter.openProblems === 0 || chapter.stage === 'settled',
               title: chapter.stage === 'settled' ? '本章已结算：先「撤销结算」' : '按未处理的审稿条目改稿',
             }, '按清单修订'),
@@ -469,7 +468,7 @@ window.__ModuleLoader__.load({
                 type: 'button',
                 className: 'sc-btn',
                 title: '只作废本章结算、不改正文；之后重走 审稿 → 修订 → 结算',
-                onClick: () => setDraft(INSTRUCTIONS.reopen(workId, chapter.number)),
+                onClick: () => compose(INSTRUCTIONS.reopen(workId, chapter.number)),
               }, '撤销结算')
               : h('button', {
                 type: 'button',
@@ -480,11 +479,10 @@ window.__ModuleLoader__.load({
                   : chapter.openProblems > 0
                     ? `还有 ${chapter.openProblems} 条审稿未处理：先修订`
                     : '把本章的人物变化与伏笔记进书里，并把该章锁为已结算',
-                onClick: () => setDraft(INSTRUCTIONS.fold(workId, chapter.number)),
+                onClick: () => compose(INSTRUCTIONS.fold(workId, chapter.number)),
               }, '结算状态'),
           ),
         ),
-        draft === undefined ? null : h(DraftEditor, { draft, setDraft, send }),
         chapter.stage === 'settled'
           ? h('p', { className: 'sc-muted' },
             '本章已结算并锁定。要补审稿或改稿：点「撤销结算」——只作废结算、不动正文，然后重走 审稿 → 修订 → 结算；要连正文一起重写，才让模型带 reopen 重写。')
@@ -536,14 +534,13 @@ window.__ModuleLoader__.load({
     }
 
     /** Work detail: header actions, chapter list, selected chapter, state. */
-    function WorkDetail({ face, root, workId, onNotice, notice, canSend }) {
+    function WorkDetail({ face, root, workId, onNotice, notice, canSend, compose, draft, setDraft }) {
       const [detail, setDetail] = useState({ status: 'loading' })
       const [selected, setSelected] = useState(undefined)
       const [stateOpen, setStateOpen] = useState(false)
       const [bible, setBible] = useState({ status: 'idle' })
       const [brief, setBrief] = useState({ status: 'idle' })
       const [briefChapter, setBriefChapter] = useState(1)
-      const [draft, setDraft] = useState(undefined)
 
       const load = useCallback(async () => {
         try {
@@ -601,7 +598,7 @@ window.__ModuleLoader__.load({
             h('button', {
               type: 'button',
               className: 'sc-btn sc-btn-primary',
-              onClick: () => setDraft(INSTRUCTIONS.nextChapter(manifest.workId, nextNumber)),
+              onClick: () => compose(INSTRUCTIONS.nextChapter(manifest.workId, nextNumber)),
             }, `写第 ${nextNumber} 章`),
             h('button', { type: 'button', className: 'sc-btn', onClick: () => { void load() } }, '刷新'),
           ),
@@ -645,7 +642,7 @@ window.__ModuleLoader__.load({
         ),
 
         chapter === undefined ? null : h('div', { className: 'sc-section' },
-          h(ChapterPanel, { face, root, workId: manifest.workId, chapter, onNotice, canSend }),
+          h(ChapterPanel, { face, root, workId: manifest.workId, chapter, onNotice, canSend, compose }),
         ),
 
         h('div', { className: 'sc-section' },
@@ -765,6 +762,13 @@ window.__ModuleLoader__.load({
       const [works, setWorks] = useState([])
       const [selected, setSelected] = useState(undefined)
       const [notice, setNotice] = useState(undefined)
+      const [draft, setDraft] = useState(undefined)
+
+      // The chat composer's writer (`inputActions.setDraft`) is only handed to
+      // session-scoped slot components, and those are unmounted while a
+      // non-conversation main panel is active — so the workbench edits its own
+      // draft instead of prefilling the chat input.
+      const compose = useCallback((text) => { setDraft(text) }, [])
 
       const load = useCallback(async () => {
         if (face === undefined || face === null) {
@@ -887,6 +891,9 @@ window.__ModuleLoader__.load({
                 workId: selected,
                 notice,
                 canSend: sessionId !== undefined && sessionPreset === 'storycraft-longform',
+                compose,
+                draft,
+                setDraft,
                 onNotice: setNotice,
               })
               : null,
