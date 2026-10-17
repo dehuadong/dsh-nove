@@ -87,7 +87,9 @@ test.describe('故事工坊工作台', () => {
       node.dispatchEvent(new Event('input', { bubbles: true }))
     }, '补充：只改第 2 章结尾，别动前面。')
     await expect(draft).toHaveValue(/补充：只改第 2 章结尾/)
-    await page.getByRole('button', { name: '发送', exact: true }).evaluate(node => node.click())
+    // Two choices: send now, or copy for the chat box.
+    await expect(page.getByRole('button', { name: '复制到聊天框', exact: true })).toBeEnabled()
+    await page.getByRole('button', { name: '发送给会话', exact: true }).evaluate(node => node.click())
     await expect(page.getByText(/不是「长篇小说」模式/)).toBeVisible({ timeout: 10_000 })
   })
 })

@@ -384,9 +384,18 @@ window.__ModuleLoader__.load({
 
     /** One chapter reader with plan/body tabs, review list and state. */
     /** Inline editor: shows the canned instruction, lets the author add specifics. */
-    function DraftEditor({ draft, setDraft, send }) {
+    function DraftEditor({ draft, setDraft, send, onNotice }) {
+      const copy = async () => {
+        try {
+          await navigator.clipboard.writeText(draft)
+          onNotice({ kind: 'ok', text: '已复制：粘贴到聊天输入框，补充语气或附件后再发送。' })
+        } catch {
+          onNotice({ kind: 'error', text: '复制失败：请手动全选草稿复制。' })
+        }
+      }
       return h('div', { className: 'sc-draft' },
-        h('p', { className: 'sc-muted' }, '指令已填好：可以在后面补充你的具体要求，再发送。'),
+        h('p', { className: 'sc-muted' },
+          '指令已填好：可以在后面补充你的具体要求。草稿会留着，切换面板再回来也不丢。'),
         h('textarea', {
           className: 'sc-input sc-draft-text',
           rows: 4,
@@ -400,11 +409,18 @@ window.__ModuleLoader__.load({
             disabled: draft.trim() === '',
             onClick: async () => {
               const text = draft
-              setDraft(undefined)
               await send(text)
+              setDraft(undefined)
             },
-          }, '发送'),
-          h('button', { type: 'button', className: 'sc-btn', onClick: () => setDraft(undefined) }, '取消'),
+          }, '发送给会话'),
+          h('button', {
+            type: 'button',
+            className: 'sc-btn',
+            disabled: draft.trim() === '',
+            title: '复制到剪贴板，再粘贴进聊天输入框（输入框不接受面板直接写入）',
+            onClick: () => { void copy() },
+          }, '复制到聊天框'),
+          h('button', { type: 'button', className: 'sc-btn', onClick: () => setDraft(undefined) }, '丢弃草稿'),
         ),
       )
     }
@@ -621,6 +637,7 @@ window.__ModuleLoader__.load({
         draft === undefined ? null : h(DraftEditor, {
           draft,
           setDraft,
+          onNotice,
           send: async (text) => {
             const failure = await face.send(text)
             onNotice(failure === undefined ? { kind: 'ok', text: '指令已投递给当前会话。' } : { kind: 'error', text: failure })
@@ -772,9 +789,28 @@ window.__ModuleLoader__.load({
 
       // The chat composer's writer (`inputActions.setDraft`) is only handed to
       // session-scoped slot components, and those are unmounted while a
-      // non-conversation main panel is active — so the workbench edits its own
-      // draft instead of prefilling the chat input.
-      const compose = useCallback((text) => { setDraft(text) }, [])
+      // non-conversation main panel is active — so the workbench keeps its own
+      // draft, persisted per work so switching panels does not lose it.
+      const draftKey = `storycraft:draft:${selected ?? ''}`
+      const writeDraft = useCallback((value) => {
+        setDraft(value)
+        try {
+          if (value === undefined || value.trim() === '') localStorage.removeItem(draftKey)
+          else localStorage.setItem(draftKey, value)
+        } catch {
+          // Storage may be unavailable; the draft still lives in this render.
+        }
+      }, [draftKey])
+      useEffect(() => {
+        let saved
+        try {
+          saved = localStorage.getItem(draftKey)
+        } catch {
+          saved = null
+        }
+        setDraft(saved === null || saved === '' ? undefined : saved)
+      }, [draftKey])
+      const compose = useCallback((text) => { writeDraft(text) }, [writeDraft])
 
       const load = useCallback(async () => {
         if (face === undefined || face === null) {
@@ -899,7 +935,7 @@ window.__ModuleLoader__.load({
                 canSend: sessionId !== undefined && sessionPreset === 'storycraft-longform',
                 compose,
                 draft,
-                setDraft,
+                setDraft: writeDraft,
                 onNotice: setNotice,
               })
               : null,
