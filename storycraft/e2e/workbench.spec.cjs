@@ -58,6 +58,9 @@ test.describe('故事工坊工作台', () => {
 
   test('页面读到 fixture 作品的读数', async ({ page }) => {
     await openWorkbench(page)
+    // The tab body must receive the composer writer; without it the tab could
+    // only open a panel-local draft.
+    await expect(page.locator('[data-storycraft-input="yes"]')).toHaveCount(1, { timeout: 15_000 })
     await expect(page.getByRole('button', { name: /示例短篇/ })).toBeVisible({ timeout: 15_000 })
     await expect(page.getByText(/longform · 已写 1\/1 章 · 最新第 1 章 · 未处理 0/)).toBeVisible()
 

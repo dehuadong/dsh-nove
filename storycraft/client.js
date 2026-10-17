@@ -396,15 +396,7 @@ window.__ModuleLoader__.load({
 
     /** One chapter reader with plan/body tabs, review list and state. */
     /** Inline editor: shows the canned instruction, lets the author add specifics. */
-    function DraftEditor({ draft, setDraft, send, onNotice }) {
-      const copy = async () => {
-        try {
-          await navigator.clipboard.writeText(draft)
-          onNotice({ kind: 'ok', text: '已复制：粘贴到聊天输入框，补充语气或附件后再发送。' })
-        } catch {
-          onNotice({ kind: 'error', text: '复制失败：请手动全选草稿复制。' })
-        }
-      }
+    function DraftEditor({ draft, setDraft, send }) {
       return h('div', { className: 'sc-draft' },
         h('p', { className: 'sc-muted' },
           '指令已填好：可以在后面补充你的具体要求。草稿会留着，切换面板再回来也不丢。'),
@@ -425,13 +417,6 @@ window.__ModuleLoader__.load({
               setDraft(undefined)
             },
           }, '发送给会话'),
-          h('button', {
-            type: 'button',
-            className: 'sc-btn',
-            disabled: draft.trim() === '',
-            title: '复制到剪贴板，再粘贴进聊天输入框（输入框不接受面板直接写入）',
-            onClick: () => { void copy() },
-          }, '复制到聊天框'),
           h('button', { type: 'button', className: 'sc-btn', onClick: () => setDraft(undefined) }, '丢弃草稿'),
         ),
       )
@@ -785,39 +770,26 @@ window.__ModuleLoader__.load({
     }
 
 
-    /**
-     * The chat composer's writer, captured from a session-scoped header slot.
-     *
-     * The workbench lives in the right sidebar, so the conversation stays
-     * mounted and this bridge can hold `inputActions.setDraft` for it.
-     */
-    const composerBridge = { setDraft: undefined, sessionId: undefined }
-
-    /** Invisible header utility that keeps the composer's draft writer. */
-    function ComposerBridge({ inputActions, sessionId }) {
-      useEffect(() => {
-        if (inputActions === undefined || typeof inputActions.setDraft !== 'function') return undefined
-        composerBridge.setDraft = (text) => { inputActions.setDraft(text) }
-        composerBridge.sessionId = sessionId
-        return () => {
-          if (composerBridge.sessionId === sessionId) {
-            composerBridge.setDraft = undefined
-            composerBridge.sessionId = undefined
-          }
-        }
-      }, [inputActions, sessionId])
-      return h('span', { 'data-storycraft-bridge': 'ready', style: { display: 'none' } })
-    }
+    /** The face the tab body uses; set once when the plugin applies. */
+    let pluginFace
 
     /** Right-sidebar tab body: the workbench in a narrow column. */
     function StorycraftSideTab(props) {
-      return h(StorycraftPage, {
-        storycraft: props.storycraft,
-        compact: true,
-        prefill: typeof props.inputActions?.setDraft === 'function'
-          ? (text) => { props.inputActions.setDraft(text) }
-          : undefined,
-      })
+      // A hidden marker states whether the composer writer arrived; the specs
+      // assert it instead of guessing from behavior.
+      return h(React.Fragment, null,
+        h('span', {
+          'data-storycraft-input': typeof props.inputActions?.setDraft === 'function' ? 'yes' : 'no',
+          style: { display: 'none' },
+        }),
+        h(StorycraftPage, {
+          storycraft: props.storycraft ?? pluginFace,
+          compact: true,
+          prefill: typeof props.inputActions?.setDraft === 'function'
+            ? (text) => { props.inputActions.setDraft(text) }
+            : undefined,
+        }),
+      )
     }
 
     /** Tab chip title. */
@@ -872,11 +844,6 @@ window.__ModuleLoader__.load({
             text: `当前会话不是「长篇小说」模式（${shown}）：新建会话时选择长篇小说，或在这里复制指令到目标会话。`,
           })
           writeDraft(text)
-          return
-        }
-        if (composerBridge.setDraft !== undefined && composerBridge.sessionId === sessionId) {
-          composerBridge.setDraft(text)
-          setNotice({ kind: 'ok', text: '已填入聊天输入框：可以继续改，改完发送。' })
           return
         }
         if (typeof props.prefill === 'function') {
@@ -1035,6 +1002,7 @@ window.__ModuleLoader__.load({
       apply(ctx) {
         const bindings = { prompt: undefined }
         const face = createFace(ctx, bindings)
+        pluginFace = face
         const tabId = 'dsh-storycraft'
         // Registration is an effect: the type lives exactly as long as this plugin.
         const disposeType = ctx.effect(() => {
@@ -1051,18 +1019,11 @@ window.__ModuleLoader__.load({
         const disposeTabBody = ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
           name: 'sidebar.right.pane.tab',
           key: tabId,
-          inject: () => ({ storycraft: face }),
         }, StorycraftSideTab))
         const disposeTabTitle = ctx.slots.inject('sidebar.right.pane.tab.title', () => ctx.slots.register({
           name: 'sidebar.right.pane.tab.title',
           key: tabId,
         }, StorycraftTabTitle))
-        const disposeBridge = ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
-          name: 'conversation.session.header.utilities',
-          id: 'storycraft-composer-bridge',
-          order: 20,
-          label: '故事工坊草稿',
-        }, ComposerBridge))
         let disposeBindings
         try {
           disposeBindings = ctx.inject(['remote.session'], (scope) => {
@@ -1073,7 +1034,6 @@ window.__ModuleLoader__.load({
         }
         ctx.effect(() => () => {
           disposeBindings?.()
-          disposeBridge()
           disposeTabBody()
           disposeTabTitle()
         }, 'dsh-storycraft: sidebar entry and workbench')
