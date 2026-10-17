@@ -1,0 +1,19 @@
+{
+  "chapters": [
+    {
+      "number": 1,
+      "path": "summaries/ch-0001.md",
+      "words": 362
+    },
+    {
+      "number": 2,
+      "path": "summaries/ch-0002.md",
+      "words": 244
+    },
+    {
+      "number": 3,
+      "path": "summaries/ch-0003.md",
+      "words": 275
+    }
+  ]
+}

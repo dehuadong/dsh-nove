@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "workId": "大朔营造",
+  "title": "大朔营造",
+  "form": "longform",
+  "tags": [
+    "基建",
+    "穿越",
+    "群像",
+    "建国",
+    "写实"
+  ],
+  "createdAt": "2026-10-17T09:50:33.372Z",
+  "updatedAt": "2026-10-17T10:11:07.497Z",
+  "chapters": [
+    {
+      "id": "ch-0001",
+      "number": 1,
+      "title": "掌子面之后",
+      "status": "settled",
+      "currentRevision": 2,
+      "words": 3969,
+      "updatedAt": "2026-10-17T09:53:14.556Z",
+      "stage": "settled"
+    },
+    {
+      "id": "ch-0002",
+      "number": 2,
+      "title": "四尺",
+      "status": "settled",
+      "currentRevision": 2,
+      "words": 3789,
+      "updatedAt": "2026-10-17T09:59:13.055Z",
+      "stage": "settled"
+    },
+    {
+      "id": "ch-0003",
+      "number": 3,
+      "title": "做小",
+      "status": "settled",
+      "currentRevision": 2,
+      "words": 3213,
+      "updatedAt": "2026-10-17T10:11:07.497Z",
+      "stage": "settled"
+    }
+  ],
+  "counters": {
+    "reviewRounds": 3,
+    "openProblems": 0
+  }
+}
