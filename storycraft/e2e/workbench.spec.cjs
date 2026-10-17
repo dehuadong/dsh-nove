@@ -89,9 +89,8 @@ test.describe('故事工坊工作台', () => {
     await nextChapter.evaluate(node => node.click())
 
     // A non-long-form session may not receive an action: the gate answers and
-    // the text lands in the panel draft for copying instead of the composer.
+    // nothing is written anywhere.
     await nextChapter.evaluate(node => node.click())
-    await expect(page.locator('.sc-draft-text')).toBeVisible({ timeout: 15_000 })
     await expect(page.getByText(/不是「长篇小说」模式/)).toBeVisible({ timeout: 10_000 })
   })
 })

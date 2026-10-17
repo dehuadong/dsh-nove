@@ -24,9 +24,6 @@ window.__ModuleLoader__.load({
 .sc-title{margin:0;font-size:16px;font-weight:600;letter-spacing:.01em}
 .sc-subtitle{margin:4px 0 0;color:var(--dsw-alias-label-secondary);font-size:12px}
 .sc-header-actions{display:flex;gap:8px;flex-shrink:0}
-.sc-draft{margin:10px 0 4px;padding:10px;border:1px solid var(--dsh-border,rgba(127,127,127,.25));border-radius:8px}
-.sc-draft .sc-muted{margin:0 0 6px}
-.sc-draft-text{width:100%;box-sizing:border-box;font:inherit;resize:vertical}
 .sc-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(230px,290px) minmax(0,1fr)}
 .sc-list{min-height:0;overflow:auto;padding:14px 12px 24px;border-right:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);display:flex;flex-direction:column;gap:8px}
 .sc-list-label{margin:10px 6px 2px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dsw-alias-label-secondary)}
@@ -396,32 +393,6 @@ window.__ModuleLoader__.load({
 
     /** One chapter reader with plan/body tabs, review list and state. */
     /** Inline editor: shows the canned instruction, lets the author add specifics. */
-    function DraftEditor({ draft, setDraft, send }) {
-      return h('div', { className: 'sc-draft' },
-        h('p', { className: 'sc-muted' },
-          '指令已填好：可以在后面补充你的具体要求。草稿会留着，切换面板再回来也不丢。'),
-        h('textarea', {
-          className: 'sc-input sc-draft-text',
-          rows: 4,
-          value: draft,
-          onChange: event => setDraft(event.target.value),
-        }),
-        h('div', { className: 'sc-actions' },
-          h('button', {
-            type: 'button',
-            className: 'sc-btn sc-btn-primary',
-            disabled: draft.trim() === '',
-            onClick: async () => {
-              const text = draft
-              await send(text)
-              setDraft(undefined)
-            },
-          }, '发送给会话'),
-          h('button', { type: 'button', className: 'sc-btn', onClick: () => setDraft(undefined) }, '丢弃草稿'),
-        ),
-      )
-    }
-
     function ChapterPanel({ face, root, workId, chapter, onNotice, canSend, compose }) {
       const [view, setView] = useState('body')
       const [revision, setRevision] = useState(0)
@@ -553,7 +524,7 @@ window.__ModuleLoader__.load({
     }
 
     /** Work detail: header actions, chapter list, selected chapter, state. */
-    function WorkDetail({ face, root, workId, onNotice, notice, canSend, compose, draft, setDraft }) {
+    function WorkDetail({ face, root, workId, onNotice, notice, canSend, compose }) {
       const [detail, setDetail] = useState({ status: 'loading' })
       const [selected, setSelected] = useState(undefined)
       const [stateOpen, setStateOpen] = useState(false)
@@ -631,15 +602,6 @@ window.__ModuleLoader__.load({
         ),
         notice === undefined ? null : h('p', { className: `sc-notice sc-notice-${notice.kind}`, style: { marginTop: 12 } }, notice.text),
 
-        draft === undefined ? null : h(DraftEditor, {
-          draft,
-          setDraft,
-          onNotice,
-          send: async (text) => {
-            const failure = await face.send(text)
-            onNotice(failure === undefined ? { kind: 'ok', text: '指令已投递给当前会话。' } : { kind: 'error', text: failure })
-          },
-        }),
         h('div', { className: 'sc-section' },
           h('h3', { className: 'sc-section-title' }, '章节'),
           chapters.length === 0
@@ -809,53 +771,24 @@ window.__ModuleLoader__.load({
       const [works, setWorks] = useState([])
       const [selected, setSelected] = useState(undefined)
       const [notice, setNotice] = useState(undefined)
-      const [draft, setDraft] = useState(undefined)
-
-      // The chat composer's writer (`inputActions.setDraft`) is only handed to
-      // session-scoped slot components, and those are unmounted while a
-      // non-conversation main panel is active — so the workbench keeps its own
-      // draft, persisted per work so switching panels does not lose it.
-      const draftKey = `storycraft:draft:${selected ?? ''}`
-      const writeDraft = useCallback((value) => {
-        setDraft(value)
-        try {
-          if (value === undefined || value.trim() === '') localStorage.removeItem(draftKey)
-          else localStorage.setItem(draftKey, value)
-        } catch {
-          // Storage may be unavailable; the draft still lives in this render.
-        }
-      }, [draftKey])
-      useEffect(() => {
-        let saved
-        try {
-          saved = localStorage.getItem(draftKey)
-        } catch {
-          saved = null
-        }
-        setDraft(saved === null || saved === '' ? undefined : saved)
-      }, [draftKey])
       const compose = useCallback((text) => {
-        // Prefilling the real composer bypasses the workbench's own gate, so the
-        // gate runs here first: only a long-form session may receive an action.
+        // Writing the real composer bypasses the workbench's own gate, so the
+        // gate runs first: only a long-form session may receive an action.
         if (sessionPreset !== 'storycraft-longform') {
           const shown = sessionPreset === undefined ? '没有记录预设' : `当前是 ${sessionPreset}`
           setNotice({
             kind: 'error',
-            text: `当前会话不是「长篇小说」模式（${shown}）：新建会话时选择长篇小说，或在这里复制指令到目标会话。`,
+            text: `当前会话不是「长篇小说」模式（${shown}）：新建会话时选择长篇小说，再点一次。`,
           })
-          writeDraft(text)
           return
         }
-        if (typeof props.prefill === 'function') {
-          // A stale draft from an earlier click must not linger next to the
-          // instruction that just went into the composer.
-          writeDraft(undefined)
-          props.prefill(text)
-          setNotice({ kind: 'ok', text: '已填入聊天输入框：可以继续改，改完发送。' })
+        if (typeof props.prefill !== 'function') {
+          setNotice({ kind: 'error', text: '聊天输入框暂时不可写入：刷新页面后再试。' })
           return
         }
-        writeDraft(text)
-      }, [props.prefill, sessionPreset, sessionId, writeDraft])
+        props.prefill(text)
+        setNotice({ kind: 'ok', text: '已填入聊天输入框：可以继续改，改完发送。' })
+      }, [props.prefill, sessionPreset])
 
 
       const load = useCallback(async () => {
@@ -981,8 +914,6 @@ window.__ModuleLoader__.load({
                 canSend: sessionId !== undefined && sessionPreset === 'storycraft-longform',
                 compose,
                 prefill: props.prefill,
-                draft,
-                setDraft: writeDraft,
                 onNotice: setNotice,
               })
               : null,
