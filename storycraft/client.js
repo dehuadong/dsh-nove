@@ -205,9 +205,13 @@ window.__ModuleLoader__.load({
           const sidebar = ctx.get('sidebarRight')
           const layout = ctx.get('layout')
           if (sidebar === undefined) return false
-          layout?.openRightbar?.(false, false)
-          sidebar.openTab(kind, undefined)
-          return true
+          try {
+            layout?.openRightbar?.(false, false)
+            sidebar.openTab(kind, undefined)
+            return true
+          } catch {
+            return false
+          }
         },
         /** Send the main panel back to the conversation. */
         showConversation() {
@@ -834,6 +838,13 @@ window.__ModuleLoader__.load({
         }
         setDraft(saved === null || saved === '' ? undefined : saved)
       }, [draftKey])
+      const redirected = useRef(false)
+      useEffect(() => {
+        if (props.compact === true || redirected.current) return
+        redirected.current = true
+        if (face.openSidebarTab('storycraft')) face.showConversation()
+      }, [face, props.compact])
+
       const compose = useCallback((text) => {
         if (typeof props.prefill === 'function') {
           props.prefill(text)
@@ -1025,9 +1036,11 @@ window.__ModuleLoader__.load({
           label: '故事工坊',
         }, StorycraftIcon))
         const tabId = 'dsh-storycraft'
-        let disposeType
-        try {
-          disposeType = ctx.sidebarRightTabs?.register({
+        // Registration is an effect: the type lives exactly as long as this plugin.
+        const disposeType = ctx.effect(() => {
+          const tabs = ctx.get('sidebarRightTabs')
+          if (tabs === undefined) return undefined
+          return tabs.register({
             id: tabId,
             kind: 'storycraft',
             multiple: false,
@@ -1036,9 +1049,7 @@ window.__ModuleLoader__.load({
             title: () => '故事工坊',
             guide: [{ id: 'open', order: 30, title: () => '故事工坊', description: () => '作品编排、真值与章节生产' }],
           })
-        } catch (error) {
-          console.warn('[dsh-storycraft] right sidebar tab unavailable:', error)
-        }
+        })
         const disposeTabBody = ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
           name: 'sidebar.right.pane.tab',
           key: tabId,
@@ -1062,7 +1073,6 @@ window.__ModuleLoader__.load({
           disposeEntry()
           disposeTabBody()
           disposeTabTitle()
-          disposeType?.()
         }, 'dsh-storycraft: sidebar entry and workbench')
       },
     }
