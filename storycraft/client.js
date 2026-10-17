@@ -847,6 +847,9 @@ window.__ModuleLoader__.load({
           return
         }
         if (typeof props.prefill === 'function') {
+          // A stale draft from an earlier click must not linger next to the
+          // instruction that just went into the composer.
+          writeDraft(undefined)
           props.prefill(text)
           setNotice({ kind: 'ok', text: '已填入聊天输入框：可以继续改，改完发送。' })
           return
