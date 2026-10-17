@@ -91,7 +91,7 @@ function now() {
 }
 
 /** Zero-padded chapter file stem: 1 → `ch-0001`. */
-function chapterStem(number) {
+export function chapterStem(number) {
   return `ch-${String(number).padStart(4, '0')}`
 }
 
@@ -100,7 +100,7 @@ function chapterStem(number) {
  * @param {unknown} value - model-supplied chapter number.
  * @returns {number} a positive integer.
  */
-function chapterNumber(value) {
+export function chapterNumber(value) {
   const number = Number(value)
   if (!Number.isInteger(number) || number < 1) {
     throw new StoryError('invalid-chapter', `章号必须是正整数，收到：${String(value)}`)

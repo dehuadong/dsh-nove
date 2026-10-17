@@ -9,9 +9,10 @@
 
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, readdir } from 'node:fs/promises'
 import {
-  StoryError, foldEvents, readChapter, readManifest, readOptional, rootRelative, withWorkLock, workDirectory, writeAtomic,
+  StoryError, chapterNumber, chapterStem, foldEvents, readChapter, readManifest, readOptional, rootRelative,
+  withWorkLock, workDirectory, writeAtomic,
 } from './storage.js'
 
 /** Every truth file, with how its content is validated. */
@@ -51,18 +52,6 @@ export function isDraft(text) {
 /** Byte length of the UTF-8 encoding. */
 function byteLength(text) {
   return Buffer.byteLength(String(text), 'utf8')
-}
-
-/** Zero-padded chapter stem: 1 → `ch-0001`. */
-function chapterStem(number) {
-  return `ch-${String(number).padStart(4, '0')}`
-}
-
-/** Chapter number validation shared by the summary and brief paths. */
-function chapterNumber(value) {
-  const number = Number(value)
-  if (!Number.isInteger(number) || number < 1) throw new StoryError('invalid-chapter', `章号必须是正整数，收到：${String(value)}`)
-  return number
 }
 
 /**
@@ -105,10 +94,14 @@ export function parseCharacters(text) {
 export function validateBibleContent(name, content) {
   const spec = BIBLE_FILES[name]
   if (spec === undefined) throw new StoryError('bible-invalid', `未知的真值文件：${String(name)}`)
-  if (typeof content !== 'string' || content.trim() === '') {
+  const text = typeof content === 'string' ? content : ''
+  if (name !== 'intent' && text.trim() === '') {
     throw new StoryError('bible-invalid', `${spec.file} 不能为空`)
   }
-  if (spec.kind === 'characters') parseCharacters(content)
+  if (name === 'world' && /(^|[\s：:])(TODO|待定)([\s：:，。]|$)/mu.test(text)) {
+    throw new StoryError('bible-invalid', 'world.md 不能把待定事项写成已定事实（去掉 TODO/待定标记后再写入）')
+  }
+  if (spec.kind === 'characters') parseCharacters(text)
 }
 
 /**
@@ -142,10 +135,10 @@ export async function readBible(root, workId, only) {
       draft: isDraft(content),
     })
   }
-  if (missing.length > 0) {
-    throw new StoryError('bible-missing', `真值文件缺失：${missing.join('、')}（可用 story_bible_write 补建）`, )
+  if (missing.length > 0 && only !== undefined) {
+    throw new StoryError('bible-missing', `真值文件缺失：${missing.join('、')}（可用 story_bible_write 补建）`)
   }
-  return { files }
+  return { files, missing }
 }
 
 /**
@@ -190,6 +183,7 @@ export async function importBible(root, workId) {
       throw new StoryError('nothing-to-import', '没有可收编的 design/ 内容')
     }
     const imported = []
+    const skipped = []
     await mkdir(join(dir, 'bible'), { recursive: true })
     const targets = [
       { name: 'world', from: 'design/world.md', content: world },
@@ -198,19 +192,26 @@ export async function importBible(root, workId) {
     for (const target of targets) {
       if (target.content === undefined) continue
       const spec = BIBLE_FILES[target.name]
+      const existing = await readOptional(join(dir, spec.file))
+      if (existing !== undefined && !isDraft(existing)) {
+        skipped.push(`${spec.file}（已有内容，未覆盖）`)
+        continue
+      }
       await writeAtomic(join(dir, spec.file), target.content)
       imported.push({ from: target.from, to: spec.file, version: contentVersion(target.content) })
     }
-    const names = cast === undefined
+    const headings = (pattern) => cast === undefined
       ? []
-      : [...cast.matchAll(/^##\s+(.+)$/gm)]
+      : [...cast.matchAll(pattern)]
         .map(match => match[1].trim())
         .filter(name => name !== '' && !/^[\d.、\s]+$/.test(name))
+    const deep = headings(/^###\s+(.+)$/gm)
+    const names = deep.length > 0 ? deep : headings(/^##\s+(.+)$/gm)
     const pending = []
     if (names.length > 0) pending.push('characters（已抽出人名，缺 role/want/fear/limit/voice）')
     else pending.push('characters')
     pending.push('style', 'intent')
-    return { imported, pending, names }
+    return { imported, pending, names, skipped }
   })
 }
 
@@ -223,6 +224,31 @@ export async function importBible(root, workId) {
  */
 function summaryPath(root, workId, chapter) {
   return join(workDirectory(root, workId), 'summaries', `${chapterStem(chapter)}.md`)
+}
+
+/**
+ * Chapter summary index, rebuilt from the files on disk.
+ * @param {string} root - workspace directory.
+ * @param {string} workId - work identity.
+ * @returns {Promise<{chapters: object[]}>} index payload.
+ */
+export async function summaryIndex(root, workId) {
+  const dir = join(workDirectory(root, workId), 'summaries')
+  let names
+  try {
+    names = await readdir(dir)
+  } catch {
+    return { chapters: [] }
+  }
+  const chapters = []
+  for (const name of names) {
+    const match = /^ch-(\d{4})\.md$/.exec(name)
+    if (match === null) continue
+    const text = (await readOptional(join(dir, name))) ?? ''
+    chapters.push({ number: Number(match[1]), path: `summaries/${name}`, words: [...text.trim()].length })
+  }
+  chapters.sort((left, right) => left.number - right.number)
+  return { chapters }
 }
 
 /**
@@ -258,8 +284,10 @@ export async function writeSummary(root, workId, chapter, text) {
     const truncated = chars.length > SUMMARY_MAX_CHARS
     const content = `${truncated ? chars.slice(0, SUMMARY_MAX_CHARS).join('') : body}\n`
     const file = summaryPath(root, manifest.workId, number)
-    await mkdir(join(workDirectory(root, manifest.workId), 'summaries'), { recursive: true })
+    const dir = join(workDirectory(root, manifest.workId), 'summaries')
+    await mkdir(dir, { recursive: true })
     await writeAtomic(file, content)
+    await writeAtomic(join(dir, 'index.json'), `${JSON.stringify(await summaryIndex(root, manifest.workId), null, 2)}\n`)
     return { path: rootRelative(root, file), truncated, words: [...body].length }
   })
 }
@@ -297,7 +325,9 @@ export async function assembleBrief(root, workId, chapter) {
 
   const characters = parseCharacters(raw.characters)
   const planText = plan ?? ''
-  const matched = characters.filter(record => planText.includes(record.name))
+  const matched = characters
+    .filter(record => planText.includes(record.name))
+    .sort((left, right) => planText.indexOf(left.name) - planText.indexOf(right.name))
   const chosen = matched.length > 0 ? matched : characters
   const characterText = chosen
     .map(record => `- ${record.name}（${record.role}）：想要 ${record.want}；害怕 ${record.fear}；底线 ${record.limit}；口吻 ${record.voice}`)
@@ -311,9 +341,9 @@ export async function assembleBrief(root, workId, chapter) {
 
   const sections = [
     section('intent', '作者意图与当前焦点', raw.intent, 'bible/intent.md'),
-    section('plan', '本章章纲', planText, `outline/${entry.id}.plan.md`, plan === undefined),
-    section('characters', '本章涉及人物', characterText, 'bible/characters.json', false, matched.length === 0 ? 'fallback' : undefined),
-    section('hooks', '未解伏笔', hookText, 'state/events.jsonl', hooks.length === 0),
+    section('plan', '本章章纲', planText, `outline/${entry.id}.plan.md`, { absent: plan === undefined }),
+    section('characters', '本章涉及人物', characterText, 'bible/characters.json', { fallback: matched.length === 0 }),
+    section('hooks', '未解伏笔', hookText, 'state/events.jsonl', { absent: hooks.length === 0 }),
     await previousSection(root, manifest, number),
     section('style', '文风要点', raw.style, 'bible/style.md'),
     section('wordPolicy', '字数口径', WORD_POLICY, 'storycraft'),
@@ -339,7 +369,8 @@ export async function assembleBrief(root, workId, chapter) {
  * One brief section.
  * @returns {object} section record.
  */
-function section(name, title, content, source, absent = false, note) {
+function section(name, title, content, source, options = {}) {
+  const absent = options.absent === true
   const text = absent ? '' : String(content ?? '')
   return {
     name,
@@ -349,7 +380,8 @@ function section(name, title, content, source, absent = false, note) {
     bytes: byteLength(text),
     absent,
     ...(isDraft(text) && !absent ? { draft: true } : {}),
-    ...(note === undefined ? {} : { note }),
+    ...(options.fallback === true ? { fallback: true } : {}),
+    ...(options.bodyFallback === true ? { bodyFallback: true } : {}),
   }
 }
 
@@ -362,7 +394,7 @@ function section(name, title, content, source, absent = false, note) {
  * @returns {Promise<object>} section record.
  */
 async function previousSection(root, manifest, number) {
-  if (number === 1) return section('previous', '上一章结尾', '', '', true)
+  if (number === 1) return section('previous', '上一章结尾', '', '', { absent: true })
   const previous = number - 1
   const summary = await readSummary(root, manifest.workId, previous)
   if (summary !== undefined && summary.trim() !== '') {
@@ -374,7 +406,7 @@ async function previousSection(root, manifest, number) {
   } catch {
     body = undefined
   }
-  if (body === undefined) return section('previous', '上一章结尾', '', '', true)
+  if (body === undefined) return section('previous', '上一章结尾', '', '', { absent: true })
   const lines = body.split(/\r?\n/)
   let tail = ''
   for (let index = lines.length - 1; index >= 0; index -= 1) {
@@ -382,6 +414,5 @@ async function previousSection(root, manifest, number) {
     if (byteLength(next) > PREV_TAIL_BYTES) break
     tail = next
   }
-  const built = section('previous', '上一章结尾', tail.trim(), `chapters/${chapterStem(previous)}.md`)
-  return { ...built, note: 'summary-missing' }
+  return section('previous', '上一章结尾', tail.trim(), `chapters/${chapterStem(previous)}.md`, { bodyFallback: true })
 }

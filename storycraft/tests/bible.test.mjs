@@ -109,6 +109,46 @@ try {
   const imported = await readFile(join(olderDir, 'bible', 'world.md'), 'utf8')
   check('imported content landed', imported.includes('旧稿的世界'))
   check('import never fabricates characters', (await readFile(join(olderDir, 'bible', 'characters.json'), 'utf8')).trim() === '[]')
+
+  // Review round 1 additions.
+  await rejects('world refuses pending markers', 'bible-invalid', () => b.writeBible(root, work, 'world', '# 世界观\n\n待定：主角身世\n'))
+  const intent = await b.writeBible(root, work, 'intent', '')
+  check('intent may be empty', typeof intent.version === 'string')
+
+  const partial = await b.readBible(root, work)
+  check('read-all reports missing instead of throwing', Array.isArray(partial.missing) && partial.missing.length >= 0, JSON.stringify(partial.missing))
+
+  const index = JSON.parse(await readFile(join(root, 'works', work, 'summaries', 'index.json'), 'utf8'))
+  check('summary index lists the chapter', index.chapters.length === 1 && index.chapters[0].number === 1, JSON.stringify(index))
+
+  // Plan order, not file order.
+  await b.writeBible(root, work, 'characters', JSON.stringify([
+    { name: '乙', role: 'r', want: 'w', fear: 'f', limit: 'l', voice: 'v' },
+    { name: '甲', role: 'r', want: 'w', fear: 'f', limit: 'l', voice: 'v' },
+  ]))
+  await s.writePlan(root, { work, chapter: 3, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+  await s.writeChapter(root, { work, chapter: 3, title: '三', body }).catch(() => {})
+  await b.writeBible(root, work, 'style', '# 文风基准\n\n短句。\n')
+  const ordered = await b.assembleBrief(root, work, 2)
+  const characters = ordered.sections.find(section => section.name === 'characters')
+  check('characters follow plan order', characters.content.indexOf('乙') < characters.content.indexOf('甲'), characters.content.slice(0, 40))
+
+  // Fallback marker when no name appears in the plan.
+  await b.writeBible(root, work, 'plan', '# 写作计划\n\n与人物无关。\n')
+  await s.writePlan(root, { work, chapter: 4, perspective: '路人', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+  const fallback = await b.assembleBrief(root, work, 4)
+  check('fallback section is marked', fallback.sections.find(section => section.name === 'characters').fallback === true)
+
+  // Import must not overwrite a truth file that already holds content.
+  await b.writeBible(root, older.workId, 'world', '# 世界观\n\n作者已经改过的版本。\n')
+  const second = await b.importBible(root, older.workId)
+  check('import skips existing content', second.skipped.length === 2 && second.skipped.some(item => item.includes('world.md')), JSON.stringify(second.skipped))
+  check('import keeps author content', (await readFile(join(olderDir, 'bible', 'world.md'), 'utf8')).includes('作者已经改过'))
+
+  // Previous chapter falls back to the body tail when no summary exists.
+  const noSummary = await b.assembleBrief(root, work, 3)
+  const tailSection = noSummary.sections.find(section => section.name === 'previous')
+  check('body fallback marked', tailSection.bodyFallback === true || tailSection.absent === true, JSON.stringify({ absent: tailSection.absent, bodyFallback: tailSection.bodyFallback }))
 } finally {
   await rm(root, { recursive: true, force: true })
 }

@@ -39,11 +39,11 @@ updated: 2026-10-17
 | --- | --- | --- | --- |
 | `story_bible` | 作品 id、文件名（`world`/`characters`/`style`/`plan`/`intent`，可省略以读全部） | `files[]`（name、path、version、content、draft 标记） | 文件缺失返回 `bible-missing` 并列出缺失项 |
 | `story_bible_write` | 作品 id、文件名、内容 | `artifact { path }`、`version` | 结构不合法返回 `bible-invalid`（附失败的字段），文件与版本不变 |
-| `story_bible_import` | 作品 id | `imported[]`（来源→目标、version）、`pending[]`（仍需作者补的结构化项）、`names[]`（从 `design/cast.md` 抽出的人名） | 作品不存在、或 `design/` 无可用内容时返回 `nothing-to-import` |
+| `story_bible_import` | 作品 id | `imported[]`（来源→目标、version）、`pending[]`（仍需作者补的结构化项）、`names[]`（从 `design/cast.md` 抽出的人名）、`skipped[]`（已有内容、未覆盖的文件） | 作品不存在、或 `design/` 无可用内容时返回 `nothing-to-import` |
 | `story_brief` | 作品 id、章号 | `sections[]`、`budget`、`missing[]`、`dropped[]` | 真值缺失返回 `bible-missing`；章不存在返回 `chapter-not-found` |
 | `story_summarize` | 作品 id、章号（正文可选由动作读取） | `artifact { path }`、`words` | 正文不存在返回 `body-not-found` |
 
-`story_summarize` 读当前版本的正文，写 `summaries/ch-0001.md`，长度上限 400 字（超出截断并在结果中报告 `truncated: true`），不修改正文与 manifest 的章状态。
+`story_summarize` 以进度清单的当前版本作为存在性依据（不读正文内容），写 `summaries/ch-0001.md` 并重建 `summaries/index.json`，长度上限 400 字（超出截断并在结果中报告 `truncated: true`），不修改正文与 manifest 的章状态。
 
 ### 写前上下文装配
 
@@ -51,7 +51,7 @@ updated: 2026-10-17
 
 1. **取料**：`bible/intent.md`、目标章章纲、`bible/characters.json`、`state/events.jsonl` 折叠出的未解伏笔、上一章摘要与结尾、`bible/style.md`、字数口径常量。
 2. **选人物**：按章纲全文做名字匹配（`name` 出现在章纲里即入选）；章纲一个都没命中时退化为「档案全部入选」并在 `sections` 标注 `fallback: true`。
-3. **分段排序**（高→低）：意图与焦点 → 章纲 → 入选人物档案 → 未解伏笔 → 上一章结尾（末尾 800 字节，按行边界截）→ 文风要点 → 字数口径。
+3. **分段排序**（高→低）：意图与焦点 → 章纲 → 入选人物档案（按章纲中出现的先后排序；一个都没命中时取全部并标 `fallback: true`）→ 未解伏笔 → 上一章结尾（末尾 800 字节，按行边界截；回退正文时标 `bodyFallback: true`）→ 文风要点 → 字数口径。
    - 第一章或上一章不存在：该段记为 `absent`，不算失败。
    - 上一章有摘要时用摘要；摘要缺失时回退为正文末尾 800 字节，并在该段标注 `source: body`。
 4. **预算**：上限 8192 字节。逐段整段纳入；剩余不足时从最低优先级段开始整段丢弃，记入 `dropped[]`（名称、字节数、原因 `budget`）；高优先级段即使超预算也保留，并记 `overBudget: true`。
@@ -62,7 +62,7 @@ updated: 2026-10-17
 
 两个只读路由，复用装配函数，不另写一套逻辑：
 
-- `GET /api/dsh-storycraft/bible?root=&id=` → `{ files: [...], missing: [...] }`
+- `GET /api/dsh-storycraft/bible?root=&id=[&file=]` → `{ files: [...], missing: [...] }`；不带 `file` 时列出五件并标出缺失项，带 `file` 时只读那一份、缺失即错误。
 - `GET /api/dsh-storycraft/brief?root=&id=&chapter=` → `assembleBrief` 的结果
 
 工作台作品详情加两个视图：「真值」（五件列表、内容、版本、缺失项）与「写前上下文」（选章显示装配结果、预算占用、被裁项、草稿标记）。
@@ -70,7 +70,7 @@ updated: 2026-10-17
 ### 兼容与迁移
 
 - `story_init` 在建立作品时创建 `bible/` 五件（Markdown 只写标题，`characters.json` 写 `[]`）；`story_bible_write` 允许补建缺失文件，`story_bible` 只读、不补建。
-- 既有作品（issue #1 验证时创建的那部）没有 `bible/`：`story_bible` 返回 `bible-missing`；`story_bible_write` 允许落盘补建；`story_bible_import` 一次性收编 `design/world.md` → `bible/world.md`、`design/outline.md` → `bible/plan.md`，并从 `design/cast.md` 的二级标题抽人名，其余结构化项列为 `pending`，不猜字段。
+- 既有作品（issue #1 验证时创建的那部）没有 `bible/`：`story_bible` 返回 `bible-missing`；`story_bible_write` 允许落盘补建；`story_bible_import` 一次性收编 `design/world.md` → `bible/world.md`、`design/outline.md` → `bible/plan.md`（目标已有内容则不覆盖，记入 `skipped`），人名优先取 `###` 标题、没有时取 `##` 标题，其余结构化项列为 `pending`，不猜字段。
 - 装配函数同时供动作与路由使用，避免两处实现漂移。
 
 ## 备选方案

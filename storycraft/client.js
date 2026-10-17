@@ -331,7 +331,7 @@ window.__ModuleLoader__.load({
         h('h2', { className: 'sc-detail-title' }, '还没有作品'),
         h('p', null, '作品落在当前工作区的 works/ 目录里：一部作品一个目录，含章纲、正文、审稿清单与状态。'),
         h('ul', { className: 'sc-steps' },
-          h('li', null, '长篇小说：人设 + 单章写法技能 + 七个动作（立项 / 章纲 / 正文 / 审稿 / 修订 / 状态结算 / 进度）。'),
+          h('li', null, '长篇小说：人设 + 单章写法技能 + 十二个动作（立项 / 章纲 / 正文 / 审稿 / 修订 / 状态结算 / 进度，以及真值、导入、摘要、写前上下文）。'),
           h('li', null, '短篇小说：人设 + 短篇写法技能；生产动作尚未接入。'),
           h('li', null, '短剧剧本：人设 + 竖屏短剧写法技能；生产动作尚未接入。'),
         ),
@@ -461,6 +461,7 @@ window.__ModuleLoader__.load({
       const [stateOpen, setStateOpen] = useState(false)
       const [bible, setBible] = useState({ status: 'idle' })
       const [brief, setBrief] = useState({ status: 'idle' })
+      const [briefChapter, setBriefChapter] = useState(1)
 
       const load = useCallback(async () => {
         try {
@@ -473,12 +474,13 @@ window.__ModuleLoader__.load({
       }, [face, root, workId])
 
       useEffect(() => { void load() }, [load])
+      useEffect(() => { setBriefChapter(selected ?? 1) }, [selected])
 
       const loadBible = async () => {
         setBible({ status: 'loading' })
         try {
           const payload = await face.bible(root, workId)
-          setBible({ status: 'ready', files: payload.files ?? [] })
+          setBible({ status: 'ready', files: payload.files ?? [], missing: payload.missing ?? [] })
         } catch (error) {
           setBible({ status: 'error', error: error instanceof Error ? error.message : String(error) })
         }
@@ -555,24 +557,38 @@ window.__ModuleLoader__.load({
         h('div', { className: 'sc-section' },
           h('div', { className: 'sc-actions' },
             h('button', { type: 'button', className: 'sc-btn', onClick: () => { void loadBible() } }, '真值'),
+            h('select', {
+              className: 'sc-input',
+              'aria-label': '写前上下文目标章',
+              value: briefChapter,
+              onChange: event => setBriefChapter(Number(event.target.value)),
+            }, ...chapters.map(item => h('option', { key: item.number, value: item.number }, `第 ${item.number} 章`))),
             h('button', {
               type: 'button',
               className: 'sc-btn',
-              onClick: () => { void loadBrief(selected ?? nextNumber) },
+              onClick: () => { void loadBrief(briefChapter) },
             }, '写前上下文'),
           ),
           bible.status === 'loading' ? h('p', { className: 'sc-muted' }, '读取真值…') : null,
           bible.status === 'error' ? h('p', { className: 'sc-notice sc-notice-info' }, bible.error) : null,
           bible.status === 'ready'
-            ? h('div', { style: { marginTop: 10 } }, ...bible.files.map(file => h('div', { className: 'sc-item', key: file.name },
-              h('div', { className: 'sc-item-head' },
-                h('span', { className: 'sc-item-name' }, file.name),
-                h('span', { className: 'sc-item-id' }, file.path),
-                h('span', { className: 'sc-badge' }, `v${file.version}`),
-                file.draft ? h('span', { className: 'sc-badge sc-badge-warn' }, '草稿') : null,
-              ),
-              h('pre', { className: 'sc-yaml' }, file.content),
-            )))
+            ? h('div', { style: { marginTop: 10 } },
+              ...(bible.missing ?? []).map(name => h('div', { className: 'sc-item', key: name },
+                h('div', { className: 'sc-item-head' },
+                  h('span', { className: 'sc-item-name' }, name),
+                  h('span', { className: 'sc-badge sc-badge-warn' }, '缺失'),
+                ),
+                h('p', { className: 'sc-item-body' }, '用 story_bible_write 补建这份真值。'),
+              )),
+              ...bible.files.map(file => h('div', { className: 'sc-item', key: file.name },
+                h('div', { className: 'sc-item-head' },
+                  h('span', { className: 'sc-item-name' }, file.name),
+                  h('span', { className: 'sc-item-id' }, file.path),
+                  h('span', { className: 'sc-badge' }, `v${file.version}`),
+                  file.draft ? h('span', { className: 'sc-badge sc-badge-warn' }, '草稿') : null,
+                ),
+                h('pre', { className: 'sc-yaml' }, file.content),
+              )))
             : null,
           brief.status === 'loading' ? h('p', { className: 'sc-muted' }, '装配写前上下文…') : null,
           brief.status === 'error' ? h('p', { className: 'sc-notice sc-notice-info' }, brief.error) : null,

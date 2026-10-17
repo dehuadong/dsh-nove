@@ -40,7 +40,14 @@ function workspaceOf(exec) {
 /** Turn a thrown value into the structured failure every action returns. */
 function failureOf(error) {
   if (error instanceof StoryError) {
-    return { ok: false, error: { code: error.code, message: error.message } }
+    const missing = error.code === 'bible-missing'
+      ? error.message.replace(/^.*?：/u, '').split('（')[0].split('、').map(name => name.trim()).filter(Boolean)
+      : undefined
+    return {
+      ok: false,
+      ...(missing === undefined ? {} : { missing }),
+      error: { code: error.code, message: error.message },
+    }
   }
   const message = error instanceof Error ? error.message : String(error)
   return { ok: false, error: { code: 'internal', message } }
@@ -60,7 +67,7 @@ const OUTPUT_PROPERTIES = {
     },
     required: ['path'],
   },
-  words: { type: 'integer', description: 'Word count of the written body.' },
+  words: { type: 'integer', description: 'Character count of the returned text (body or summary).' },
   problems: {
     type: 'array',
     description: 'Persisted review items.',
@@ -166,6 +173,7 @@ const OUTPUT_PROPERTIES = {
     },
   },
   pending: { type: 'array', description: 'Truth still to be filled in.', items: { type: 'string' } },
+  skipped: { type: 'array', description: 'Files the import left untouched because they already hold content.', items: { type: 'string' } },
   names: { type: 'array', description: 'Character names found in the old cast file.', items: { type: 'string' } },
   truncated: { type: 'boolean' },
   status: {
@@ -449,7 +457,7 @@ function definitions() {
       async execute(args, exec) {
         const root = workspaceOf(exec)
         const result = await readBibleEntries(root, args.work, typeof args.file === 'string' ? args.file : undefined)
-        return { ok: true, workId: args.work, files: result.files }
+        return { ok: true, workId: args.work, files: result.files, ...(result.missing.length > 0 ? { missing: result.missing } : {}) }
       },
     }),
 
@@ -489,7 +497,10 @@ function definitions() {
       async execute(args, exec) {
         const root = workspaceOf(exec)
         const report = await importFromDesign(root, args.work)
-        return { ok: true, workId: args.work, imported: report.imported, pending: report.pending, names: report.names }
+        return {
+          ok: true, workId: args.work, imported: report.imported, pending: report.pending,
+          names: report.names, skipped: report.skipped,
+        }
       },
     }),
 

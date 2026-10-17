@@ -25,7 +25,6 @@ const candidates = [
   process.env.DSH_E2E_PLAYWRIGHT_ROOT,
   projectRoot,
   repoRoot,
-  'E:/workspace/dsh-plugin/dsh-seework',
 ].filter(Boolean)
 
 /** Locate the Playwright CLI and the node_modules root that resolves it. */
@@ -50,7 +49,8 @@ if (playwright === undefined) {
 }
 
 const extra = process.argv.slice(2)
-const port = Number(process.env.DSH_E2E_PORT ?? '3317')
+// A fresh port per run: a pinned one collides with whatever else is listening.
+const port = Number(process.env.DSH_E2E_PORT ?? String(33000 + Math.floor(Math.random() * 900)))
 
 rmSync(runtimeFile, { force: true })
 const host = spawn(process.execPath, [path.join(e2eDir, 'host.mjs')], {

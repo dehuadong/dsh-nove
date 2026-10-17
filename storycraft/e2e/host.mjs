@@ -24,9 +24,13 @@ const projectRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
 const repoRoot = path.resolve(projectRoot, '..')
 const packageName = 'dsh-storycraft'
 
-const ARTIFACTS = ['index.js', 'client.js', 'skills.js', 'tools.js', 'storage.js', 'bible.js', 'cordis.patch.yml', 'package.json', 'icon.svg', 'skills']
+// What the host reads out of the package: its manifest lists the shipped files.
+const ARTIFACTS = [
+  ...(JSON.parse(readFileSync(path.join(projectRoot, 'package.json'), 'utf8')).files ?? []),
+  'package.json',
+]
 
-const port = Number(process.env.DSH_E2E_PORT ?? '3317')
+const port = Number(process.env.DSH_E2E_PORT ?? String(33000 + Math.floor(Math.random() * 900)))
 if (!Number.isInteger(port) || port <= 0) {
   console.error(`[e2e-host] DSH_E2E_PORT 不是合法端口：${JSON.stringify(process.env.DSH_E2E_PORT)}`)
   process.exit(1)

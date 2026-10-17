@@ -49,6 +49,9 @@ test.describe('故事工坊工作台', () => {
     await expect(page.getByRole('button', { name: '正文', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: '章纲', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'r1', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'r2', exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'r1', exact: true }).evaluate(node => node.click())
+    await expect(page.getByText('ch-0001.md（r1）')).toBeVisible()
     await page.getByRole('button', { name: '章纲', exact: true }).evaluate(node => node.click())
     await expect(page.getByText(/结尾变化/)).toBeVisible()
 
