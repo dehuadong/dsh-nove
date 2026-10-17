@@ -1,5 +1,5 @@
 // Stage machine and action gates (A1a).
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../storage.js'
@@ -106,6 +106,34 @@ try {
   await s.reviseChapter(root, { work, chapter: 2, body: '改过的第二章。'.repeat(40), problemIds: ['Q1'] })
   next = await s.nextStep(root, work)
   check('next suggests settle for chapter 2', next.action === 'story_state', JSON.stringify(next))
+
+  // Settle chapter 2 first, then reopen it alone (no rewrite flag).
+  await s.foldState(root, {
+    work, chapter: 2,
+    entities: [{ name: '林澈', facts: ['找到旧墙'] }],
+    hooks: [{ text: '旧墙上的字', state: 'opened' }],
+  })
+  const settledTwo = await s.status(root, work)
+  check('chapter 2 settled', settledTwo.chapters[1].stage === 'settled', JSON.stringify(settledTwo.chapters[1]))
+  await rejects('settled chapter refuses plain write', 'chapter-settled', () => s.writeChapter(root, { work, chapter: 2, body: 'x' }))
+  await s.writeChapter(root, { work, chapter: 2, body: '重开的第二章。'.repeat(40), reopen: true })
+  const reopened = await s.status(root, work)
+  check('reopen without rewrite flag works', reopened.chapters[1].stage === 'written', JSON.stringify(reopened.chapters[1]))
+
+  // Legacy manifests without a stage field infer it from artifacts on read.
+  const legacyWork = (await s.initWork(root, { title: '旧清单' })).workId
+  await s.writePlan(root, { ...plan, work: legacyWork, chapter: 1 })
+  await s.writeChapter(root, { work: legacyWork, chapter: 1, body: '旧清单正文。'.repeat(40) })
+  await s.writeReview(root, { work: legacyWork, chapter: 1, problems: [{ problem: '一处小问题' }] })
+  await s.reviseChapter(root, { work: legacyWork, chapter: 1, body: '旧清单改稿。'.repeat(40), problemIds: ['Q1'] })
+  await s.foldState(root, { work: legacyWork, chapter: 1, hooks: [{ text: '旧墙', state: 'opened' }] })
+  const legacyFile = join(root, 'works', legacyWork, 'manifest.json')
+  const legacy = JSON.parse(await readFile(legacyFile, 'utf8'))
+  delete legacy.chapters[0].stage
+  delete legacy.chapters[0].status
+  await writeFile(legacyFile, `${JSON.stringify(legacy, null, 2)}\n`)
+  const inferred = await s.status(root, legacyWork)
+  check('legacy settled chapter infers settled', inferred.chapters[0].stage === 'settled', JSON.stringify(inferred.chapters[0]))
 
   // A fresh work with no chapters points at chapter 1 plan.
   const empty = await s.initWork(root, { title: '空作品' })

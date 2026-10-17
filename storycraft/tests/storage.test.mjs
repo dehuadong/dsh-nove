@@ -73,11 +73,18 @@ try {
   await rejects('settle blocked while review items are open', 'review-required', () => s.foldState(root, {
     work, chapter: 1, hooks: [{ text: '合同是假的', state: 'opened' }],
   }))
-  await s.reviseChapter(root, {
+  // The body changed, so the old list no longer describes it: review again.
+  await rejects('stale review cannot drive another revision', 'review-required', () => s.reviseChapter(root, {
     work, chapter: 1, body: '再改一版，补上母亲的旧照片。'.repeat(20), problemIds: ['Q2'],
+  }))
+  const rereview = await s.writeReview(root, {
+    work, chapter: 1, problems: [{ location: '结尾', problem: '照片收得太快', suggestion: '补一拍' }],
   })
-  const settledReview = await readFile(join(root, review.artifact.path), 'utf8')
-  check('Q2 marked done', settledReview.includes('- [x] Q2'))
+  await s.reviseChapter(root, {
+    work, chapter: 1, body: '再改一版，补上母亲的旧照片。'.repeat(20), problemIds: ['Q1'],
+  })
+  const settledReview = await readFile(join(root, rereview.artifact.path), 'utf8')
+  check('re-review item marked done', settledReview.includes('- [x] Q1'))
 
   await rejects('hook used before opened rejected', 'hook-not-open', () => s.foldState(root, {
     work, chapter: 1, hooks: [{ text: '合同是假的', state: 'used' }],
@@ -110,7 +117,7 @@ try {
   const planRead = await s.readChapter(root, { work, chapter: 1, view: 'plan' })
   check('plan read', planRead.content.includes('结尾变化'))
   const reviewRead = await s.readReview(root, work, 1)
-  check('review read items', reviewRead.items.length === 2 && reviewRead.items[0].done === true)
+  check('review read items', reviewRead.items.length === 1 && reviewRead.items[0].done === true, JSON.stringify(reviewRead.items))
 
   // Concurrent writer: the lock makes a second mutation fail loudly.
   const lockFile = join(root, 'works', `.${work}.lock`)

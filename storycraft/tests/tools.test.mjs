@@ -105,10 +105,19 @@ try {
   }, exec)
   check('story_review ok', review.ok === true && review.problems[0].id === 'Q1', JSON.stringify(review))
 
+  const noIds = await byName.get('story_revise').execute({ work, chapter: 1, body: `${body}（再改）` }, exec)
+  check('revise without ids refused', noIds.ok === false && noIds.error.code === 'missing-problems', JSON.stringify(noIds))
+
+  const unchanged = await byName.get('story_revise').execute({
+    work, chapter: 1, body, problemIds: ['Q1'],
+  }, exec)
+  check('unchanged body refused', unchanged.ok === false && unchanged.error.code === 'unchanged-body', JSON.stringify(unchanged))
+
   const revise = await byName.get('story_revise').execute({
     work, chapter: 1, body: `${body}（改）`, problemIds: ['Q1'],
   }, exec)
   check('story_revise ok', revise.ok === true && revise.resolved[0] === 'Q1', JSON.stringify(revise))
+
 
   const state = await byName.get('story_state').execute({
     work, chapter: 1,
@@ -120,13 +129,6 @@ try {
   const duplicates = await byName.get('story_init').execute({ title: '雨里的灯' }, exec)
   check('duplicate init refused', duplicates.ok === false && duplicates.error.code === 'work-exists', JSON.stringify(duplicates))
 
-  const noIds = await byName.get('story_revise').execute({ work, chapter: 1, body: `${body}（再改）` }, exec)
-  check('revise without ids refused', noIds.ok === false && noIds.error.code === 'missing-problems', JSON.stringify(noIds))
-
-  const unchanged = await byName.get('story_revise').execute({
-    work, chapter: 1, body: `${body}（改）`, problemIds: ['Q1'],
-  }, exec)
-  check('unchanged body refused', unchanged.ok === false && unchanged.error.code === 'unchanged-body', JSON.stringify(unchanged))
   const written = await byName.get('story_bible_write').execute({
     work, file: 'characters',
     content: JSON.stringify([{ name: '林澈', role: '主角', want: '拿回合同', fear: '失去妹妹', limit: '不伤人', voice: '短句' }]),

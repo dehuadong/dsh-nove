@@ -108,7 +108,6 @@ export function chapterNumber(value) {
   return number
 }
 
-/** Count CJK characters plus latin words. */
 /**
  * The ordered stage of one chapter. Stages only move forward unless a settled
  * chapter is explicitly reopened.
@@ -127,6 +126,22 @@ export function stageOf(entry) {
 }
 
 /**
+ * Infer a stage from the artifacts on disk, for manifests written before the
+ * stage field existed. A settle event wins; otherwise the furthest artifact
+ * decides. Inferred stages persist on the next manifest write.
+ * @param {{settled: boolean, review: string|undefined, body: boolean}} artifacts - observed artifacts.
+ * @returns {string} inferred stage.
+ */
+function inferStage(artifacts) {
+  if (artifacts.settled) return 'settled'
+  const items = artifacts.review === undefined ? [] : parseReview(artifacts.review)
+  if (items.length > 0 && items.every(item => item.done)) return 'revised'
+  if (items.length > 0) return 'reviewed'
+  if (artifacts.body) return 'written'
+  return 'planned'
+}
+
+/**
  * Refuse an action whose stage precondition is not met.
  * @param {object} entry - chapter entry.
  * @param {string[]} allowed - stages the action accepts.
@@ -139,6 +154,11 @@ function assertStage(entry, allowed, message, code = 'chapter-settled') {
   throw new StoryError(code, message)
 }
 
+/**
+ * Count characters of the body (CJK-aware: whitespace is excluded).
+ * @param {string} text - body text.
+ * @returns {number} character count.
+ */
 export function countWords(text) {
   const cjk = String(text).match(/[\u3400-\u4dbf\u4e00-\u9fff]/g)?.length ?? 0
   const latin = String(text).match(/[A-Za-z][A-Za-z'-]*/g)?.length ?? 0
@@ -248,7 +268,25 @@ export async function readManifest(root, workId) {
   if (manifest?.version !== MANIFEST_VERSION || !Array.isArray(manifest?.chapters)) {
     throw new StoryError('manifest-invalid', `作品 ${workId} 的进度清单版本不受支持`)
   }
-  for (const entry of manifest.chapters) entry.stage = stageOf(entry)
+  const dir = workDirectory(root, workId)
+  const events = (await readOptional(join(dir, 'state', 'events.jsonl'))) ?? ''
+  const settled = new Set()
+  for (const line of events.split(/\r?\n/)) {
+    if (line.trim() === '') continue
+    try {
+      const event = JSON.parse(line)
+      if (event?.kind === 'settle' && Number.isInteger(event.chapter)) settled.add(event.chapter)
+      if (event?.kind === 'reopen' && Number.isInteger(event.chapter)) settled.delete(event.chapter)
+    } catch {
+      continue
+    }
+  }
+  for (const entry of manifest.chapters) {
+    if (STAGES.includes(entry.stage)) continue
+    const review = await latestReview(root, manifest, entry)
+    const current = reviewCoversRevision(review, entry, true)
+    entry.stage = inferStage({ settled: settled.has(entry.number), review: current ? review.text : undefined, body: entry.currentRevision > 0 })
+  }
   return manifest
 }
 
@@ -416,7 +454,7 @@ export async function writePlan(root, input) {
         if (previous === undefined) await rm(file, { force: true })
         else await writeAtomic(file, previous)
       })
-      entry.stage = 'planned'
+      if (stageOf(entry) === 'planned') entry.stage = 'planned'
       entry.updatedAt = now()
       const written = await writeManifest(root, manifest.workId, manifest)
       return { manifest: written, entry, artifact: { path: rootRelative(root, file) } }
@@ -450,7 +488,7 @@ export async function writeChapter(root, input) {
     let revision = 1
     let file = join(dir, `${entry.id}.md`)
     if (await readOptional(file) !== undefined) {
-      if (input.rewrite !== true) {
+      if (input.rewrite !== true && !(settled && input.reopen === true)) {
         throw new StoryError('chapter-exists', `第 ${number} 章已有正文；改稿请传 rewrite: true 生成新版本`)
       }
       revision = Math.max(entry.currentRevision, 1) + 1
@@ -517,6 +555,8 @@ export async function writeReview(root, input) {
     const number = chapterNumber(input.chapter)
     const entry = chapterEntry(manifest, number)
     if (entry.currentRevision === 0) throw new StoryError('body-not-found', `第 ${number} 章还没有正文，不能审稿`)
+    assertStage(entry, ['written', 'reviewed', 'revised'],
+      `第 ${number} 章已结算：改审稿要先带 reopen: true 重写正文回退`)
     const problems = Array.isArray(input.problems) ? input.problems : []
     if (problems.length === 0) throw new StoryError('empty-review', '问题清单为空：审稿至少要给出一条问题')
     const dir = join(workDirectory(root, manifest.workId), 'reviews')
@@ -600,12 +640,28 @@ export async function latestReview(root, manifest, entry) {
   const files = await reviewFiles(root, manifest, entry)
   if (files.length === 0) return undefined
   const last = files[files.length - 1]
+  const text = (await readOptional(last.file)) ?? ''
+  const revisionMatch = /^- 正文版本：(\d+)$/mu.exec(text)
   return {
     path: rootRelative(root, last.file),
     file: last.file,
-    text: (await readOptional(last.file)) ?? '',
+    text,
     round: last.round,
+    revision: revisionMatch === null ? undefined : Number(revisionMatch[1]),
   }
+}
+
+/**
+ * Whether a review still describes the current body revision.
+ * @param {{revision?: number}|undefined} latest - latest review, if any.
+ * @param {object} entry - chapter entry.
+ * @returns {boolean} true when the review covers the current revision.
+ */
+function reviewCoversRevision(latest, entry, allowPrevious = false) {
+  if (latest === undefined) return false
+  if (latest.revision === undefined) return true
+  if (latest.revision === entry.currentRevision) return true
+  return allowPrevious && latest.revision === entry.currentRevision - 1
 }
 
 /**
@@ -622,11 +678,16 @@ export async function reviseChapter(root, input) {
     if (entry === undefined || entry.currentRevision === 0) {
       throw new StoryError('body-not-found', `第 ${number} 章还没有正文，不能修订`)
     }
+    assertStage(entry, ['written', 'reviewed', 'revised'],
+      `第 ${number} 章已结算：修订要先带 reopen: true 重写正文回退`)
     const body = String(input.body ?? '')
     if (body.trim() === '') throw new StoryError('empty-body', '修订后的正文不能为空')
     const latest = await latestReview(root, manifest, entry)
     if (latest === undefined) {
       throw new StoryError('review-required', `第 ${number} 章还没有审稿清单：先审稿再用清单修订`)
+    }
+    if (!reviewCoversRevision(latest, entry, false)) {
+      throw new StoryError('review-required', `第 ${number} 章的审稿针对旧版本 r${latest.revision ?? '?'}：先重新审稿`)
     }
     const items = parseReview(latest.text)
     const ids = Array.isArray(input.problemIds) ? input.problemIds.map(String) : []
@@ -711,6 +772,13 @@ export async function foldState(root, input) {
     if (open.length > 0) {
       throw new StoryError('review-required',
         `第 ${number} 章还有 ${open.length} 条未处理审稿：${open.map(item => item.id).join('、')}；先修订再结算`)
+    }
+    if (!reviewCoversRevision(latest, entry, true)) {
+      throw new StoryError('review-required', `第 ${number} 章的审稿针对旧版本 r${latest.revision ?? '?'}：先重新审稿`)
+    }
+    if (stageOf(entry) !== 'revised') {
+      throw new StoryError('review-required',
+        `第 ${number} 章还没走完修订（当前阶段：${stageOf(entry)}）：先 story_revise 提交改动，再结算`)
     }
     const dir = workDirectory(root, manifest.workId)
     const eventsFile = join(dir, 'state', 'events.jsonl')
@@ -887,6 +955,7 @@ export async function nextStep(root, work) {
   const dir = workDirectory(root, manifest.workId)
   const planFile = join(dir, 'outline', `${last.id}.plan.md`)
   const hasPlan = (await readOptional(planFile)) !== undefined
+  const hasBody = last.currentRevision > 0
   if (stage === 'settled') {
     const next = last.number + 1
     return { workId: manifest.workId, chapter: next, stage: 'planned', action: 'story_plan', reason: `第 ${last.number} 章已结算：写第 ${next} 章章纲`, missing: ['outline'] }
@@ -894,21 +963,24 @@ export async function nextStep(root, work) {
   if (!hasPlan) {
     return { workId: manifest.workId, chapter: last.number, stage, action: 'story_plan', reason: `第 ${last.number} 章缺章纲`, missing: ['outline'] }
   }
-  if (stage === 'planned') {
-    return { workId: manifest.workId, chapter: last.number, stage, action: 'story_write', reason: `第 ${last.number} 章已有章纲，写正文`, missing: [] }
-  }
-  if (stage === 'written') {
-    return { workId: manifest.workId, chapter: last.number, stage, action: 'story_review', reason: `第 ${last.number} 章已有正文，先审稿`, missing: ['review'] }
+  if (!hasBody) {
+    return { workId: manifest.workId, chapter: last.number, stage, action: 'story_write', reason: `第 ${last.number} 章已有章纲，写正文`, missing: ['body'] }
   }
   const latest = await latestReview(root, manifest, last)
-  const open = latest === undefined ? [] : parseReview(latest.text).filter(item => !item.done)
+  if (!reviewCoversRevision(latest, last, true)) {
+    return { workId: manifest.workId, chapter: last.number, stage, action: 'story_review', reason: `第 ${last.number} 章已有正文，先审稿`, missing: ['review'] }
+  }
+  const open = parseReview(latest.text).filter(item => !item.done)
   if (open.length > 0) {
     return {
       workId: manifest.workId, chapter: last.number, stage, action: 'story_revise',
       reason: `第 ${last.number} 章还有 ${open.length} 条未处理审稿`, missing: open.map(item => item.id),
     }
   }
-  return { workId: manifest.workId, chapter: last.number, stage, action: 'story_state', reason: `第 ${last.number} 章审稿已处理完，结算状态`, missing: [] }
+  if (stage !== 'revised') {
+    return { workId: manifest.workId, chapter: last.number, stage, action: 'story_revise', reason: `第 ${last.number} 章审稿条目已处理完，但还没提交修订`, missing: ['revision'] }
+  }
+  return { workId: manifest.workId, chapter: last.number, stage, action: 'story_state', reason: `第 ${last.number} 章已修订，结算状态`, missing: [] }
 }
 
 /**

@@ -178,6 +178,7 @@ const OUTPUT_PROPERTIES = {
   names: { type: 'array', description: 'Character names found in the old cast file.', items: { type: 'string' } },
   truncated: { type: 'boolean' },
   action: { type: 'string', description: 'Action to run next, e.g. story_write.' },
+  chapter: { type: 'integer', description: 'Chapter number the next step applies to.' },
   reason: { type: 'string', description: 'Why that action is next.' },
   stage: { type: 'string', description: 'Current stage of the chapter being worked on.' },
   status: {

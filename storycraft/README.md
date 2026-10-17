@@ -6,7 +6,7 @@ DSH 里的长篇创作编排：十三个动作把立项、章纲、正文、审�
 
 | 模式 | 人设 | 技能 | 动作 | 工作台 |
 | --- | --- | --- | --- | --- |
-| 长篇小说 `storycraft-longform` | 有 | 有（含三个脚本） | **有**：`story_init` `story_plan` `story_write` `story_review` `story_revise` `story_state` `story_status`，以及真值四件 `story_bible` `story_bible_write` `story_bible_import` `story_summarize` 与写前上下文 `story_brief` | 有 |
+| 长篇小说 `storycraft-longform` | 有 | 有（含三个脚本） | **有**：`story_init` `story_plan` `story_write` `story_review` `story_revise` `story_state` `story_status` `story_next`，以及真值四件 `story_bible` `story_bible_write` `story_bible_import` `story_summarize` 与写前上下文 `story_brief` | 有 |
 | 短篇小说 `storycraft-shortform` | 有 | 有 | 无（后续工作项） | 同一工作台只读展示作品；该模式暂无动作 |
 | 短剧剧本 `storycraft-screenplay` | 有 | 有 | 无（后续工作项） | 同上 |
 
@@ -55,6 +55,7 @@ summaries/ch-0001.md    章节摘要（上限 400 字）
 - 没有章纲不能写正文（`plan-not-found`）；
 - 没有审稿清单不能结算（`review-required`）；
 - 审稿条目没处理完不能结算，错误里列出条目 id；
+- 审稿只对「它记录的那个正文版本」有效：改过正文后要重新审稿才能再修订；结算允许「审稿针对上一版、条目已全处理」；
 - 已结算章改章纲要先带 `reopen: true` 重写正文回退（`chapter-settled`）；
 - `reopen` 会在事件日志里追加一条 `reopen`，该章旧的结算不再计入状态折叠。
 
@@ -70,7 +71,8 @@ summaries/ch-0001.md    章节摘要（上限 400 字）
 | `story_review` | 写问题清单（轮次按章独立编号） | 正文不存在；问题清单为空；**不改正文** |
 | `story_revise` | 生成新版本正文并把条目改为已处理 | 没有审稿清单；未指定条目；条目不存在；正文与当前版本相同 |
 | `story_state` | 追加人物事实与伏笔事件，刷新 `hooks.md`，返回新增/已用/已解/未解计数 | 作品或章不存在；伏笔状态非法；「已用」指向未埋的伏笔 |
-| `story_status` | 只读汇总进度、版本、未处理问题、未解伏笔 | 作品不存在 |
+| `story_status` | 只读汇总进度、阶段、版本、未处理问题、未解伏笔 | 作品不存在 |
+| `story_next` | 只读：下一步动作、章号、原因、缺什么 | 作品不存在 |
 
 返回值统一为 `{ ok: true, artifact: { path, revision? }, … }` 或 `{ ok: false, error: { code, message } }`。
 
