@@ -44,7 +44,7 @@ test.describe('故事工坊工作台', () => {
     await expect(page.locator('button.sc-chapter').filter({ hasText: '灰旗' })).toBeVisible()
     await expect(page.getByText(`已结算 · 当前版本 r2 · ${facts.words} 字 · 审稿 1 轮 · 未处理 0 条`)).toBeVisible()
     await expect(page.getByText(/本章已结算：人物变化与伏笔已记进书里/)).toBeVisible()
-    await expect(page.getByRole('button', { name: '已结算', exact: true })).toBeDisabled()
+    await expect(page.getByRole('button', { name: '重开本章', exact: true })).toBeVisible()
 
     await expect(page.getByRole('button', { name: '正文', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: '章纲', exact: true })).toBeVisible()

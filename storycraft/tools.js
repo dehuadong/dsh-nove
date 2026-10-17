@@ -15,7 +15,8 @@
  */
 
 import {
-  StoryError, foldState, initWork, nextStep as nextStepFor, reviseChapter, status as readStatus, writeChapter, writePlan,
+  StoryError, foldState, initWork, nextStep as nextStepFor, reopenChapter as reopenChapterFor, reviseChapter,
+  status as readStatus, writeChapter, writePlan,
   writeReview,
 } from './storage.js'
 import {
@@ -549,6 +550,26 @@ function definitions() {
         const root = workspaceOf(exec)
         const receipt = await writeSummaryEntry(root, args.work, args.chapter, args.summary)
         return { ok: true, workId: args.work, artifact: { path: receipt.path }, words: receipt.words, truncated: receipt.truncated }
+      },
+    }),
+
+    action({
+      name: 'story_reopen',
+      description: '作废一章的结算但不改正文：结算后要补审稿或改稿时先用它。'
+        + ' 只对已结算章有效；作废后该章回到「已写」，再走审稿 → 修订 → 结算。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+          chapter: { type: 'integer', description: '章号。' },
+        },
+        required: ['work', 'chapter'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const result = await reopenChapterFor(root, { work: args.work, chapter: args.chapter })
+        return { ok: true, workId: args.work, artifact: result.artifact, stage: 'written' }
       },
     }),
 

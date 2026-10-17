@@ -168,6 +168,9 @@ window.__ModuleLoader__.load({
       revise(workId, chapter) {
         return `按作品 ${workId} 第 ${chapter} 章最新的审稿清单里未处理的条目修订正文，用 story_revise 落盘并标记处理过的条目。`
       },
+      reopen(workId, chapter) {
+        return `把作品 ${workId} 第 ${chapter} 章重开：用 story_reopen 作废本章结算（不改正文），随后重新审稿、按清单修订、再结算。`
+      },
       fold(workId, chapter) {
         return `把作品 ${workId} 第 ${chapter} 章已经发生的事实结算进状态：人物事实与伏笔变化用 story_state 落盘。`
       },
@@ -428,26 +431,31 @@ window.__ModuleLoader__.load({
               disabled: chapter.revision === 0,
             }, '审稿'),
             h('button', { type: 'button', className: 'sc-btn', onClick: () => { void send(INSTRUCTIONS.revise(workId, chapter.number)) }, disabled: chapter.openProblems === 0 }, '按清单修订'),
-            h('button', {
-              type: 'button',
-              className: 'sc-btn',
-              disabled: chapter.revision === 0 || chapter.stage === 'settled',
-              title: chapter.stage === 'settled'
-                ? '本章已结算：结算把本章事实写进书里并锁定该章，不需要再点'
-                : '把本章的人物变化与伏笔记进书里，并把该章锁为已结算',
-              onClick: () => {
-                if (chapter.openProblems > 0) {
-                  onNotice({ kind: 'error', text: `第 ${chapter.number} 章还有 ${chapter.openProblems} 条未处理审稿：先按清单修订，再结算。` })
-                  return
-                }
-                void send(INSTRUCTIONS.fold(workId, chapter.number))
-              },
-            }, chapter.stage === 'settled' ? '已结算' : '结算状态'),
+            chapter.stage === 'settled'
+              ? h('button', {
+                type: 'button',
+                className: 'sc-btn',
+                title: '作废本章结算（不改正文），回到「已写」，再走审稿 → 修订 → 结算',
+                onClick: () => { void send(INSTRUCTIONS.reopen(workId, chapter.number)) },
+              }, '重开本章')
+              : h('button', {
+                type: 'button',
+                className: 'sc-btn',
+                disabled: chapter.revision === 0,
+                title: '把本章的人物变化与伏笔记进书里，并把该章锁为已结算',
+                onClick: () => {
+                  if (chapter.openProblems > 0) {
+                    onNotice({ kind: 'error', text: `第 ${chapter.number} 章还有 ${chapter.openProblems} 条未处理审稿：先按清单修订，再结算。` })
+                    return
+                  }
+                  void send(INSTRUCTIONS.fold(workId, chapter.number))
+                },
+              }, '结算状态'),
           ),
         ),
         chapter.stage === 'settled'
           ? h('p', { className: 'sc-muted' },
-            '本章已结算：人物变化与伏笔已记进书里，该章锁定。要再改正文，让模型带 reopen 重写（会回到「已写」并作废本章旧结算）。')
+            '本章已结算：人物变化与伏笔已记进书里，该章锁定。要补审稿或改稿，点「重开本章」——只作废结算、不动正文，然后重走 审稿 → 修订 → 结算。')
           : null,
         h('div', { className: 'sc-tabs' },
           h('button', { type: 'button', className: 'sc-tab', 'aria-selected': view === 'body' ? 'true' : 'false', onClick: () => setView('body') }, '正文'),

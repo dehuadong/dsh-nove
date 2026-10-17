@@ -115,6 +115,20 @@ try {
   })
   const settledTwo = await s.status(root, work)
   check('chapter 2 settled', settledTwo.chapters[1].stage === 'settled', JSON.stringify(settledTwo.chapters[1]))
+  // Reopen alone voids the settlement without touching the body, then the full
+  // cycle runs again on the same body.
+  const reopened2 = await s.reopenChapter(root, { work, chapter: 2 })
+  check('reopen keeps the body and returns to written', reopened2.entry.stage === 'written' && reopened2.entry.currentRevision === 2, JSON.stringify(reopened2.entry))
+  await rejects('reopen on an unsettled chapter refused', 'not-settled', () => s.reopenChapter(root, { work, chapter: 2 }))
+  const newReview = await s.writeReview(root, { work, chapter: 2, problems: [{ problem: '补审一处' }] })
+  const reviewedAgain = await s.status(root, work)
+  check('review after reopen advanced the stage', reviewedAgain.chapters[1].stage === 'reviewed', JSON.stringify(reviewedAgain.chapters[1]))
+  await s.reviseChapter(root, { work, chapter: 2, body: '重开后改的第二版。'.repeat(30), problemIds: ['Q1'] })
+  await s.foldState(root, { work, chapter: 2, hooks: [{ text: '重开后的伏笔', state: 'opened' }] })
+  const settledAgain = await s.status(root, work)
+  check('settle after reopen works', settledAgain.chapters[1].stage === 'settled', JSON.stringify(settledAgain.chapters[1]))
+  check('review round grew', newReview.artifact.path.includes('r2'), newReview.artifact.path)
+
   await rejects('settled chapter refuses plain write', 'chapter-settled', () => s.writeChapter(root, { work, chapter: 2, body: 'x' }))
   await s.writeChapter(root, { work, chapter: 2, body: '重开的第二章。'.repeat(40), reopen: true })
   const reopened = await s.status(root, work)

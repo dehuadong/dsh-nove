@@ -941,6 +941,41 @@ export async function status(root, work) {
 }
 
 /**
+ * Void one chapter's settlement without touching the body.
+ *
+ * Use it when a settled chapter needs fresh review findings recorded: the body
+ * stays as it is, the settlement becomes void (its facts stop counting), and the
+ * chapter returns to `written` so review, revision and settlement can run again.
+ * @param {string} root - workspace directory.
+ * @param {{work: string, chapter: number|string}} input - reopen input.
+ * @returns {Promise<object>} reopen receipt.
+ */
+export async function reopenChapter(root, input) {
+  return withWorkLock(root, String(input.work), async () => {
+    const manifest = await readManifest(root, input.work)
+    const number = chapterNumber(input.chapter)
+    const entry = manifest.chapters.find(chapter => chapter.number === number)
+    if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
+    if (stageOf(entry) !== 'settled') {
+      throw new StoryError('not-settled', `第 ${number} 章还没结算（当前阶段：${stageOf(entry)}），不需要重开`)
+    }
+    const journal = { undo: [] }
+    return withRollback(journal, async () => {
+      await appendStateEvent(root, manifest.workId, journal, { kind: 'reopen', chapter: number })
+      entry.stage = 'written'
+      entry.status = 'written'
+      entry.updatedAt = now()
+      const written = await writeManifest(root, manifest.workId, manifest)
+      return {
+        entry,
+        manifest: written,
+        artifact: { path: rootRelative(root, join(workDirectory(root, manifest.workId), 'manifest.json')) },
+      }
+    })
+  })
+}
+
+/**
  * The next step of one work, derived from the stage machine.
  *
  * Read-only: it never writes, so the page and the model can both ask it what to
@@ -970,6 +1005,9 @@ export async function nextStep(root, work) {
   }
   if (!hasBody) {
     return { workId: manifest.workId, chapter: last.number, stage, action: 'story_write', reason: `第 ${last.number} 章已有章纲，写正文`, missing: ['body'] }
+  }
+  if (stage === 'written') {
+    return { workId: manifest.workId, chapter: last.number, stage, action: 'story_review', reason: `第 ${last.number} 章已有正文，先审稿`, missing: ['review'] }
   }
   const latest = await latestReview(root, manifest, last)
   if (!reviewCoversRevision(latest, last, true)) {
