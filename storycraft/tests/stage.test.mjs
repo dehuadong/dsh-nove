@@ -1,7 +1,8 @@
 // Stage machine and action gates (A1a).
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { existsSync, mkdirSync, readdirSync } from 'node:fs'
 import * as s from '../storage.js'
 
 let failures = 0
@@ -162,6 +163,22 @@ try {
   await rejects('bad facts name the person', 'invalid-entity', () => s.foldState(root, {
     work: factsWork, chapter: 1, entities: [{ name: '沈彻' }],
   }))
+
+  // Staging: a successful write leaves nothing behind, and an old leftover is
+  // cleaned on the next write instead of being mistaken for a commit.
+  const stagedWork = (await s.initWork(root, { title: '暂存验证' })).workId
+  await s.writePlan(root, { ...plan, work: stagedWork, chapter: 1 })
+  await s.writeChapter(root, { work: stagedWork, chapter: 1, body: '暂存正文。'.repeat(30) })
+  const stagingDir = join(root, 'works', stagedWork, '.staging')
+  check('no staging residue after a write', !existsSync(stagingDir) || readdirSync(stagingDir).length === 0)
+
+  const leftover = join(stagingDir, 'write-1')
+  mkdirSync(leftover, { recursive: true })
+  await writeFile(join(leftover, 'x.md'), 'old\n')
+  const old = new Date(Date.now() - 48 * 60 * 60 * 1000)
+  await utimes(leftover, old, old)
+  await s.writeChapter(root, { work: stagedWork, chapter: 1, body: '第二版。'.repeat(30), rewrite: true })
+  check('stale staging cleaned on the next write', !existsSync(leftover), leftover)
 
   // A fresh work with no chapters points at chapter 1 plan.
   const empty = await s.initWork(root, { title: '空作品' })

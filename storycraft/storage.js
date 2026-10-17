@@ -17,6 +17,7 @@
 import { mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { randomBytes } from 'node:crypto'
 import { basename, dirname, join, relative, resolve } from 'node:path'
+import { cleanStaleStages, openStage } from './stage.js'
 
 /** Directory (inside the workspace) that holds every work. */
 export const WORKS_DIRNAME = 'works'
@@ -498,20 +499,30 @@ export async function writeChapter(root, input) {
         file = join(dir, `${entry.id}.r${revision}.md`)
       }
     }
+    const workDir = workDirectory(root, manifest.workId)
+    await cleanStaleStages(workDir)
+    const stage = await openStage(workDir, 'write')
     const journal = { undo: [] }
-    return withRollback(journal, async () => {
+    try {
       if (typeof input.title === 'string' && input.title.trim() !== '') entry.title = input.title.trim()
-      await writeAtomic(file, body.endsWith('\n') ? body : `${body}\n`)
-      journal.undo.push(() => rm(file, { force: true }))
+      stage.put(relative(workDir, file).replaceAll('\\', '/'), body.endsWith('\n') ? body : `${body}\n`)
+      await stage.materialize()
       if (settled) await appendStateEvent(root, manifest.workId, journal, { kind: 'reopen', chapter: number })
       entry.currentRevision = revision
       entry.words = countWords(body)
       entry.status = 'written'
       entry.stage = 'written'
       entry.updatedAt = now()
+      // Staged first, committed in one pass, and the manifest last: it is the
+      // commit point, so a crash before it leaves the previous chapter intact.
+      await stage.commit()
       const written = await writeManifest(root, manifest.workId, manifest)
       return { manifest: written, entry, artifact: { path: rootRelative(root, file), revision }, words: entry.words }
-    })
+    } catch (error) {
+      await stage.discard()
+      for (const undo of journal.undo.reverse()) await undo().catch(() => {})
+      throw error
+    }
   })
 }
 

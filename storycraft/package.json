@@ -23,6 +23,7 @@
     "tools.js",
     "storage.js",
     "bible.js",
+    "stage.js",
     "cordis.patch.yml",
     "icon.svg",
     "skills"
