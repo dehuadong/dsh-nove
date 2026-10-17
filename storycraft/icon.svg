@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="故事工坊">
+  <rect width="64" height="64" rx="14" fill="#1f6f5c"/>
+  <path d="M14 17.5A3.5 3.5 0 0 1 17.5 14H30v36H17.5A3.5 3.5 0 0 1 14 46.5z" fill="#f4f1e8"/>
+  <path d="M50 17.5A3.5 3.5 0 0 0 46.5 14H34v36h12.5A3.5 3.5 0 0 0 50 46.5z" fill="#e7e0cd"/>
+  <path d="M32 14v36" stroke="#1f6f5c" stroke-width="2"/>
+  <path d="M22 24h6M22 30h6M40 24h-4M40 30h-6" stroke="#1f6f5c" stroke-width="1.6" stroke-linecap="round" opacity="0.55"/>
+  <path d="M44 44l6-6 4 4-6 6-5 1z" fill="#d8a24a"/>
+</svg>
