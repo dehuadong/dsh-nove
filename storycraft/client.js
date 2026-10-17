@@ -427,7 +427,13 @@ window.__ModuleLoader__.load({
                 ? '本章已结算并锁定：先「撤销结算」再审稿'
                 : '只找问题、不改正文，把问题清单落盘',
             }, '审稿'),
-            h('button', { type: 'button', className: 'sc-btn', onClick: () => { void send(INSTRUCTIONS.revise(workId, chapter.number)) }, disabled: chapter.openProblems === 0 }, '按清单修订'),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn',
+              onClick: () => { void send(INSTRUCTIONS.revise(workId, chapter.number)) },
+              disabled: chapter.openProblems === 0 || chapter.stage === 'settled',
+              title: chapter.stage === 'settled' ? '本章已结算：先「撤销结算」' : '按未处理的审稿条目改稿',
+            }, '按清单修订'),
             chapter.stage === 'settled'
               ? h('button', {
                 type: 'button',
@@ -438,15 +444,13 @@ window.__ModuleLoader__.load({
               : h('button', {
                 type: 'button',
                 className: 'sc-btn',
-                disabled: chapter.revision === 0,
-                title: '把本章的人物变化与伏笔记进书里，并把该章锁为已结算',
-                onClick: () => {
-                  if (chapter.openProblems > 0) {
-                    onNotice({ kind: 'error', text: `第 ${chapter.number} 章还有 ${chapter.openProblems} 条未处理审稿：先按清单修订，再结算。` })
-                    return
-                  }
-                  void send(INSTRUCTIONS.fold(workId, chapter.number))
-                },
+                disabled: chapter.stage !== 'revised' || chapter.openProblems > 0,
+                title: chapter.stage !== 'revised'
+                  ? '先审稿、再按清单修订，才能结算'
+                  : chapter.openProblems > 0
+                    ? `还有 ${chapter.openProblems} 条审稿未处理：先修订`
+                    : '把本章的人物变化与伏笔记进书里，并把该章锁为已结算',
+                onClick: () => { void send(INSTRUCTIONS.fold(workId, chapter.number)) },
               }, '结算状态'),
           ),
         ),
