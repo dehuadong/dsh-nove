@@ -169,7 +169,7 @@ window.__ModuleLoader__.load({
         return `按作品 ${workId} 第 ${chapter} 章最新的审稿清单里未处理的条目修订正文，用 story_revise 落盘并标记处理过的条目。`
       },
       reopen(workId, chapter) {
-        return `把作品 ${workId} 第 ${chapter} 章重开：用 story_reopen 作废本章结算（不改正文），随后重新审稿、按清单修订、再结算。`
+        return `把作品 ${workId} 第 ${chapter} 章的结算撤销（story_reopen：只作废结算，不改正文），然后重新审稿、按清单修订、再结算。`
       },
       fold(workId, chapter) {
         return `把作品 ${workId} 第 ${chapter} 章已经发生的事实结算进状态：人物事实与伏笔变化用 story_state 落盘。`
@@ -421,23 +421,20 @@ window.__ModuleLoader__.load({
             h('button', {
               type: 'button',
               className: 'sc-btn sc-btn-primary',
-              onClick: () => {
-                if (chapter.stage === 'settled') {
-                  onNotice({ kind: 'error', text: `第 ${chapter.number} 章已结算：要再审，先让模型带 reopen 重写正文。` })
-                  return
-                }
-                void send(INSTRUCTIONS.review(workId, chapter.number))
-              },
-              disabled: chapter.revision === 0,
+              onClick: () => { void send(INSTRUCTIONS.review(workId, chapter.number)) },
+              disabled: chapter.revision === 0 || chapter.stage === 'settled',
+              title: chapter.stage === 'settled'
+                ? '本章已结算并锁定：先「撤销结算」再审稿'
+                : '只找问题、不改正文，把问题清单落盘',
             }, '审稿'),
             h('button', { type: 'button', className: 'sc-btn', onClick: () => { void send(INSTRUCTIONS.revise(workId, chapter.number)) }, disabled: chapter.openProblems === 0 }, '按清单修订'),
             chapter.stage === 'settled'
               ? h('button', {
                 type: 'button',
                 className: 'sc-btn',
-                title: '作废本章结算（不改正文），回到「已写」，再走审稿 → 修订 → 结算',
+                title: '只作废本章结算、不改正文；之后重走 审稿 → 修订 → 结算',
                 onClick: () => { void send(INSTRUCTIONS.reopen(workId, chapter.number)) },
-              }, '重开本章')
+              }, '撤销结算')
               : h('button', {
                 type: 'button',
                 className: 'sc-btn',
@@ -455,7 +452,7 @@ window.__ModuleLoader__.load({
         ),
         chapter.stage === 'settled'
           ? h('p', { className: 'sc-muted' },
-            '本章已结算：人物变化与伏笔已记进书里，该章锁定。要补审稿或改稿，点「重开本章」——只作废结算、不动正文，然后重走 审稿 → 修订 → 结算。')
+            '本章已结算并锁定。要补审稿或改稿：点「撤销结算」——只作废结算、不动正文，然后重走 审稿 → 修订 → 结算；要连正文一起重写，才让模型带 reopen 重写。')
           : null,
         h('div', { className: 'sc-tabs' },
           h('button', { type: 'button', className: 'sc-tab', 'aria-selected': view === 'body' ? 'true' : 'false', onClick: () => setView('body') }, '正文'),
