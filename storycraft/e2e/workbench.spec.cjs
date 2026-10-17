@@ -14,18 +14,29 @@ const facts = runtime.facts ?? {}
 async function openWorkbench(page) {
   await page.goto(url, { waitUntil: 'domcontentloaded' })
 
-  const notice = page.getByRole('button', { name: 'Continue' })
-  if (await notice.count() > 0) await notice.first().click()
+  // A fresh profile shows the shell's Preview Notice after load; it steals the
+  // pointer, so dismiss it whenever it shows up, then open the fixture session
+  // and the workbench. Retried because the notice and the tree arrive in an
+  // order the shell does not promise.
+  const heading = page.getByRole('heading', { name: '故事工坊' })
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const notice = page.getByRole('button', { name: 'Continue' })
+    if (await notice.count() > 0) await notice.first().click({ force: true })
 
-  const workspace = page.getByRole('treeitem').first()
-  await expect(workspace).toBeVisible({ timeout: 30_000 })
-  await workspace.evaluate(node => node.click())
+    const workspace = page.getByRole('treeitem').first()
+    if (await workspace.count() > 0) await workspace.evaluate(node => node.click())
 
-  const entry = page.getByRole('button', { name: '故事工坊' })
-  await expect(entry).toBeVisible({ timeout: 30_000 })
-  await expect(entry).toBeEnabled()
-  await entry.evaluate(node => node.click())
-  await expect(page.getByRole('heading', { name: '故事工坊' })).toBeVisible({ timeout: 15_000 })
+    const entry = page.getByRole('button', { name: '故事工坊' })
+    if (await entry.count() > 0) await entry.evaluate(node => node.click())
+
+    try {
+      await heading.waitFor({ state: 'visible', timeout: 5_000 })
+      return
+    } catch {
+      await page.waitForTimeout(500)
+    }
+  }
+  await expect(heading).toBeVisible({ timeout: 10_000 })
 }
 
 test.describe('故事工坊工作台', () => {
@@ -64,6 +75,19 @@ test.describe('故事工坊工作台', () => {
     const nextChapter = page.getByRole('button', { name: /写第 2 章/ })
     await expect(nextChapter).toBeEnabled()
     await nextChapter.evaluate(node => node.click())
+
+    // The button no longer fires immediately: it opens an editable draft.
+    const draft = page.locator('.sc-draft-text')
+    await expect(draft).toBeVisible()
+    await expect(draft).toHaveValue(/继续写第 2 章/)
+    // The shell overlay above the column blocks pointer actions: set the value
+    // and click through the DOM, the same way the sidebar entry is opened.
+    await draft.evaluate((node, extra) => {
+      node.value = `${node.value}\n${extra}`
+      node.dispatchEvent(new Event('input', { bubbles: true }))
+    }, '补充：只改第 2 章结尾，别动前面。')
+    await expect(draft).toHaveValue(/补充：只改第 2 章结尾/)
+    await page.getByRole('button', { name: '发送', exact: true }).evaluate(node => node.click())
     await expect(page.getByText(/不是「长篇小说」模式/)).toBeVisible({ timeout: 10_000 })
   })
 })

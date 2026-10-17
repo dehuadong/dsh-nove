@@ -24,6 +24,9 @@ window.__ModuleLoader__.load({
 .sc-title{margin:0;font-size:16px;font-weight:600;letter-spacing:.01em}
 .sc-subtitle{margin:4px 0 0;color:var(--dsw-alias-label-secondary);font-size:12px}
 .sc-header-actions{display:flex;gap:8px;flex-shrink:0}
+.sc-draft{margin:10px 0 4px;padding:10px;border:1px solid var(--dsh-border,rgba(127,127,127,.25));border-radius:8px}
+.sc-draft .sc-muted{margin:0 0 6px}
+.sc-draft-text{width:100%;box-sizing:border-box;font:inherit;resize:vertical}
 .sc-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(230px,290px) minmax(0,1fr)}
 .sc-list{min-height:0;overflow:auto;padding:14px 12px 24px;border-right:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);display:flex;flex-direction:column;gap:8px}
 .sc-list-label{margin:10px 6px 2px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dsw-alias-label-secondary)}
@@ -374,7 +377,34 @@ window.__ModuleLoader__.load({
     }
 
     /** One chapter reader with plan/body tabs, review list and state. */
+    /** Inline editor: shows the canned instruction, lets the author add specifics. */
+    function DraftEditor({ draft, setDraft, send }) {
+      return h('div', { className: 'sc-draft' },
+        h('p', { className: 'sc-muted' }, '指令已填好：可以在后面补充你的具体要求，再发送。'),
+        h('textarea', {
+          className: 'sc-input sc-draft-text',
+          rows: 4,
+          value: draft,
+          onChange: event => setDraft(event.target.value),
+        }),
+        h('div', { className: 'sc-actions' },
+          h('button', {
+            type: 'button',
+            className: 'sc-btn sc-btn-primary',
+            disabled: draft.trim() === '',
+            onClick: async () => {
+              const text = draft
+              setDraft(undefined)
+              await send(text)
+            },
+          }, '发送'),
+          h('button', { type: 'button', className: 'sc-btn', onClick: () => setDraft(undefined) }, '取消'),
+        ),
+      )
+    }
+
     function ChapterPanel({ face, root, workId, chapter, onNotice, canSend }) {
+      const [draft, setDraft] = useState(undefined)
       const [view, setView] = useState('body')
       const [revision, setRevision] = useState(0)
 
@@ -421,7 +451,7 @@ window.__ModuleLoader__.load({
             h('button', {
               type: 'button',
               className: 'sc-btn sc-btn-primary',
-              onClick: () => { void send(INSTRUCTIONS.review(workId, chapter.number)) },
+              onClick: () => setDraft(INSTRUCTIONS.review(workId, chapter.number)),
               disabled: chapter.revision === 0 || chapter.stage === 'settled',
               title: chapter.stage === 'settled'
                 ? '本章已结算并锁定：先「撤销结算」再审稿'
@@ -430,7 +460,7 @@ window.__ModuleLoader__.load({
             h('button', {
               type: 'button',
               className: 'sc-btn',
-              onClick: () => { void send(INSTRUCTIONS.revise(workId, chapter.number)) },
+              onClick: () => setDraft(INSTRUCTIONS.revise(workId, chapter.number)),
               disabled: chapter.openProblems === 0 || chapter.stage === 'settled',
               title: chapter.stage === 'settled' ? '本章已结算：先「撤销结算」' : '按未处理的审稿条目改稿',
             }, '按清单修订'),
@@ -439,7 +469,7 @@ window.__ModuleLoader__.load({
                 type: 'button',
                 className: 'sc-btn',
                 title: '只作废本章结算、不改正文；之后重走 审稿 → 修订 → 结算',
-                onClick: () => { void send(INSTRUCTIONS.reopen(workId, chapter.number)) },
+                onClick: () => setDraft(INSTRUCTIONS.reopen(workId, chapter.number)),
               }, '撤销结算')
               : h('button', {
                 type: 'button',
@@ -450,10 +480,11 @@ window.__ModuleLoader__.load({
                   : chapter.openProblems > 0
                     ? `还有 ${chapter.openProblems} 条审稿未处理：先修订`
                     : '把本章的人物变化与伏笔记进书里，并把该章锁为已结算',
-                onClick: () => { void send(INSTRUCTIONS.fold(workId, chapter.number)) },
+                onClick: () => setDraft(INSTRUCTIONS.fold(workId, chapter.number)),
               }, '结算状态'),
           ),
         ),
+        draft === undefined ? null : h(DraftEditor, { draft, setDraft, send }),
         chapter.stage === 'settled'
           ? h('p', { className: 'sc-muted' },
             '本章已结算并锁定。要补审稿或改稿：点「撤销结算」——只作废结算、不动正文，然后重走 审稿 → 修订 → 结算；要连正文一起重写，才让模型带 reopen 重写。')
@@ -512,6 +543,7 @@ window.__ModuleLoader__.load({
       const [bible, setBible] = useState({ status: 'idle' })
       const [brief, setBrief] = useState({ status: 'idle' })
       const [briefChapter, setBriefChapter] = useState(1)
+      const [draft, setDraft] = useState(undefined)
 
       const load = useCallback(async () => {
         try {
@@ -566,7 +598,11 @@ window.__ModuleLoader__.load({
             h('p', { className: 'sc-detail-tagline' }, `${manifest.form} · ${manifest.workId} · ${chapters.length} 章 · 已写 ${chapters.filter(item => item.revision > 0).length} 章`),
           ),
           h('div', { className: 'sc-header-actions' },
-            h('button', { type: 'button', className: 'sc-btn sc-btn-primary', onClick: () => { void send(INSTRUCTIONS.nextChapter(manifest.workId, nextNumber)) } }, `写第 ${nextNumber} 章`),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn sc-btn-primary',
+              onClick: () => setDraft(INSTRUCTIONS.nextChapter(manifest.workId, nextNumber)),
+            }, `写第 ${nextNumber} 章`),
             h('button', { type: 'button', className: 'sc-btn', onClick: () => { void load() } }, '刷新'),
           ),
         ),
@@ -579,6 +615,14 @@ window.__ModuleLoader__.load({
         ),
         notice === undefined ? null : h('p', { className: `sc-notice sc-notice-${notice.kind}`, style: { marginTop: 12 } }, notice.text),
 
+        draft === undefined ? null : h(DraftEditor, {
+          draft,
+          setDraft,
+          send: async (text) => {
+            const failure = await face.send(text)
+            onNotice(failure === undefined ? { kind: 'ok', text: '指令已投递给当前会话。' } : { kind: 'error', text: failure })
+          },
+        }),
         h('div', { className: 'sc-section' },
           h('h3', { className: 'sc-section-title' }, '章节'),
           chapters.length === 0
