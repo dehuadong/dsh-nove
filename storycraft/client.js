@@ -3,7 +3,7 @@ window.__ModuleLoader__.load({
   factory(require) {
     const React = require('react')
     const h = React.createElement
-    const { useCallback, useEffect, useState } = React
+    const { useCallback, useEffect, useRef, useState } = React
 
     /** Read-only routes this bundle serves. */
     const ROUTE = {
@@ -24,12 +24,6 @@ window.__ModuleLoader__.load({
 .sc-title{margin:0;font-size:16px;font-weight:600;letter-spacing:.01em}
 .sc-subtitle{margin:4px 0 0;color:var(--dsw-alias-label-secondary);font-size:12px}
 .sc-header-actions{display:flex;gap:8px;flex-shrink:0}
-.sc-guide-card{display:flex;gap:10px;align-items:center;width:100%;padding:12px;border:1px solid var(--dsh-border,rgba(127,127,127,.25));border-radius:10px;background:transparent;cursor:pointer;text-align:left;font:inherit;color:inherit}
-.sc-guide-card:hover{background:rgba(127,127,127,.08)}
-.sc-guide-icon{font-size:18px;line-height:1}
-.sc-guide-text{display:flex;flex-direction:column;gap:2px}
-.sc-guide-title{font-weight:600}
-.sc-guide-desc{opacity:.65;font-size:12px}
 .sc-draft{margin:10px 0 4px;padding:10px;border:1px solid var(--dsh-border,rgba(127,127,127,.25));border-radius:8px}
 .sc-draft .sc-muted{margin:0 0 6px}
 .sc-draft-text{width:100%;box-sizing:border-box;font:inherit;resize:vertical}
@@ -205,6 +199,20 @@ window.__ModuleLoader__.load({
         review: (root, id, chapter) => route(ROUTE.review, { root, id, chapter }),
         bible: (root, id) => route(ROUTE.bible, { root, id }),
         brief: (root, id, chapter) => route(ROUTE.brief, { root, id, chapter }),
+
+        /** Open the right-sidebar tab by kind; false when the sidebar is absent. */
+        openSidebarTab(kind) {
+          const sidebar = ctx.get('sidebarRight')
+          const layout = ctx.get('layout')
+          if (sidebar === undefined) return false
+          layout?.openRightbar?.(false, false)
+          sidebar.openTab(kind, undefined)
+          return true
+        },
+        /** Send the main panel back to the conversation. */
+        showConversation() {
+          ctx.get('layout')?.selectPanel?.('conversation')
+        },
 
         async send(text) {
           const context = currentContext(ctx)
@@ -773,6 +781,22 @@ window.__ModuleLoader__.load({
     }
 
 
+    /** Right-sidebar tab body: the workbench in a narrow column. */
+    function StorycraftSideTab(props) {
+      return h(StorycraftPage, {
+        storycraft: props.storycraft,
+        compact: true,
+        prefill: typeof props.inputActions?.setDraft === 'function'
+          ? (text) => { props.inputActions.setDraft(text) }
+          : undefined,
+      })
+    }
+
+    /** Tab chip title. */
+    function StorycraftTabTitle() {
+      return h('span', null, '故事工坊')
+    }
+
     /** The workbench page. */
     function StorycraftPage(props) {
       const face = props.storycraft
@@ -810,7 +834,15 @@ window.__ModuleLoader__.load({
         }
         setDraft(saved === null || saved === '' ? undefined : saved)
       }, [draftKey])
-      const compose = useCallback((text) => { writeDraft(text) }, [writeDraft])
+      const compose = useCallback((text) => {
+        if (typeof props.prefill === 'function') {
+          props.prefill(text)
+          setNotice({ kind: 'ok', text: '已填入聊天输入框：可以继续改，改完发送。' })
+          return
+        }
+        writeDraft(text)
+      }, [props.prefill, writeDraft])
+
 
       const load = useCallback(async () => {
         if (face === undefined || face === null) {
@@ -934,6 +966,7 @@ window.__ModuleLoader__.load({
                 notice,
                 canSend: sessionId !== undefined && sessionPreset === 'storycraft-longform',
                 compose,
+                prefill: props.prefill,
                 draft,
                 setDraft: writeDraft,
                 onNotice: setNotice,
@@ -966,25 +999,6 @@ window.__ModuleLoader__.load({
       )
     }
 
-    /**
-     * The right sidebar's start tab card: a second way into the workbench.
-     * A plain button, because the shell's own cards are private components;
-     * opening the workbench only needs the layout service.
-     */
-    function GuideCard({ openWorkbench }) {
-      return h('button', {
-        type: 'button',
-        className: 'sc-guide-card',
-        onClick: () => { openWorkbench() },
-      },
-        h('span', { className: 'sc-guide-icon', 'aria-hidden': true }, '\u25A4'),
-        h('span', { className: 'sc-guide-text' },
-          h('span', { className: 'sc-guide-title' }, '故事工坊'),
-          h('span', { className: 'sc-guide-desc' }, '作品编排、真值与章节生产'),
-        ),
-      )
-    }
-
     return {
       inject: ['slots', 'layout'],
       /**
@@ -1010,11 +1024,30 @@ window.__ModuleLoader__.load({
           order: 5,
           label: '故事工坊',
         }, StorycraftIcon))
-        const disposeGuide = ctx.slots.inject('sidebar.right.tab.guide.entry', () => ctx.slots.register({
-          name: 'sidebar.right.tab.guide.entry',
-          key: 'storycraft',
-          inject: () => ({ openWorkbench: () => { ctx.layout.selectPanel('storycraft') } }),
-        }, GuideCard))
+        const tabId = 'dsh-storycraft'
+        let disposeType
+        try {
+          disposeType = ctx.sidebarRightTabs?.register({
+            id: tabId,
+            kind: 'storycraft',
+            multiple: false,
+            keepMounted: true,
+            priority: 'extension',
+            title: () => '故事工坊',
+            guide: [{ id: 'open', order: 30, title: () => '故事工坊', description: () => '作品编排、真值与章节生产' }],
+          })
+        } catch (error) {
+          console.warn('[dsh-storycraft] right sidebar tab unavailable:', error)
+        }
+        const disposeTabBody = ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
+          name: 'sidebar.right.pane.tab',
+          key: tabId,
+          inject: () => ({ storycraft: face }),
+        }, StorycraftSideTab))
+        const disposeTabTitle = ctx.slots.inject('sidebar.right.pane.tab.title', () => ctx.slots.register({
+          name: 'sidebar.right.pane.tab.title',
+          key: tabId,
+        }, StorycraftTabTitle))
         let disposeBindings
         try {
           disposeBindings = ctx.inject(['remote.session'], (scope) => {
@@ -1027,7 +1060,9 @@ window.__ModuleLoader__.load({
           disposeBindings?.()
           disposePage()
           disposeEntry()
-          disposeGuide()
+          disposeTabBody()
+          disposeTabTitle()
+          disposeType?.()
         }, 'dsh-storycraft: sidebar entry and workbench')
       },
     }
