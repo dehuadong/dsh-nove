@@ -11,6 +11,8 @@ window.__ModuleLoader__.load({
       work: '/api/dsh-storycraft/work',
       chapter: '/api/dsh-storycraft/chapter',
       review: '/api/dsh-storycraft/review',
+      bible: '/api/dsh-storycraft/bible',
+      brief: '/api/dsh-storycraft/brief',
     }
 
     /** How long one Host answer may take before the page stops waiting. */
@@ -189,6 +191,8 @@ window.__ModuleLoader__.load({
         work: (root, id) => route(ROUTE.work, { root, id }),
         chapter: (root, id, chapter, view, revision) => route(ROUTE.chapter, { root, id, chapter, view, revision }),
         review: (root, id, chapter) => route(ROUTE.review, { root, id, chapter }),
+        bible: (root, id) => route(ROUTE.bible, { root, id }),
+        brief: (root, id, chapter) => route(ROUTE.brief, { root, id, chapter }),
 
         async send(text) {
           const context = currentContext(ctx)
@@ -455,6 +459,8 @@ window.__ModuleLoader__.load({
       const [detail, setDetail] = useState({ status: 'loading' })
       const [selected, setSelected] = useState(undefined)
       const [stateOpen, setStateOpen] = useState(false)
+      const [bible, setBible] = useState({ status: 'idle' })
+      const [brief, setBrief] = useState({ status: 'idle' })
 
       const load = useCallback(async () => {
         try {
@@ -467,6 +473,26 @@ window.__ModuleLoader__.load({
       }, [face, root, workId])
 
       useEffect(() => { void load() }, [load])
+
+      const loadBible = async () => {
+        setBible({ status: 'loading' })
+        try {
+          const payload = await face.bible(root, workId)
+          setBible({ status: 'ready', files: payload.files ?? [] })
+        } catch (error) {
+          setBible({ status: 'error', error: error instanceof Error ? error.message : String(error) })
+        }
+      }
+
+      const loadBrief = async (chapter) => {
+        setBrief({ status: 'loading', chapter })
+        try {
+          const payload = await face.brief(root, workId, chapter)
+          setBrief({ status: 'ready', chapter, ...payload })
+        } catch (error) {
+          setBrief({ status: 'error', chapter, error: error instanceof Error ? error.message : String(error) })
+        }
+      }
 
       if (detail.status === 'loading') return h('p', { className: 'sc-muted' }, '读取作品…')
       if (detail.status === 'error') return h('p', { className: 'sc-notice sc-notice-error' }, detail.error)
@@ -524,6 +550,51 @@ window.__ModuleLoader__.load({
 
         chapter === undefined ? null : h('div', { className: 'sc-section' },
           h(ChapterPanel, { face, root, workId: manifest.workId, chapter, onNotice, canSend }),
+        ),
+
+        h('div', { className: 'sc-section' },
+          h('div', { className: 'sc-actions' },
+            h('button', { type: 'button', className: 'sc-btn', onClick: () => { void loadBible() } }, '真值'),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn',
+              onClick: () => { void loadBrief(selected ?? nextNumber) },
+            }, '写前上下文'),
+          ),
+          bible.status === 'loading' ? h('p', { className: 'sc-muted' }, '读取真值…') : null,
+          bible.status === 'error' ? h('p', { className: 'sc-notice sc-notice-info' }, bible.error) : null,
+          bible.status === 'ready'
+            ? h('div', { style: { marginTop: 10 } }, ...bible.files.map(file => h('div', { className: 'sc-item', key: file.name },
+              h('div', { className: 'sc-item-head' },
+                h('span', { className: 'sc-item-name' }, file.name),
+                h('span', { className: 'sc-item-id' }, file.path),
+                h('span', { className: 'sc-badge' }, `v${file.version}`),
+                file.draft ? h('span', { className: 'sc-badge sc-badge-warn' }, '草稿') : null,
+              ),
+              h('pre', { className: 'sc-yaml' }, file.content),
+            )))
+            : null,
+          brief.status === 'loading' ? h('p', { className: 'sc-muted' }, '装配写前上下文…') : null,
+          brief.status === 'error' ? h('p', { className: 'sc-notice sc-notice-info' }, brief.error) : null,
+          brief.status === 'ready'
+            ? h('div', { style: { marginTop: 10 } },
+              h('p', { className: 'sc-item-body' },
+                `第 ${brief.chapter} 章 · 已用 ${brief.budget.used} / ${brief.budget.limit} 字节`
+                + `${brief.budget.overBudget ? ' · 超预算' : ''}`
+                + `${(brief.dropped ?? []).length > 0 ? ` · 裁掉 ${brief.dropped.map(item => item.name).join('、')}` : ''}`),
+              ...brief.sections.map(item => h('div', { className: 'sc-item', key: item.name },
+                h('div', { className: 'sc-item-head' },
+                  h('span', { className: 'sc-item-name' }, item.title),
+                  h('span', { className: 'sc-badge' }, `${item.bytes} B`),
+                  h('span', { className: 'sc-item-id' }, item.source),
+                  item.absent ? h('span', { className: 'sc-badge' }, '缺失') : null,
+                  item.draft ? h('span', { className: 'sc-badge sc-badge-warn' }, '草稿') : null,
+                  item.note !== undefined ? h('span', { className: 'sc-badge' }, item.note) : null,
+                ),
+                h('pre', { className: 'sc-yaml' }, item.content === '' ? '（空）' : item.content),
+              )),
+            )
+            : null,
         ),
 
         h('div', { className: 'sc-section' },

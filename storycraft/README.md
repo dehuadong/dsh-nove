@@ -6,7 +6,7 @@ DSH 里的长篇创作编排：七个**动作**把立项、章纲、正文、审
 
 | 模式 | 人设 | 技能 | 动作 | 工作台 |
 | --- | --- | --- | --- | --- |
-| 长篇小说 `storycraft-longform` | 有 | 有（含三个脚本） | **有**：`story_init` `story_plan` `story_write` `story_review` `story_revise` `story_state` `story_status` | 有 |
+| 长篇小说 `storycraft-longform` | 有 | 有（含三个脚本） | **有**：`story_init` `story_plan` `story_write` `story_review` `story_revise` `story_state` `story_status`，以及真值四件 `story_bible` `story_bible_write` `story_bible_import` `story_summarize` 与写前上下文 `story_brief` | 有 |
 | 短篇小说 `storycraft-shortform` | 有 | 有 | 无（后续工作项） | 同一工作台只读展示作品；该模式暂无动作 |
 | 短剧剧本 `storycraft-screenplay` | 有 | 有 | 无（后续工作项） | 同上 |
 
@@ -29,6 +29,25 @@ works/<workId>/
 
 写入都是先写临时文件再原子替换，进度清单最后写；提交失败时已写的产物会回滚：动作失败不会留下半个章节，也不会让进度与文件不一致。同一个作品同一时刻只允许一个写者（产出目录下的单写者锁 + `updatedAt` 乐观校验），并发写会被拒绝而不是互相覆盖。返回的路径一律相对工作区、用 `/` 分隔。
 
+## 真值与写前上下文
+
+每部作品有一套真值，由动作建立与校验（模型不直写）：
+
+```text
+bible/world.md          世界观：时代、地理、规则边界、已定事实
+bible/characters.json   人物档案：[{ name, role, want, fear, limit, voice }]
+bible/style.md          文风基准：人称、时态、句长节奏、禁用词与口头禅
+bible/plan.md           写作计划与章序规划
+bible/intent.md         作者意图与当前焦点
+summaries/ch-0001.md    章节摘要（上限 400 字）
+```
+
+- `story_bible`：读真值（可指定一份），缺失时指出缺哪几份。
+- `story_bible_write`：校验后写入并返回内容版本；人物档案缺字段或重名会被拒绝，文件保持不变。
+- `story_bible_import`：把旧作品 `design/` 下的世界观与大纲收编进真值，并列出仍需作者补的项（不替作者编人物档案）。
+- `story_summarize`：写章节摘要（超 400 字截断并报告）。
+- `story_brief`：装配写某一章前的上下文——意图、本章章纲、涉及人物、未解伏笔、上一章结尾、文风、字数口径；默认 8 KB，超预算按优先级裁剪并报告裁掉的段；同一输入两次结果逐字节一致。
+
 ## 七个动作
 
 | 动作 | 做什么 | 拒绝条件 |
@@ -49,6 +68,7 @@ works/<workId>/
 
 - 左侧：当前工作区的作品列表（标题、形态、已写/总章数、最新章号、最近更新时间、未处理问题数）；底部显示当前工作区路径与是否有可下发指令的会话。
 - 右侧：作品详情——章节列表（状态、有无章纲、版本、字数、未处理问题）→ 章节点开后可切「正文 / 章纲」两视图、看审稿清单；「写第 N 章」「审稿」「按清单修订」「结算状态」把固定指令投递给当前会话。
+- 「真值」与「写前上下文」两个只读视图：真值列出五件的路径、版本与内容；写前上下文按章显示装配结果、字节占用、被裁项与草稿标记。
 页面只读，不写文件：写盘一律由模型调动作完成。指令按钮在被点击时才校验——没有会话、或当前会话不是长篇模式时只显示原因不投递；长篇预设装载失败时，页面顶部直接显示宿主给出的失败原因。
 
 ## 只读接口
@@ -62,6 +82,8 @@ works/<workId>/
 | `GET /api/dsh-storycraft/chapter?root=&id=&chapter=&view=body\|plan&revision=` | 章正文或章纲 |
 | `GET /api/dsh-storycraft/review?root=&id=&chapter=` | 最新章节的审稿条目与轮次 |
 | `GET /api/dsh-storycraft/state?root=&id=` | 一个作品的进度摘要 |
+| `GET /api/dsh-storycraft/bible?root=&id=&file=` | 真值文件与内容版本 |
+| `GET /api/dsh-storycraft/brief?root=&id=&chapter=` | 写前上下文装配结果 |
 | `GET /api/dsh-storycraft/roster` | 预设名册（含装载失败原因） |
 | `GET /api/dsh-storycraft/document?id=` | 某预设的完整声明 |
 
@@ -85,8 +107,10 @@ storycraft/
 ## 验证入口
 
 - `node storycraft/tests/storage.test.mjs`：作品存储的原子性、版本、审稿、状态与失败路径。
-- `node storycraft/tests/tools.test.mjs`：七个动作的注册、端到端行为与拒绝条件。
-- 端到端验收、评审与证据记录在 issue `dehuadong/dsh-nove#1`。
+- `node storycraft/tests/tools.test.mjs`：十二个动作的注册、schema 形状、端到端行为与拒绝条件。
+- `node storycraft/tests/bible.test.mjs`：真值校验、摘要截断、写前上下文顺序/预算/确定性、旧作品导入。
+- `node storycraft/e2e/run.mjs`：起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑三条页面 spec——侧栏入口、页面读数、非长篇会话的指令门禁。不调用模型，零额度；需要本机装有 Playwright（可用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装它的目录）。
+- 端到端验收、评审与证据记录在 issue `dehuadong/dsh-nove#3`。
 
 ## 改动与生效
 

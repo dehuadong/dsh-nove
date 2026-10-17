@@ -22,6 +22,7 @@
     "skills.js",
     "tools.js",
     "storage.js",
+    "bible.js",
     "cordis.patch.yml",
     "icon.svg",
     "skills"

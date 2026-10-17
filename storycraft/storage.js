@@ -120,7 +120,7 @@ export function countWords(text) {
  * @param {string} file - absolute path.
  * @returns {Promise<string|undefined>} contents.
  */
-async function readOptional(file) {
+export async function readOptional(file) {
   try {
     return await readFile(file, 'utf8')
   } catch (error) {
@@ -134,7 +134,7 @@ async function readOptional(file) {
  * @param {string} file - absolute target.
  * @param {string} text - contents.
  */
-async function writeAtomic(file, text) {
+export async function writeAtomic(file, text) {
   await mkdir(dirname(file), { recursive: true })
   const temp = join(dirname(file), `.${basename(file)}.tmp-${randomBytes(4).toString('hex')}`)
   try {
@@ -154,7 +154,7 @@ async function writeAtomic(file, text) {
  * @returns {Promise<T>} the action's value.
  * @template T
  */
-async function withWorkLock(root, workId, action) {
+export async function withWorkLock(root, workId, action) {
   await mkdir(worksDirectory(root), { recursive: true })
   const lock = join(worksDirectory(root), `.${workId}.lock`)
   const tryOpen = () => open(lock, 'wx')
@@ -312,7 +312,7 @@ export async function initWork(root, input) {
     try {
       await mkdir(dir, { recursive: false })
       created.dirs.push(dir)
-      for (const name of ['outline', 'chapters', 'reviews', 'state']) {
+      for (const name of ['outline', 'chapters', 'reviews', 'state', 'bible', 'summaries']) {
         await mkdir(join(dir, name), { recursive: false })
         created.dirs.push(join(dir, name))
       }
@@ -328,6 +328,11 @@ export async function initWork(root, input) {
         counters: { reviewRounds: 0, openProblems: 0 },
       }
       await writeAtomic(join(dir, 'hooks.md'), '# 伏笔\n\n（状态结算后自动生成）\n')
+      await writeAtomic(join(dir, 'bible', 'world.md'), '# 世界观\n')
+      await writeAtomic(join(dir, 'bible', 'characters.json'), '[]\n')
+      await writeAtomic(join(dir, 'bible', 'style.md'), '# 文风基准\n')
+      await writeAtomic(join(dir, 'bible', 'plan.md'), '# 写作计划\n')
+      await writeAtomic(join(dir, 'bible', 'intent.md'), '# 作者意图与当前焦点\n')
       await writeAtomic(join(dir, 'state', 'events.jsonl'), '')
       const written = await writeManifest(root, workId, manifest)
       return { workId, path: rootRelative(root, dir), manifest: written }

@@ -1,0 +1,4 @@
+# E2E 临时产物
+.tmp-e2e/
+test-results/
+playwright-report/

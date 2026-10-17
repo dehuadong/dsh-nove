@@ -17,6 +17,10 @@
 import {
   StoryError, foldState, initWork, reviseChapter, status as readStatus, writeChapter, writePlan, writeReview,
 } from './storage.js'
+import {
+  assembleBrief as assembleBriefFor, importBible as importFromDesign, readBible as readBibleEntries,
+  writeBible as writeBibleEntry, writeSummary as writeSummaryEntry,
+} from './bible.js'
 
 /** Requires the tool registry; without it this row stays inert. */
 export const inject = ['tools']
@@ -86,6 +90,84 @@ const OUTPUT_PROPERTIES = {
     },
   },
   resolved: { type: 'array', description: 'Review item ids marked as addressed.', items: { type: 'string' } },
+  files: {
+    type: 'array',
+    description: 'Truth files with their content version.',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        name: { type: 'string' },
+        path: { type: 'string' },
+        version: { type: 'string' },
+        content: { type: 'string' },
+        draft: { type: 'boolean' },
+      },
+      required: ['name', 'path', 'version'],
+    },
+  },
+  version: { type: 'string' },
+  sections: {
+    type: 'array',
+    description: 'Assembled brief sections, highest priority first.',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        name: { type: 'string' },
+        title: { type: 'string' },
+        source: { type: 'string' },
+        content: { type: 'string' },
+        bytes: { type: 'integer' },
+        absent: { type: 'boolean' },
+        draft: { type: 'boolean' },
+        note: { type: 'string' },
+      },
+      required: ['name', 'title', 'bytes'],
+    },
+  },
+  budget: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      limit: { type: 'integer' },
+      used: { type: 'integer' },
+      overBudget: { type: 'boolean' },
+    },
+    required: ['limit', 'used'],
+  },
+  missing: { type: 'array', description: 'Inputs that were absent.', items: { type: 'string' } },
+  dropped: {
+    type: 'array',
+    description: 'Sections removed to fit the budget.',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        name: { type: 'string' },
+        bytes: { type: 'integer' },
+        reason: { type: 'string' },
+      },
+      required: ['name'],
+    },
+  },
+  imported: {
+    type: 'array',
+    description: 'Files copied by the import.',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        from: { type: 'string' },
+        to: { type: 'string' },
+        version: { type: 'string' },
+      },
+      required: ['from', 'to'],
+    },
+  },
+  pending: { type: 'array', description: 'Truth still to be filled in.', items: { type: 'string' } },
+  names: { type: 'array', description: 'Character names found in the old cast file.', items: { type: 'string' } },
+  truncated: { type: 'boolean' },
   status: {
     type: 'object',
     additionalProperties: false,
@@ -348,6 +430,107 @@ function definitions() {
         const root = workspaceOf(exec)
         const result = await foldState(root, args)
         return { ok: true, workId: args.work, counts: result.counts, artifact: result.artifact }
+      },
+    }),
+
+    action({
+      name: 'story_bible',
+      description: '读取作品真值（世界观、人物档案、文风、写作计划、作者意图）。'
+        + ' 动笔前需要确认设定、或要查某个人物的口吻与底线时先读它；文件缺失会指出缺哪几份。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+          file: { type: 'string', enum: ['world', 'characters', 'style', 'plan', 'intent'], description: '可选：只读这一份。' },
+        },
+        required: ['work'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const result = await readBibleEntries(root, args.work, typeof args.file === 'string' ? args.file : undefined)
+        return { ok: true, workId: args.work, files: result.files }
+      },
+    }),
+
+    action({
+      name: 'story_bible_write',
+      description: '写一份真值文件并返回内容版本。人物档案必须是六字段齐全的 JSON 数组；'
+        + ' 结构不合法会被拒绝且文件不变。作者确认设定或补齐人物后再调用。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+          file: { type: 'string', enum: ['world', 'characters', 'style', 'plan', 'intent'], description: '写哪一份。' },
+          content: { type: 'string', description: '完整内容（Markdown 或人物档案 JSON）。' },
+        },
+        required: ['work', 'file', 'content'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const written = await writeBibleEntry(root, args.work, args.file, args.content)
+        return { ok: true, workId: args.work, artifact: { path: written.path }, version: written.version }
+      },
+    }),
+
+    action({
+      name: 'story_bible_import',
+      description: '把旧作品 design/ 下的世界观与大纲收编进真值目录，并列出仍需作者补的项。'
+        + ' 只收编结构已知的内容，不替作者编人物档案。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+        },
+        required: ['work'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const report = await importFromDesign(root, args.work)
+        return { ok: true, workId: args.work, imported: report.imported, pending: report.pending, names: report.names }
+      },
+    }),
+
+    action({
+      name: 'story_brief',
+      description: '装配写这一章前的上下文：作者意图、本章章纲、涉及人物、未解伏笔、上一章结尾、文风、字数口径。'
+        + ' 动笔前先读它，而不是通读前文；超预算会说明裁掉了哪几段。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+          chapter: { type: 'integer', description: '要写的章号。' },
+        },
+        required: ['work', 'chapter'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const brief = await assembleBriefFor(root, args.work, args.chapter)
+        return { ok: true, workId: args.work, sections: brief.sections, budget: brief.budget, missing: brief.missing, dropped: brief.dropped }
+      },
+    }),
+
+    action({
+      name: 'story_summarize',
+      description: '把一章概括成摘要落盘（上限 400 字），供下一章的写前上下文使用。'
+        + ' 写完整章并结算后调用；摘要只写本章发生的事实与状态变化。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+          chapter: { type: 'integer', description: '章号。' },
+          summary: { type: 'string', description: '摘要正文。' },
+        },
+        required: ['work', 'chapter', 'summary'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const receipt = await writeSummaryEntry(root, args.work, args.chapter, args.summary)
+        return { ok: true, workId: args.work, artifact: { path: receipt.path }, words: receipt.words, truncated: receipt.truncated }
       },
     }),
 

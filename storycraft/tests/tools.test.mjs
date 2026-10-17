@@ -21,9 +21,10 @@ const ctx = {
 tools.apply(ctx, { mode: 'longform' })
 
 const names = registered.map(definition => definition.name).sort()
-check('registers seven actions', names.length === 7, names.join(','))
+check('registers twelve actions', names.length === 12, names.join(','))
 check('action names', names.join(',') === [
-  'story_init', 'story_plan', 'story_review', 'story_revise', 'story_state', 'story_status', 'story_write',
+  'story_bible', 'story_bible_import', 'story_bible_write', 'story_brief', 'story_init', 'story_plan',
+  'story_review', 'story_revise', 'story_state', 'story_status', 'story_summarize', 'story_write',
 ].sort().join(','), names.join(','))
 check('every action declares output schema', registered.every(definition => definition.output?.schema && typeof definition.output?.render === 'function'))
 check('every action declares execute', registered.every(definition => typeof definition.execute === 'function'))
@@ -126,6 +127,25 @@ try {
     work, chapter: 1, body: `${body}（改）`, problemIds: ['Q1'],
   }, exec)
   check('unchanged body refused', unchanged.ok === false && unchanged.error.code === 'unchanged-body', JSON.stringify(unchanged))
+  const written = await byName.get('story_bible_write').execute({
+    work, file: 'characters',
+    content: JSON.stringify([{ name: '林澈', role: '主角', want: '拿回合同', fear: '失去妹妹', limit: '不伤人', voice: '短句' }]),
+  }, exec)
+  check('story_bible_write ok', written.ok === true && typeof written.version === 'string', JSON.stringify(written))
+
+  const invalidBible = await byName.get('story_bible_write').execute({ work, file: 'characters', content: 'not-json' }, exec)
+  check('story_bible_write rejects invalid', invalidBible.ok === false && invalidBible.error.code === 'bible-invalid', JSON.stringify(invalidBible))
+
+  const bible = await byName.get('story_bible').execute({ work }, exec)
+  check('story_bible reads five files', bible.ok === true && bible.files.length === 5, JSON.stringify(bible.files?.map(file => file.name)))
+
+  const brief = await byName.get('story_brief').execute({ work, chapter: 1 }, exec)
+  check('story_brief returns seven sections', brief.ok === true && brief.sections.length === 7, JSON.stringify(brief.sections?.map(section => section.name)))
+  check('story_brief reports budget', brief.ok === true && brief.budget.limit > 0)
+
+  const summary = await byName.get('story_summarize').execute({ work, chapter: 1, summary: '林澈在塌方里救人，决定北上。' }, exec)
+  check('story_summarize ok', summary.ok === true && summary.truncated === false, JSON.stringify(summary))
+
   const status = await byName.get('story_status').execute({ work }, exec)
   check('story_status ok', status.ok === true && status.status.writtenChapters === 1, JSON.stringify(status.status ?? status))
 

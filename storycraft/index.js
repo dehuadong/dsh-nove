@@ -14,6 +14,7 @@
 import { realpath } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
 import { listWorks, readChapter, readReview, readWork, StoryError } from './storage.js'
+import { assembleBrief, readBible } from './bible.js'
 
 /** Requires the host web server; without it the browser surface has no data. */
 export const inject = ['webServer']
@@ -183,6 +184,22 @@ export function apply(ctx) {
       path: `${BASE}/state`,
       handler: (req, res) => readRoute(req, res, async (query) => ({
         state: await status(rootOf(ctx, query), workOf(query)),
+      })),
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/bible`,
+      handler: (req, res) => readRoute(req, res, async (query) => {
+        const root = await rootOf(ctx, query)
+        const file = query.get('file') ?? undefined
+        return { ...(await readBible(root, workOf(query), file === null ? undefined : file)) }
+      }),
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/brief`,
+      handler: (req, res) => readRoute(req, res, async (query) => ({
+        ...(await assembleBrief(await rootOf(ctx, query), workOf(query), chapterOf(query))),
       })),
     }),
     ctx.webServer.register({
