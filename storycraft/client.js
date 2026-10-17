@@ -785,6 +785,30 @@ window.__ModuleLoader__.load({
     }
 
 
+    /**
+     * The chat composer's writer, captured from a session-scoped header slot.
+     *
+     * The workbench lives in the right sidebar, so the conversation stays
+     * mounted and this bridge can hold `inputActions.setDraft` for it.
+     */
+    const composerBridge = { setDraft: undefined, sessionId: undefined }
+
+    /** Invisible header utility that keeps the composer's draft writer. */
+    function ComposerBridge({ inputActions, sessionId }) {
+      useEffect(() => {
+        if (inputActions === undefined || typeof inputActions.setDraft !== 'function') return undefined
+        composerBridge.setDraft = (text) => { inputActions.setDraft(text) }
+        composerBridge.sessionId = sessionId
+        return () => {
+          if (composerBridge.sessionId === sessionId) {
+            composerBridge.setDraft = undefined
+            composerBridge.sessionId = undefined
+          }
+        }
+      }, [inputActions, sessionId])
+      return h('span', { 'data-storycraft-bridge': 'ready', style: { display: 'none' } })
+    }
+
     /** Right-sidebar tab body: the workbench in a narrow column. */
     function StorycraftSideTab(props) {
       return h(StorycraftPage, {
@@ -850,13 +874,18 @@ window.__ModuleLoader__.load({
           writeDraft(text)
           return
         }
+        if (composerBridge.setDraft !== undefined && composerBridge.sessionId === sessionId) {
+          composerBridge.setDraft(text)
+          setNotice({ kind: 'ok', text: '已填入聊天输入框：可以继续改，改完发送。' })
+          return
+        }
         if (typeof props.prefill === 'function') {
           props.prefill(text)
           setNotice({ kind: 'ok', text: '已填入聊天输入框：可以继续改，改完发送。' })
           return
         }
         writeDraft(text)
-      }, [props.prefill, sessionPreset, writeDraft])
+      }, [props.prefill, sessionPreset, sessionId, writeDraft])
 
 
       const load = useCallback(async () => {
@@ -1028,6 +1057,12 @@ window.__ModuleLoader__.load({
           name: 'sidebar.right.pane.tab.title',
           key: tabId,
         }, StorycraftTabTitle))
+        const disposeBridge = ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
+          name: 'conversation.session.header.utilities',
+          id: 'storycraft-composer-bridge',
+          order: 20,
+          label: '故事工坊草稿',
+        }, ComposerBridge))
         let disposeBindings
         try {
           disposeBindings = ctx.inject(['remote.session'], (scope) => {
@@ -1038,6 +1073,7 @@ window.__ModuleLoader__.load({
         }
         ctx.effect(() => () => {
           disposeBindings?.()
+          disposeBridge()
           disposeTabBody()
           disposeTabTitle()
         }, 'dsh-storycraft: sidebar entry and workbench')
