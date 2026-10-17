@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "workId": "开国工程队",
+  "title": "开国工程队",
+  "form": "longform",
+  "tags": [
+    "穿越",
+    "基建",
+    "种田",
+    "开国",
+    "群像",
+    "硬核"
+  ],
+  "createdAt": "2026-10-17T08:12:09.356Z",
+  "updatedAt": "2026-10-17T08:15:14.814Z",
+  "chapters": [
+    {
+      "id": "ch-0001",
+      "number": 1,
+      "title": "塌方",
+      "status": "revised",
+      "currentRevision": 2,
+      "words": 3890,
+      "updatedAt": "2026-10-17T08:15:14.814Z"
+    }
+  ],
+  "counters": {
+    "reviewRounds": 1,
+    "openProblems": 0
+  }
+}
