@@ -21,12 +21,12 @@ const ctx = {
 tools.apply(ctx, { mode: 'longform' })
 
 const names = registered.map(definition => definition.name).sort()
-check('registers twenty-three actions', names.length === 23, names.join(','))
+check('registers twenty-four actions', names.length === 24, names.join(','))
 check('action names', names.join(',') === [
   'story_bible', 'story_bible_import', 'story_bible_write', 'story_brief', 'story_critique', 'story_current',
   'story_delete', 'story_init', 'story_next', 'story_plan', 'story_rename', 'story_reopen', 'story_restore',
-  'story_review', 'story_revise', 'story_settings', 'story_state', 'story_status', 'story_summarize',
-  'story_propose', 'story_volume', 'story_volumes', 'story_write',
+  'story_outline', 'story_propose', 'story_review', 'story_revise', 'story_settings', 'story_state',
+  'story_status', 'story_summarize', 'story_volume', 'story_volumes', 'story_write',
 ].sort().join(','), names.join(','))
 check('every action declares output schema', registered.every(definition => definition.output?.schema && typeof definition.output?.render === 'function'))
 check('every action declares execute', registered.every(definition => typeof definition.execute === 'function'))
@@ -89,6 +89,20 @@ try {
   check('story_init ok', created.ok === true && typeof created.workId === 'string', JSON.stringify(created))
   const work = created.workId
   check('story_init wrote manifest', (await stat(join(root, 'works', work, 'manifest.json'))).isFile())
+
+  const earlyPlan = await byName.get('story_plan').execute({
+    work, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't',
+  }, exec)
+  check('the first chapter plan needs an approved outline', earlyPlan.ok === false && earlyPlan.error.code === 'outline-required', JSON.stringify(earlyPlan))
+  await byName.get('story_outline').execute({ work, mainline: '一条主线' }, exec)
+  const unapproved = await byName.get('story_outline').execute({ work }, exec)
+  check('an unapproved outline blocks nothing by itself', unapproved.ok === true || unapproved.ok === false)
+  const blockedPlan = await byName.get('story_plan').execute({
+    work, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't',
+  }, exec)
+  check('writing the outline is not enough', blockedPlan.ok === false && blockedPlan.error.code === 'outline-required', JSON.stringify(blockedPlan))
+  const approved = await byName.get('story_outline').execute({ work, approve: true }, exec)
+  check('approval recorded', approved.ok === true && typeof approved.outline?.approvedAt === 'string', JSON.stringify(approved))
 
   const plan = await byName.get('story_plan').execute({
     work, chapter: 1, perspective: '林澈', goal: '拿回合同', obstacle: '房东', cost: '人情', turn: '合同是假的',

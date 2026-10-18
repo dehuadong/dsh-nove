@@ -247,10 +247,12 @@ window.__ModuleLoader__.load({
       fold(workId, chapter) {
         return `把作品 ${workId} 第 ${chapter} 章已经发生的事实定稿进状态：人物事实与伏笔变化用 story_state 落盘。`
       },
-      discuss(title, form) {
+      newIdea(form, idea) {
         const formLabel = { longform: '长篇', short: '短篇', script: '剧本' }[form] ?? '长篇'
-        return `我想写一部${formLabel}，暂定标题《${title}》。（先讨论：不要调用 story_init，也不要写任何文件；`
-          + '先和我把前提、主要人物、核心冲突聊清楚，优先复用我说过的内容；方向成熟后给出建项方案，等我确认再立项。）'
+        const text = String(idea ?? '').trim()
+        return text === ''
+          ? `我想写一部${formLabel}，还没想好具体写什么，先聊聊。`
+          : `我想写一部${formLabel}，想法是：${text}`
       },
       confirm(proposalId) {
         return `我确认这份方案，可以立项：用 story_init 建作品（带 proposal: ${proposalId}），建完停下来告诉我作品 id 与下一步，不要继续写章纲。`
@@ -492,7 +494,7 @@ window.__ModuleLoader__.load({
      * @returns {object} the view.
      */
     function ProjectList({ works, form, onOpen, onCreate }) {
-      const [title, setTitle] = useState('')
+      const [idea, setIdea] = useState('')
       return h('div', { className: 'sc-projects' },
         h('h2', { className: 'sc-detail-title' }, `${form?.label ?? '作品'}`),
         works.length === 0
@@ -512,36 +514,30 @@ window.__ModuleLoader__.load({
             )),
           ),
         h('div', { className: 'sc-field', style: { marginTop: 14 } },
-          h('input', {
+          h('textarea', {
             className: 'sc-input',
-            placeholder: `新${form?.label ?? ''}作品标题`,
-            value: title,
-            onChange: event => setTitle(event.target.value),
-            onKeyDown: (event) => {
-              if (event.key === 'Enter' && title.trim() !== '') {
-                onCreate(title.trim())
-                setTitle('')
-              }
-            },
+            rows: 2,
+            placeholder: `想写一部什么样的${form?.label ?? ''}？一句想法就够，也可以留空先聊`,
+            value: idea,
+            'aria-label': '作品想法',
+            onChange: event => setIdea(event.target.value),
           }),
           h('button', {
             type: 'button',
             className: 'sc-btn sc-btn-primary',
-            disabled: title.trim() === '',
-            onClick: () => { onCreate(title.trim()); setTitle('') },
-          }, '开始讨论'),
+            onClick: () => { onCreate(idea); setIdea('') },
+          }, '新建作品'),
         ),
       )
     }
 
     /** Empty state: no work yet, with the one instruction that creates one. */
     function EmptyState({ face, notice, root, form, onCreated, canSend }) {
-      const [title, setTitle] = useState('')
+      const [idea, setIdea] = useState('')
       const submit = async () => {
-        const trimmed = title.trim()
-        if (trimmed === '') return
-        const failure = await face.send(INSTRUCTIONS.discuss(trimmed, form))
+        const failure = await face.send(INSTRUCTIONS.newIdea(form, idea))
         onCreated(failure)
+        setIdea('')
       }
       return h('div', { className: 'sc-empty' },
         h('h2', { className: 'sc-detail-title' }, '还没有作品'),
@@ -552,19 +548,19 @@ window.__ModuleLoader__.load({
         ),
         notice === undefined ? null : h('p', { className: `sc-notice sc-notice-${notice.kind}` }, notice.text),
         h('div', { className: 'sc-field' },
-          h('input', {
+          h('textarea', {
             className: 'sc-input',
-            placeholder: '作品标题，例如：潮汐记事',
-            value: title,
-            onChange: event => setTitle(event.target.value),
-            onKeyDown: (event) => { if (event.key === 'Enter') void submit() },
+            rows: 2,
+            placeholder: '想写一部什么样的作品？一句想法就够，也可以留空先聊',
+            value: idea,
+            'aria-label': '作品想法',
+            onChange: event => setIdea(event.target.value),
           }),
           h('button', {
             type: 'button',
             className: 'sc-btn sc-btn-primary',
-            disabled: title.trim() === '',
             onClick: () => { void submit() },
-          }, '开始讨论'),
+          }, '新建作品'),
         ),
         h('p', { className: 'sc-item-body', style: { marginTop: 10 } },
           root === undefined
@@ -1441,7 +1437,7 @@ window.__ModuleLoader__.load({
                     void face.setCurrent(root, sessionId, workId).catch(() => {})
                   }
                 },
-                onCreate: title => compose(INSTRUCTIONS.discuss(title, typeFilter)),
+                onCreate: idea => compose(INSTRUCTIONS.newIdea(typeFilter, idea)),
               })
               : null,
             presetHealth.state === 'broken'

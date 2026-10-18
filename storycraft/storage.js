@@ -609,6 +609,50 @@ export async function initWork(root, input) {
 }
 
 /**
+ * Write the book-level plan, or record the author's approval of it.
+ *
+ * The plan lives in `bible/plan.md`; approval lives on the manifest so that
+ * rewriting the plan automatically invalidates it.
+ * @param {string} root - workspace directory.
+ * @param {{work: string, mainline?: string, volumes?: string, ending?: string, approve?: boolean}} input - outline input.
+ * @returns {Promise<{workId: string, outline: object}>} the stored outline state.
+ */
+export async function writeOutline(root, input) {
+  return withWorkLock(root, String(input.work), async () => {
+    const manifest = await readManifest(root, input.work)
+    const current = manifest.outline
+    if (input.approve === true) {
+      if (current === undefined || current.writtenAt === undefined) {
+        throw new StoryError('outline-required', '还没有全书计划：先 story_outline 写主线、卷划分与结局方向')
+      }
+      manifest.outline = { ...current, approvedAt: now() }
+      const written = await writeManifest(root, manifest.workId, manifest)
+      return { workId: written.workId, outline: written.outline }
+    }
+    const mainline = String(input.mainline ?? '').trim()
+    if (mainline === '') throw new StoryError('outline-invalid', '全书计划至少要写主线')
+    const lines = [
+      '# 写作计划',
+      '',
+      '## 主线',
+      mainline,
+      '',
+      '## 卷划分',
+      String(input.volumes ?? '').trim() === '' ? '（暂未划分）' : String(input.volumes).trim(),
+      '',
+      '## 结局方向',
+      String(input.ending ?? '').trim() === '' ? '（暂未确定）' : String(input.ending).trim(),
+      '',
+    ].join('\n')
+    await commitFiles(root, manifest.workId, 'outline', { 'bible/plan.md': lines })
+    // A new plan is unapproved until the author says otherwise.
+    manifest.outline = { writtenAt: now() }
+    const written = await writeManifest(root, manifest.workId, manifest)
+    return { workId: written.workId, outline: written.outline }
+  })
+}
+
+/**
  * Update one work's production settings (currently the word range).
  *
  * The range is a per-work decision made with the author, never a global rule;
@@ -1373,6 +1417,13 @@ async function nextStepRaw(root, work) {
   const manifest = await readManifest(root, work)
   const last = manifest.chapters.length === 0 ? undefined : manifest.chapters[manifest.chapters.length - 1]
   const chapter = last === undefined ? 1 : last.number
+  const outline = manifest.outline
+  if (last === undefined && outline?.approvedAt === undefined) {
+    const reason = outline === undefined || outline.writtenAt === undefined
+      ? '还没有全书计划：先写主线、卷划分与结局方向，等作者确认'
+      : '全书计划等作者确认：确认后才能写第 1 章章纲'
+    return { workId: manifest.workId, chapter, stage: 'planned', action: 'story_outline', reason, missing: ['outline'] }
+  }
   if (last === undefined) {
     return { workId: manifest.workId, chapter, stage: 'planned', action: 'story_plan', reason: '还没有任何章节：先写第 1 章章纲', missing: ['outline'] }
   }

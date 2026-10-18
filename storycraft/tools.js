@@ -17,7 +17,7 @@
 import {
   StoryError, deleteWork, foldState, initWork, nextStep as nextStepFor, readChapter, readManifest,
   reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter, updateSettings,
-  status as readStatus, writeChapter, writePlan, writeReview,
+  status as readStatus, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
 } from './storage.js'
 import {
   assembleBrief as assembleBriefFor, importBible as importFromDesign, readBible as readBibleEntries,
@@ -204,6 +204,15 @@ const OUTPUT_PROPERTIES = {
   proposal: {
     type: 'string',
     description: '提案 id（story_propose 的返回值）。',
+  },
+  outline: {
+    type: 'object',
+    description: '全书计划状态：writtenAt 写过、approvedAt 作者已确认。',
+    additionalProperties: false,
+    properties: {
+      writtenAt: { type: 'string' },
+      approvedAt: { type: 'string' },
+    },
   },
   unit: {
     type: 'string',
@@ -481,6 +490,34 @@ function rawDefinitions() {
     }),
 
     action({
+      name: 'story_outline',
+      description: '全书计划：写主线、卷划分、结局方向到 bible/plan.md；作者同意后用 approve: true 记录下来。'
+        + ' 立项后先做这一步，未确认前不能写第 1 章章纲。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+          mainline: { type: 'string', description: '主线：主角要什么、被什么阻挡、大致怎么走。' },
+          volumes: { type: 'string', description: '可选：卷划分的文字摘要。' },
+          ending: { type: 'string', description: '可选：结局方向。' },
+          approve: { type: 'boolean', description: '作者明确同意这份计划时传 true；只记录确认，不改内容。' },
+        },
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const result = await writeOutlineFor(root, {
+          work: args.work,
+          ...(args.approve === true ? { approve: true } : {}),
+          ...(typeof args.mainline === 'string' ? { mainline: args.mainline } : {}),
+          ...(typeof args.volumes === 'string' ? { volumes: args.volumes } : {}),
+          ...(typeof args.ending === 'string' ? { ending: args.ending } : {}),
+        })
+        return { ok: true, workId: result.workId, outline: result.outline }
+      },
+    }),
+
+    action({
       name: 'story_plan',
       description: '写一章的章纲并落盘。五项必须齐全：视角、目标、阻力、代价、结尾变化；缺项会被拒绝。'
         + ' 动笔前先出章纲，改章纲也用这个动作覆盖同一章的章纲文件。',
@@ -500,6 +537,11 @@ function rawDefinitions() {
       },
       async execute(args, exec) {
         const root = workspaceOf(exec)
+        const manifest = await readManifest(root, args.work)
+        if (manifest.chapters.length === 0 && manifest.outline?.approvedAt === undefined) {
+          throw new StoryError('outline-required',
+            '全书计划还没确认：先 story_outline 写主线/卷划分/结局方向，等作者同意后 approve，再写章纲')
+        }
         const result = await writePlan(root, args)
         return { ok: true, workId: args.work, artifact: result.artifact }
       },
