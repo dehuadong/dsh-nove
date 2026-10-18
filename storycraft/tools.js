@@ -197,6 +197,18 @@ const OUTPUT_PROPERTIES = {
       required: ['id', 'title', 'from', 'to'],
     },
   },
+  volume: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      id: { type: 'string' },
+      title: { type: 'string' },
+      from: { type: 'integer' },
+      to: { type: 'integer' },
+      summary: { type: 'string' },
+    },
+    required: ['id', 'title', 'from', 'to'],
+  },
   action: { type: 'string', description: 'Action to run next, e.g. story_write.' },
   chapter: { type: 'integer', description: 'Chapter number the next step applies to.' },
   reason: { type: 'string', description: 'Why that action is next.' },
