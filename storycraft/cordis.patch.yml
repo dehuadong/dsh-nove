@@ -89,6 +89,41 @@
     # 审稿子代理的专用预设：只读。没有写文件的工具、没有 shell、没有 story_* 动作，
     # 子代理只能把清单作为文本返回，落盘由父代理完成。
     # 写手子代理：只读上下文与真值，返回整章正文；落盘由主编完成。
+    # 规划子代理：出全书计划与章纲，只返回结构化文本；落盘由主编完成。
+    - id: preset-storycraft-planner
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: storycraft-planner
+        name: 规划
+        description: 故事工坊的规划：卷划分、全书计划与章纲，只返回结构，不写文件。
+        order: 44
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |
+                你是故事工坊的规划。你不写正文、不写文件：没有写工具，也没有任何动作。
+                按「规划」技能执行：卷按故事线划、每卷有卷末推力；章纲五项（视角、目标、阻力、代价、结尾变化）必须互相咬合，写不出结尾变化就说明这章该并入别章。
+                承接上一章与最近几章摘要；与真值冲突时以真值为准，需要改设定就明说。
+                按调用方要求的 JSON 结构输出，字段写具体，不用「待定」占位。
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+            config:
+              write: false
+              edit: false
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+          - id: storycraft-planner-skills
+            name: 'dsh-storycraft/skills'
+            config:
+              mode: plan
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+
     - id: preset-storycraft-writer
       name: '@deepseek-ai/dsh-agent-preset'
       config:

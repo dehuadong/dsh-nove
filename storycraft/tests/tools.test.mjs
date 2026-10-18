@@ -22,11 +22,11 @@ const ctx = {
 tools.apply(ctx, { mode: 'longform' })
 
 const names = registered.map(definition => definition.name).sort()
-check('registers twenty-eight actions', names.length === 28, names.join(','))
+check('registers thirty actions', names.length === 30, names.join(','))
 check('action names', names.join(',') === [
   'story_agent_probe', 'story_bible', 'story_bible_import', 'story_bible_write', 'story_brief', 'story_critique', 'story_current',
   'story_delete', 'story_init', 'story_next', 'story_plan', 'story_rename', 'story_reopen', 'story_restore',
-  'story_outline', 'story_propose', 'story_review', 'story_review_agent', 'story_revise', 'story_revise_agent', 'story_settings', 'story_state',
+  'story_outline', 'story_outline_agent', 'story_plan_agent', 'story_propose', 'story_review', 'story_review_agent', 'story_revise', 'story_revise_agent', 'story_settings', 'story_state',
   'story_status', 'story_summarize', 'story_volume', 'story_volumes', 'story_write', 'story_write_agent',
 ].sort().join(','), names.join(','))
 check('every action declares output schema', registered.every(definition => definition.output?.schema && typeof definition.output?.render === 'function'))
@@ -181,6 +181,11 @@ try {
   check('story_current declares its output keys', ['workId', 'current'].every(key => currentProps.includes(key)), currentProps.join(','))
   const statusProps = Object.keys(byName.get('story_status').output.schema.properties.status.properties ?? {})
   check('story_status declares the fields it returns', ['form', 'wordRange', 'chapters', 'hooks'].every(key => statusProps.includes(key)), statusProps.join(','))
+
+  const planJson = tools.parsePlanJson('前言\n```json\n{"perspective":"甲","goal":"g","obstacle":"o","cost":"c","turn":"t"}\n```')
+  check('plan JSON is extracted from fences', planJson?.perspective === '甲', JSON.stringify(planJson))
+  check('plan JSON rejects garbage', tools.parsePlanJson('没有 JSON') === undefined)
+  check('plan JSON rejects arrays', tools.parsePlanJson('[1,2]') === undefined)
 
   const marked = tools.parseChapterBody('说明\n<<<CHAPTER\n' + '正文。'.repeat(80) + '\nCHAPTER>>>\n后记')
   check('writer body is extracted between markers', typeof marked === 'string' && marked.startsWith('正文。'), String(marked).slice(0, 20))

@@ -39,6 +39,10 @@ const revise = mount('revise')
 const reviseNames = (await revise.provider.list()).map(skill => skill.name)
 check('the revise catalog holds the revise skill', reviseNames.length === 1 && reviseNames[0] === 'storycraft-revise-craft', reviseNames.join(','))
 
+const plan = mount('plan')
+const planNames = (await plan.provider.list()).map(skill => skill.name)
+check('the plan catalog holds the planning skill', planNames.length === 1 && planNames[0] === 'storycraft-plan-craft', planNames.join(','))
+
 const one = mount('longform')
 check('one form serves one catalog', (await one.provider.list()).length === 1)
 

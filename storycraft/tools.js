@@ -105,6 +105,26 @@ export function parseChapterBody(text) {
   return `${body}\n`
 }
 
+/**
+ * Read a JSON object out of a planner child's answer.
+ * @param {string} text - child output.
+ * @returns {object|undefined} the object, or undefined when nothing parses.
+ */
+export function parsePlanJson(text) {
+  const raw = String(text ?? '')
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/u.exec(raw)
+  const candidate = fenced === null ? raw : fenced[1]
+  const start = candidate.indexOf('{')
+  const end = candidate.lastIndexOf('}')
+  if (start === -1 || end <= start) return undefined
+  try {
+    const parsed = JSON.parse(candidate.slice(start, end + 1))
+    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : undefined
+  } catch {
+    return undefined
+  }
+}
+
 /** Provider label used in diagnostics. */
 export const name = 'storycraft-tools'
 
@@ -850,6 +870,155 @@ function rawDefinitions() {
           ok: true, provider, childId: String(started.childId), readOnly, mode,
           revision: revised.artifact.revision, resolved: revised.resolved,
         }
+      },
+    }),
+
+    action({
+      name: 'story_plan_agent',
+      description: '规划子代理出章纲：把意图、计划、卷图与上一章交给只读规划，取回五项章纲，校验齐全后由主编落盘（story_plan）。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id（可省略，用会话当前作品）。' },
+          chapter: { type: 'integer', description: '章号。' },
+          instruction: { type: 'string', description: '可选：作者对本章的额外要求。' },
+        },
+        required: ['chapter'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const subagents = pluginContext?.get?.('subagents')
+        const provider = subagents === undefined ? undefined : ['spawn', 'fork'].find(name => subagents.getProvider?.(name) !== undefined)
+        if (provider === undefined || exec?.agent === undefined) {
+          throw new StoryError('subagent-unavailable', '子代理通道不可用：直接用 story_plan 写章纲')
+        }
+        const brief = await assembleBriefFor(root, args.work, args.chapter)
+        const context = brief.sections
+          .filter(section => section.absent !== true && typeof section.content === 'string' && section.content.trim() !== '')
+          .map(section => `## ${section.title}\n${section.content}`)
+          .join('\n\n')
+        const task = [
+          '你是规划：为这一章出章纲，不要写正文、不要写文件。',
+          typeof args.instruction === 'string' && args.instruction.trim() !== '' ? `作者要求：${args.instruction.trim()}` : '',
+          `第 ${args.chapter} 章。五项必须齐全且互相咬合；写不出结尾变化就直说这章该并入别章。`,
+          '只输出 JSON：{"perspective":"…","goal":"…","obstacle":"…","cost":"…","turn":"…"}，不要输出其它文字。',
+          '---上下文开始---',
+          context,
+          '---上下文结束---',
+        ].filter(line => line !== '').join('\n')
+        const canPreset = subagents.getProvider?.(provider)?.capabilities?.agentPreset === true
+        const start = presetId => subagents.startActivation({
+          provider,
+          label: `storycraft-plan-${args.chapter}`,
+          request: {
+            prompt: [{ type: 'text', text: task }],
+            parent: exec.agent,
+            ...(presetId === undefined ? {} : { agentPreset: presetId }),
+          },
+          signal: exec.signal,
+          delivery: 'caller',
+        })
+        let readOnly = canPreset
+        let started
+        try {
+          started = await start(canPreset ? 'storycraft-planner' : undefined)
+        } catch (error) {
+          if (!canPreset) throw error
+          readOnly = false
+          started = await start(undefined)
+        }
+        const result = await started.result
+        const output = (result?.output ?? []).filter(block => block?.type === 'text').map(block => block.text).join('\n')
+        const parsed = parsePlanJson(output)
+        const fields = ['perspective', 'goal', 'obstacle', 'cost', 'turn']
+        const missing = parsed === undefined ? fields : fields.filter(key => typeof parsed[key] !== 'string' || parsed[key].trim() === '')
+        if (missing.length > 0) {
+          throw new StoryError('agent-output-invalid',
+            `规划没有给出完整五项（缺 ${missing.join('、')}）：用 story_plan 自己补。原文：${output.slice(0, 500)}`)
+        }
+        const written = await writePlan(root, {
+          work: args.work,
+          chapter: args.chapter,
+          perspective: parsed.perspective,
+          goal: parsed.goal,
+          obstacle: parsed.obstacle,
+          cost: parsed.cost,
+          turn: parsed.turn,
+        })
+        return {
+          ok: true, provider, childId: String(started.childId), readOnly,
+          artifact: written.artifact,
+        }
+      },
+    }),
+
+    action({
+      name: 'story_outline_agent',
+      description: '规划子代理出全书计划：主线、卷划分、结局方向，取回三段结构后由主编落盘（story_outline，不含确认）。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id（可省略，用会话当前作品）。' },
+          instruction: { type: 'string', description: '可选：作者对全书的额外要求。' },
+        },
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const subagents = pluginContext?.get?.('subagents')
+        const provider = subagents === undefined ? undefined : ['spawn', 'fork'].find(name => subagents.getProvider?.(name) !== undefined)
+        if (provider === undefined || exec?.agent === undefined) {
+          throw new StoryError('subagent-unavailable', '子代理通道不可用：直接用 story_outline 写计划')
+        }
+        const bible = await readBibleEntries(root, args.work).catch(() => [])
+        const context = bible
+          .filter(entry => entry.name === 'intent' || entry.name === 'plan')
+          .map(entry => `## ${entry.name}\n${entry.content ?? ''}`)
+          .join('\n\n')
+        const task = [
+          '你是规划：为这部作品出全书计划，不要写正文、不要写文件。',
+          typeof args.instruction === 'string' && args.instruction.trim() !== '' ? `作者要求：${args.instruction.trim()}` : '',
+          '三段：主线（主角要什么、被什么阻挡、怎么走）、卷划分（每卷的核心冲突与卷末推力）、结局方向（哪个问题必须被回答、哪种代价必须被支付）。',
+          '只输出 JSON：{"mainline":"…","volumes":"…","ending":"…"}，不要输出其它文字。',
+          '---已有意图与计划---',
+          context === '' ? '（空）' : context,
+        ].filter(line => line !== '').join('\n')
+        const canPreset = subagents.getProvider?.(provider)?.capabilities?.agentPreset === true
+        const start = presetId => subagents.startActivation({
+          provider,
+          label: 'storycraft-outline',
+          request: {
+            prompt: [{ type: 'text', text: task }],
+            parent: exec.agent,
+            ...(presetId === undefined ? {} : { agentPreset: presetId }),
+          },
+          signal: exec.signal,
+          delivery: 'caller',
+        })
+        let readOnly = canPreset
+        let started
+        try {
+          started = await start(canPreset ? 'storycraft-planner' : undefined)
+        } catch (error) {
+          if (!canPreset) throw error
+          readOnly = false
+          started = await start(undefined)
+        }
+        const result = await started.result
+        const output = (result?.output ?? []).filter(block => block?.type === 'text').map(block => block.text).join('\n')
+        const parsed = parsePlanJson(output)
+        if (parsed === undefined || typeof parsed.mainline !== 'string' || parsed.mainline.trim() === '') {
+          throw new StoryError('agent-output-invalid',
+            `规划没有给出可用计划（缺 mainline）：用 story_outline 自己写。原文：${output.slice(0, 500)}`)
+        }
+        const written = await writeOutlineFor(root, {
+          work: args.work,
+          mainline: parsed.mainline,
+          ...(typeof parsed.volumes === 'string' ? { volumes: parsed.volumes } : {}),
+          ...(typeof parsed.ending === 'string' ? { ending: parsed.ending } : {}),
+        })
+        return { ok: true, provider, childId: String(started.childId), readOnly, outline: written.outline }
       },
     }),
 

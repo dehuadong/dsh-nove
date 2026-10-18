@@ -33,6 +33,7 @@ const MODES = {
   review: '审稿',
   write: '写作',
   revise: '修订',
+  plan: '规划',
 }
 
 /** Catalogs the studio preset serves; the review catalog belongs to its own role. */

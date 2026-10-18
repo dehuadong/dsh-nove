@@ -30,7 +30,7 @@ const unknown = variables.filter(name => !REGISTERED_VARIABLES.has(name))
 check('persona templates use no unregistered prompt variable', unknown.length === 0, unknown.join(', '))
 
 const presetRows = [...patch.matchAll(/name: '@deepseek-ai\/dsh-agent-preset'/g)].length
-check('four preset declarations (studio + writer + reviser + reviewer)', presetRows === 4, String(presetRows))
+check('five preset declarations (studio + planner + writer + reviser + reviewer)', presetRows === 5, String(presetRows))
 
 check('the studio preset id is `storycraft`', /^\s{8}id: storycraft$/m.test(patch))
 check('the preset is named 故事工坊', patch.includes('name: 故事工坊'))
@@ -47,11 +47,18 @@ const toolsRow = patch.indexOf("name: 'dsh-storycraft/tools'")
 check('the action row is mounted once', toolsRow > 0 && patch.indexOf("name: 'dsh-storycraft/tools'", toolsRow + 1) === -1)
 
 const skillsRows = [...patch.matchAll(/name: 'dsh-storycraft\/skills'/g)].length
-check('one skill row per role', skillsRows === 4, String(skillsRows))
+check('one skill row per role', skillsRows === 5, String(skillsRows))
 check('the studio row serves every form', /mode: all/.test(patch))
 check('the reviewer row serves the review catalog', /mode: review/.test(patch))
 check('the writer row serves the writing catalog', /mode: write/.test(patch))
 check('the reviser row serves the revise catalog', /mode: revise/.test(patch))
+check('the planner row serves the plan catalog', /mode: plan/.test(patch))
+
+const planner = patch.slice(patch.indexOf('id: storycraft-planner'), patch.indexOf('id: preset-storycraft-writer'))
+check('the planner preset exists', planner.length > 0)
+check('the planner cannot write files', /write: false/.test(planner) && /edit: false/.test(planner))
+check('the planner has no shell', !/dsh-tool-pwsh|dsh-tool-bash/.test(planner))
+check('the planner has no storycraft actions', !/dsh-storycraft\/tools/.test(planner))
 
 const reviser = patch.slice(patch.indexOf('id: storycraft-reviser'), patch.indexOf('id: preset-storycraft-reviewer'))
 check('the reviser preset exists', reviser.length > 0)
