@@ -31,6 +31,10 @@ check('short form skill present', names.includes('storycraft-short-story'))
 check('script skill present', names.includes('storycraft-short-drama'))
 check('no warning for all', all.warnings.length === 0, all.warnings.join('; '))
 
+const write = mount('write')
+const writeNames = (await write.provider.list()).map(skill => skill.name)
+check('the writing catalog holds the craft skill', writeNames.length === 1 && writeNames[0] === 'storycraft-write-craft', writeNames.join(','))
+
 const one = mount('longform')
 check('one form serves one catalog', (await one.provider.list()).length === 1)
 

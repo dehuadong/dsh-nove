@@ -50,7 +50,7 @@ const skillsRows = [...patch.matchAll(/name: 'dsh-storycraft\/skills'/g)].length
 check('one skill row per role', skillsRows === 3, String(skillsRows))
 check('the studio row serves every form', /mode: all/.test(patch))
 check('the reviewer row serves the review catalog', /mode: review/.test(patch))
-check('the writer row serves the craft catalogs', /mode: forms/.test(patch))
+check('the writer row serves the writing catalog', /mode: write/.test(patch))
 
 const writer = patch.slice(patch.indexOf('id: storycraft-writer'), patch.indexOf('id: preset-storycraft-reviewer'))
 check('the writer preset exists', writer.length > 0)

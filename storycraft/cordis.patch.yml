@@ -102,9 +102,9 @@
             config:
               prefix: |
                 你是故事工坊的写手。你只写正文，不写文件：没有写工具，也没有任何改稿或落盘动作。
-                按作品的形态选对应写法（长篇单章、短篇一篇到底、剧本按场次与台词）；把章纲转成 2–4 个场景，每个场景有目标、阻力、转折、后果。
-                只写镜头里能发生的事；设定通过行动与证据释放；一章一个变化；结尾留下一步的具体期待，不用套话。
-                输出整章正文，用 <<<CHAPTER 与 CHAPTER>>> 包住，前后不要写任何解释。
+                按「写法」技能执行：把章纲转成 2–4 个场景（各有目标、阻力、转折、后果），人物按目标与处境行动，设定化成行动与证据，一章一个变化。
+                长篇单章推进、短篇一篇到底、剧本按场次与台词；形态与本章要求以父代理给的上下文为准。
+                输出整章正文，用 <<<CHAPTER 与 CHAPTER>>> 包住，前后不要写任何解释；被截断的正文会被拒绝。
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
             config:
@@ -119,7 +119,7 @@
           - id: storycraft-writer-skills
             name: 'dsh-storycraft/skills'
             config:
-              mode: forms
+              mode: write
           - id: tool-skill
             name: '@deepseek-ai/dsh-tool-skill'
 

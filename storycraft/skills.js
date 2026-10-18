@@ -31,6 +31,7 @@ const MODES = {
   shortform: '短篇小说',
   screenplay: '短剧剧本',
   review: '审稿',
+  write: '写作',
 }
 
 /** Catalogs the studio preset serves; the review catalog belongs to its own role. */
