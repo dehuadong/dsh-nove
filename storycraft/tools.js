@@ -205,6 +205,10 @@ const OUTPUT_PROPERTIES = {
     type: 'string',
     description: '提案 id（story_propose 的返回值）。',
   },
+  title: {
+    type: 'string',
+    description: '作品或提案的标题。',
+  },
   outline: {
     type: 'object',
     description: '全书计划状态：writtenAt 写过、approvedAt 作者已确认。',
@@ -219,8 +223,8 @@ const OUTPUT_PROPERTIES = {
     description: '该形态的章节单位：章 / 篇 / 集。',
   },
   current: {
-    type: 'string',
-    description: '本会话当前作品的 id（story_current 的返回值）。',
+    oneOf: [{ type: 'string' }, { type: 'null' }],
+    description: '本会话当前作品的 id；还没有时是 null。',
   },
   wordRange: {
     type: 'object',
@@ -920,11 +924,9 @@ function rawDefinitions() {
           return { ok: true, workId: manifest.workId, current: manifest.workId }
         }
         const current = getCurrent(sessionOf(exec))
-        if (current === undefined) {
-          throw new StoryError('work-not-selected',
-            '本会话还没有当前作品：先在面板进入一个作品，或调用时带 work')
-        }
-        return { ok: true, workId: current, current }
+        return current === undefined
+          ? { ok: true, current: null }
+          : { ok: true, workId: current, current }
       },
     }),
 
@@ -1054,6 +1056,9 @@ function definitions() {
  * @returns {object} the same definition with a wrapped execute.
  */
 function withCurrentWork(definition) {
+  // story_current reports the pointer itself; resolving it first would throw
+  // exactly when the author still has no work.
+  if (definition.name === 'story_current') return definition
   const parameters = definition.parameters
   const hasWork = parameters?.properties !== undefined && 'work' in parameters.properties
   if (!hasWork) return definition

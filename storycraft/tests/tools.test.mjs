@@ -177,6 +177,15 @@ try {
   const statusProps = Object.keys(byName.get('story_status').output.schema.properties.status.properties ?? {})
   check('story_status declares the fields it returns', ['form', 'wordRange', 'chapters', 'hooks'].every(key => statusProps.includes(key)), statusProps.join(','))
 
+  const empty = await byName.get('story_current').execute({}, { ...exec, agent: { ...exec.agent, id: 'session-none' } })
+  check('no current work reads as null', empty.ok === true && empty.current === null, JSON.stringify(empty))
+  const proposalResult = await byName.get('story_propose').execute({
+    title: '雨里的灯', premise: '夜班司机捡到一盏不肯灭的灯。',
+  }, exec)
+  check('proposal result declares its keys',
+    ['proposal', 'title', 'form'].every(key => Object.keys(byName.get('story_propose').output.schema.properties).includes(key))
+    && proposalResult.ok === true, JSON.stringify(proposalResult))
+
   const pointed = await byName.get('story_current').execute({ work }, { ...exec, agent: { ...exec.agent, id: 'session-a' } })
   check('story_current sets the session work', pointed.current === work, JSON.stringify(pointed))
   const withoutWork = await byName.get('story_status').execute({}, { ...exec, agent: { ...exec.agent, id: 'session-a' } })
