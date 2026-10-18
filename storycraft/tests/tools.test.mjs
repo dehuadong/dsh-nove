@@ -21,9 +21,9 @@ const ctx = {
 tools.apply(ctx, { mode: 'longform' })
 
 const names = registered.map(definition => definition.name).sort()
-check('registers twenty-four actions', names.length === 24, names.join(','))
+check('registers twenty-five actions', names.length === 25, names.join(','))
 check('action names', names.join(',') === [
-  'story_bible', 'story_bible_import', 'story_bible_write', 'story_brief', 'story_critique', 'story_current',
+  'story_agent_probe', 'story_bible', 'story_bible_import', 'story_bible_write', 'story_brief', 'story_critique', 'story_current',
   'story_delete', 'story_init', 'story_next', 'story_plan', 'story_rename', 'story_reopen', 'story_restore',
   'story_outline', 'story_propose', 'story_review', 'story_revise', 'story_settings', 'story_state',
   'story_status', 'story_summarize', 'story_volume', 'story_volumes', 'story_write',
@@ -178,6 +178,9 @@ try {
   check('story_current declares its output keys', ['workId', 'current'].every(key => currentProps.includes(key)), currentProps.join(','))
   const statusProps = Object.keys(byName.get('story_status').output.schema.properties.status.properties ?? {})
   check('story_status declares the fields it returns', ['form', 'wordRange', 'chapters', 'hooks'].every(key => statusProps.includes(key)), statusProps.join(','))
+
+  const probe = await byName.get('story_agent_probe').execute({}, exec)
+  check('probe reports the missing subagent seam', probe.ok === false && probe.error.code === 'subagent-unavailable', JSON.stringify(probe))
 
   const empty = await byName.get('story_current').execute({}, { ...exec, agent: { ...exec.agent, id: 'session-none' } })
   check('no current work reads as null', empty.ok === true && empty.current === null, JSON.stringify(empty))

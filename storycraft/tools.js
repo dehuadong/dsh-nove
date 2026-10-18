@@ -44,6 +44,9 @@ function sessionOf(exec) {
 /** Requires the tool registry; without it this row stays inert. */
 export const inject = ['tools']
 
+/** Plugin context of the mounted preset, used by tools that need host services. */
+let pluginContext
+
 /** Provider label used in diagnostics. */
 export const name = 'storycraft-tools'
 
@@ -208,6 +211,18 @@ const OUTPUT_PROPERTIES = {
   title: {
     type: 'string',
     description: '作品或提案的标题。',
+  },
+  provider: {
+    type: 'string',
+    description: '子代理后端名（spawn / fork）。',
+  },
+  childId: {
+    type: 'string',
+    description: '子代理的会话 id。',
+  },
+  output: {
+    type: 'string',
+    description: '子代理的最终文本输出（截断到 2000 字）。',
   },
   outline: {
     type: 'object',
@@ -491,6 +506,49 @@ function rawDefinitions() {
           ...(typeof args.notes === 'string' ? { notes: args.notes } : {}),
         })
         return { ok: true, proposal: proposal.id, title: proposal.title, form: proposal.form }
+      },
+    }),
+
+    action({
+      name: 'story_agent_probe',
+      description: '探针：从本插件派生一个只读子代理，让它回答一句话，用来确认子代理通道可用。'
+        + ' 不改任何文件；通道不可用时返回可行动的说明。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          task: { type: 'string', description: '交给子代理的一句话任务；省略则让它汇报自己的身份与可用动作。' },
+        },
+      },
+      async execute(args, exec) {
+        const subagents = pluginContext?.get?.('subagents')
+        if (subagents === undefined || typeof subagents.startActivation !== 'function') {
+          throw new StoryError('subagent-unavailable', '当前平台没有 subagents 服务：子代理通道不可用，单代理路径照常')
+        }
+        const provider = ['spawn', 'fork'].find(name => subagents.getProvider?.(name) !== undefined)
+        if (provider === undefined) {
+          throw new StoryError('subagent-unavailable',
+            '没有已挂载的子代理后端（spawn / fork）：在 profile 里启用一个 subagent provider 后再试')
+        }
+        if (exec?.agent === undefined) {
+          throw new StoryError('subagent-unavailable', '这次调用没有父代理身份，无法派生子代理')
+        }
+        const text = typeof args.task === 'string' && args.task.trim() !== ''
+          ? args.task.trim()
+          : '用一句话说明：你是谁、你能看到哪些动作、你被谁派生。不要读写任何文件。'
+        const started = await subagents.startActivation({
+          provider,
+          label: 'storycraft-probe',
+          request: { prompt: [{ type: 'text', text }], parent: exec.agent },
+          signal: exec.signal,
+          delivery: 'caller',
+        })
+        const result = await started.result
+        const output = (result?.output ?? [])
+          .filter(block => block?.type === 'text')
+          .map(block => block.text)
+          .join('\n')
+        return { ok: true, provider, childId: String(started.childId), output: output.slice(0, 2000) }
       },
     }),
 
@@ -1086,6 +1144,7 @@ function withCurrentWork(definition) {
  * @param {object} ctx - plugin context (services: tools).
  */
 export function apply(ctx) {
+  pluginContext = ctx
   const disposers = definitions().map(definition => ctx.tools.register(definition))
   ctx.effect(() => () => {
     for (const dispose of disposers) dispose()
