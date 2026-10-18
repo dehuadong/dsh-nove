@@ -1054,7 +1054,7 @@ window.__ModuleLoader__.load({
                       onClick: () => setSelected(item.number),
                     },
                       h('span', { className: 'sc-chapter-no' }, `第 ${item.number} ${unitOf(manifest.form)}`),
-                      h('span', { className: 'sc-chapter-title' }, item.title === '' ? '（未命名）' : item.title),
+                      h('span', { className: 'sc-chapter-title' }, item.title === '' ? '' : item.title),
                       h('span', { className: 'sc-badge' }, stageLabel(item.stage)),
                       h('span', { className: 'sc-badge' }, `r${item.revision}`),
                       item.openProblems > 0 ? h('span', { className: 'sc-badge sc-badge-warn' }, `${item.openProblems}`) : null,

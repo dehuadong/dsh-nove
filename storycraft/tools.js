@@ -89,6 +89,23 @@ export function parseFindings(text) {
 }
 
 /**
+ * Split a writer child's answer into an optional title and the body.
+ *
+ * Title is optional (`<<<TITLE … TITLE>>>`); a missing or empty title leaves the
+ * chapter unnamed rather than inventing one.
+ * @param {string} text - child output.
+ * @returns {{title: string, body: string}|undefined} parsed output.
+ */
+export function parseWriterOutput(text) {
+  const raw = String(text ?? '')
+  const body = parseChapterBody(raw)
+  if (body === undefined) return undefined
+  const match = /<<<TITLE\s*([\s\S]*?)\s*TITLE>>>/u.exec(raw)
+  const title = match === null ? '' : match[1].replace(/\s+/gu, ' ').trim().slice(0, 60)
+  return { title, body }
+}
+
+/**
  * Pull the chapter body out of a writer child's answer.
  *
  * The child wraps its prose in `<<<CHAPTER` / `CHAPTER>>>`; a missing marker means
@@ -744,7 +761,7 @@ function rawDefinitions() {
             ? `作者要求：${args.instruction.trim()}`
             : '',
           `作品形态：${brief.form ?? 'longform'}；本章是第 ${args.chapter} 章。`,
-          '输出整章正文，用 <<<CHAPTER 与 CHAPTER>>> 包住，前后不要解释。',
+          '先输出 <<<TITLE 本章标题 TITLE>>>（不超过 20 字），再输出整章正文，用 <<<CHAPTER 与 CHAPTER>>> 包住，前后不要解释。',
           '---上下文开始---',
           context,
           '---上下文结束---',
@@ -772,12 +789,17 @@ function rawDefinitions() {
         }
         const result = await started.result
         const output = (result?.output ?? []).filter(block => block?.type === 'text').map(block => block.text).join('\n')
-        const body = parseChapterBody(output)
-        if (body === undefined) {
+        const parsed = parseWriterOutput(output)
+        if (parsed === undefined) {
           throw new StoryError('agent-output-invalid',
             `写手没有按契约返回整章正文（缺失 <<<CHAPTER / CHAPTER>>> 或过短）：把它的输出交给你自己改写后用 story_write 落盘。原文：${output.slice(0, 500)}`)
         }
-        const written = await writeChapter(root, { work: args.work, chapter: args.chapter, body })
+        const written = await writeChapter(root, {
+          work: args.work,
+          chapter: args.chapter,
+          body: parsed.body,
+          ...(parsed.title === '' ? {} : { title: parsed.title }),
+        })
         return {
           ok: true, provider, childId: String(started.childId), readOnly,
           words: written.words, artifact: written.artifact,

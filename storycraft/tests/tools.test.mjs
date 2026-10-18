@@ -191,6 +191,11 @@ try {
   check('plan JSON rejects garbage', tools.parsePlanJson('没有 JSON') === undefined)
   check('plan JSON rejects arrays', tools.parsePlanJson('[1,2]') === undefined)
 
+  const withTitle = tools.parseWriterOutput('<<<TITLE 塌方夜 TITLE>>>\n<<<CHAPTER\n' + '正文。'.repeat(80) + '\nCHAPTER>>>')
+  check('writer title is parsed', withTitle?.title === '塌方夜' && withTitle.body.startsWith('正文。'), JSON.stringify(withTitle).slice(0, 40))
+  const withoutTitle = tools.parseWriterOutput('<<<CHAPTER\n' + '正文。'.repeat(80) + '\nCHAPTER>>>')
+  check('a missing title stays empty', withoutTitle?.title === '', JSON.stringify(withoutTitle).slice(0, 40))
+
   const marked = tools.parseChapterBody('说明\n<<<CHAPTER\n' + '正文。'.repeat(80) + '\nCHAPTER>>>\n后记')
   check('writer body is extracted between markers', typeof marked === 'string' && marked.startsWith('正文。'), String(marked).slice(0, 20))
   check('a missing marker is rejected', tools.parseChapterBody('正文。'.repeat(80)) === undefined)
