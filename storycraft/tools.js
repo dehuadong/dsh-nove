@@ -200,6 +200,10 @@ const OUTPUT_PROPERTIES = {
     enum: ['longform', 'short', 'script'],
     description: '作品的形态。',
   },
+  current: {
+    type: 'string',
+    description: '本会话当前作品的 id（story_current 的返回值）。',
+  },
   wordRange: {
     type: 'object',
     additionalProperties: false,

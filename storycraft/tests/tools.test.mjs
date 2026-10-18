@@ -150,6 +150,11 @@ try {
   const summary = await byName.get('story_summarize').execute({ work, chapter: 1, summary: '林澈在塌方里救人，决定北上。' }, exec)
   check('story_summarize ok', summary.ok === true && summary.truncated === false, JSON.stringify(summary))
 
+  const currentProps = Object.keys(byName.get('story_current').output.schema.properties ?? {})
+  check('story_current declares its output keys', ['workId', 'current'].every(key => currentProps.includes(key)), currentProps.join(','))
+  const statusProps = Object.keys(byName.get('story_status').output.schema.properties.status.properties ?? {})
+  check('story_status declares the fields it returns', ['form', 'wordRange', 'chapters', 'hooks'].every(key => statusProps.includes(key)), statusProps.join(','))
+
   const pointed = await byName.get('story_current').execute({ work }, { ...exec, agent: { ...exec.agent, id: 'session-a' } })
   check('story_current sets the session work', pointed.current === work, JSON.stringify(pointed))
   const withoutWork = await byName.get('story_status').execute({}, { ...exec, agent: { ...exec.agent, id: 'session-a' } })
