@@ -801,6 +801,15 @@ window.__ModuleLoader__.load({
       useEffect(() => { void load() }, [load])
       useEffect(() => { setBriefChapter(selected ?? 1) }, [selected])
 
+      // The page is a view of files on disk: a slow poll keeps it honest after
+      // an instruction has been carried out in the conversation.
+      useEffect(() => {
+        const timer = setInterval(() => {
+          if (document.visibilityState === 'visible') void load()
+        }, 15000)
+        return () => clearInterval(timer)
+      }, [load])
+
       const loadBible = async () => {
         setBible({ status: 'loading' })
         try {

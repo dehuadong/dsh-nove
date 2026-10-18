@@ -101,7 +101,12 @@ export function parseChapterBody(text) {
   const start = raw.indexOf('<<<CHAPTER')
   const end = raw.lastIndexOf('CHAPTER>>>')
   if (start === -1 || end === -1 || end <= start) return undefined
-  const body = raw.slice(start + '<<<CHAPTER'.length, end).trim()
+  const body = raw
+    .slice(start + '<<<CHAPTER'.length, end)
+    // A child may emit the fence twice; never persist the fence itself.
+    .replace(/^\s*<<<CHAPTER\s*$/gmu, '')
+    .replace(/^\s*CHAPTER>>>\s*$/gmu, '')
+    .trim()
   if (body.length < 200) return undefined
   return `${body}\n`
 }
