@@ -260,6 +260,10 @@ const OUTPUT_PROPERTIES = {
     type: 'integer',
     description: '子代理产出的审稿条目数。',
   },
+  readOnly: {
+    type: 'boolean',
+    description: '子代理是否跑在只读预设里（false 表示退回了继承预设，需要人工确认它没有写文件）。',
+  },
   childId: {
     type: 'string',
     description: '子代理的会话 id。',
@@ -625,13 +629,29 @@ function rawDefinitions() {
           body.content,
           '---正文结束---',
         ].join('\n')
-        const started = await subagents.startActivation({
+        const canPreset = subagents.getProvider?.(provider)?.capabilities?.agentPreset === true
+        const start = presetId => subagents.startActivation({
           provider,
           label: `storycraft-review-${args.chapter}`,
-          request: { prompt: [{ type: 'text', text: task }], parent: exec.agent },
+          request: {
+            prompt: [{ type: 'text', text: task }],
+            parent: exec.agent,
+            ...(presetId === undefined ? {} : { agentPreset: presetId }),
+          },
           signal: exec.signal,
           delivery: 'caller',
         })
+        // The reviewer preset has no write tools and no actions; without it the
+        // child would inherit the studio preset and could write by itself.
+        let readOnly = canPreset
+        let started
+        try {
+          started = await start(canPreset ? 'storycraft-reviewer' : undefined)
+        } catch (error) {
+          if (!canPreset) throw error
+          readOnly = false
+          started = await start(undefined)
+        }
         const result = await started.result
         const output = (result?.output ?? []).filter(block => block?.type === 'text').map(block => block.text).join('\n')
         const findings = parseFindings(output)
@@ -641,7 +661,7 @@ function rawDefinitions() {
         }
         const review = await writeReview(root, { work: args.work, chapter: args.chapter, problems: findings })
         return {
-          ok: true, provider, childId: String(started.childId),
+          ok: true, provider, childId: String(started.childId), readOnly,
           items: findings.length,
           artifact: review.artifact,
         }

@@ -30,10 +30,17 @@ const unknown = variables.filter(name => !REGISTERED_VARIABLES.has(name))
 check('persona templates use no unregistered prompt variable', unknown.length === 0, unknown.join(', '))
 
 const presetRows = [...patch.matchAll(/name: '@deepseek-ai\/dsh-agent-preset'/g)].length
-check('one studio preset declaration', presetRows === 1, String(presetRows))
+check('two preset declarations (studio + reviewer)', presetRows === 2, String(presetRows))
 
 check('the studio preset id is `storycraft`', /^\s{8}id: storycraft$/m.test(patch))
 check('the preset is named 故事工坊', patch.includes('name: 故事工坊'))
+
+// The reviewer is the only read-only preset: no write/edit tools, no shell, no actions.
+const reviewer = patch.slice(patch.indexOf('id: storycraft-reviewer'))
+check('the reviewer preset exists', reviewer.length > 0)
+check('the reviewer cannot write files', /write: false/.test(reviewer) && /edit: false/.test(reviewer))
+check('the reviewer has no shell', !/dsh-tool-pwsh|dsh-tool-bash/.test(reviewer))
+check('the reviewer has no storycraft actions', !/dsh-storycraft\/tools/.test(reviewer))
 check('no form-specific preset survives', !/storycraft-(longform|shortform|screenplay)/.test(patch))
 
 const toolsRow = patch.indexOf("name: 'dsh-storycraft/tools'")

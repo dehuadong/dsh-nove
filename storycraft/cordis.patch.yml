@@ -84,3 +84,34 @@
                   thresholdChars: 8192
                   headChars: 4096
                   tailChars: 1024
+
+    # 审稿子代理的专用预设：只读。没有写文件的工具、没有 shell、没有 story_* 动作，
+    # 子代理只能把清单作为文本返回，落盘由父代理完成。
+    - id: preset-storycraft-reviewer
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: storycraft-reviewer
+        name: 审稿人
+        description: 故事工坊的只读审稿人：只找问题，不改稿、不写文件。
+        order: 41
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |
+                你是故事工坊的审稿人。你只读，不改：没有写文件的工具，也没有任何改稿动作。
+                你的产出是一份问题清单，交给调用你的人落盘：情节断裂、人物动机不成立、设定自相矛盾、信息交代不清、重复句、套话。
+                只按你读到的正文与真值说话；缺什么就说缺什么，不猜设定。
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+            config:
+              write: false
+              edit: false
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
