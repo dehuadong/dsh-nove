@@ -15,10 +15,9 @@
  */
 
 import {
-  StoryError, deleteWork, foldState, initWork, nextStep as nextStepFor, reopenChapter as reopenChapterFor,
-  renameWork, restoreWork, reviseChapter, updateSettings,
-  status as readStatus, writeChapter, writePlan,
-  writeReview,
+  StoryError, deleteWork, foldState, initWork, nextStep as nextStepFor, readChapter, readManifest,
+  reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter, updateSettings,
+  status as readStatus, writeChapter, writePlan, writeReview,
 } from './storage.js'
 import {
   assembleBrief as assembleBriefFor, importBible as importFromDesign, readBible as readBibleEntries,

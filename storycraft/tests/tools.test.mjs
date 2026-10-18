@@ -150,6 +150,10 @@ try {
   const summary = await byName.get('story_summarize').execute({ work, chapter: 1, summary: '林澈在塌方里救人，决定北上。' }, exec)
   check('story_summarize ok', summary.ok === true && summary.truncated === false, JSON.stringify(summary))
 
+  const critique = await byName.get('story_critique').execute({ work, chapter: 1 }, exec)
+  check('story_critique returns metrics', critique.ok === true && typeof critique.metrics.words === 'number', JSON.stringify(critique).slice(0, 160))
+  check('story_critique stays read-only', critique.ok === true && critique.metrics.sentences.count > 0)
+
   const next = await byName.get('story_next').execute({ work }, exec)
   check('story_next moves to the next chapter after settling', next.ok === true && next.action === 'story_plan' && next.chapter === 2, JSON.stringify(next))
 

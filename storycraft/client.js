@@ -11,6 +11,7 @@ window.__ModuleLoader__.load({
       trash: '/api/dsh-storycraft/trash',
       volumes: '/api/dsh-storycraft/volumes',
       critique: '/api/dsh-storycraft/critique',
+      next: '/api/dsh-storycraft/next',
       work: '/api/dsh-storycraft/work',
       chapter: '/api/dsh-storycraft/chapter',
       review: '/api/dsh-storycraft/review',
@@ -173,6 +174,18 @@ window.__ModuleLoader__.load({
 
     /** Fixed instruction templates the workbench sends to the current Session. */
     const INSTRUCTIONS = {
+      step(workId, chapter, action) {
+        const label = {
+          story_plan: '写本章章纲',
+          story_write: '写本章正文',
+          story_review: '审本章',
+          story_revise: '按清单修订本章',
+          story_state: '结算本章',
+          story_summarize: '写本章摘要',
+          story_volume: '补本卷摘要',
+        }[action] ?? action
+        return `对作品 ${workId} 第 ${chapter} 章只做一步：${label}（调 ${action}）。做完就停，把结果告诉我，不要继续后面的步骤。`
+      },
       nextChapter(workId, chapter) {
         return `继续写作品 ${workId} 第 ${chapter} 章：先调 story_next 看下一步，再按它给的顺序做（章纲 → story_brief 取上下文 → 正文 → 质检 → 审稿 → 修订 → 结算 → 摘要）。`
       },
@@ -230,6 +243,7 @@ window.__ModuleLoader__.load({
         listTrash: (root) => route(ROUTE.trash, { root }),
         volumes: (root, id) => route(ROUTE.volumes, { root, id }),
         critique: (root, id, chapter) => route(ROUTE.critique, { root, id, chapter }),
+        next: (root, id) => route(ROUTE.next, { root, id }),
         work: (root, id) => route(ROUTE.work, { root, id }),
         chapter: (root, id, chapter, view, revision) => route(ROUTE.chapter, { root, id, chapter, view, revision }),
         review: (root, id, chapter) => route(ROUTE.review, { root, id, chapter }),
@@ -365,6 +379,17 @@ window.__ModuleLoader__.load({
       flushList()
       if (code !== null) blocks.push(h('pre', { key: `c${key++}` }, code.join('\n')))
       return blocks.length === 0 ? [h('p', { key: 'empty', className: 'sc-muted' }, '（空）')] : blocks
+    }
+
+    /** Short label of one pipeline action. */
+    const STEP_LABEL = {
+      story_plan: '章纲',
+      story_write: '正文',
+      story_review: '审稿',
+      story_revise: '修订',
+      story_state: '结算',
+      story_summarize: '摘要',
+      story_volume: '卷摘要',
     }
 
     /** Human label of a pipeline stage. */
@@ -636,6 +661,7 @@ window.__ModuleLoader__.load({
       const [volumes, setVolumes] = useState([])
       const [volumeForm, setVolumeForm] = useState(undefined)
       const [settingsForm, setSettingsForm] = useState(undefined)
+      const [next, setNext] = useState(undefined)
 
       const load = useCallback(async () => {
         try {
@@ -643,6 +669,8 @@ window.__ModuleLoader__.load({
           setDetail({ status: 'ready', ...payload })
           const listed = await face.volumes(root, workId).catch(() => ({ volumes: [] }))
           setVolumes(listed.volumes ?? [])
+          const step = await face.next(root, workId).catch(() => ({ next: undefined }))
+          setNext(step.next)
           setSelected(current => current ?? (payload.chapters.length === 0 ? undefined : payload.chapters[payload.chapters.length - 1].number))
         } catch (error) {
           setDetail({ status: 'error', error: error instanceof Error ? error.message : String(error) })
@@ -692,11 +720,18 @@ window.__ModuleLoader__.load({
             h('p', { className: 'sc-detail-tagline' }, `${manifest.form} · ${manifest.workId} · ${chapters.length} 章 · 已写 ${chapters.filter(item => item.revision > 0).length} 章`),
           ),
           h('div', { className: 'sc-header-actions' },
-            h('button', {
-              type: 'button',
-              className: 'sc-btn sc-btn-primary',
-              onClick: () => compose(INSTRUCTIONS.nextChapter(manifest.workId, nextNumber)),
-            }, `写第 ${nextNumber} 章`),
+            next === undefined
+              ? h('button', {
+                type: 'button',
+                className: 'sc-btn sc-btn-primary',
+                onClick: () => compose(INSTRUCTIONS.step(manifest.workId, nextNumber, 'story_plan')),
+              }, `写第 ${nextNumber} 章章纲`)
+              : h('button', {
+                type: 'button',
+                className: 'sc-btn sc-btn-primary',
+                title: next.reason,
+                onClick: () => compose(INSTRUCTIONS.step(manifest.workId, next.chapter, next.action)),
+              }, `下一步：${STEP_LABEL[next.action] ?? next.action}（第 ${next.chapter} 章）`),
             h('button', {
               type: 'button',
               className: 'sc-btn',

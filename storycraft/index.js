@@ -13,7 +13,7 @@
 
 import { realpath } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
-import { listTrash, listWorks, readManifest, readChapter, readReview, readWork, StoryError } from './storage.js'
+import { listTrash, listWorks, nextStep, readManifest, readChapter, readReview, readWork, StoryError } from './storage.js'
 import { critique } from './critique.js'
 import { readVolumes } from './volumes.js'
 import { assembleBrief, readBible } from './bible.js'
@@ -159,6 +159,13 @@ export function apply(ctx) {
       path: `${BASE}/trash`,
       handler: (req, res) => readRoute(req, res, async (query) => ({
         items: await listTrash(await rootOf(ctx, query)),
+      })),
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/next`,
+      handler: (req, res) => readRoute(req, res, async (query) => ({
+        next: await nextStep(await rootOf(ctx, query), workOf(query)),
       })),
     }),
     ctx.webServer.register({
