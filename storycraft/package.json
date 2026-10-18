@@ -26,6 +26,7 @@
     "volumes.js",
     "critique.js",
     "stage.js",
+    "current.js",
     "cordis.patch.yml",
     "icon.svg",
     "skills"

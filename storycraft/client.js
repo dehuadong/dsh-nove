@@ -686,7 +686,7 @@ window.__ModuleLoader__.load({
     }
 
     /** Work detail: header actions, chapter list, selected chapter, state. */
-    function WorkDetail({ face, root, workId, onNotice, notice, canSend, compose }) {
+    function WorkDetail({ face, root, workId, sessionId, onNotice, notice, canSend, compose }) {
       const [detail, setDetail] = useState({ status: 'loading' })
       const [selected, setSelected] = useState(undefined)
       const [stateOpen, setStateOpen] = useState(false)
@@ -708,7 +708,7 @@ window.__ModuleLoader__.load({
           const step = await face.next(root, workId).catch(() => ({ next: undefined }))
           setNext(step.next)
           if (sessionId !== undefined) {
-            void face.setCurrent(root, sessionId, manifest.workId).catch(() => {})
+            void face.setCurrent(root, sessionId, workId).catch(() => {})
           }
           setSelected(current => current ?? (payload.chapters.length === 0 ? undefined : payload.chapters[payload.chapters.length - 1].number))
         } catch (error) {
@@ -1311,6 +1311,7 @@ window.__ModuleLoader__.load({
                 face,
                 root,
                 workId: selected,
+                sessionId,
                 notice,
                 canSend: sessionId !== undefined && isStudio(sessionPreset),
                 compose,
