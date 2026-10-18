@@ -148,6 +148,10 @@ try {
   check('story_revise ok', revise.ok === true && revise.resolved[0] === 'Q1', JSON.stringify(revise))
 
 
+  const earlySettle = await byName.get('story_state').execute({ work, chapter: 1, entities: [], hooks: [] }, exec)
+  check('settling before the summary is refused', earlySettle.ok === false && earlySettle.error.code === 'summary-required', JSON.stringify(earlySettle))
+  const preSummary = await byName.get('story_summarize').execute({ work, chapter: 1, summary: '司机捡到一盏灯。' }, exec)
+  check('summary written before settle', preSummary.ok === true, JSON.stringify(preSummary))
   const state = await byName.get('story_state').execute({
     work, chapter: 1,
     entities: [{ name: '林澈', facts: ['拿到假合同'] }],

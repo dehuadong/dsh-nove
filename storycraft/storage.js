@@ -1487,6 +1487,14 @@ async function nextStepRaw(root, work) {
   if (stage !== 'revised') {
     return { workId: manifest.workId, chapter: last.number, stage, action: 'story_revise', reason: `第 ${last.number} 章审稿条目已处理完，但还没提交修订`, missing: ['revision'] }
   }
+  // The summary is the last content artifact:写摘要 before 定稿, so 定稿 concludes.
+  const summary = await readOptional(join(dir, 'summaries', `${last.id}.md`))
+  if (summary === undefined || summary.trim() === '') {
+    return {
+      workId: manifest.workId, chapter: last.number, stage, action: 'story_summarize',
+      reason: `第 ${last.number} 章已修订：先写摘要，再定稿`, missing: ['summary'],
+    }
+  }
   return { workId: manifest.workId, chapter: last.number, stage, action: 'story_state', reason: `第 ${last.number} 章已修订，定稿`, missing: [] }
 }
 

@@ -13,7 +13,7 @@ whenToUse: 作者提出写作需求、需要决定下一步做什么、或要在
 ```
 讨论 → story_propose → 作者确认 → story_init → story_outline → 作者确认
      → story_plan → story_write → story_critique → story_review
-     → story_revise → story_state → story_summarize
+     → story_revise → story_summarize → story_state（定稿）
 ```
 
 闸门是硬的，不要试图绕过：

@@ -107,6 +107,9 @@ try {
   check('next suggests revise for chapter 2', next.action === 'story_revise' && next.missing.join(',') === 'Q1', JSON.stringify(next))
   await s.reviseChapter(root, { work, chapter: 2, body: '改过的第二章。'.repeat(40), problemIds: ['Q1'] })
   next = await s.nextStep(root, work)
+  check('next asks for the summary before settling', next.action === 'story_summarize' && next.chapter === 2, JSON.stringify(next))
+  await b.writeSummary(root, work, 2, '第二章摘要')
+  next = await s.nextStep(root, work)
   check('next suggests settle for chapter 2', next.action === 'story_state', JSON.stringify(next))
 
   // Settle chapter 2 first, then reopen it alone (no rewrite flag).

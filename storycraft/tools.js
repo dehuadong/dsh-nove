@@ -21,6 +21,7 @@ import {
 } from './storage.js'
 import {
   assembleBrief as assembleBriefFor, importBible as importFromDesign, readBible as readBibleEntries,
+  readSummary,
   writeBible as writeBibleEntry, writeSummary as writeSummaryEntry,
 } from './bible.js'
 import { readVolumes, writeVolume } from './volumes.js'
@@ -971,8 +972,8 @@ function rawDefinitions() {
         if (provider === undefined || exec?.agent === undefined) {
           throw new StoryError('subagent-unavailable', '子代理通道不可用：直接用 story_outline 写计划')
         }
-        const bible = await readBibleEntries(root, args.work).catch(() => [])
-        const context = bible
+        const bible = await readBibleEntries(root, args.work).catch(() => ({ files: [] }))
+        const context = (bible.files ?? [])
           .filter(entry => entry.name === 'intent' || entry.name === 'plan')
           .map(entry => `## ${entry.name}\n${entry.content ?? ''}`)
           .join('\n\n')
@@ -1213,6 +1214,11 @@ function rawDefinitions() {
       },
       async execute(args, exec) {
         const root = workspaceOf(exec)
+        const summary = await readSummary(root, args.work, args.chapter).catch(() => undefined)
+        if (summary === undefined || String(summary).trim() === '') {
+          throw new StoryError('summary-required',
+            `第 ${args.chapter} 章还没有摘要：先用 story_summarize 写摘要，再定稿`)
+        }
         const result = await foldState(root, args)
         return { ok: true, workId: args.work, counts: result.counts, artifact: result.artifact }
       },
