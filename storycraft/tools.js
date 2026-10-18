@@ -430,7 +430,7 @@ function definitions() {
           title: { type: 'string', description: '章标题，可覆盖上一次的值。' },
           body: { type: 'string', description: '完整正文 Markdown。' },
           rewrite: { type: 'boolean', description: '已有正文时是否另存为新版本。' },
-          reopen: { type: 'boolean', description: '已结算章要改正文时传 true：回退到已写，旧结算作废。' },
+          reopen: { type: 'boolean', description: '已定稿章要改正文时传 true：回退到已写，旧定稿作废。' },
         },
         required: ['work', 'chapter', 'body'],
       },
@@ -512,7 +512,7 @@ function definitions() {
 
     action({
       name: 'story_state',
-      description: '把本章产生的人物事实与伏笔变化结算进作品状态，并刷新伏笔视图。'
+      description: '把本章产生的人物事实与伏笔变化定稿进作品状态，并刷新伏笔视图。'
         + ' 只写变化，不重抄全部设定；「已用」必须指向一条未解伏笔。',
       parameters: {
         type: 'object',
@@ -642,7 +642,7 @@ function definitions() {
     action({
       name: 'story_summarize',
       description: '把一章概括成摘要落盘（上限 400 字），供下一章的写前上下文使用。'
-        + ' 写完整章并结算后调用；摘要只写本章发生的事实与状态变化。',
+        + ' 写完整章并定稿后调用；摘要只写本章发生的事实与状态变化。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -662,8 +662,8 @@ function definitions() {
 
     action({
       name: 'story_reopen',
-      description: '作废一章的结算但不改正文：结算后要补审稿或改稿时先用它。'
-        + ' 只对已结算章有效；作废后该章回到「已写」，再走审稿 → 修订 → 结算。',
+      description: '作废一章的定稿但不改正文：定稿后要补审稿或改稿时先用它。'
+        + ' 只对已定稿章有效；作废后该章回到「已写」，再走审稿 → 修订 → 定稿。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -775,7 +775,7 @@ function definitions() {
     action({
       name: 'story_critique',
       description: '给一章做只读质检：字数是否在该作品范围内、句子长度、重复句、AI 腔词命中、对话占比。'
-        + ' 只打分、不写文件、不阻断结算；把发现交给 story_review 才会变成清单。',
+        + ' 只打分、不写文件、不阻断定稿；把发现交给 story_review 才会变成清单。',
       parameters: {
         type: 'object',
         additionalProperties: false,

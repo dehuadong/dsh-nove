@@ -565,7 +565,7 @@ export async function initWork(root, input) {
         counters: { reviewRounds: 0, openProblems: 0 },
       ...(range === undefined ? {} : { wordRange: { min: Number(range.min), max: Number(range.max) } }),
       }
-      await writeAtomic(join(dir, 'hooks.md'), '# 伏笔\n\n（状态结算后自动生成）\n')
+      await writeAtomic(join(dir, 'hooks.md'), '# 伏笔\n\n（定稿归档后自动生成）\n')
       await writeAtomic(join(dir, 'bible', 'world.md'), '# 世界观\n')
       await writeAtomic(join(dir, 'bible', 'characters.json'), '[]\n')
       await writeAtomic(join(dir, 'bible', 'style.md'), '# 文风基准\n')
@@ -764,7 +764,7 @@ export async function writePlan(root, input) {
     if (missing.length > 0) throw new StoryError('plan-incomplete', `章纲缺少：${missing.join('、')}`)
     const entry = chapterEntry(manifest, number)
     assertStage(entry, ['planned', 'written', 'reviewed', 'revised'],
-      `第 ${number} 章已结算：改章纲前先带 reopen 重写正文回退`)
+      `第 ${number} 章已定稿：改章纲前先带 reopen 重写正文回退`)
     const file = join(workDirectory(root, manifest.workId), 'outline', `${entry.id}.plan.md`)
     const workDir = workDirectory(root, manifest.workId)
     const text = [
@@ -805,7 +805,7 @@ export async function writeChapter(root, input) {
     const settled = stageOf(entry) === 'settled'
     if (settled && input.reopen !== true) {
       throw new StoryError('chapter-settled',
-        `第 ${number} 章已结算：改正文请传 reopen: true，回退到已写并作废本章旧的结算`)
+        `第 ${number} 章已定稿：改正文请传 reopen: true，回退到已写并作废本章旧的定稿`)
     }
     const dir = join(workDirectory(root, manifest.workId), 'chapters')
     let revision = 1
@@ -894,7 +894,7 @@ export async function writeReview(root, input) {
     const entry = chapterEntry(manifest, number)
     if (entry.currentRevision === 0) throw new StoryError('body-not-found', `第 ${number} 章还没有正文，不能审稿`)
     assertStage(entry, ['written', 'reviewed', 'revised'],
-      `第 ${number} 章已结算：改审稿要先带 reopen: true 重写正文回退`)
+      `第 ${number} 章已定稿：改审稿要先带 reopen: true 重写正文回退`)
     const problems = Array.isArray(input.problems) ? input.problems : []
     if (problems.length === 0) throw new StoryError('empty-review', '问题清单为空：审稿至少要给出一条问题')
     const dir = join(workDirectory(root, manifest.workId), 'reviews')
@@ -1014,7 +1014,7 @@ export async function reviseChapter(root, input) {
       throw new StoryError('body-not-found', `第 ${number} 章还没有正文，不能修订`)
     }
     assertStage(entry, ['written', 'reviewed', 'revised'],
-      `第 ${number} 章已结算：修订要先带 reopen: true 重写正文回退`)
+      `第 ${number} 章已定稿：修订要先带 reopen: true 重写正文回退`)
     const body = String(input.body ?? '')
     if (body.trim() === '') throw new StoryError('empty-body', '修订后的正文不能为空')
     const latest = await latestReview(root, manifest, entry)
@@ -1105,7 +1105,7 @@ export async function foldState(root, input) {
     const entities = Array.isArray(input.entities) ? input.entities : []
     const hooks = Array.isArray(input.hooks) ? input.hooks : []
     if (entities.length === 0 && hooks.length === 0) {
-      throw new StoryError('empty-state', '状态结算至少要给出一条人物事实或伏笔变化')
+      throw new StoryError('empty-state', '定稿归档至少要给出一条人物事实或伏笔变化')
     }
     const dir = workDirectory(root, manifest.workId)
     const eventsFile = join(dir, 'state', 'events.jsonl')
@@ -1142,19 +1142,19 @@ export async function foldState(root, input) {
     }
     const latest = await latestReview(root, manifest, entry)
     if (latest === undefined) {
-      throw new StoryError('review-required', `第 ${number} 章还没有审稿清单：先审稿与修订，再结算`)
+      throw new StoryError('review-required', `第 ${number} 章还没有审稿清单：先审稿与修订，再定稿`)
     }
     const open = parseReview(latest.text).filter(item => !item.done)
     if (open.length > 0) {
       throw new StoryError('review-required',
-        `第 ${number} 章还有 ${open.length} 条未处理审稿：${open.map(item => item.id).join('、')}；先修订再结算`)
+        `第 ${number} 章还有 ${open.length} 条未处理审稿：${open.map(item => item.id).join('、')}；先修订再定稿`)
     }
     if (!reviewCoversRevision(latest, entry, true)) {
       throw new StoryError('review-required', `第 ${number} 章的审稿针对旧版本 r${latest.revision ?? '?'}：先重新审稿`)
     }
     if (stageOf(entry) !== 'revised') {
       throw new StoryError('review-required',
-        `第 ${number} 章还没走完修订（当前阶段：${stageOf(entry)}）：先 story_revise 提交改动，再结算`)
+        `第 ${number} 章还没走完修订（当前阶段：${stageOf(entry)}）：先 story_revise 提交改动，再定稿`)
     }
     lines.push(JSON.stringify({ seq: offset + 1, at: now(), chapter: number, kind: 'settle' }))
     const nextEvents = previous === '' || previous.endsWith('\n')
@@ -1294,7 +1294,7 @@ export async function reopenChapter(root, input) {
     const entry = manifest.chapters.find(chapter => chapter.number === number)
     if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
     if (stageOf(entry) !== 'settled') {
-      throw new StoryError('not-settled', `第 ${number} 章还没结算（当前阶段：${stageOf(entry)}），不需要重开`)
+      throw new StoryError('not-settled', `第 ${number} 章还没定稿（当前阶段：${stageOf(entry)}），不需要重开`)
     }
     const workDir = workDirectory(root, manifest.workId)
     const eventsFile = join(workDir, 'state', 'events.jsonl')
@@ -1342,7 +1342,7 @@ export async function nextStep(root, work) {
     if (summary === undefined || summary.trim() === '') {
       return {
         workId: manifest.workId, chapter: last.number, stage, action: 'story_summarize',
-        reason: `第 ${last.number} 章已结算但没有摘要：先补摘要，后面几章的写前上下文才用得上`, missing: ['summary'],
+        reason: `第 ${last.number} 章已定稿但没有摘要：先补摘要，后面几章的写前上下文才用得上`, missing: ['summary'],
       }
     }
     // A volume's last chapter is the natural moment for its summary.
@@ -1365,7 +1365,7 @@ export async function nextStep(root, work) {
       }
     }
     const next = last.number + 1
-    return { workId: manifest.workId, chapter: next, stage: 'planned', action: 'story_plan', reason: `第 ${last.number} 章已结算：写第 ${next} 章章纲`, missing: ['outline'] }
+    return { workId: manifest.workId, chapter: next, stage: 'planned', action: 'story_plan', reason: `第 ${last.number} 章已定稿：写第 ${next} 章章纲`, missing: ['outline'] }
   }
   if (!hasPlan) {
     return { workId: manifest.workId, chapter: last.number, stage, action: 'story_plan', reason: `第 ${last.number} 章缺章纲`, missing: ['outline'] }
@@ -1390,7 +1390,7 @@ export async function nextStep(root, work) {
   if (stage !== 'revised') {
     return { workId: manifest.workId, chapter: last.number, stage, action: 'story_revise', reason: `第 ${last.number} 章审稿条目已处理完，但还没提交修订`, missing: ['revision'] }
   }
-  return { workId: manifest.workId, chapter: last.number, stage, action: 'story_state', reason: `第 ${last.number} 章已修订，结算状态`, missing: [] }
+  return { workId: manifest.workId, chapter: last.number, stage, action: 'story_state', reason: `第 ${last.number} 章已修订，定稿`, missing: [] }
 }
 
 /**

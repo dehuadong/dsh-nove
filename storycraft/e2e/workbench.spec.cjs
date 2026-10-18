@@ -65,8 +65,8 @@ test.describe('故事工坊工作台', () => {
     await expect(page.getByText(/longform · 已写 1\/1 章 · 最新第 1 章 · 未处理 0/)).toBeVisible()
 
     await expect(page.locator('button.sc-chapter').filter({ hasText: '灰旗' })).toBeVisible()
-    await expect(page.getByText(`已结算 · 当前版本 r2 · ${facts.words} 字 · 审稿 1 轮 · 未处理 0 条`)).toBeVisible()
-    await expect(page.getByText(/本章已结算并锁定。要补审稿或改稿：点「撤销结算」/)).toBeVisible()
+    await expect(page.getByText(`已定稿 · 当前版本 r2 · ${facts.words} 字 · 审稿 1 轮 · 未处理 0 条`)).toBeVisible()
+    await expect(page.getByText(/本章已定稿并锁定。要补审稿或改稿：点「撤回定稿」/)).toBeVisible()
     await expect(page.getByRole('button', { name: '撤销结算', exact: true })).toBeEnabled()
     // A settled chapter shows only the actions that can actually do something.
     await expect(page.getByRole('button', { name: '审稿', exact: true })).toHaveCount(0)

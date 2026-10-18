@@ -176,10 +176,10 @@ window.__ModuleLoader__.load({
     const INSTRUCTIONS = {
       flowToRevision(workId, chapter) {
         return `写作品 ${workId} 第 ${chapter} 章：按顺序做——章纲（缺则 story_plan）→ story_brief 取上下文 → 正文 story_write → story_critique 质检 → story_review 审稿 → 按清单修订 story_revise（mode 用 patch）。`
-          + '做到修订为止停下：把修订结果、剩余未处理条目与字数变化报给我，等我决定是否润色或去 AI 味，再结算。'
+          + '做到修订为止停下：把修订结果、剩余未处理条目与字数变化报给我，等我决定是否润色或去 AI 味，再定稿。'
       },
       flowFull(workId, chapter) {
-        return `写作品 ${workId} 第 ${chapter} 章并一路做完：章纲 → story_brief → 正文 → 质检 → 审稿 → 按清单修订 → 结算 → 摘要。每步结果简短汇报，结尾给出本章摘要与下一步。`
+        return `写作品 ${workId} 第 ${chapter} 章并一路做完：章纲 → story_brief → 正文 → 质检 → 审稿 → 按清单修订 → 定稿 → 摘要。每步结果简短汇报，结尾给出本章摘要与下一步。`
       },
       step(workId, chapter, action) {
         const label = {
@@ -187,14 +187,14 @@ window.__ModuleLoader__.load({
           story_write: '写本章正文',
           story_review: '审本章',
           story_revise: '按清单修订本章',
-          story_state: '结算本章',
+          story_state: '定稿：写入本章事实',
           story_summarize: '写本章摘要',
           story_volume: '补本卷摘要',
         }[action] ?? action
         return `对作品 ${workId} 第 ${chapter} 章只做一步：${label}（调 ${action}）。做完就停，把结果告诉我，不要继续后面的步骤。`
       },
       nextChapter(workId, chapter) {
-        return `继续写作品 ${workId} 第 ${chapter} 章：先调 story_next 看下一步，再按它给的顺序做（章纲 → story_brief 取上下文 → 正文 → 质检 → 审稿 → 修订 → 结算 → 摘要）。`
+        return `继续写作品 ${workId} 第 ${chapter} 章：先调 story_next 看下一步，再按它给的顺序做（章纲 → story_brief 取上下文 → 正文 → 质检 → 审稿 → 修订 → 定稿 → 摘要）。`
       },
       review(workId, chapter) {
         return `对作品 ${workId} 第 ${chapter} 章做审稿：只找问题，不改正文，把问题清单用 story_review 落盘。`
@@ -228,10 +228,10 @@ window.__ModuleLoader__.load({
         return `用 story_delete 把作品 ${workId} 移入回收站（不要真的删除文件）。`
       },
       reopen(workId, chapter) {
-        return `把作品 ${workId} 第 ${chapter} 章的结算撤销（story_reopen：只作废结算，不改正文），然后重新审稿、按清单修订、再结算。`
+        return `把作品 ${workId} 第 ${chapter} 章的定稿撤销（story_reopen：只作废定稿，不改正文），然后重新审稿、按清单修订、再定稿。`
       },
       fold(workId, chapter) {
-        return `把作品 ${workId} 第 ${chapter} 章已经发生的事实结算进状态：人物事实与伏笔变化用 story_state 落盘。`
+        return `把作品 ${workId} 第 ${chapter} 章已经发生的事实定稿进状态：人物事实与伏笔变化用 story_state 落盘。`
       },
       create(title) {
         return `用故事工坊立项一部长篇作品，标题《${title}》，调用 story_init 落盘后告诉我作品 id。`
@@ -397,7 +397,7 @@ window.__ModuleLoader__.load({
       story_write: '正文',
       story_review: '审稿',
       story_revise: '修订',
-      story_state: '结算',
+      story_state: '定稿',
       story_summarize: '摘要',
       story_volume: '卷摘要',
     }
@@ -409,7 +409,7 @@ window.__ModuleLoader__.load({
         written: '已写',
         reviewed: '已审',
         revised: '已修订',
-        settled: '已结算',
+        settled: '已定稿',
       }
       return map[stage] ?? stage
     }
@@ -438,7 +438,7 @@ window.__ModuleLoader__.load({
         h('h2', { className: 'sc-detail-title' }, '还没有作品'),
         h('p', null, '作品落在当前工作区的 works/ 目录里：一部作品一个目录，含章纲、正文、审稿清单与状态。'),
         h('ul', { className: 'sc-steps' },
-          h('li', null, '长篇小说：人设 + 单章写法技能 + 十二个动作（立项 / 章纲 / 正文 / 审稿 / 修订 / 状态结算 / 进度，以及真值、导入、摘要、写前上下文）。'),
+          h('li', null, '长篇小说：人设 + 单章写法技能 + 二十一个动作（立项 / 章纲 / 正文 / 审稿 / 修订 / 定稿归档 / 进度，以及真值、导入、摘要、写前上下文）。'),
           h('li', null, '短篇小说：人设 + 短篇写法技能；生产动作尚未接入。'),
           h('li', null, '短剧剧本：人设 + 竖屏短剧写法技能；生产动作尚未接入。'),
         ),
@@ -563,25 +563,25 @@ window.__ModuleLoader__.load({
               ? h('button', {
                 type: 'button',
                 className: 'sc-btn',
-                title: '只作废本章结算、不改正文；之后重走 审稿 → 修订 → 结算',
+                title: '只作废本章定稿、不改正文；之后重走 审稿 → 修订 → 定稿',
                 onClick: () => compose(INSTRUCTIONS.reopen(workId, chapter.number)),
-              }, '撤销结算')
+              }, '撤回定稿')
               : h('button', {
                 type: 'button',
                 className: 'sc-btn',
                 disabled: chapter.stage !== 'revised' || chapter.openProblems > 0,
                 title: chapter.stage !== 'revised'
-                  ? '先审稿、再按清单修订，才能结算'
+                  ? '先审稿、再按清单修订，才能定稿'
                   : chapter.openProblems > 0
                     ? `还有 ${chapter.openProblems} 条审稿未处理：先修订`
-                    : '把本章的人物变化与伏笔记进书里，并把该章锁为已结算',
+                    : '把本章的人物变化与伏笔记进书里，并把该章锁为已定稿',
                 onClick: () => compose(INSTRUCTIONS.fold(workId, chapter.number)),
-              }, '结算状态'),
+              }, '定稿'),
           ),
         ),
         chapter.stage === 'settled'
           ? h('p', { className: 'sc-muted' },
-            '本章已结算并锁定。要补审稿或改稿：点「撤销结算」——只作废结算、不动正文，然后重走 审稿 → 修订 → 结算；要连正文一起重写，才让模型带 reopen 重写。')
+            '本章已定稿并锁定。要补审稿或改稿：点「撤回定稿」——只作废定稿、不动正文，然后重走 审稿 → 修订 → 定稿；要连正文一起重写，才让模型带 reopen 重写。')
           : null,
         chapter.stage !== 'settled' && chapter.openProblems === 0 && reviseMode === 'patch'
           ? h('p', { className: 'sc-muted' },
@@ -735,13 +735,13 @@ window.__ModuleLoader__.load({
             h('button', {
               type: 'button',
               className: 'sc-btn sc-btn-primary',
-              title: '写下一章：章纲 → 取上下文 → 正文 → 质检 → 审稿 → 按清单修订，停在修订，之后可润色/去 AI 味再结算',
+              title: '写下一章：章纲 → 取上下文 → 正文 → 质检 → 审稿 → 按清单修订，停在修订，之后可润色/去 AI 味再定稿',
               onClick: () => compose(INSTRUCTIONS.flowToRevision(manifest.workId, next === undefined ? nextNumber : next.chapter)),
             }, `写第 ${next === undefined ? nextNumber : next.chapter} 章（写到修订）`),
             h('button', {
               type: 'button',
               className: 'sc-btn',
-              title: '写下一章并一次做完：章纲 → 正文 → 质检 → 审稿 → 修订 → 结算 → 摘要',
+              title: '写下一章并一次做完：章纲 → 正文 → 质检 → 审稿 → 修订 → 定稿 → 摘要',
               onClick: () => compose(INSTRUCTIONS.flowFull(manifest.workId, next === undefined ? nextNumber : next.chapter)),
             }, `写第 ${next === undefined ? nextNumber : next.chapter} 章（一次做完）`),
             h('button', {
@@ -1014,7 +1014,7 @@ window.__ModuleLoader__.load({
             ? h('div', { style: { marginTop: 10 } },
               h('h3', { className: 'sc-section-title' }, '人物事实'),
               detail.state.entities.length === 0
-                ? h('p', { className: 'sc-muted' }, '还没有结算过人物事实。')
+                ? h('p', { className: 'sc-muted' }, '还没有定稿过人物事实。')
                 : detail.state.entities.map(entity => h('div', { className: 'sc-item', key: entity.name },
                   h('div', { className: 'sc-item-head' }, h('span', { className: 'sc-item-name' }, entity.name)),
                   h('ul', { className: 'sc-item-body' }, ...entity.facts.map((fact, index) => h('li', { key: index }, fact))),
