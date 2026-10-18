@@ -1,6 +1,6 @@
 # 故事工坊（dsh-storycraft）
 
-DSH 里的长篇创作编排：十三个动作把立项、章纲、正文、审稿、修订、状态结算落到作品目录，一个**工作台**以只读方式看作品与章节，并按键把固定指令投给当前会话。预设只决定“哪个模式挂哪些动作、技能与人设”。
+DSH 里的长篇创作编排：二十一个动作把立项、章纲、正文、审稿、修订、状态结算落到作品目录，一个**工作台**以只读方式看作品与章节，并按键把固定指令投给当前会话。预设只决定“哪个模式挂哪些动作、技能与人设”。
 
 ## 现状
 
@@ -125,7 +125,7 @@ storycraft/
   cordis.patch.yml             # 入口行 + 三条预设声明（长篇多挂一层动作行）
   index.js                     # Host 半边：只读路由
   storage.js                   # 作品存储：原子写、版本、审稿、状态、进度
-  tools.js                     # 十二个动作（注册在预设作用域）
+  tools.js                     # 二十一个动作（注册在预设作用域）
   skills.js                    # 按模式提供技能目录
   client.js                    # 浏览器半边：侧栏入口 + 工作台
   skills/<mode>/<skill>/…      # 技能正文与脚本
@@ -135,7 +135,7 @@ storycraft/
 ## 验证入口
 
 - `node storycraft/tests/storage.test.mjs`：作品存储的原子性、版本、审稿、状态与失败路径。
-- `node storycraft/tests/tools.test.mjs`：十二个动作的注册、schema 形状、端到端行为与拒绝条件。
+- `node storycraft/tests/tools.test.mjs`：二十一个动作的注册、schema 形状、端到端行为与拒绝条件。
 - `node storycraft/tests/bible.test.mjs`：真值校验、摘要截断、写前上下文顺序/预算/确定性、旧作品导入。
 - `node storycraft/tests/stage.test.mjs`：阶段推进、五种拒绝、reopen 回退与旧结算作废、`story_next` 判定。
 - `node storycraft/tests/work-ops.test.mjs`：改名（标题/id）、删除到回收站、恢复、投影重建与列表过滤。

@@ -1341,6 +1341,25 @@ export async function nextStep(root, work) {
         reason: `第 ${last.number} 章已结算但没有摘要：先补摘要，后面几章的写前上下文才用得上`, missing: ['summary'],
       }
     }
+    // A volume's last chapter is the natural moment for its summary.
+    const volumesText = await readOptional(join(dir, 'bible', 'volumes.json'))
+    let volumes = []
+    if (volumesText !== undefined) {
+      try {
+        const parsed = JSON.parse(volumesText)
+        volumes = Array.isArray(parsed) ? parsed : (parsed?.volumes ?? [])
+      } catch {
+        volumes = []
+      }
+    }
+    const closing = volumes.find(volume => volume?.to === last.number)
+    if (closing !== undefined && (typeof closing.summary !== 'string' || closing.summary.trim() === '')) {
+      return {
+        workId: manifest.workId, chapter: last.number, stage, action: 'story_volume',
+        reason: `第 ${last.number} 章是「${closing.title}」的最后一章：给它补一段卷摘要，下一卷的写前上下文要用`,
+        missing: ['volume-summary'],
+      }
+    }
     const next = last.number + 1
     return { workId: manifest.workId, chapter: next, stage: 'planned', action: 'story_plan', reason: `第 ${last.number} 章已结算：写第 ${next} 章章纲`, missing: ['outline'] }
   }

@@ -174,7 +174,7 @@ window.__ModuleLoader__.load({
     /** Fixed instruction templates the workbench sends to the current Session. */
     const INSTRUCTIONS = {
       nextChapter(workId, chapter) {
-        return `用 story_init 里登记的作品 ${workId} 继续写第 ${chapter} 章：先确认章纲（没有就用 story_plan 补，五项齐全），再写正文并用 story_write 落盘，最后用 story_state 结算本章事实。`
+        return `继续写作品 ${workId} 第 ${chapter} 章：先调 story_next 看下一步，再按它给的顺序做（章纲 → story_brief 取上下文 → 正文 → 质检 → 审稿 → 修订 → 结算 → 摘要）。`
       },
       review(workId, chapter) {
         return `对作品 ${workId} 第 ${chapter} 章做审稿：只找问题，不改正文，把问题清单用 story_review 落盘。`
