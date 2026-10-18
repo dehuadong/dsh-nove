@@ -437,6 +437,17 @@ window.__ModuleLoader__.load({
       { id: 'script', label: '剧本' },
     ]
 
+    /**
+     * The unit a work uses for its chapters.
+     * @param form - work form.
+     * @returns {string} 章 / 篇 / 集.
+     */
+    function unitOf(form) {
+      if (form === 'script') return '集'
+      if (form === 'short') return '篇'
+      return '章'
+    }
+
     /** Short label of one pipeline action. */
     const STEP_LABEL = {
       story_plan: '章纲',
@@ -560,7 +571,7 @@ window.__ModuleLoader__.load({
 
     /** One chapter reader with plan/body tabs, review list and state. */
     /** Inline editor: shows the canned instruction, lets the author add specifics. */
-    function ChapterPanel({ face, root, workId, chapter, onNotice, canSend, compose, hideActions }) {
+    function ChapterPanel({ face, root, workId, chapter, unit, onNotice, canSend, compose, hideActions }) {
       const [view, setView] = useState('body')
       const [metrics, setMetrics] = useState(undefined)
       const [reviseMode, setReviseMode] = useState('patch')
@@ -601,7 +612,7 @@ window.__ModuleLoader__.load({
       return h('div', null,
         h('div', { className: 'sc-detail-head' },
           h('div', null,
-            h('h2', { className: 'sc-detail-title' }, `第 ${chapter.number} 章${chapter.title === '' ? '' : ` · ${chapter.title}`}`),
+            h('h2', { className: 'sc-detail-title' }, `第 ${chapter.number} ${unit ?? '章'}${chapter.title === '' ? '' : ` · ${chapter.title}`}`),
             h('p', { className: 'sc-detail-tagline' },
               `${stageLabel(chapter.stage)} · 当前版本 r${chapter.revision} · ${chapter.words} 字 · 审稿 ${chapter.reviewRound} 轮 · 未处理 ${chapter.openProblems} 条`),
           ),
@@ -832,7 +843,7 @@ window.__ModuleLoader__.load({
               onClick: () => { setSelected(undefined); setNotice(undefined) },
             }, '← 全部作品'),
             h('h2', { className: 'sc-detail-title' }, manifest.title),
-            h('p', { className: 'sc-detail-tagline' }, `${manifest.form} · ${manifest.workId} · ${chapters.length} 章 · 已写 ${chapters.filter(item => item.revision > 0).length} 章`),
+            h('p', { className: 'sc-detail-tagline' }, `${manifest.form} · ${manifest.workId} · ${chapters.length} ${unitOf(manifest.form)} · 已写 ${chapters.filter(item => item.revision > 0).length} ${unitOf(manifest.form)}`),
           ),
           h('div', { className: 'sc-header-actions' },
             h('button', {
@@ -840,13 +851,13 @@ window.__ModuleLoader__.load({
               className: 'sc-btn sc-btn-primary',
               title: '写下一章：章纲 → 取上下文 → 正文 → 质检 → 审稿 → 按清单修订，停在修订，之后可润色/去 AI 味再定稿',
               onClick: () => compose(INSTRUCTIONS.flowToRevision(manifest.workId, next === undefined ? nextNumber : next.chapter)),
-            }, `写第 ${next === undefined ? nextNumber : next.chapter} 章（写到修订）`),
+            }, `写第 ${next === undefined ? nextNumber : next.chapter} ${unitOf(manifest.form)}（写到修订）`),
             h('button', {
               type: 'button',
               className: 'sc-btn',
               title: '写下一章并一次做完：章纲 → 正文 → 质检 → 审稿 → 修订 → 定稿 → 摘要',
               onClick: () => compose(INSTRUCTIONS.flowFull(manifest.workId, next === undefined ? nextNumber : next.chapter)),
-            }, `写第 ${next === undefined ? nextNumber : next.chapter} 章（一次做完）`),
+            }, `写第 ${next === undefined ? nextNumber : next.chapter} ${unitOf(manifest.form)}（一次做完）`),
             h('button', {
               type: 'button',
               className: 'sc-btn',
@@ -1010,7 +1021,7 @@ window.__ModuleLoader__.load({
                 ...chapterGroups(chapters, volumes).map(group => h('div', { key: group.key, className: 'sc-volume' },
                   h('div', { className: 'sc-volume-head' },
                     h('span', { className: 'sc-volume-title' }, group.title),
-                    h('span', { className: 'sc-badge' }, `${group.chapters.length} 章`),
+                    h('span', { className: 'sc-badge' }, `${group.chapters.length} ${unitOf(manifest.form)}`),
                     group.volume?.summary ? h('span', { className: 'sc-badge sc-badge-ok' }, '有卷摘要') : null,
                     group.volume === undefined
                       ? null
@@ -1033,7 +1044,7 @@ window.__ModuleLoader__.load({
                       'aria-current': item.number === selected ? 'true' : 'false',
                       onClick: () => setSelected(item.number),
                     },
-                      h('span', { className: 'sc-chapter-no' }, `第 ${item.number} 章`),
+                      h('span', { className: 'sc-chapter-no' }, `第 ${item.number} ${unitOf(manifest.form)}`),
                       h('span', { className: 'sc-chapter-title' }, item.title === '' ? '（未命名）' : item.title),
                       h('span', { className: 'sc-badge' }, stageLabel(item.stage)),
                       h('span', { className: 'sc-badge' }, `r${item.revision}`),
@@ -1101,6 +1112,7 @@ window.__ModuleLoader__.load({
                 root,
                 workId: manifest.workId,
                 chapter,
+                unit: unitOf(manifest.form),
                 onNotice,
                 canSend,
                 compose,
@@ -1422,7 +1434,7 @@ window.__ModuleLoader__.load({
                   setSelected(workId)
                   setNotice(undefined)
                   if (sessionId !== undefined) {
-                    void face.setCurrent(context.root, sessionId, workId).catch(() => {})
+                    void face.setCurrent(root, sessionId, workId).catch(() => {})
                   }
                 },
                 onCreate: title => compose(INSTRUCTIONS.create(title, typeFilter)),

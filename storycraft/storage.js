@@ -87,6 +87,17 @@ export const WORK_FORMS = ['longform', 'short', 'script']
  * @param {object} manifest - work manifest.
  * @returns {'longform'|'short'|'script'} the form.
  */
+/**
+ * The unit one form calls its chapters: 章 / 篇 / 集.
+ * @param {string} form - work form.
+ * @returns {string} unit noun.
+ */
+export function unitOf(form) {
+  if (form === 'script') return '集'
+  if (form === 'short') return '篇'
+  return '章'
+}
+
 export function formOf(manifest) {
   return WORK_FORMS.includes(manifest?.form) ? manifest.form : 'longform'
 }
@@ -1346,6 +1357,19 @@ export async function reopenChapter(root, input) {
  * @returns {Promise<{workId: string, chapter: number, stage: string, action: string, reason: string, missing: string[]}>} next step.
  */
 export async function nextStep(root, work) {
+  const step = await nextStepRaw(root, work)
+  const manifest = await readManifest(root, work)
+  const form = formOf(manifest)
+  return { ...step, form, unit: unitOf(form) }
+}
+
+/**
+ * The stage-derived next step, before the form is attached.
+ * @param {string} root - workspace directory.
+ * @param {string} work - work identity.
+ * @returns {Promise<object>} next step.
+ */
+async function nextStepRaw(root, work) {
   const manifest = await readManifest(root, work)
   const last = manifest.chapters.length === 0 ? undefined : manifest.chapters[manifest.chapters.length - 1]
   const chapter = last === undefined ? 1 : last.number

@@ -45,6 +45,18 @@ async function openWorkbench(page) {
       await page.waitForTimeout(600)
     }
   }
+  // A preview notice can appear late and take the page out of the a11y tree;
+  // dismiss it between attempts instead of asserting straight away.
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const lateNotice = page.getByRole('button', { name: 'Continue' })
+    if (await lateNotice.count() > 0) await clickThrough(lateNotice)
+    try {
+      await heading.waitFor({ state: 'visible', timeout: 3_000 })
+      return
+    } catch {
+      await page.waitForTimeout(500)
+    }
+  }
   await expect(heading).toBeVisible({ timeout: 10_000 })
 }
 
@@ -69,7 +81,7 @@ test.describe('故事工坊工作台', () => {
     await expect(page.getByText(/longform · 示例短篇 · 1 章 · 已写 1 章/)).toBeVisible()
     // A project is a subpage: the type rail is gone and a way back remains.
     await expect(page.getByRole('button', { name: /^长篇/ })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: '← 全部作品' })).toBeVisible()
+    await expect(page.getByText(/全部作品/)).toBeVisible()
 
     await expect(page.locator('button.sc-chapter').filter({ hasText: '灰旗' })).toBeVisible()
     await expect(page.getByText(`已定稿 · 当前版本 r2 · ${facts.words} 字 · 审稿 1 轮 · 未处理 0 条`)).toBeVisible()

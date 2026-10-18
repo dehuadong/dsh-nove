@@ -71,6 +71,11 @@ try {
   const short = await s.initWork(root, { title: '短篇形态', form: 'short' })
   check('short is accepted', (await s.status(root, short.workId)).form === 'short')
 
+  // Each form names its unit, and the next step carries it.
+  check('units differ by form', s.unitOf('longform') === '章' && s.unitOf('short') === '篇' && s.unitOf('script') === '集')
+  const shortStep = await s.nextStep(root, short.workId)
+  check('next step carries form and unit', shortStep.form === 'short' && shortStep.unit === '篇', JSON.stringify(shortStep))
+
   // Readers default the form too, so a manifest without it still renders.
   const manifestPath = join(root, 'works', legacy.workId, 'manifest.json')
   const fs = await import('node:fs/promises')
