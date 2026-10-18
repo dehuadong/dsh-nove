@@ -25,6 +25,7 @@ import {
   writeBible as writeBibleEntry, writeSummary as writeSummaryEntry,
 } from './bible.js'
 import { readVolumes, writeVolume } from './volumes.js'
+import { critique } from './critique.js'
 
 /** Requires the tool registry; without it this row stays inert. */
 export const inject = ['tools']
@@ -181,6 +182,60 @@ const OUTPUT_PROPERTIES = {
   names: { type: 'array', description: 'Character names found in the old cast file.', items: { type: 'string' } },
   truncated: { type: 'boolean' },
   cleaned: { type: 'integer', description: 'Stale staging directories removed by this action.' },
+  metrics: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      words: { type: 'integer' },
+      sentences: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          count: { type: 'integer' },
+          averageLength: { type: 'number' },
+          longest: { type: 'integer' },
+        },
+        required: ['count', 'averageLength', 'longest'],
+      },
+      repeated: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: { text: { type: 'string' }, count: { type: 'integer' } },
+          required: ['text', 'count'],
+        },
+      },
+      aiPhrases: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          count: { type: 'integer' },
+          hits: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: { phrase: { type: 'string' }, count: { type: 'integer' } },
+              required: ['phrase', 'count'],
+            },
+          },
+        },
+        required: ['count', 'hits'],
+      },
+      dialogueRatio: { type: 'number' },
+      wordRange: {
+        type: 'object',
+        additionalProperties: false,
+        properties: { min: { type: 'integer' }, max: { type: 'integer' } },
+        required: ['min', 'max'],
+      },
+      withinRange: { type: 'boolean' },
+      shortBy: { type: 'integer' },
+      longBy: { type: 'integer' },
+    },
+    required: ['words', 'sentences', 'repeated', 'aiPhrases', 'dialogueRatio'],
+  },
   volumes: {
     type: 'array',
     description: 'Volumes of this work, ascending by their first chapter.',
@@ -307,6 +362,13 @@ function definitions() {
         additionalProperties: false,
         properties: {
           title: { type: 'string', description: '作品标题。' },
+          wordRange: {
+            type: 'object',
+            additionalProperties: false,
+            properties: { min: { type: 'integer' }, max: { type: 'integer' } },
+            required: ['min', 'max'],
+            description: '单章字数范围，建档时与作者商定；省略表示不设限。',
+          },
           workId: { type: 'string', description: '可选：显式指定作品 id（字母、数字、连字符）。' },
           form: { type: 'string', description: '作品形态，默认 longform。' },
           tags: { type: 'array', description: '可选标签。', items: { type: 'string' } },
@@ -320,6 +382,7 @@ function definitions() {
           ...(typeof args.workId === 'string' ? { workId: args.workId } : {}),
           ...(typeof args.form === 'string' ? { form: args.form } : {}),
           ...(Array.isArray(args.tags) ? { tags: args.tags } : {}),
+          ...(args.wordRange === undefined ? {} : { wordRange: args.wordRange }),
         })
         return { ok: true, workId: created.workId, artifact: { path: created.path } }
       },
@@ -426,6 +489,11 @@ function definitions() {
             type: 'array',
             description: '本次处理的问题条目 id（如 Q1、Q2），至少一个。',
             items: { type: 'string' },
+          },
+          mode: {
+            type: 'string',
+            enum: ['patch', 'polish', 'rewrite', 'deslop'],
+            description: '修订模式：patch 只改点到的地方（字数变化 ≤20%）、polish 润色（≤40%）、rewrite 重写、deslop 去 AI 腔（必须减少命中）。省略为 patch。',
           },
         },
         required: ['work', 'chapter', 'body', 'problemIds'],
@@ -666,6 +734,27 @@ function definitions() {
         const root = workspaceOf(exec)
         const result = await restoreWork(root, { name: args.name })
         return { ok: true, workId: result.workId }
+      },
+    }),
+
+    action({
+      name: 'story_critique',
+      description: '给一章做只读质检：字数是否在该作品范围内、句子长度、重复句、AI 腔词命中、对话占比。'
+        + ' 只打分、不写文件、不阻断结算；把发现交给 story_review 才会变成清单。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+          chapter: { type: 'integer', description: '章号。' },
+        },
+        required: ['work', 'chapter'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const manifest = await readManifest(root, args.work)
+        const current = await readChapter(root, { work: args.work, chapter: args.chapter })
+        return { ok: true, workId: args.work, metrics: critique(current.content, manifest.wordRange) }
       },
     }),
 

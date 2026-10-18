@@ -364,7 +364,11 @@ export async function assembleBrief(root, workId, chapter) {
     await recentSummariesSection(root, manifest, number),
     await previousSection(root, manifest, number),
     section('style', '文风要点', raw.style, 'bible/style.md'),
-    section('wordPolicy', '字数口径', WORD_POLICY, 'storycraft'),
+    section('wordPolicy', '字数口径',
+      manifest.wordRange === undefined
+        ? '字数未设定（按作者习惯）；每章结尾留悬念钩子。'
+        : `单章 ${manifest.wordRange.min}–${manifest.wordRange.max} 字；每章结尾留悬念钩子。`,
+      'manifest.json'),
   ]
 
   const budget = { limit: BRIEF_BUDGET_BYTES, used: 0, overBudget: false }

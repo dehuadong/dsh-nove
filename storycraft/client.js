@@ -10,6 +10,7 @@ window.__ModuleLoader__.load({
       works: '/api/dsh-storycraft/works',
       trash: '/api/dsh-storycraft/trash',
       volumes: '/api/dsh-storycraft/volumes',
+      critique: '/api/dsh-storycraft/critique',
       work: '/api/dsh-storycraft/work',
       chapter: '/api/dsh-storycraft/chapter',
       review: '/api/dsh-storycraft/review',
@@ -59,6 +60,8 @@ window.__ModuleLoader__.load({
 .sc-volume-title{font-weight:600}
 .sc-volume-form{display:flex;flex-direction:column;gap:8px;margin:10px 0;padding:10px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px}
 .sc-narrow{width:84px}
+.sc-metrics{margin:10px 0;padding:10px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px}
+.sc-metrics-list{margin:6px 0 0;padding-left:18px;font-size:12px;opacity:.85}
 .sc-chapters{display:flex;flex-direction:column;gap:6px}
 .sc-chapter{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:8px 12px;border-radius:10px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:inherit;font:inherit;cursor:pointer}
 .sc-chapter:hover{background:var(--dsw-alias-bg-layer-2)}
@@ -176,8 +179,9 @@ window.__ModuleLoader__.load({
       review(workId, chapter) {
         return `对作品 ${workId} 第 ${chapter} 章做审稿：只找问题，不改正文，把问题清单用 story_review 落盘。`
       },
-      revise(workId, chapter) {
-        return `按作品 ${workId} 第 ${chapter} 章最新的审稿清单里未处理的条目修订正文，用 story_revise 落盘并标记处理过的条目。`
+      revise(workId, chapter, mode) {
+        const label = { patch: '局部修补', polish: '润色', rewrite: '重写', deslop: '去 AI 味' }[mode] ?? '局部修补'
+        return `按作品 ${workId} 第 ${chapter} 章最新的审稿清单里未处理的条目修订正文（模式：${label}，story_revise 的 mode 传 ${mode}），落盘并标记处理过的条目。`
       },
       volume(workId, volume) {
         const summary = typeof volume.summary === 'string' && volume.summary.trim() !== ''
@@ -220,6 +224,7 @@ window.__ModuleLoader__.load({
         listWorks: (root) => route(ROUTE.works, { root }),
         listTrash: (root) => route(ROUTE.trash, { root }),
         volumes: (root, id) => route(ROUTE.volumes, { root, id }),
+        critique: (root, id, chapter) => route(ROUTE.critique, { root, id, chapter }),
         work: (root, id) => route(ROUTE.work, { root, id }),
         chapter: (root, id, chapter, view, revision) => route(ROUTE.chapter, { root, id, chapter, view, revision }),
         review: (root, id, chapter) => route(ROUTE.review, { root, id, chapter }),
@@ -424,6 +429,8 @@ window.__ModuleLoader__.load({
     /** Inline editor: shows the canned instruction, lets the author add specifics. */
     function ChapterPanel({ face, root, workId, chapter, onNotice, canSend, compose }) {
       const [view, setView] = useState('body')
+      const [metrics, setMetrics] = useState(undefined)
+      const [reviseMode, setReviseMode] = useState('patch')
       const [revision, setRevision] = useState(0)
 
       useEffect(() => { setRevision(0) }, [chapter.number])
@@ -475,13 +482,37 @@ window.__ModuleLoader__.load({
                 ? '本章已结算并锁定：先「撤销结算」再审稿'
                 : '只找问题、不改正文，把问题清单落盘',
             }, '审稿'),
+            h('select', {
+              className: 'sc-input sc-narrow',
+              'aria-label': '修订模式',
+              value: reviseMode,
+              onChange: event => setReviseMode(event.target.value),
+            },
+              h('option', { value: 'patch' }, '局部修补'),
+              h('option', { value: 'polish' }, '润色'),
+              h('option', { value: 'rewrite' }, '重写'),
+              h('option', { value: 'deslop' }, '去 AI 味'),
+            ),
             h('button', {
               type: 'button',
               className: 'sc-btn',
-              onClick: () => compose(INSTRUCTIONS.revise(workId, chapter.number)),
+              onClick: () => compose(INSTRUCTIONS.revise(workId, chapter.number, reviseMode)),
               disabled: chapter.openProblems === 0 || chapter.stage === 'settled',
               title: chapter.stage === 'settled' ? '本章已结算：先「撤销结算」' : '按未处理的审稿条目改稿',
             }, '按清单修订'),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn',
+              title: '只读质检：字数范围、句子长度、重复句、AI 腔命中',
+              onClick: async () => {
+                try {
+                  const payload = await face.critique(root, workId, chapter.number)
+                  setMetrics(payload.metrics)
+                } catch (error) {
+                  onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
+                }
+              },
+            }, '质检'),
             chapter.stage === 'settled'
               ? h('button', {
                 type: 'button',
@@ -506,6 +537,32 @@ window.__ModuleLoader__.load({
           ? h('p', { className: 'sc-muted' },
             '本章已结算并锁定。要补审稿或改稿：点「撤销结算」——只作废结算、不动正文，然后重走 审稿 → 修订 → 结算；要连正文一起重写，才让模型带 reopen 重写。')
           : null,
+        metrics === undefined
+          ? null
+          : h('div', { className: 'sc-metrics' },
+            h('div', { className: 'sc-actions' },
+              h('span', { className: 'sc-badge' }, `${metrics.words} 字`),
+              metrics.withinRange === undefined
+                ? h('span', { className: 'sc-badge' }, '字数未设定')
+                : h('span', { className: metrics.withinRange ? 'sc-badge sc-badge-ok' : 'sc-badge sc-badge-warn' },
+                  metrics.withinRange
+                    ? `在 ${metrics.wordRange.min}–${metrics.wordRange.max} 内`
+                    : (metrics.shortBy !== undefined ? `少 ${metrics.shortBy} 字` : `多 ${metrics.longBy} 字`)),
+              h('span', { className: 'sc-badge' }, `平均句长 ${metrics.sentences.averageLength}`),
+              h('span', { className: 'sc-badge' }, `重复句 ${metrics.repeated.length}`),
+              h('span', { className: metrics.aiPhrases.count > 0 ? 'sc-badge sc-badge-warn' : 'sc-badge' },
+                `AI 腔命中 ${metrics.aiPhrases.count}`),
+              h('span', { className: 'sc-badge' }, `对话占比 ${Math.round(metrics.dialogueRatio * 100)}%`),
+            ),
+            metrics.repeated.length === 0
+              ? null
+              : h('ul', { className: 'sc-metrics-list' },
+                ...metrics.repeated.slice(0, 3).map(item => h('li', { key: item.text }, `${item.text}（${item.count} 次）`))),
+            metrics.aiPhrases.hits.length === 0
+              ? null
+              : h('p', { className: 'sc-muted' },
+                `命中：${metrics.aiPhrases.hits.slice(0, 6).map(hit => `${hit.phrase}×${hit.count}`).join('、')}`),
+          ),
         h('div', { className: 'sc-tabs' },
           h('button', { type: 'button', className: 'sc-tab', 'aria-selected': view === 'body' ? 'true' : 'false', onClick: () => setView('body') }, '正文'),
           h('button', { type: 'button', className: 'sc-tab', 'aria-selected': view === 'plan' ? 'true' : 'false', onClick: () => setView('plan') }, '章纲'),

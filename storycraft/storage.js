@@ -18,6 +18,7 @@ import { mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from 'nod
 import { randomBytes } from 'node:crypto'
 import { basename, dirname, join, relative, resolve } from 'node:path'
 import { cleanStaleStages, openStage } from './stage.js'
+import { critique } from './critique.js'
 
 /** Directory (inside the workspace) that holds every work. */
 export const WORKS_DIRNAME = 'works'
@@ -522,6 +523,14 @@ async function refreshCounters(root, manifest) {
  * @returns {Promise<{workId: string, path: string, manifest: object}>} the created work.
  */
 export async function initWork(root, input) {
+  const range = input?.wordRange
+  if (range !== undefined) {
+    const min = Number(range?.min)
+    const max = Number(range?.max)
+    if (!Number.isInteger(min) || !Number.isInteger(max) || min <= 0 || max < min) {
+      throw new StoryError('word-range-invalid', `字数范围不合法：${JSON.stringify(range)}`)
+    }
+  }
   const title = String(input?.title ?? '').trim()
   if (title === '') throw new StoryError('invalid-title', '作品标题不能为空')
   const workId = typeof input?.workId === 'string' && input.workId.trim() !== ''
@@ -554,6 +563,7 @@ export async function initWork(root, input) {
         updatedAt: now(),
         chapters: [],
         counters: { reviewRounds: 0, openProblems: 0 },
+      ...(range === undefined ? {} : { wordRange: { min: Number(range.min), max: Number(range.max) } }),
       }
       await writeAtomic(join(dir, 'hooks.md'), '# 伏笔\n\n（状态结算后自动生成）\n')
       await writeAtomic(join(dir, 'bible', 'world.md'), '# 世界观\n')
@@ -997,6 +1007,26 @@ export async function reviseChapter(root, input) {
     if (previous.content === (body.endsWith('\n') ? body : `${body}\n`)) {
       throw new StoryError('unchanged-body', '修订后的正文与当前版本相同，没有可提交的改动')
     }
+    const mode = ['patch', 'polish', 'rewrite', 'deslop'].includes(input.mode) ? input.mode : 'patch'
+    const oldWords = countWords(previous.content)
+    const newWords = countWords(body)
+    const delta = oldWords === 0 ? 1 : Math.abs(newWords - oldWords) / oldWords
+    if (mode === 'patch' && delta > 0.2) {
+      throw new StoryError('revise-mode-violation',
+        `局部修补的字数变化 ${(delta * 100).toFixed(0)}% 超过 20%：改用 polish 或 rewrite`)
+    }
+    if (mode === 'polish' && delta > 0.4) {
+      throw new StoryError('revise-mode-violation',
+        `润色的字数变化 ${(delta * 100).toFixed(0)}% 超过 40%：改用 rewrite`)
+    }
+    if (mode === 'deslop') {
+      const before = critique(previous.content).aiPhrases.count
+      const after = critique(body).aiPhrases.count
+      if (after >= before) {
+        throw new StoryError('revise-mode-violation',
+          `去 AI 味修订没有减少命中的腔调词（${before} → ${after}）`)
+      }
+    }
 
     let revision = entry.currentRevision + 1
     const chaptersDir = join(workDirectory(root, manifest.workId), 'chapters')
@@ -1019,6 +1049,7 @@ export async function reviseChapter(root, input) {
     entry.words = countWords(body)
     entry.status = 'revised'
     entry.stage = 'revised'
+    entry.lastReviseMode = mode
     entry.updatedAt = now()
     await refreshCounters(root, manifest)
     const written = await writeManifest(root, manifest.workId, manifest)
