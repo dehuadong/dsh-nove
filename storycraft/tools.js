@@ -47,6 +47,46 @@ export const inject = ['tools']
 /** Plugin context of the mounted preset, used by tools that need host services. */
 let pluginContext
 
+/**
+ * Pull a findings list out of a child agent's answer.
+ *
+ * The child is asked for JSON, but models wrap it in prose or fences; the parser
+ * accepts both shapes and returns undefined when nothing usable is found.
+ * @param {string} text - child output.
+ * @returns {Array<{problem: string, where?: string}>|undefined} findings.
+ */
+export function parseFindings(text) {
+  const raw = String(text ?? '')
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/u.exec(raw)
+  const candidate = fenced === null ? raw : fenced[1]
+  const start = candidate.indexOf('{')
+  const end = candidate.lastIndexOf('}')
+  const arrayStart = candidate.indexOf('[')
+  const arrayEnd = candidate.lastIndexOf(']')
+  const slice = start !== -1 && end > start && (arrayStart === -1 || start < arrayStart)
+    ? candidate.slice(start, end + 1)
+    : arrayStart !== -1 && arrayEnd > arrayStart ? candidate.slice(arrayStart, arrayEnd + 1) : candidate
+  let parsed
+  try {
+    parsed = JSON.parse(slice)
+  } catch {
+    return undefined
+  }
+  const list = Array.isArray(parsed) ? parsed : parsed?.items ?? parsed?.problems
+  if (!Array.isArray(list)) return undefined
+  const findings = list
+    .map(item => {
+      const problem = typeof item === 'string' ? item : item?.problem
+      if (typeof problem !== 'string' || problem.trim() === '') return undefined
+      return {
+        problem: problem.trim().slice(0, 300),
+        ...(typeof item?.where === 'string' && item.where.trim() !== '' ? { where: item.where.trim().slice(0, 120) } : {}),
+      }
+    })
+    .filter(item => item !== undefined)
+  return findings.length === 0 ? undefined : findings
+}
+
 /** Provider label used in diagnostics. */
 export const name = 'storycraft-tools'
 
@@ -215,6 +255,10 @@ const OUTPUT_PROPERTIES = {
   provider: {
     type: 'string',
     description: '子代理后端名（spawn / fork）。',
+  },
+  items: {
+    type: 'integer',
+    description: '子代理产出的审稿条目数。',
   },
   childId: {
     type: 'string',
@@ -549,6 +593,58 @@ function rawDefinitions() {
           .map(block => block.text)
           .join('\n')
         return { ok: true, provider, childId: String(started.childId), output: output.slice(0, 2000) }
+      },
+    }),
+
+    action({
+      name: 'story_review_agent',
+      description: '审稿子代理：派生一个只读子代理读本章正文并给出问题清单，父代理把清单落盘（story_review）。'
+        + ' 子代理不写文件；通道不可用时退回单代理审稿。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+          chapter: { type: 'integer', description: '章号。' },
+        },
+        required: ['chapter'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const subagents = pluginContext?.get?.('subagents')
+        const provider = subagents === undefined ? undefined : ['spawn', 'fork'].find(name => subagents.getProvider?.(name) !== undefined)
+        if (provider === undefined || exec?.agent === undefined) {
+          throw new StoryError('subagent-unavailable', '子代理通道不可用：先用单代理 story_review')
+        }
+        const body = await readChapter(root, { work: args.work, chapter: args.chapter })
+        const task = [
+          '你是一个只读审稿人。不要修改、创建或删除任何文件；不要调用任何写文件的工具。',
+          `下面是第 ${args.chapter} 章的正文。只按正文本身找问题：情节断裂、人物动机不成立、设定自相矛盾、信息交代不清、句子重复、套话。`,
+          '输出严格 JSON，形如 {"items":[{"problem":"一句问题","where":"定位到句或段"}]}，最多 8 条，不要输出其它文字。',
+          '---正文开始---',
+          body.content,
+          '---正文结束---',
+        ].join('\n')
+        const started = await subagents.startActivation({
+          provider,
+          label: `storycraft-review-${args.chapter}`,
+          request: { prompt: [{ type: 'text', text: task }], parent: exec.agent },
+          signal: exec.signal,
+          delivery: 'caller',
+        })
+        const result = await started.result
+        const output = (result?.output ?? []).filter(block => block?.type === 'text').map(block => block.text).join('\n')
+        const findings = parseFindings(output)
+        if (findings === undefined) {
+          throw new StoryError('agent-output-invalid',
+            `子代理没有给出可用清单：把它的输出交给 story_review 落盘，或改用单代理审稿。原文：${output.slice(0, 500)}`)
+        }
+        const review = await writeReview(root, { work: args.work, chapter: args.chapter, problems: findings })
+        return {
+          ok: true, provider, childId: String(started.childId),
+          items: findings.length,
+          artifact: review.artifact,
+        }
       },
     }),
 
