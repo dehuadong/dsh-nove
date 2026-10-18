@@ -22,12 +22,12 @@ const ctx = {
 tools.apply(ctx, { mode: 'longform' })
 
 const names = registered.map(definition => definition.name).sort()
-check('registers twenty-six actions', names.length === 26, names.join(','))
+check('registers twenty-seven actions', names.length === 27, names.join(','))
 check('action names', names.join(',') === [
   'story_agent_probe', 'story_bible', 'story_bible_import', 'story_bible_write', 'story_brief', 'story_critique', 'story_current',
   'story_delete', 'story_init', 'story_next', 'story_plan', 'story_rename', 'story_reopen', 'story_restore',
   'story_outline', 'story_propose', 'story_review', 'story_review_agent', 'story_revise', 'story_settings', 'story_state',
-  'story_status', 'story_summarize', 'story_volume', 'story_volumes', 'story_write',
+  'story_status', 'story_summarize', 'story_volume', 'story_volumes', 'story_write', 'story_write_agent',
 ].sort().join(','), names.join(','))
 check('every action declares output schema', registered.every(definition => definition.output?.schema && typeof definition.output?.render === 'function'))
 check('every action declares execute', registered.every(definition => typeof definition.execute === 'function'))
@@ -181,6 +181,11 @@ try {
   check('story_current declares its output keys', ['workId', 'current'].every(key => currentProps.includes(key)), currentProps.join(','))
   const statusProps = Object.keys(byName.get('story_status').output.schema.properties.status.properties ?? {})
   check('story_status declares the fields it returns', ['form', 'wordRange', 'chapters', 'hooks'].every(key => statusProps.includes(key)), statusProps.join(','))
+
+  const marked = tools.parseChapterBody('说明\n<<<CHAPTER\n' + '正文。'.repeat(80) + '\nCHAPTER>>>\n后记')
+  check('writer body is extracted between markers', typeof marked === 'string' && marked.startsWith('正文。'), String(marked).slice(0, 20))
+  check('a missing marker is rejected', tools.parseChapterBody('正文。'.repeat(80)) === undefined)
+  check('a truncated body is rejected', tools.parseChapterBody('<<<CHAPTER 太短 CHAPTER>>>') === undefined)
 
   const probe = await byName.get('story_agent_probe').execute({}, exec)
   check('probe reports the missing subagent seam', probe.ok === false && probe.error.code === 'subagent-unavailable', JSON.stringify(probe))

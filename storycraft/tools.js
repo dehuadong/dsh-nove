@@ -87,6 +87,24 @@ export function parseFindings(text) {
   return findings.length === 0 ? undefined : findings
 }
 
+/**
+ * Pull the chapter body out of a writer child's answer.
+ *
+ * The child wraps its prose in `<<<CHAPTER` / `CHAPTER>>>`; a missing marker means
+ * the answer was truncated or off-contract, which the parent must not persist.
+ * @param {string} text - child output.
+ * @returns {string|undefined} the body, or undefined when the contract failed.
+ */
+export function parseChapterBody(text) {
+  const raw = String(text ?? '')
+  const start = raw.indexOf('<<<CHAPTER')
+  const end = raw.lastIndexOf('CHAPTER>>>')
+  if (start === -1 || end === -1 || end <= start) return undefined
+  const body = raw.slice(start + '<<<CHAPTER'.length, end).trim()
+  if (body.length < 200) return undefined
+  return `${body}\n`
+}
+
 /** Provider label used in diagnostics. */
 export const name = 'storycraft-tools'
 
@@ -664,6 +682,79 @@ function rawDefinitions() {
           ok: true, provider, childId: String(started.childId), readOnly,
           items: findings.length,
           artifact: review.artifact,
+        }
+      },
+    }),
+
+    action({
+      name: 'story_write_agent',
+      description: '写手子代理：把本章 brief 与章纲交给只读写手，取回整章正文，校验后由主编落盘（story_write）。'
+        + ' 子代理不写文件；通道不可用时请直接用 story_write。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id（可省略，用会话当前作品）。' },
+          chapter: { type: 'integer', description: '章号。' },
+          instruction: { type: 'string', description: '可选：本章的额外要求（语气、重点、禁忌）。' },
+        },
+        required: ['chapter'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const subagents = pluginContext?.get?.('subagents')
+        const provider = subagents === undefined ? undefined : ['spawn', 'fork'].find(name => subagents.getProvider?.(name) !== undefined)
+        if (provider === undefined || exec?.agent === undefined) {
+          throw new StoryError('subagent-unavailable', '子代理通道不可用：直接用 story_write 写正文')
+        }
+        const brief = await assembleBriefFor(root, args.work, args.chapter)
+        const context = brief.sections
+          .filter(section => section.absent !== true && typeof section.content === 'string' && section.content.trim() !== '')
+          .map(section => `## ${section.title}\n${section.content}`)
+          .join('\n\n')
+        const task = [
+          '你是写手：按下面的上下文写这一章正文，不要写文件、不要调用任何动作。',
+          typeof args.instruction === 'string' && args.instruction.trim() !== ''
+            ? `作者要求：${args.instruction.trim()}`
+            : '',
+          `作品形态：${brief.form ?? 'longform'}；本章是第 ${args.chapter} 章。`,
+          '输出整章正文，用 <<<CHAPTER 与 CHAPTER>>> 包住，前后不要解释。',
+          '---上下文开始---',
+          context,
+          '---上下文结束---',
+        ].filter(line => line !== '').join('\n')
+        const canPreset = subagents.getProvider?.(provider)?.capabilities?.agentPreset === true
+        const start = presetId => subagents.startActivation({
+          provider,
+          label: `storycraft-write-${args.chapter}`,
+          request: {
+            prompt: [{ type: 'text', text: task }],
+            parent: exec.agent,
+            ...(presetId === undefined ? {} : { agentPreset: presetId }),
+          },
+          signal: exec.signal,
+          delivery: 'caller',
+        })
+        let readOnly = canPreset
+        let started
+        try {
+          started = await start(canPreset ? 'storycraft-writer' : undefined)
+        } catch (error) {
+          if (!canPreset) throw error
+          readOnly = false
+          started = await start(undefined)
+        }
+        const result = await started.result
+        const output = (result?.output ?? []).filter(block => block?.type === 'text').map(block => block.text).join('\n')
+        const body = parseChapterBody(output)
+        if (body === undefined) {
+          throw new StoryError('agent-output-invalid',
+            `写手没有按契约返回整章正文（缺失 <<<CHAPTER / CHAPTER>>> 或过短）：把它的输出交给你自己改写后用 story_write 落盘。原文：${output.slice(0, 500)}`)
+        }
+        const written = await writeChapter(root, { work: args.work, chapter: args.chapter, body })
+        return {
+          ok: true, provider, childId: String(started.childId), readOnly,
+          words: written.words, artifact: written.artifact,
         }
       },
     }),

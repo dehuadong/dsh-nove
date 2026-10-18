@@ -30,7 +30,7 @@ const unknown = variables.filter(name => !REGISTERED_VARIABLES.has(name))
 check('persona templates use no unregistered prompt variable', unknown.length === 0, unknown.join(', '))
 
 const presetRows = [...patch.matchAll(/name: '@deepseek-ai\/dsh-agent-preset'/g)].length
-check('two preset declarations (studio + reviewer)', presetRows === 2, String(presetRows))
+check('three preset declarations (studio + writer + reviewer)', presetRows === 3, String(presetRows))
 
 check('the studio preset id is `storycraft`', /^\s{8}id: storycraft$/m.test(patch))
 check('the preset is named 故事工坊', patch.includes('name: 故事工坊'))
@@ -47,9 +47,16 @@ const toolsRow = patch.indexOf("name: 'dsh-storycraft/tools'")
 check('the action row is mounted once', toolsRow > 0 && patch.indexOf("name: 'dsh-storycraft/tools'", toolsRow + 1) === -1)
 
 const skillsRows = [...patch.matchAll(/name: 'dsh-storycraft\/skills'/g)].length
-check('one skill row per role', skillsRows === 2, String(skillsRows))
+check('one skill row per role', skillsRows === 3, String(skillsRows))
 check('the studio row serves every form', /mode: all/.test(patch))
 check('the reviewer row serves the review catalog', /mode: review/.test(patch))
+check('the writer row serves the craft catalogs', /mode: forms/.test(patch))
+
+const writer = patch.slice(patch.indexOf('id: storycraft-writer'), patch.indexOf('id: preset-storycraft-reviewer'))
+check('the writer preset exists', writer.length > 0)
+check('the writer cannot write files', /write: false/.test(writer) && /edit: false/.test(writer))
+check('the writer has no shell', !/dsh-tool-pwsh|dsh-tool-bash/.test(writer))
+check('the writer has no storycraft actions', !/dsh-storycraft\/tools/.test(writer))
 
 const personaForms = ['长篇小说', '短篇小说', '短剧剧本'].filter(form => patch.includes(`你是${form}`))
 check('the persona is not written for one form', personaForms.length === 0, personaForms.join(','))

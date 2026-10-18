@@ -88,6 +88,41 @@
 
     # 审稿子代理的专用预设：只读。没有写文件的工具、没有 shell、没有 story_* 动作，
     # 子代理只能把清单作为文本返回，落盘由父代理完成。
+    # 写手子代理：只读上下文与真值，返回整章正文；落盘由主编完成。
+    - id: preset-storycraft-writer
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: storycraft-writer
+        name: 写手
+        description: 故事工坊的写手：按 brief 与章纲写整章正文，只返回文本，不写文件。
+        order: 42
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |
+                你是故事工坊的写手。你只写正文，不写文件：没有写工具，也没有任何改稿或落盘动作。
+                按作品的形态选对应写法（长篇单章、短篇一篇到底、剧本按场次与台词）；把章纲转成 2–4 个场景，每个场景有目标、阻力、转折、后果。
+                只写镜头里能发生的事；设定通过行动与证据释放；一章一个变化；结尾留下一步的具体期待，不用套话。
+                输出整章正文，用 <<<CHAPTER 与 CHAPTER>>> 包住，前后不要写任何解释。
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+            config:
+              write: false
+              edit: false
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+          - id: storycraft-writer-skills
+            name: 'dsh-storycraft/skills'
+            config:
+              mode: forms
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+
     - id: preset-storycraft-reviewer
       name: '@deepseek-ai/dsh-agent-preset'
       config:
