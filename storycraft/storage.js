@@ -1021,12 +1021,17 @@ export async function reviseChapter(root, input) {
     if (latest === undefined) {
       throw new StoryError('review-required', `第 ${number} 章还没有审稿清单：先审稿再用清单修订`)
     }
-    if (!reviewCoversRevision(latest, entry, false)) {
+    const mode = ['patch', 'polish', 'rewrite', 'deslop'].includes(input.mode) ? input.mode : 'patch'
+    if (!reviewCoversRevision(latest, entry, mode !== 'patch')) {
       throw new StoryError('review-required', `第 ${number} 章的审稿针对旧版本 r${latest.revision ?? '?'}：先重新审稿`)
     }
     const items = parseReview(latest.text)
     const ids = Array.isArray(input.problemIds) ? input.problemIds.map(String) : []
-    if (ids.length === 0) throw new StoryError('missing-problems', '修订要指定本次处理的问题条目 id')
+    // A polish/rewrite/deslop pass may run without new items: it improves the
+    // prose rather than answering a review finding. Patch is item-driven.
+    if (ids.length === 0 && mode === 'patch') {
+      throw new StoryError('missing-problems', '局部修补要指定本次处理的问题条目 id；如果只想润色或去 AI 味，请换模式')
+    }
     const unknown = ids.filter(id => !items.some(item => item.id === id))
     if (unknown.length > 0) throw new StoryError('problem-not-found', `审稿清单里没有：${unknown.join('、')}`)
 
@@ -1034,7 +1039,6 @@ export async function reviseChapter(root, input) {
     if (previous.content === (body.endsWith('\n') ? body : `${body}\n`)) {
       throw new StoryError('unchanged-body', '修订后的正文与当前版本相同，没有可提交的改动')
     }
-    const mode = ['patch', 'polish', 'rewrite', 'deslop'].includes(input.mode) ? input.mode : 'patch'
     const oldWords = countWords(previous.content)
     const newWords = countWords(body)
     const delta = oldWords === 0 ? 1 : Math.abs(newWords - oldWords) / oldWords

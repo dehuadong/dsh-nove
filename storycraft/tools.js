@@ -492,7 +492,7 @@ function definitions() {
           body: { type: 'string', description: '修订后的完整正文。' },
           problemIds: {
             type: 'array',
-            description: '本次处理的问题条目 id（如 Q1、Q2），至少一个。',
+            description: '本次处理的问题条目 id（如 Q1、Q2）。patch 模式必填；polish/rewrite/deslop 可省略。',
             items: { type: 'string' },
           },
           mode: {
@@ -501,7 +501,7 @@ function definitions() {
             description: '修订模式：patch 只改点到的地方（字数变化 ≤20%）、polish 润色（≤40%）、rewrite 重写、deslop 去 AI 腔（必须减少命中）。省略为 patch。',
           },
         },
-        required: ['work', 'chapter', 'body', 'problemIds'],
+        required: ['work', 'chapter', 'body'],
       },
       async execute(args, exec) {
         const root = workspaceOf(exec)

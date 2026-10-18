@@ -91,6 +91,17 @@ try {
     work, chapter: 1, body: `${'字'.repeat(600)}他不禁又心中一沉，仿佛空气凝固。`, problemIds: ['Q1'], mode: 'deslop',
   }))
 
+  // A polish pass needs no new review items: it improves prose, not findings.
+  await s.writeReview(root, { work, chapter: 1, problems: [{ problem: '四处' }] })
+  const patched = await s.reviseChapter(root, {
+    work, chapter: 1, body: `${'字'.repeat(600)}换了一处说法，别的不动。`, problemIds: ['Q1'], mode: 'patch',
+  })
+  check('patch lands', patched.entry.lastReviseMode === 'patch')
+  const polishedAgain = await s.reviseChapter(root, {
+    work, chapter: 1, body: `${'字'.repeat(600)}换了一处说法，别的不动，语气再顺一点。`, mode: 'polish',
+  })
+  check('polish runs without items', polishedAgain.entry.lastReviseMode === 'polish')
+
   // A body with no hits has nothing to remove: deslop is a no-op there, not an error.
   const clean = (await s.initWork(root, { title: '干净正文' })).workId
   await s.writePlan(root, { ...plan, work: clean, chapter: 1 })

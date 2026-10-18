@@ -201,7 +201,10 @@ window.__ModuleLoader__.load({
       },
       revise(workId, chapter, mode) {
         const label = { patch: '局部修补', polish: '润色', rewrite: '重写', deslop: '去 AI 味' }[mode] ?? '局部修补'
-        return `按作品 ${workId} 第 ${chapter} 章最新的审稿清单里未处理的条目修订正文（模式：${label}，story_revise 的 mode 传 ${mode}），落盘并标记处理过的条目。`
+        if (mode === 'patch') {
+          return `按作品 ${workId} 第 ${chapter} 章最新的审稿清单里未处理的条目修订正文（模式：局部修补，story_revise 的 mode 传 patch），落盘并标记处理过的条目。`
+        }
+        return `把作品 ${workId} 第 ${chapter} 章按「${label}」再修一遍（story_revise 的 mode 传 ${mode}，不需要新的审稿条目），落盘为新版本。`
       },
       settings(workId, range) {
         return range === null
@@ -538,9 +541,11 @@ window.__ModuleLoader__.load({
                 type: 'button',
                 className: 'sc-btn',
                 onClick: () => compose(INSTRUCTIONS.revise(workId, chapter.number, reviseMode)),
-                disabled: chapter.openProblems === 0,
-                title: chapter.openProblems === 0 ? '没有未处理的审稿条目' : '按未处理的审稿条目改稿',
-              }, '按清单修订'),
+                disabled: chapter.openProblems === 0 && reviseMode === 'patch',
+                title: chapter.openProblems === 0 && reviseMode === 'patch'
+                  ? '局部修补要按审稿条目改：先审稿，或把模式换成润色/去 AI 味'
+                  : '按条目或按模式再修一遍',
+              }, reviseMode === 'patch' ? '按清单修订' : '按模式修订'),
             h('button', {
               type: 'button',
               className: 'sc-btn',
@@ -578,11 +583,11 @@ window.__ModuleLoader__.load({
           ? h('p', { className: 'sc-muted' },
             '本章已结算并锁定。要补审稿或改稿：点「撤销结算」——只作废结算、不动正文，然后重走 审稿 → 修订 → 结算；要连正文一起重写，才让模型带 reopen 重写。')
           : null,
-        chapter.stage !== 'settled' && chapter.openProblems === 0 && chapter.stage === 'written'
-          ? h('p', { className: 'sc-muted' }, '还没有审稿清单：先点「审稿」，再按清单修订。')
-          : null,
-        chapter.stage !== 'settled' && chapter.openProblems === 0 && chapter.stage === 'reviewed'
-          ? h('p', { className: 'sc-muted' }, '条目都处理完了但没有修订记录：用「按清单修订」提交一次改动，再结算。')
+        chapter.stage !== 'settled' && chapter.openProblems === 0 && reviseMode === 'patch'
+          ? h('p', { className: 'sc-muted' },
+            chapter.stage === 'written'
+              ? '还没有审稿清单：先点「审稿」，再按清单修订。'
+              : '没有未处理条目：把模式换成润色/重写/去 AI 味可以直接再修一遍。')
           : null,
         metrics === undefined
           ? null
