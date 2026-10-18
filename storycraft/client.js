@@ -183,6 +183,11 @@ window.__ModuleLoader__.load({
         const label = { patch: '局部修补', polish: '润色', rewrite: '重写', deslop: '去 AI 味' }[mode] ?? '局部修补'
         return `按作品 ${workId} 第 ${chapter} 章最新的审稿清单里未处理的条目修订正文（模式：${label}，story_revise 的 mode 传 ${mode}），落盘并标记处理过的条目。`
       },
+      settings(workId, range) {
+        return range === null
+          ? `用 story_settings 给作品 ${workId} 清空字数范围（不按字数判定）。`
+          : `用 story_settings 给作品 ${workId} 设定单章字数范围 ${range.min}–${range.max} 字。`
+      },
       volume(workId, volume) {
         const summary = typeof volume.summary === 'string' && volume.summary.trim() !== ''
           ? `，摘要：${volume.summary.trim()}`
@@ -541,6 +546,12 @@ window.__ModuleLoader__.load({
           ? h('p', { className: 'sc-muted' },
             '本章已结算并锁定。要补审稿或改稿：点「撤销结算」——只作废结算、不动正文，然后重走 审稿 → 修订 → 结算；要连正文一起重写，才让模型带 reopen 重写。')
           : null,
+        chapter.stage !== 'settled' && chapter.openProblems === 0 && chapter.stage === 'written'
+          ? h('p', { className: 'sc-muted' }, '还没有审稿清单：先点「审稿」，再按清单修订。')
+          : null,
+        chapter.stage !== 'settled' && chapter.openProblems === 0 && chapter.stage === 'reviewed'
+          ? h('p', { className: 'sc-muted' }, '条目都处理完了但没有修订记录：用「按清单修订」提交一次改动，再结算。')
+          : null,
         metrics === undefined
           ? null
           : h('div', { className: 'sc-metrics' },
@@ -624,6 +635,7 @@ window.__ModuleLoader__.load({
       const [renaming, setRenaming] = useState(undefined)
       const [volumes, setVolumes] = useState([])
       const [volumeForm, setVolumeForm] = useState(undefined)
+      const [settingsForm, setSettingsForm] = useState(undefined)
 
       const load = useCallback(async () => {
         try {
@@ -688,6 +700,12 @@ window.__ModuleLoader__.load({
             h('button', {
               type: 'button',
               className: 'sc-btn',
+              title: '设定单章字数范围（不设就不判定）',
+              onClick: () => setSettingsForm(manifest.wordRange ?? { min: 3000, max: 5000 }),
+            }, '字数范围'),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn',
               title: '把若干章划成一卷（模型建议，作者确认）',
               onClick: () => setVolumeForm({ title: '', from: 1, to: chapters.length === 0 ? 1 : chapters.length, summary: '' }),
             }, '新建卷'),
@@ -709,6 +727,43 @@ window.__ModuleLoader__.load({
             h('button', { type: 'button', className: 'sc-btn', onClick: () => { void load() } }, '刷新'),
           ),
         ),
+        settingsForm === undefined
+          ? null
+          : h('div', { className: 'sc-rename' },
+            h('span', { className: 'sc-muted' }, '单章字数'),
+            h('input', {
+              className: 'sc-input sc-narrow',
+              type: 'number',
+              value: settingsForm.min,
+              'aria-label': '最少字数',
+              onChange: event => setSettingsForm(form => ({ ...form, min: Number(event.target.value) })),
+            }),
+            h('span', { className: 'sc-muted' }, '到'),
+            h('input', {
+              className: 'sc-input sc-narrow',
+              type: 'number',
+              value: settingsForm.max,
+              'aria-label': '最多字数',
+              onChange: event => setSettingsForm(form => ({ ...form, max: Number(event.target.value) })),
+            }),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn sc-btn-primary',
+              onClick: () => {
+                compose(INSTRUCTIONS.settings(manifest.workId, settingsForm))
+                setSettingsForm(undefined)
+              },
+            }, '保存范围'),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn',
+              onClick: () => {
+                compose(INSTRUCTIONS.settings(manifest.workId, null))
+                setSettingsForm(undefined)
+              },
+            }, '清空'),
+            h('button', { type: 'button', className: 'sc-btn', onClick: () => setSettingsForm(undefined) }, '取消'),
+          ),
         volumeForm === undefined
           ? null
           : h('div', { className: 'sc-volume-form' },

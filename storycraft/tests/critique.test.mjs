@@ -60,6 +60,15 @@ try {
   const policy = brief.sections.find(section => section.name === 'wordPolicy')
   check('brief cites the work range', policy.content.includes('200–400'), policy.content)
 
+  // Settings: the range can be set and cleared after the fact.
+  await s.updateSettings(root, { work, wordRange: { min: 100, max: 900 } })
+  const afterSet = JSON.parse(await import('node:fs/promises').then(fs => fs.readFile(join(root, 'works', work, 'manifest.json'), 'utf8')))
+  check('settings store the range', afterSet.wordRange?.min === 100 && afterSet.wordRange?.max === 900, JSON.stringify(afterSet.wordRange))
+  await rejects('settings reject a bad range', 'word-range-invalid', () => s.updateSettings(root, { work, wordRange: { min: 500, max: 200 } }))
+  await s.updateSettings(root, { work, wordRange: null })
+  const afterClear = JSON.parse(await import('node:fs/promises').then(fs => fs.readFile(join(root, 'works', work, 'manifest.json'), 'utf8')))
+  check('settings clear the range', afterClear.wordRange === undefined, JSON.stringify(afterClear.wordRange))
+
   // Revision modes.
   await s.writeReview(root, { work, chapter: 1, problems: [{ problem: '一处' }] })
   await rejects('patch rejects a large rewrite', 'revise-mode-violation', () => s.reviseChapter(root, {

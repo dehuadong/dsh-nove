@@ -62,7 +62,7 @@ try {
     work, chapter: 1, body: '改后正文', problemIds: ['Q9'],
   }))
   const rev = await s.reviseChapter(root, {
-    work, chapter: 1, body: '改后正文，视角统一。'.repeat(20), problemIds: ['Q1'],
+    work, chapter: 1, body: '改后正文，视角统一。'.repeat(20), problemIds: ['Q1'], mode: 'rewrite',
   })
   check('revision 2 written', rev.artifact.revision === 2)
   check('old revision kept', (await stat(join(root, 'works', work, 'chapters', 'ch-0001.md'))).isFile())
@@ -81,7 +81,7 @@ try {
     work, chapter: 1, problems: [{ location: '结尾', problem: '照片收得太快', suggestion: '补一拍' }],
   })
   await s.reviseChapter(root, {
-    work, chapter: 1, body: '再改一版，补上母亲的旧照片。'.repeat(20), problemIds: ['Q1'],
+    work, chapter: 1, body: '再改一版，补上母亲的旧照片。'.repeat(20), problemIds: ['Q1'], mode: 'rewrite',
   })
   const settledReview = await readFile(join(root, rereview.artifact.path), 'utf8')
   check('re-review item marked done', settledReview.includes('- [x] Q1'))

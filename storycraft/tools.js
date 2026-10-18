@@ -16,7 +16,7 @@
 
 import {
   StoryError, deleteWork, foldState, initWork, nextStep as nextStepFor, reopenChapter as reopenChapterFor,
-  renameWork, restoreWork, reviseChapter,
+  renameWork, restoreWork, reviseChapter, updateSettings,
   status as readStatus, writeChapter, writePlan,
   writeReview,
 } from './storage.js'
@@ -182,6 +182,12 @@ const OUTPUT_PROPERTIES = {
   names: { type: 'array', description: 'Character names found in the old cast file.', items: { type: 'string' } },
   truncated: { type: 'boolean' },
   cleaned: { type: 'integer', description: 'Stale staging directories removed by this action.' },
+  wordRange: {
+    type: 'object',
+    additionalProperties: false,
+    properties: { min: { type: 'integer' }, max: { type: 'integer' } },
+    required: ['min', 'max'],
+  },
   metrics: {
     type: 'object',
     additionalProperties: false,
@@ -734,6 +740,36 @@ function definitions() {
         const root = workspaceOf(exec)
         const result = await restoreWork(root, { name: args.name })
         return { ok: true, workId: result.workId }
+      },
+    }),
+
+    action({
+      name: 'story_settings',
+      description: '设定作品的写作参数：目前是单章字数范围（建档时与作者商定，之后也可改）。'
+        + ' 传 null 表示清空、不按字数判定。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+          wordRange: {
+            type: 'object',
+            additionalProperties: false,
+            properties: { min: { type: 'integer' }, max: { type: 'integer' } },
+            required: ['min', 'max'],
+            description: '单章字数范围；省略表示不改。',
+          },
+          clear: { type: 'boolean', description: '传 true 清空字数范围（不按字数判定）。' },
+        },
+        required: ['work'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const result = await updateSettings(root, {
+          work: args.work,
+          ...(args.clear === true ? { wordRange: null } : args.wordRange === undefined ? {} : { wordRange: args.wordRange }),
+        })
+        return { ok: true, workId: result.workId, ...(result.wordRange === undefined ? {} : { wordRange: result.wordRange }) }
       },
     }),
 

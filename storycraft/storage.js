@@ -582,6 +582,33 @@ export async function initWork(root, input) {
 }
 
 /**
+ * Update one work's production settings (currently the word range).
+ *
+ * The range is a per-work decision made with the author, never a global rule;
+ * `null` clears it back to "not set".
+ * @param {string} root - workspace directory.
+ * @param {{work: string, wordRange?: {min: number, max: number}|null}} input - settings input.
+ * @returns {Promise<{workId: string, wordRange?: {min: number, max: number}}>} the stored settings.
+ */
+export async function updateSettings(root, input) {
+  return withWorkLock(root, String(input.work), async (lock) => {
+    const manifest = await readManifest(root, input.work)
+    if (input.wordRange === null) {
+      delete manifest.wordRange
+    } else if (input.wordRange !== undefined) {
+      const min = Number(input.wordRange?.min)
+      const max = Number(input.wordRange?.max)
+      if (!Number.isInteger(min) || !Number.isInteger(max) || min <= 0 || max < min) {
+        throw new StoryError('word-range-invalid', `字数范围不合法：${JSON.stringify(input.wordRange)}`)
+      }
+      manifest.wordRange = { min, max }
+    }
+    const written = await writeManifest(root, manifest.workId, manifest)
+    return { workId: written.workId, ...(written.wordRange === undefined ? {} : { wordRange: written.wordRange }) }
+  })
+}
+
+/**
  * Rename a work: its title, its identity, or both.
  *
  * The directory, the manifest and the lock path must agree afterwards, so the
