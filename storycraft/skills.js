@@ -26,6 +26,7 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 
 /** Modes a preset may mount, each mapped to its catalog directory. */
 const MODES = {
+  shared: '通用',
   longform: '长篇小说',
   shortform: '短篇小说',
   screenplay: '短剧剧本',
