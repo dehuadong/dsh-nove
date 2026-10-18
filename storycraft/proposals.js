@@ -8,7 +8,7 @@
 
 import { mkdir, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { StoryError, now, readOptional, worksDirectory, writeAtomic } from './storage.js'
+import { StoryError, listWorks, now, readOptional, worksDirectory, writeAtomic } from './storage.js'
 
 /** How long an unused proposal is kept before the next write prunes it. */
 export const PROPOSAL_TTL_MS = 30 * 24 * 60 * 60 * 1000
@@ -35,6 +35,13 @@ export async function createProposal(root, input) {
   const form = ['longform', 'short', 'script'].includes(input.form) ? input.form : 'longform'
   const premise = String(input.premise ?? '').trim()
   if (premise === '') throw new StoryError('proposal-invalid', '提案需要一句话前提或核心冲突')
+  // Discussion never reads the works directory; duplicate detection happens here,
+  // once, on the host side.
+  const existing = (await listWorks(root)).find(work => work.title === title)
+  if (existing !== undefined) {
+    throw new StoryError('work-exists',
+      `已经有同名作品《${title}》（${existing.workId}）：换一个标题，或直接进入那部作品`)
+  }
   const id = `${slugOf(title)}-${String(Date.now())}`
   const proposal = {
     id,

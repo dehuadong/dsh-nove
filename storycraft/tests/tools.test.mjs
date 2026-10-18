@@ -181,8 +181,12 @@ try {
 
   const empty = await byName.get('story_current').execute({}, { ...exec, agent: { ...exec.agent, id: 'session-none' } })
   check('no current work reads as null', empty.ok === true && empty.current === null, JSON.stringify(empty))
+  const duplicateTitle = await byName.get('story_propose').execute({
+    title: '雨里的灯', premise: '重名的方案',
+  }, exec)
+  check('a title already taken is refused at proposal time', duplicateTitle.ok === false && duplicateTitle.error.code === 'work-exists', JSON.stringify(duplicateTitle))
   const proposalResult = await byName.get('story_propose').execute({
-    title: '雨里的灯', premise: '夜班司机捡到一盏不肯灭的灯。',
+    title: '夜班司机', premise: '夜班司机捡到一盏不肯灭的灯。',
   }, exec)
   check('proposal result declares its keys',
     ['proposal', 'title', 'form'].every(key => Object.keys(byName.get('story_propose').output.schema.properties).includes(key))
