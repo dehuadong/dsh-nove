@@ -21,15 +21,15 @@ updated: 2026-10-18
 
 形态只影响三处：
 
-1. **技能**：`skills/<form>/<form>-*` 仍是独立文件，`whenToUse` 写明适用形态；工作台与 `story_next` 只提示对应形态的技能。
+1. **技能**：`skills/<form>/<form>-*` 仍是独立文件，`whenToUse` 写明适用形态。工作室预设用 `mode: all` 一次挂载三套目录——**形态决定读哪一份技能，而不是哪一份可见**；模型按作品的 `form` 与 `whenToUse` 选择。
 2. **步骤脚本**：`story_next` 返回的 `action` 序列按形态给出（长篇：章纲→正文→审稿→修订→定稿→摘要；剧本：分集大纲→场次稿→审→修→定稿）。
 3. **页面标签**：章 / 集 / 场；其余交互一致。
 
 ### 单预设
 
-`cordis.patch.yml` 只保留一个预设行（`preset-storycraft`，名称「故事工坊」），persona 描述工作室；旧 id（`preset-storycraft-longform` 等）在一个版本内保留为同配置的弃用别名，之后删除。
+`cordis.patch.yml` 只保留一个预设行（`preset-storycraft`，名称「故事工坊」），persona 描述工作室；**不保留旧 id 的别名**——三个形态预设直接删除，旧会话需要重建（预设是会话级绑定，别名会在选择器里重新出现三种形态，与“一个预设”相悖）。
 
-工作台门禁从“预设 id 等于 longform”改为“会话有故事工坊能力”：请求插件自己的 `/health` 或读预设名包含 `storycraft`，二者取其一；优先用插件自报健康。
+工作台门禁：会话预设 id 以 `storycraft` 开头即可下发指令。这既能接受合并后的 `storycraft`，也让合并前建立的会话（`storycraft-longform` 等）继续可用，不必改会话数据；不引入 `/health` 之类的额外探测。
 
 ### 会话当前工作项
 
@@ -55,7 +55,7 @@ updated: 2026-10-18
 ## 验收条件
 
 - 新建作品带 `form`；老作品读取按 longform；
-- 三个旧预设的会话都能读到工作台与动作（门禁不再看 id）；
+- 合并前建立的会话（旧 id）与新建的 `storycraft` 会话都能下发指令；
 - 进入作品后省略 `work` 的 `story_next` / `story_brief` / `story_status` 落到当前作品；未进入时报错可行动；
 - 首页按类型筛选，进入作品设置当前工作项；
 - 项目子页左侧章节可展开按钮、右侧五个标签；

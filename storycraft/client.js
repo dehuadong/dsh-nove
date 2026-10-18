@@ -286,7 +286,7 @@ window.__ModuleLoader__.load({
           }
           if (!isStudio(context.preset)) {
             const shown = context.preset === undefined ? '没有记录预设' : `当前是 ${context.preset}`
-            return `当前会话不是「长篇小说」模式（${shown}）：新建会话时选择长篇小说，再回来下发指令。`
+            return `当前会话不是「故事工坊」模式（${shown}）：新建会话时选择「故事工坊」，再回来下发指令。`
           }
           const prompt = bindings.prompt ?? probe(ctx, 'remote.session') ?? probe(ctx, 'remote')?.session
           if (prompt === undefined || typeof prompt.prompt !== 'function') {
@@ -400,7 +400,7 @@ window.__ModuleLoader__.load({
      * @returns {boolean} true when the session is a studio session.
      */
     function isStudio(preset) {
-      return preset === 'storycraft' || preset === 'storycraft-longform'
+      return typeof preset === 'string' && preset.startsWith('storycraft')
     }
 
     /** Short label of one pipeline action. */
@@ -450,9 +450,8 @@ window.__ModuleLoader__.load({
         h('h2', { className: 'sc-detail-title' }, '还没有作品'),
         h('p', null, '作品落在当前工作区的 works/ 目录里：一部作品一个目录，含章纲、正文、审稿清单与状态。'),
         h('ul', { className: 'sc-steps' },
-          h('li', null, '长篇小说：人设 + 单章写法技能 + 二十一个动作（立项 / 章纲 / 正文 / 审稿 / 修订 / 定稿归档 / 进度，以及真值、导入、摘要、写前上下文）。'),
-          h('li', null, '短篇小说：人设 + 短篇写法技能；生产动作尚未接入。'),
-          h('li', null, '短剧剧本：人设 + 竖屏短剧写法技能；生产动作尚未接入。'),
+          h('li', null, '长篇 / 短篇 / 剧本共用同一套动作（二十一个）：立项（带形态与字数范围）、章纲、正文、审稿、修订、定稿、进度，以及真值、导入、摘要、写前上下文。'),
+          h('li', null, '短篇小说 / 短剧剧本：同一套动作，技能按作品形态选用；形态在建档时写进作品。'),
         ),
         notice === undefined ? null : h('p', { className: `sc-notice sc-notice-${notice.kind}` }, notice.text),
         h('div', { className: 'sc-field' },
@@ -1132,7 +1131,7 @@ window.__ModuleLoader__.load({
           const shown = sessionPreset === undefined ? '没有记录预设' : `当前是 ${sessionPreset}`
           setNotice({
             kind: 'error',
-            text: `当前会话不是「长篇小说」模式（${shown}）：新建会话时选择长篇小说，再点一次。`,
+            text: `当前会话不是「故事工坊」模式（${shown}）：新建会话时选择「故事工坊」，再点一次。`,
           })
           return
         }

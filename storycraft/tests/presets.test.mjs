@@ -32,7 +32,7 @@ check('persona templates use no unregistered prompt variable', unknown.length ==
 const presetRows = [...patch.matchAll(/name: '@deepseek-ai\/dsh-agent-preset'/g)].length
 check('one studio preset declaration', presetRows === 1, String(presetRows))
 
-check('the studio preset id is `storycraft`', patch.includes('id: storycraft\n'))
+check('the studio preset id is `storycraft`', /^\s{8}id: storycraft$/m.test(patch))
 check('the preset is named 故事工坊', patch.includes('name: 故事工坊'))
 check('no form-specific preset survives', !/storycraft-(longform|shortform|screenplay)/.test(patch))
 

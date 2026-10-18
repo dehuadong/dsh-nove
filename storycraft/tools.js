@@ -375,7 +375,7 @@ function definitions() {
           form: {
             type: 'string',
             enum: ['longform', 'short', 'script'],
-            description: '作品形态：长篇 / 短篇 / 剧本。省略为长篇；形态决定后续用哪套技能与步骤。',
+            description: '作品形态：长篇 / 短篇 / 剧本。省略为长篇；形态记在作品上，后续照它的技能写。',
           },
           wordRange: {
             type: 'object',
@@ -385,7 +385,6 @@ function definitions() {
             description: '单章字数范围，建档时与作者商定；省略表示不设限。',
           },
           workId: { type: 'string', description: '可选：显式指定作品 id（字母、数字、连字符）。' },
-          form: { type: 'string', description: '作品形态，默认 longform。' },
           tags: { type: 'array', description: '可选标签。', items: { type: 'string' } },
         },
         required: ['title'],
@@ -893,7 +892,7 @@ function definitions() {
 }
 
 /**
- * Register the long-form actions in the calling (preset) scope.
+ * Register the studio actions in the calling (preset) scope.
  * @param {object} ctx - plugin context (services: tools).
  */
 export function apply(ctx) {

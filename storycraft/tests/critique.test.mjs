@@ -68,6 +68,18 @@ try {
   check('status reports the form', (await s.status(root, script.workId)).form === 'script')
   const legacy = await s.initWork(root, { title: '老作品' })
   check('default form is longform', (await s.status(root, legacy.workId)).form === 'longform')
+  const short = await s.initWork(root, { title: '短篇形态', form: 'short' })
+  check('short is accepted', (await s.status(root, short.workId)).form === 'short')
+
+  // Readers default the form too, so a manifest without it still renders.
+  const manifestPath = join(root, 'works', legacy.workId, 'manifest.json')
+  const fs = await import('node:fs/promises')
+  const raw = JSON.parse(await fs.readFile(manifestPath, 'utf8'))
+  delete raw.form
+  await fs.writeFile(manifestPath, `${JSON.stringify(raw, null, 2)}\n`)
+  check('readWork defaults the form', (await s.readWork(root, legacy.workId)).manifest.form === 'longform')
+  check('listWorks defaults the form',
+    (await s.listWorks(root)).find(item => item.workId === legacy.workId)?.form === 'longform')
 
   // Settings: the range can be set and cleared after the fact.
   await s.updateSettings(root, { work, wordRange: { min: 100, max: 900 } })

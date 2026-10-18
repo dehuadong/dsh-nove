@@ -1,11 +1,10 @@
 /**
- * Per-mode skill provider for the Storycraft presets.
+ * Skill provider for the Storycraft studio preset.
  *
- * Each preset mounts this module with `config.mode`, so the skills it serves
- * land in that preset's own skill layer: a long-form session sees the chapter
- * skill, a screenplay session sees the scene skill, and neither sees the
- * other's catalog. The bodies and their helper scripts ship beside this file
- * under `skills/<mode>/<skill>/`, so a preset is one directory, not a
+ * The module mounts with `config.mode`: a single form's catalog, or `all` for
+ * the studio preset, which serves every form and lets the work's own form decide
+ * which body the model reads. The bodies and their helper scripts ship beside
+ * this file under `skills/<mode>/<skill>/`, so a form is one directory, not a
  * configuration chore.
  *
  * The provider is read-only and re-reads from disk on every `list`/`get`; the

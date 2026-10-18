@@ -93,6 +93,6 @@ test.describe('故事工坊工作台', () => {
     // A non-long-form session may not receive an action: the gate answers and
     // nothing is written anywhere.
     await nextChapter.evaluate(node => node.click())
-    await expect(page.getByText(/不是「长篇小说」模式/)).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText(/不是「故事工坊」模式/)).toBeVisible({ timeout: 10_000 })
   })
 })

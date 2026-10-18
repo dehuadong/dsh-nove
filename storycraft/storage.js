@@ -573,14 +573,13 @@ export async function initWork(root, input) {
         version: MANIFEST_VERSION,
         workId,
         title,
-        form: typeof input?.form === 'string' && input.form !== '' ? input.form : 'longform',
+        form,
         tags: Array.isArray(input?.tags) ? input.tags.map(tag => String(tag)) : [],
         createdAt: now(),
         updatedAt: now(),
         chapters: [],
         counters: { reviewRounds: 0, openProblems: 0 },
-      form,
-      ...(range === undefined ? {} : { wordRange: { min: Number(range.min), max: Number(range.max) } }),
+        ...(range === undefined ? {} : { wordRange: { min: Number(range.min), max: Number(range.max) } }),
       }
       await writeAtomic(join(dir, 'hooks.md'), '# 伏笔\n\n（定稿归档后自动生成）\n')
       await writeAtomic(join(dir, 'bible', 'world.md'), '# 世界观\n')
@@ -1273,7 +1272,6 @@ export async function status(root, work) {
   return {
     workId: manifest.workId,
     title: manifest.title,
-    form: manifest.form,
     chapters: manifest.chapters.map(chapter => ({
       number: chapter.number,
       status: chapter.status,
@@ -1437,7 +1435,7 @@ export async function listWorks(root) {
       works.push({
         workId: manifest.workId,
         title: manifest.title,
-        form: manifest.form,
+        form: formOf(manifest),
         chapters: manifest.chapters.length,
         writtenChapters: written.length,
         latestChapter: manifest.chapters.length === 0 ? 0 : manifest.chapters[manifest.chapters.length - 1].number,
@@ -1485,7 +1483,7 @@ export async function readWork(root, work) {
       version: manifest.version,
       workId: manifest.workId,
       title: manifest.title,
-      form: manifest.form,
+      form: formOf(manifest),
       tags: manifest.tags,
       createdAt: manifest.createdAt,
       updatedAt: manifest.updatedAt,
