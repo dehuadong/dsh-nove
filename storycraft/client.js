@@ -767,7 +767,7 @@ window.__ModuleLoader__.load({
     }
 
     /** Work detail: header actions, chapter list, selected chapter, state. */
-    function WorkDetail({ face, root, workId, sessionId, onNotice, notice, canSend, compose }) {
+    function WorkDetail({ face, root, workId, sessionId, onBack, onNotice, notice, canSend, compose }) {
       const [detail, setDetail] = useState({ status: 'loading' })
       const [selected, setSelected] = useState(undefined)
       const [stateOpen, setStateOpen] = useState(false)
@@ -840,7 +840,7 @@ window.__ModuleLoader__.load({
             h('button', {
               type: 'button',
               className: 'sc-back',
-              onClick: () => { setSelected(undefined); setNotice(undefined) },
+              onClick: () => { onBack() },
             }, '← 全部作品'),
             h('h2', { className: 'sc-detail-title' }, manifest.title),
             h('p', { className: 'sc-detail-tagline' }, `${manifest.form} · ${manifest.workId} · ${chapters.length} ${unitOf(manifest.form)} · 已写 ${chapters.filter(item => item.revision > 0).length} ${unitOf(manifest.form)}`),
@@ -1468,6 +1468,7 @@ window.__ModuleLoader__.load({
                 root,
                 workId: selected,
                 sessionId,
+                onBack: () => { setSelected(undefined); setNotice(undefined) },
                 notice,
                 canSend: sessionId !== undefined && isStudio(sessionPreset),
                 compose,
