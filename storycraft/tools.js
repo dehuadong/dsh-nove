@@ -181,6 +181,11 @@ const OUTPUT_PROPERTIES = {
   names: { type: 'array', description: 'Character names found in the old cast file.', items: { type: 'string' } },
   truncated: { type: 'boolean' },
   cleaned: { type: 'integer', description: 'Stale staging directories removed by this action.' },
+  form: {
+    type: 'string',
+    enum: ['longform', 'short', 'script'],
+    description: '作品的形态。',
+  },
   wordRange: {
     type: 'object',
     additionalProperties: false,
@@ -367,6 +372,11 @@ function definitions() {
         additionalProperties: false,
         properties: {
           title: { type: 'string', description: '作品标题。' },
+          form: {
+            type: 'string',
+            enum: ['longform', 'short', 'script'],
+            description: '作品形态：长篇 / 短篇 / 剧本。省略为长篇；形态决定后续用哪套技能与步骤。',
+          },
           wordRange: {
             type: 'object',
             additionalProperties: false,
@@ -388,6 +398,7 @@ function definitions() {
           ...(typeof args.form === 'string' ? { form: args.form } : {}),
           ...(Array.isArray(args.tags) ? { tags: args.tags } : {}),
           ...(args.wordRange === undefined ? {} : { wordRange: args.wordRange }),
+          ...(args.form === undefined ? {} : { form: args.form }),
         })
         return { ok: true, workId: created.workId, artifact: { path: created.path } }
       },

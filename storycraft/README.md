@@ -6,11 +6,9 @@ DSH 里的长篇创作编排：二十一个动作把立项、章纲、正文、�
 
 | 模式 | 人设 | 技能 | 动作 | 工作台 |
 | --- | --- | --- | --- | --- |
-| 长篇小说 `storycraft-longform` | 有 | 有（含三个脚本） | **有**：`story_init` `story_plan` `story_write` `story_review` `story_revise` `story_state` `story_status` `story_next`，以及真值四件 `story_bible` `story_bible_write` `story_bible_import` `story_summarize` 与写前上下文 `story_brief` | 有 |
-| 短篇小说 `storycraft-shortform` | 有 | 有 | 无（后续工作项） | 同一工作台只读展示作品；该模式暂无动作 |
-| 短剧剧本 `storycraft-screenplay` | 有 | 有 | 无（后续工作项） | 同上 |
+| 故事工坊 `storycraft` | 有 | 有（三套技能：长篇 / 短篇 / 剧本） | **有**：`story_init` `story_plan` `story_write` `story_review` `story_revise` `story_state` `story_status` `story_next`，以及真值四件 `story_bible` `story_bible_write` `story_bible_import` `story_summarize` 与写前上下文 `story_brief` | 有 |
 
-动作按预设作用域注册：只有长篇模式的会话能看到 `story_*`，其他模式与其他会话的工具面不变。
+动作按预设作用域注册：只有「故事工坊」会话能看到 `story_*`，其他模式与其他会话的工具面不变。形态（长篇 / 短篇 / 剧本）是作品数据（`manifest.form`），不是预设；同一会话里可以分别打开三种形态的作品。
 
 ## 作品目录契约
 
@@ -97,7 +95,7 @@ summaries/ch-0001.md    章节摘要（上限 400 字）
 - 左侧：当前工作区的作品列表（标题、形态、已写/总章数、最新章号、最近更新时间、未处理问题数）；底部显示当前工作区路径与是否有可下发指令的会话。
 - 右侧：作品详情——章节列表（状态、有无章纲、版本、字数、未处理问题）→ 章节点开后可切「正文 / 章纲」两视图、看审稿清单；「写第 N 章」「审稿」「按清单修订」「定稿」把固定指令投递给当前会话。
 - 「真值」与「写前上下文」两个只读视图：真值列出五件的路径、版本与内容；写前上下文按章显示装配结果、字节占用、被裁项与草稿标记。
-页面只读，不写文件：写盘一律由模型调动作完成。指令按钮在被点击时才校验——没有会话、或当前会话不是长篇模式时只显示原因不投递；长篇预设装载失败时，页面顶部直接显示宿主给出的失败原因。
+页面只读，不写文件：写盘一律由模型调动作完成。指令按钮在被点击时才校验——没有会话、或当前会话不是故事工坊时只显示原因不投递；长篇预设装载失败时，页面顶部直接显示宿主给出的失败原因。
 
 ## 只读接口
 
@@ -122,7 +120,7 @@ summaries/ch-0001.md    章节摘要（上限 400 字）
 ```text
 storycraft/
   package.json                 # bundle 清单：dsh.bundle.patch + dsh.client
-  cordis.patch.yml             # 入口行 + 三条预设声明（长篇多挂一层动作行）
+  cordis.patch.yml             # 入口行 + 一条预设声明（故事工坊，技能行 mode: all）
   index.js                     # Host 半边：只读路由
   storage.js                   # 作品存储：原子写、版本、审稿、状态、进度
   tools.js                     # 二十一个动作（注册在预设作用域）

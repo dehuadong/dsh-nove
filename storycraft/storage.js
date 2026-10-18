@@ -79,6 +79,18 @@ export function rootRelative(root, file) {
  * @param {string} title - work title.
  * @returns {string} lowercase kebab slug; falls back to `work`.
  */
+/** Forms a work may declare; the form is data on the work, not a preset. */
+export const WORK_FORMS = ['longform', 'short', 'script']
+
+/**
+ * The form of one work, defaulting to the long-form flow for older works.
+ * @param {object} manifest - work manifest.
+ * @returns {'longform'|'short'|'script'} the form.
+ */
+export function formOf(manifest) {
+  return WORK_FORMS.includes(manifest?.form) ? manifest.form : 'longform'
+}
+
 export function slugify(title) {
   const slug = String(title ?? '')
     .toLowerCase()
@@ -523,6 +535,10 @@ async function refreshCounters(root, manifest) {
  * @returns {Promise<{workId: string, path: string, manifest: object}>} the created work.
  */
 export async function initWork(root, input) {
+  const form = input?.form === undefined ? 'longform' : String(input.form)
+  if (!WORK_FORMS.includes(form)) {
+    throw new StoryError('form-invalid', `作品形态只能是 ${WORK_FORMS.join(' / ')}：收到 ${String(input.form)}`)
+  }
   const range = input?.wordRange
   if (range !== undefined) {
     const min = Number(range?.min)
@@ -563,6 +579,7 @@ export async function initWork(root, input) {
         updatedAt: now(),
         chapters: [],
         counters: { reviewRounds: 0, openProblems: 0 },
+      form,
       ...(range === undefined ? {} : { wordRange: { min: Number(range.min), max: Number(range.max) } }),
       }
       await writeAtomic(join(dir, 'hooks.md'), '# 伏笔\n\n（定稿归档后自动生成）\n')
@@ -1264,6 +1281,7 @@ export async function status(root, work) {
       revision: chapter.currentRevision,
       words: chapter.words,
     })),
+    form: formOf(manifest),
     writtenChapters: written.length,
     latestChapter: manifest.chapters.length === 0 ? 0 : manifest.chapters[manifest.chapters.length - 1].number,
     ...(manifest.wordRange === undefined ? {} : { wordRange: manifest.wordRange }),

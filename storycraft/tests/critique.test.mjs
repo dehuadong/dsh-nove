@@ -60,6 +60,15 @@ try {
   const policy = brief.sections.find(section => section.name === 'wordPolicy')
   check('brief cites the work range', policy.content.includes('200–400'), policy.content)
 
+  // The form is work data; older works fall back to longform.
+  await rejects('unknown form refused', 'form-invalid', () => s.initWork(root, { title: '坏形态', form: 'novella' }))
+  const script = await s.initWork(root, { title: '剧本形态', form: 'script' })
+  const scriptManifest = JSON.parse(await import('node:fs/promises').then(fs => fs.readFile(join(root, 'works', script.workId, 'manifest.json'), 'utf8')))
+  check('form stored on the manifest', scriptManifest.form === 'script', String(scriptManifest.form))
+  check('status reports the form', (await s.status(root, script.workId)).form === 'script')
+  const legacy = await s.initWork(root, { title: '老作品' })
+  check('default form is longform', (await s.status(root, legacy.workId)).form === 'longform')
+
   // Settings: the range can be set and cleared after the fact.
   await s.updateSettings(root, { work, wordRange: { min: 100, max: 900 } })
   const afterSet = JSON.parse(await import('node:fs/promises').then(fs => fs.readFile(join(root, 'works', work, 'manifest.json'), 'utf8')))

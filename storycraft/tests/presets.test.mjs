@@ -30,19 +30,21 @@ const unknown = variables.filter(name => !REGISTERED_VARIABLES.has(name))
 check('persona templates use no unregistered prompt variable', unknown.length === 0, unknown.join(', '))
 
 const presetRows = [...patch.matchAll(/name: '@deepseek-ai\/dsh-agent-preset'/g)].length
-check('three preset declarations', presetRows === 3, String(presetRows))
+check('one studio preset declaration', presetRows === 1, String(presetRows))
 
-const longform = patch.indexOf("id: storycraft-longform")
-const shortform = patch.indexOf("id: storycraft-shortform")
-const screenplay = patch.indexOf("id: storycraft-screenplay")
-check('three preset ids present', longform > 0 && shortform > 0 && screenplay > 0)
+check('the studio preset id is `storycraft`', patch.includes('id: storycraft\n'))
+check('the preset is named 故事工坊', patch.includes('name: 故事工坊'))
+check('no form-specific preset survives', !/storycraft-(longform|shortform|screenplay)/.test(patch))
 
 const toolsRow = patch.indexOf("name: 'dsh-storycraft/tools'")
 check('the action row is mounted once', toolsRow > 0 && patch.indexOf("name: 'dsh-storycraft/tools'", toolsRow + 1) === -1)
-check('only the long-form preset mounts the action row', toolsRow > longform && toolsRow < shortform)
 
 const skillsRows = [...patch.matchAll(/name: 'dsh-storycraft\/skills'/g)].length
-check('every preset mounts its skill row', skillsRows === 3, String(skillsRows))
+check('the skill row is mounted once', skillsRows === 1, String(skillsRows))
+check('the skill row serves every form', /mode: all/.test(patch))
+
+const personaForms = ['长篇小说', '短篇小说', '短剧剧本'].filter(form => patch.includes(`你是${form}`))
+check('the persona is not written for one form', personaForms.length === 0, personaForms.join(','))
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`)
 process.exitCode = failures === 0 ? 0 : 1

@@ -32,6 +32,9 @@ const MODES = {
   screenplay: '短剧剧本',
 }
 
+/** A mode that serves every form's catalog: the studio preset mounts this. */
+const ALL = 'all'
+
 /** Discovery rank; lower wins a name collision, and a preset-local catalog is authoritative. */
 const RANK = 100
 
@@ -131,25 +134,28 @@ function readDefinition(candidate) {
  */
 export function apply(ctx, config = {}) {
   const mode = typeof config?.mode === 'string' ? config.mode : ''
-  if (!Object.prototype.hasOwnProperty.call(MODES, mode)) {
+  const modes = mode === ALL ? Object.keys(MODES) : [mode]
+  if (modes.some(name => !Object.prototype.hasOwnProperty.call(MODES, name))) {
     ctx.logger?.warn?.(`storycraft-skills: unknown mode "${String(mode)}"; serving no skills`)
     return
   }
-  const catalogDir = join(HERE, 'skills', mode)
   const provider = `storycraft-${mode}`
 
   const list = async () => {
-    let entries
-    try {
-      entries = readdirSync(catalogDir, { withFileTypes: true })
-    } catch {
-      return []
-    }
     const candidates = []
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue
-      const candidate = readCandidate(mode, provider, catalogDir, entry.name)
-      if (candidate !== undefined) candidates.push(candidate)
+    for (const name of modes) {
+      const catalogDir = join(HERE, 'skills', name)
+      let entries
+      try {
+        entries = readdirSync(catalogDir, { withFileTypes: true })
+      } catch {
+        continue
+      }
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue
+        const candidate = readCandidate(name, provider, catalogDir, entry.name)
+        if (candidate !== undefined) candidates.push(candidate)
+      }
     }
     return candidates
   }

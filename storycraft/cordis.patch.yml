@@ -1,35 +1,34 @@
 # 故事工坊 bundle patch.
 #
-# 三层行：本插件的入口行（Host + 浏览器两半），以及三个 Agent 预设声明行。
-# 预设不是本插件私有的运行时：它就是 Harness 的 `@deepseek-ai/dsh-agent-preset`，
+# 两层行：本插件的入口行（Host + 浏览器两半），以及一个 Agent 预设声明行。
+# 形态（长篇/短篇/剧本）不是预设：它是作品自己的数据，技能在会话内按形态选用。
 # 子插件列表里放了人设（dsh-persona）、工具、以及本包提供的技能行（dsh-storycraft/skills）。
 # 因此用户在「设置 → Agent 预设」里看到的就是同一份声明，选默认值、查看配置都走宿主能力。
 - insert:
     - id: storycraft
       name: 'dsh-storycraft'
 
-    - id: preset-storycraft-longform
+    - id: preset-storycraft
       name: '@deepseek-ai/dsh-agent-preset'
       config:
-        id: storycraft-longform
-        name: 长篇小说
-        description: 连载长篇的编辑兼主笔：先章纲后正文，写完自检并结算状态。
+        id: storycraft
+        name: 故事工坊
+        description: 故事工坊的责任编辑兼主笔：长篇、短篇、剧本共用一套能力，形态由作品决定。
         order: 40
         plugins:
           - id: persona
             name: '@deepseek-ai/dsh-persona'
             config:
               prefix: |
-                你是长篇小说的责任编辑兼主笔。你负责一部连载长篇从章纲到成稿的全部文字工作：把握全局节奏，守住人物与设定的一致性，把每一章写成读者愿意追下去的一章。
+                你是故事工坊的责任编辑兼主笔。你负责一部作品从提纲到定稿的全部文字工作：先弄清它的形态与设定，再按该形态的流程推进；守住人物与设定的一致性，把每一次交付写成作者愿意继续下去的样子。
 
                 工作方式：
-                - 先读设定、大纲与上一章，再动笔；缺哪一份文件就说缺哪一份，不自行补设定。
-                - 每章先给三到五行的章纲：视角人物、本章目标、阻力、代价、结尾变化。作者没有章纲时先给章纲，再写正文。
-                - 正文按场景推进，只写镜头里能发生的事，不写设定说明与情绪总结。
-                - 写完做自检：本章目标是否发生变化、有没有可整段删除的段落、台词去掉名字能否分辨说话人、是否与既有设定冲突。
-                - 事实冲突以设定为准，改新写的部分；重大改动先问作者。
+                - 先看作品形态（长篇/短篇/剧本）与真值，再动笔；缺哪份文件就说缺哪份，不自行补设定。
+                - 按形态办事：长篇按单章流程，短篇按整体结构，剧本按分集与场次；技能里有各自的写法。
+                - 每一步先给方案再落笔；重大改动先问作者。
+                - 事实冲突以设定为准，改新写的部分。
               suffix: |
-                作品目录取当前会话的工作目录。统计进度时运行技能自带的 chapter-status.mjs。
+                作品目录取当前会话的工作目录。写前上下文用 story_brief，下一步用 story_next。
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
             config:
@@ -49,160 +48,9 @@
           - id: storycraft-skills
             name: 'dsh-storycraft/skills'
             config:
-              mode: longform
+              mode: all
           - id: storycraft-tools
             name: 'dsh-storycraft/tools'
-          - id: tool-skill
-            name: '@deepseek-ai/dsh-tool-skill'
-          - id: tool-ask-user
-            name: '@deepseek-ai/dsh-tool-ask-user'
-          - id: tool-todo
-            name: '@deepseek-ai/dsh-tool-todo'
-            config:
-              allowParallelInProgress: true
-          - id: tool-web
-            name: '@deepseek-ai/dsh-tool-web'
-            config:
-              fetch: true
-              searchTimeoutMs: 60000
-          - id: present
-            name: '@deepseek-ai/dsh-tool-present'
-          - id: compaction
-            name: cordis:group
-            group: true
-            isolate:
-              compaction: true
-              toolResultPruner: true
-            config:
-              - id: compaction-basic
-                name: '@deepseek-ai/dsh-compaction-basic'
-              - id: command-compact
-                name: '@deepseek-ai/dsh-command-compact'
-              - id: tool-result-pruner
-                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
-                config:
-                  thresholdChars: 8192
-                  headChars: 4096
-                  tailChars: 1024
-
-    - id: preset-storycraft-shortform
-      name: '@deepseek-ai/dsh-agent-preset'
-      config:
-        id: storycraft-shortform
-        name: 短篇小说
-        description: 一次成篇的短篇作者：单一转折、钩子开头、回响结尾。
-        order: 41
-        plugins:
-          - id: persona
-            name: '@deepseek-ai/dsh-persona'
-            config:
-              prefix: |
-                你是短篇小说作者，一次只写一篇，只写一个核心转折。
-
-                工作方式：
-                - 动笔前定三件事：一句话故事（不超过四十字）、转折位置、结尾形状（回环、反转、留白三选一）。定不下来就问作者，不硬写。
-                - 开头第一段就给具体场景与不稳定因素，不从天气、回忆或自我介绍开始。
-                - 中段每一场都让主角更接近目标、代价更大一点；重复同一种阻力的场景合并或删除。
-                - 转折必须由前文的具体细节支撑，不靠临时巧合或新人物。
-                - 结尾用具体物象呼应开头，不写总结感慨。
-                - 一次成篇，写完自检再交付。
-              suffix: |
-                作品目录取当前会话的工作目录。定稿前可运行 story-metrics.mjs 核对节奏。
-          - id: agent-instructions
-            name: '@deepseek-ai/dsh-agent-instructions'
-            config:
-              maxBytes: 65536
-          - id: tool-pwsh
-            name: '@deepseek-ai/dsh-tool-pwsh'
-            disabled: !!js process.platform !== 'win32'
-          - id: tool-bash
-            name: '@deepseek-ai/dsh-tool-bash'
-            disabled: !!js process.platform === 'win32'
-          - id: tool-fs
-            name: '@deepseek-ai/dsh-tool-fs'
-          - id: tool-fs-search
-            name: '@deepseek-ai/dsh-tool-fs-search'
-            config:
-              sampleOverCapGlobResults: false
-          - id: storycraft-skills
-            name: 'dsh-storycraft/skills'
-            config:
-              mode: shortform
-          - id: tool-skill
-            name: '@deepseek-ai/dsh-tool-skill'
-          - id: tool-ask-user
-            name: '@deepseek-ai/dsh-tool-ask-user'
-          - id: tool-todo
-            name: '@deepseek-ai/dsh-tool-todo'
-            config:
-              allowParallelInProgress: true
-          - id: tool-web
-            name: '@deepseek-ai/dsh-tool-web'
-            config:
-              fetch: true
-              searchTimeoutMs: 60000
-          - id: present
-            name: '@deepseek-ai/dsh-tool-present'
-          - id: compaction
-            name: cordis:group
-            group: true
-            isolate:
-              compaction: true
-              toolResultPruner: true
-            config:
-              - id: compaction-basic
-                name: '@deepseek-ai/dsh-compaction-basic'
-              - id: command-compact
-                name: '@deepseek-ai/dsh-command-compact'
-              - id: tool-result-pruner
-                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
-                config:
-                  thresholdChars: 8192
-                  headChars: 4096
-                  tailChars: 1024
-
-    - id: preset-storycraft-screenplay
-      name: '@deepseek-ai/dsh-agent-preset'
-      config:
-        id: storycraft-screenplay
-        name: 短剧剧本
-        description: 竖屏短剧编剧：分集、场次、台词格式与每集钩子。
-        order: 42
-        plugins:
-          - id: persona
-            name: '@deepseek-ai/dsh-persona'
-            config:
-              prefix: |
-                你是竖屏短剧编剧，交付可以直接开拍的剧本。
-
-                工作方式：
-                - 动笔前定四件事：卖点一句话、总集数与单集时长、人物动机表、钩子链。缺一项先补齐再写。
-                - 剧本格式固定：先写「第N集 集标题」，再按「场N 内/外景 地点 日/夜」起场，场下写人物、动作、台词。动作只写镜头能拍到的内容。
-                - 每集三到六场，每场必须有立场变化；每集结尾留一个下一集必须回答的具体问题。
-                - 不写解释型台词；信息通过冲突与动作给。
-                - 交付前核场次与时长，超出体量就拆集或删场。
-              suffix: |
-                作品目录取当前会话的工作目录。交付前运行 episode-metrics.mjs 核对单集体量。
-          - id: agent-instructions
-            name: '@deepseek-ai/dsh-agent-instructions'
-            config:
-              maxBytes: 65536
-          - id: tool-pwsh
-            name: '@deepseek-ai/dsh-tool-pwsh'
-            disabled: !!js process.platform !== 'win32'
-          - id: tool-bash
-            name: '@deepseek-ai/dsh-tool-bash'
-            disabled: !!js process.platform === 'win32'
-          - id: tool-fs
-            name: '@deepseek-ai/dsh-tool-fs'
-          - id: tool-fs-search
-            name: '@deepseek-ai/dsh-tool-fs-search'
-            config:
-              sampleOverCapGlobResults: false
-          - id: storycraft-skills
-            name: 'dsh-storycraft/skills'
-            config:
-              mode: screenplay
           - id: tool-skill
             name: '@deepseek-ai/dsh-tool-skill'
           - id: tool-ask-user

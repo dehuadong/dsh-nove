@@ -284,7 +284,7 @@ window.__ModuleLoader__.load({
           if (sessionId === undefined) {
             return '当前没有打开的会话：先在对话页打开或新建一个会话，再回来下发指令。'
           }
-          if (context.preset !== 'storycraft-longform') {
+          if (!isStudio(context.preset)) {
             const shown = context.preset === undefined ? '没有记录预设' : `当前是 ${context.preset}`
             return `当前会话不是「长篇小说」模式（${shown}）：新建会话时选择长篇小说，再回来下发指令。`
           }
@@ -389,6 +389,18 @@ window.__ModuleLoader__.load({
       flushList()
       if (code !== null) blocks.push(h('pre', { key: `c${key++}` }, code.join('\n')))
       return blocks.length === 0 ? [h('p', { key: 'empty', className: 'sc-muted' }, '（空）')] : blocks
+    }
+
+    /**
+     * Whether a session may drive the studio.
+     *
+     * The old form-specific id is accepted while sessions created before the
+     * preset merge still exist; new sessions use `storycraft`.
+     * @param preset - session preset id.
+     * @returns {boolean} true when the session is a studio session.
+     */
+    function isStudio(preset) {
+      return preset === 'storycraft' || preset === 'storycraft-longform'
     }
 
     /** Short label of one pipeline action. */
@@ -1116,7 +1128,7 @@ window.__ModuleLoader__.load({
       const compose = useCallback((text) => {
         // Writing the real composer bypasses the workbench's own gate, so the
         // gate runs first: only a long-form session may receive an action.
-        if (sessionPreset !== 'storycraft-longform') {
+        if (!isStudio(sessionPreset)) {
           const shown = sessionPreset === undefined ? '没有记录预设' : `当前是 ${sessionPreset}`
           setNotice({
             kind: 'error',
@@ -1181,7 +1193,7 @@ window.__ModuleLoader__.load({
         fetchOwnRoute('/api/dsh-storycraft/roster').then(
           (body) => {
             if (cancelled) return
-            const row = (body.presets ?? []).find(item => item.id === 'storycraft-longform')
+            const row = (body.presets ?? []).find(item => item.id === 'storycraft')
             if (row === undefined) setPresetHealth({ state: 'missing' })
             else if (typeof row.broken === 'string' && row.broken !== '') setPresetHealth({ state: 'broken', reason: row.broken })
             else setPresetHealth({ state: 'ok' })
@@ -1253,14 +1265,14 @@ window.__ModuleLoader__.load({
           ),
           h('section', { className: 'sc-detail' },
             presetHealth.state === 'broken'
-              ? h('p', { className: 'sc-notice sc-notice-error' }, `长篇小说预设装载失败：${presetHealth.reason}`)
+              ? h('p', { className: 'sc-notice sc-notice-error' }, `故事工坊预设装载失败：${presetHealth.reason}`)
               : null,
             presetHealth.state === 'missing'
-              ? h('p', { className: 'sc-notice sc-notice-error' }, '长篇小说预设不在名册里：bundle 未启用，或 profile 里这条预设行被禁用。')
+              ? h('p', { className: 'sc-notice sc-notice-error' }, '故事工坊预设不在名册里：bundle 未启用，或 profile 里这条预设行被禁用。')
               : null,
-            sessionId !== undefined && sessionPreset !== 'storycraft-longform'
+            sessionId !== undefined && !isStudio(sessionPreset)
               ? h('p', { className: 'sc-notice sc-notice-info' },
-                `当前会话${sessionPreset === undefined ? '没有记录预设' : `是 ${sessionPreset} 模式`}：工作台只读展示，按钮会拒绝下发指令。新建会话时选「长篇小说」即可生产。`)
+                `当前会话${sessionPreset === undefined ? '没有记录预设' : `是 ${sessionPreset} 模式`}：工作台只读展示，按钮会拒绝下发指令。新建会话时选「故事工坊」即可生产。`)
               : null,
             status === 'error' ? h('p', { className: 'sc-notice sc-notice-error' }, error) : null,
             status === 'loading' ? h('p', { className: 'sc-muted' }, '读取作品列表…') : null,
@@ -1269,7 +1281,7 @@ window.__ModuleLoader__.load({
                 face,
                 notice,
                 root,
-                canSend: sessionId !== undefined && sessionPreset === 'storycraft-longform',
+                canSend: sessionId !== undefined && isStudio(sessionPreset),
                 onCreated: failure => setNotice(failure === undefined ? { kind: 'ok', text: '立项指令已投递，等在会话里看到作品目录后刷新。' } : { kind: 'error', text: failure }),
               })
               : null,
@@ -1279,7 +1291,7 @@ window.__ModuleLoader__.load({
                 root,
                 workId: selected,
                 notice,
-                canSend: sessionId !== undefined && sessionPreset === 'storycraft-longform',
+                canSend: sessionId !== undefined && isStudio(sessionPreset),
                 compose,
                 prefill: props.prefill,
                 onNotice: setNotice,
