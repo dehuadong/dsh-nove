@@ -21,12 +21,12 @@ const ctx = {
 tools.apply(ctx, { mode: 'longform' })
 
 const names = registered.map(definition => definition.name).sort()
-check('registers twenty-two actions', names.length === 22, names.join(','))
+check('registers twenty-three actions', names.length === 23, names.join(','))
 check('action names', names.join(',') === [
   'story_bible', 'story_bible_import', 'story_bible_write', 'story_brief', 'story_critique', 'story_current',
   'story_delete', 'story_init', 'story_next', 'story_plan', 'story_rename', 'story_reopen', 'story_restore',
   'story_review', 'story_revise', 'story_settings', 'story_state', 'story_status', 'story_summarize',
-  'story_volume', 'story_volumes', 'story_write',
+  'story_propose', 'story_volume', 'story_volumes', 'story_write',
 ].sort().join(','), names.join(','))
 check('every action declares output schema', registered.every(definition => definition.output?.schema && typeof definition.output?.render === 'function'))
 check('every action declares execute', registered.every(definition => typeof definition.execute === 'function'))
@@ -77,7 +77,15 @@ check('missing workspace returns structured error', noWorkspace.ok === false && 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-tools-'))
 try {
   const exec = { agent: { session: { header: { cwd: root } } } }
-  const created = await byName.get('story_init').execute({ title: '雨里的灯' }, exec)
+  const withoutProposal = await byName.get('story_init').execute({ title: '雨里的灯' }, exec)
+  check('init without a proposal is refused', withoutProposal.ok === false && withoutProposal.error.code === 'proposal-required', JSON.stringify(withoutProposal))
+  const proposal = await byName.get('story_propose').execute({
+    title: '雨里的灯', form: 'longform', premise: '夜班司机捡到一盏不肯灭的灯。',
+  }, exec)
+  check('proposal written', proposal.ok === true && typeof proposal.proposal === 'string', JSON.stringify(proposal))
+  const mismatched = await byName.get('story_init').execute({ title: '别的标题', proposal: proposal.proposal }, exec)
+  check('title must match the proposal', mismatched.ok === false && mismatched.error.code === 'proposal-mismatch', JSON.stringify(mismatched))
+  const created = await byName.get('story_init').execute({ title: '雨里的灯', proposal: proposal.proposal }, exec)
   check('story_init ok', created.ok === true && typeof created.workId === 'string', JSON.stringify(created))
   const work = created.workId
   check('story_init wrote manifest', (await stat(join(root, 'works', work, 'manifest.json'))).isFile())
@@ -128,7 +136,7 @@ try {
   }, exec)
   check('story_state ok', state.ok === true && state.counts.opened === 1, JSON.stringify(state))
 
-  const duplicates = await byName.get('story_init').execute({ title: '雨里的灯' }, exec)
+  const duplicates = await byName.get('story_init').execute({ title: '雨里的灯', proposal: proposal.proposal }, exec)
   check('duplicate init refused', duplicates.ok === false && duplicates.error.code === 'work-exists', JSON.stringify(duplicates))
 
   const written = await byName.get('story_bible_write').execute({

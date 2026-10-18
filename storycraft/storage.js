@@ -111,7 +111,7 @@ export function slugify(title) {
 }
 
 /** Today's ISO timestamp. */
-function now() {
+export function now() {
   return new Date().toISOString()
 }
 

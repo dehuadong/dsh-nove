@@ -26,6 +26,7 @@ import {
 import { readVolumes, writeVolume } from './volumes.js'
 import { critique } from './critique.js'
 import { getCurrent, resolveWork, setCurrent } from './current.js'
+import { createProposal, readProposal } from './proposals.js'
 
 /**
  * The session that owns one tool call.
@@ -199,6 +200,10 @@ const OUTPUT_PROPERTIES = {
     type: 'string',
     enum: ['longform', 'short', 'script'],
     description: '作品的形态。',
+  },
+  proposal: {
+    type: 'string',
+    description: '提案 id（story_propose 的返回值）。',
   },
   unit: {
     type: 'string',
@@ -400,10 +405,9 @@ function rawDefinitions() {
         additionalProperties: false,
         properties: {
           title: { type: 'string', description: '作品标题。' },
-          form: {
+          proposal: {
             type: 'string',
-            enum: ['longform', 'short', 'script'],
-            description: '作品形态：长篇 / 短篇 / 剧本。省略为长篇；形态记在作品上，后续照它的技能写。',
+            description: '已获作者同意的提案 id（story_propose 返回）。立项必须带它。',
           },
           wordRange: {
             type: 'object',
@@ -415,19 +419,64 @@ function rawDefinitions() {
           workId: { type: 'string', description: '可选：显式指定作品 id（字母、数字、连字符）。' },
           tags: { type: 'array', description: '可选标签。', items: { type: 'string' } },
         },
-        required: ['title'],
+        required: ['title', 'proposal'],
       },
       async execute(args, exec) {
         const root = workspaceOf(exec)
+        if (typeof args.proposal !== 'string' || args.proposal.trim() === '') {
+          throw new StoryError('proposal-required',
+            '立项前先和作者讨论，用 story_propose 落一份方案，并在作者明确同意后带 proposal 立项')
+        }
+        const proposal = await readProposal(root, args.proposal.trim())
+        if (proposal.title !== String(args.title).trim()) {
+          throw new StoryError('proposal-mismatch',
+            `提案《${proposal.title}》与要建的作品《${args.title}》不一致：改标题或重新提案`)
+        }
+        if (args.form !== undefined && proposal.form !== args.form) {
+          throw new StoryError('proposal-mismatch',
+            `提案形态是 ${proposal.form}，与传入的 ${args.form} 不一致`)
+        }
         const created = await initWork(root, {
           title: args.title,
+          form: proposal.form,
           ...(typeof args.workId === 'string' ? { workId: args.workId } : {}),
           ...(typeof args.form === 'string' ? { form: args.form } : {}),
           ...(Array.isArray(args.tags) ? { tags: args.tags } : {}),
           ...(args.wordRange === undefined ? {} : { wordRange: args.wordRange }),
-          ...(args.form === undefined ? {} : { form: args.form }),
         })
         return { ok: true, workId: created.workId, artifact: { path: created.path } }
+      },
+    }),
+
+    action({
+      name: 'story_propose',
+      description: '把与作者谈成的方案落成提案（标题、形态、一句话前提、主要人物与冲突）。'
+        + ' 提案不是作品：不建目录、不写章节。方向成熟后写提案给作者看，作者明确同意后再 story_init。'
+        + ' 讨论阶段不要调用它，也不要写任何文件。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          title: { type: 'string', description: '作品标题。' },
+          form: { type: 'string', enum: ['longform', 'short', 'script'], description: '形态，缺省长篇。' },
+          premise: { type: 'string', description: '一句话前提或核心冲突。' },
+          characters: { type: 'string', description: '主要人物与他们的目标（可选）。' },
+          conflict: { type: 'string', description: '主要冲突或阻力（可选）。' },
+          notes: { type: 'string', description: '其他约定，如字数范围、叙事视角（可选）。' },
+        },
+        required: ['title', 'premise'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const proposal = await createProposal(root, {
+          title: args.title,
+          form: args.form,
+          premise: args.premise,
+          ...(typeof args.characters === 'string' ? { characters: args.characters } : {}),
+          ...(typeof args.conflict === 'string' ? { conflict: args.conflict } : {}),
+          ...(typeof args.notes === 'string' ? { notes: args.notes } : {}),
+        })
+        return { ok: true, proposal: proposal.id, title: proposal.title, form: proposal.form }
       },
     }),
 

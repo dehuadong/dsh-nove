@@ -247,9 +247,13 @@ window.__ModuleLoader__.load({
       fold(workId, chapter) {
         return `把作品 ${workId} 第 ${chapter} 章已经发生的事实定稿进状态：人物事实与伏笔变化用 story_state 落盘。`
       },
-      create(title, form) {
+      discuss(title, form) {
         const formLabel = { longform: '长篇', short: '短篇', script: '剧本' }[form] ?? '长篇'
-        return `用故事工坊立项一部${formLabel}作品，标题《${title}》，调用 story_init（form 用 ${form ?? 'longform'}）落盘后告诉我作品 id。`
+        return `我想写一部${formLabel}，暂定标题《${title}》。（先讨论：不要调用 story_init，也不要写任何文件；`
+          + '先和我把前提、主要人物、核心冲突聊清楚，优先复用我说过的内容；方向成熟后给出建项方案，等我确认再立项。）'
+      },
+      confirm(proposalId) {
+        return `我确认这份方案，可以立项：用 story_init 建作品（带 proposal: ${proposalId}），建完停下来告诉我作品 id 与下一步，不要继续写章纲。`
       },
     }
 
@@ -525,7 +529,7 @@ window.__ModuleLoader__.load({
             className: 'sc-btn sc-btn-primary',
             disabled: title.trim() === '',
             onClick: () => { onCreate(title.trim()); setTitle('') },
-          }, '立项'),
+          }, '开始讨论'),
         ),
       )
     }
@@ -536,12 +540,12 @@ window.__ModuleLoader__.load({
       const submit = async () => {
         const trimmed = title.trim()
         if (trimmed === '') return
-        const failure = await face.send(INSTRUCTIONS.create(trimmed, form))
+        const failure = await face.send(INSTRUCTIONS.discuss(trimmed, form))
         onCreated(failure)
       }
       return h('div', { className: 'sc-empty' },
         h('h2', { className: 'sc-detail-title' }, '还没有作品'),
-        h('p', null, '作品落在当前工作区的 works/ 目录里：一部作品一个目录，含章纲、正文、审稿清单与状态。'),
+        h('p', null, '先和模型把想法聊清楚：讨论阶段不写文件；方向定了它会给一份建项方案，你确认后才立项。'),
         h('ul', { className: 'sc-steps' },
           h('li', null, '长篇 / 短篇 / 剧本共用同一套动作（二十一个）：立项（带形态与字数范围）、章纲、正文、审稿、修订、定稿、进度，以及真值、导入、摘要、写前上下文。'),
           h('li', null, '短篇小说 / 短剧剧本：同一套动作，技能按作品形态选用；形态在建档时写进作品。'),
@@ -560,7 +564,7 @@ window.__ModuleLoader__.load({
             className: 'sc-btn sc-btn-primary',
             disabled: title.trim() === '',
             onClick: () => { void submit() },
-          }, '立项'),
+          }, '开始讨论'),
         ),
         h('p', { className: 'sc-item-body', style: { marginTop: 10 } },
           root === undefined
@@ -1437,7 +1441,7 @@ window.__ModuleLoader__.load({
                     void face.setCurrent(root, sessionId, workId).catch(() => {})
                   }
                 },
-                onCreate: title => compose(INSTRUCTIONS.create(title, typeFilter)),
+                onCreate: title => compose(INSTRUCTIONS.discuss(title, typeFilter)),
               })
               : null,
             presetHealth.state === 'broken'
