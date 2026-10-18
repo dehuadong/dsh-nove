@@ -21,12 +21,12 @@ const ctx = {
 tools.apply(ctx, { mode: 'longform' })
 
 const names = registered.map(definition => definition.name).sort()
-check('registers twenty-one actions', names.length === 21, names.join(','))
+check('registers twenty-two actions', names.length === 22, names.join(','))
 check('action names', names.join(',') === [
-  'story_bible', 'story_bible_import', 'story_bible_write', 'story_brief', 'story_critique', 'story_delete',
-  'story_init', 'story_next', 'story_plan', 'story_rename', 'story_reopen', 'story_restore', 'story_review',
-  'story_revise', 'story_settings', 'story_state', 'story_status', 'story_summarize', 'story_volume',
-  'story_volumes', 'story_write',
+  'story_bible', 'story_bible_import', 'story_bible_write', 'story_brief', 'story_critique', 'story_current',
+  'story_delete', 'story_init', 'story_next', 'story_plan', 'story_rename', 'story_reopen', 'story_restore',
+  'story_review', 'story_revise', 'story_settings', 'story_state', 'story_status', 'story_summarize',
+  'story_volume', 'story_volumes', 'story_write',
 ].sort().join(','), names.join(','))
 check('every action declares output schema', registered.every(definition => definition.output?.schema && typeof definition.output?.render === 'function'))
 check('every action declares execute', registered.every(definition => typeof definition.execute === 'function'))
@@ -149,6 +149,13 @@ try {
 
   const summary = await byName.get('story_summarize').execute({ work, chapter: 1, summary: '林澈在塌方里救人，决定北上。' }, exec)
   check('story_summarize ok', summary.ok === true && summary.truncated === false, JSON.stringify(summary))
+
+  const pointed = await byName.get('story_current').execute({ work }, { ...exec, sessionId: 'session-a' })
+  check('story_current sets the session work', pointed.current === work, JSON.stringify(pointed))
+  const withoutWork = await byName.get('story_status').execute({}, { ...exec, sessionId: 'session-a' })
+  check('work can be omitted once the session points at it', withoutWork.ok === true && withoutWork.workId === work)
+  await byName.get('story_status').execute({}, { ...exec, sessionId: 'session-b' })
+    .then(() => check('no current work is an actionable error', false), error => check('no current work is an actionable error', error.code === 'work-not-selected'))
 
   const critique = await byName.get('story_critique').execute({ work, chapter: 1 }, exec)
   check('story_critique returns metrics', critique.ok === true && typeof critique.metrics.words === 'number', JSON.stringify(critique).slice(0, 160))

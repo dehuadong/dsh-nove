@@ -25,6 +25,7 @@ import {
 } from './bible.js'
 import { readVolumes, writeVolume } from './volumes.js'
 import { critique } from './critique.js'
+import { getCurrent, resolveWork, setCurrent } from './current.js'
 
 /** Requires the tool registry; without it this row stays inert. */
 export const inject = ['tools']
@@ -783,6 +784,33 @@ function definitions() {
     }),
 
     action({
+      name: 'story_current',
+      description: '查看或设置本会话当前在做的作品。设置后，其它动作可以省略 work。'
+        + ' 作者说“接下来写这本书”时用它；只读调用不带 work 时返回当前作品。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '要设为当前作品的作品 id；省略则只读。' },
+        },
+      },
+      async execute(args, exec) {
+        if (typeof args.work === 'string' && args.work.trim() !== '') {
+          const root = workspaceOf(exec)
+          const manifest = await readManifest(root, args.work.trim())
+          setCurrent(exec.sessionId, manifest.workId)
+          return { ok: true, workId: manifest.workId, current: manifest.workId }
+        }
+        const current = getCurrent(exec.sessionId)
+        if (current === undefined) {
+          throw new StoryError('work-not-selected',
+            '本会话还没有当前作品：先在面板进入一个作品，或调用时带 work')
+        }
+        return { ok: true, workId: current, current }
+      },
+    }),
+
+    action({
       name: 'story_critique',
       description: '给一章做只读质检：字数是否在该作品范围内、句子长度、重复句、AI 腔词命中、对话占比。'
         + ' 只打分、不写文件、不阻断定稿；把发现交给 story_review 才会变成清单。',
@@ -892,11 +920,41 @@ function definitions() {
 }
 
 /**
+ * Make `work` optional on one action and resolve it from the session.
+ *
+ * An explicit `work` still wins, so callers that know the id are unaffected; the
+ * schema stops requiring it so a session pointed at a work can omit it.
+ * @param {object} definition - registered action definition.
+ * @returns {object} the same definition with a wrapped execute.
+ */
+function withCurrentWork(definition) {
+  const parameters = definition.parameters
+  const hasWork = parameters?.properties !== undefined && 'work' in parameters.properties
+  if (!hasWork) return definition
+  const required = Array.isArray(parameters.required)
+    ? parameters.required.filter(name => name !== 'work')
+    : []
+  const execute = definition.execute
+  return {
+    ...definition,
+    parameters: { ...parameters, ...(required.length === 0 ? { required: [] } : { required }) },
+    async execute(args, exec) {
+      const work = resolveWork(exec?.sessionId, args?.work)
+      if (work === undefined) {
+        throw new StoryError('work-not-selected',
+          '本会话还没有当前作品：先在面板进入一个作品，或在调用里带上 work')
+      }
+      return execute({ ...args, work }, exec)
+    },
+  }
+}
+
+/**
  * Register the studio actions in the calling (preset) scope.
  * @param {object} ctx - plugin context (services: tools).
  */
 export function apply(ctx) {
-  const disposers = definitions().map(definition => ctx.tools.register(definition))
+  const disposers = definitions().map(definition => ctx.tools.register(withCurrentWork(definition)))
   ctx.effect(() => () => {
     for (const dispose of disposers) dispose()
   }, 'storycraft-tools: work actions')

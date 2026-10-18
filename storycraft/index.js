@@ -15,6 +15,7 @@ import { realpath } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
 import { listTrash, listWorks, nextStep, readManifest, readChapter, readReview, readWork, StoryError } from './storage.js'
 import { critique } from './critique.js'
+import { clearCurrent, getCurrent, setCurrent } from './current.js'
 import { readVolumes } from './volumes.js'
 import { assembleBrief, readBible } from './bible.js'
 
@@ -71,6 +72,36 @@ async function readRoute(req, res, handler) {
   try {
     const query = new URL(req.url ?? '/', 'http://dsh.invalid').searchParams
     json(res, 200, { ok: true, ...(await handler(query)) })
+  } catch (error) {
+    if (error instanceof StoryError) {
+      json(res, 200, failure(error.code, error.message))
+      return
+    }
+    json(res, 500, failure('internal', error instanceof Error ? error.message : String(error)))
+  }
+}
+
+/**
+ * Guard a write route that reads a small JSON body.
+ * @param {object} req - IncomingMessage.
+ * @param {object} res - ServerResponse.
+ * @param {(body: object) => Promise<object>} handler - route body returning the success payload.
+ */
+async function postRoute(req, res, handler) {
+  if (req.method !== 'POST') {
+    json(res, 405, failure('method-not-allowed', '请使用 POST。'))
+    return
+  }
+  if (!isLoopback(req)) {
+    json(res, 403, failure('loopback-only', '该接口只允许本机访问。'))
+    return
+  }
+  try {
+    const chunks = []
+    for await (const chunk of req) chunks.push(chunk)
+    const text = Buffer.concat(chunks).toString('utf8')
+    const body = text === '' ? {} : JSON.parse(text)
+    json(res, 200, { ok: true, ...(await handler(body)) })
   } catch (error) {
     if (error instanceof StoryError) {
       json(res, 200, failure(error.code, error.message))
@@ -160,6 +191,31 @@ export function apply(ctx) {
       handler: (req, res) => readRoute(req, res, async (query) => ({
         items: await listTrash(await rootOf(ctx, query)),
       })),
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/current`,
+      handler: (req, res) => {
+        if (req.method === 'POST') {
+          void postRoute(req, res, async (body) => {
+            const sessionId = typeof body?.sessionId === 'string' ? body.sessionId : ''
+            if (sessionId === '') throw new StoryError('session-required', '缺少 sessionId')
+            const workId = typeof body?.workId === 'string' ? body.workId : ''
+            if (workId === '') {
+              clearCurrent(sessionId)
+              return { current: undefined }
+            }
+            const root = await rootOf(ctx, new URLSearchParams({ root: String(body?.root ?? '') }))
+            const manifest = await readManifest(root, workId)
+            setCurrent(sessionId, manifest.workId)
+            return { current: manifest.workId }
+          })
+          return
+        }
+        void readRoute(req, res, async (query) => ({
+          current: getCurrent(query.get('sessionId') ?? undefined),
+        }))
+      },
     }),
     ctx.webServer.register({
       kind: 'exact',

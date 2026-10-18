@@ -12,6 +12,7 @@ window.__ModuleLoader__.load({
       volumes: '/api/dsh-storycraft/volumes',
       critique: '/api/dsh-storycraft/critique',
       next: '/api/dsh-storycraft/next',
+      current: '/api/dsh-storycraft/current',
       work: '/api/dsh-storycraft/work',
       chapter: '/api/dsh-storycraft/chapter',
       review: '/api/dsh-storycraft/review',
@@ -247,6 +248,16 @@ window.__ModuleLoader__.load({
         }
         return fetchOwnRoute(`${path}?${params.toString()}`)
       }
+      const post = async (path, body) => {
+        const response = await fetch(path, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        const payload = await response.json()
+        if (payload?.ok !== true) throw new Error(payload?.error?.message ?? `请求失败：${response.status}`)
+        return payload
+      }
       return {
         context: () => currentContext(ctx),
         listWorks: (root) => route(ROUTE.works, { root }),
@@ -254,6 +265,8 @@ window.__ModuleLoader__.load({
         volumes: (root, id) => route(ROUTE.volumes, { root, id }),
         critique: (root, id, chapter) => route(ROUTE.critique, { root, id, chapter }),
         next: (root, id) => route(ROUTE.next, { root, id }),
+        getCurrent: sessionId => route(ROUTE.current, { sessionId }),
+        setCurrent: (root, sessionId, workId) => post(ROUTE.current, { root, sessionId, workId }),
         work: (root, id) => route(ROUTE.work, { root, id }),
         chapter: (root, id, chapter, view, revision) => route(ROUTE.chapter, { root, id, chapter, view, revision }),
         review: (root, id, chapter) => route(ROUTE.review, { root, id, chapter }),
@@ -694,6 +707,9 @@ window.__ModuleLoader__.load({
           setVolumes(listed.volumes ?? [])
           const step = await face.next(root, workId).catch(() => ({ next: undefined }))
           setNext(step.next)
+          if (sessionId !== undefined) {
+            void face.setCurrent(root, sessionId, manifest.workId).catch(() => {})
+          }
           setSelected(current => current ?? (payload.chapters.length === 0 ? undefined : payload.chapters[payload.chapters.length - 1].number))
         } catch (error) {
           setDetail({ status: 'error', error: error instanceof Error ? error.message : String(error) })
@@ -1231,7 +1247,13 @@ window.__ModuleLoader__.load({
                 type: 'button',
                 className: 'sc-work',
                 'aria-current': work.workId === selected ? 'true' : 'false',
-                onClick: () => { setSelected(work.workId); setNotice(undefined) },
+                onClick: () => {
+                  setSelected(work.workId)
+                  setNotice(undefined)
+                  if (sessionId !== undefined) {
+                    void face.setCurrent(context.root, sessionId, work.workId).catch(() => {})
+                  }
+                },
               },
                 h('span', { className: 'sc-work-title' }, work.title),
                 h('span', { className: 'sc-work-meta' },
