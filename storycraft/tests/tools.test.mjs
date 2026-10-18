@@ -150,11 +150,11 @@ try {
   const summary = await byName.get('story_summarize').execute({ work, chapter: 1, summary: '林澈在塌方里救人，决定北上。' }, exec)
   check('story_summarize ok', summary.ok === true && summary.truncated === false, JSON.stringify(summary))
 
-  const pointed = await byName.get('story_current').execute({ work }, { ...exec, sessionId: 'session-a' })
+  const pointed = await byName.get('story_current').execute({ work }, { ...exec, agent: { ...exec.agent, id: 'session-a' } })
   check('story_current sets the session work', pointed.current === work, JSON.stringify(pointed))
-  const withoutWork = await byName.get('story_status').execute({}, { ...exec, sessionId: 'session-a' })
+  const withoutWork = await byName.get('story_status').execute({}, { ...exec, agent: { ...exec.agent, id: 'session-a' } })
   check('work can be omitted once the session points at it', withoutWork.ok === true && withoutWork.workId === work)
-  await byName.get('story_status').execute({}, { ...exec, sessionId: 'session-b' })
+  await byName.get('story_status').execute({}, { ...exec, agent: { ...exec.agent, id: 'session-b' } })
     .then(() => check('no current work is an actionable error', false), error => check('no current work is an actionable error', error.code === 'work-not-selected'))
 
   const critique = await byName.get('story_critique').execute({ work, chapter: 1 }, exec)

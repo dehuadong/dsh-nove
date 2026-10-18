@@ -27,6 +27,19 @@ import { readVolumes, writeVolume } from './volumes.js'
 import { critique } from './critique.js'
 import { getCurrent, resolveWork, setCurrent } from './current.js'
 
+/**
+ * The session that owns one tool call.
+ *
+ * The tool runtime exposes the calling agent, whose `id` is the session id; the
+ * positional `sessionId` is kept as a fallback for tests and older callers.
+ * @param {object} exec - tool run context.
+ * @returns {string|undefined} session identity.
+ */
+function sessionOf(exec) {
+  const id = exec?.agent?.id ?? exec?.sessionId
+  return typeof id === 'string' && id !== '' ? id : undefined
+}
+
 /** Requires the tool registry; without it this row stays inert. */
 export const inject = ['tools']
 
@@ -300,6 +313,12 @@ const OUTPUT_PROPERTIES = {
           resolved: { type: 'integer' },
         },
       },
+      wordRange: {
+        type: 'object',
+        additionalProperties: false,
+        properties: { min: { type: 'integer' }, max: { type: 'integer' } },
+        required: ['min', 'max'],
+      },
       chapters: {
         type: 'array',
         items: {
@@ -361,7 +380,7 @@ function action(spec) {
 }
 
 /** The long-form action set. */
-function definitions() {
+function rawDefinitions() {
   return [
     action({
       name: 'story_init',
@@ -798,10 +817,10 @@ function definitions() {
         if (typeof args.work === 'string' && args.work.trim() !== '') {
           const root = workspaceOf(exec)
           const manifest = await readManifest(root, args.work.trim())
-          setCurrent(exec.sessionId, manifest.workId)
+          setCurrent(sessionOf(exec), manifest.workId)
           return { ok: true, workId: manifest.workId, current: manifest.workId }
         }
-        const current = getCurrent(exec.sessionId)
+        const current = getCurrent(sessionOf(exec))
         if (current === undefined) {
           throw new StoryError('work-not-selected',
             '本会话还没有当前作品：先在面板进入一个作品，或调用时带 work')
@@ -920,6 +939,14 @@ function definitions() {
 }
 
 /**
+ * The registered action list: `work` is optional and resolved per session.
+ * @returns {object[]} action definitions.
+ */
+function definitions() {
+  return rawDefinitions().map(withCurrentWork)
+}
+
+/**
  * Make `work` optional on one action and resolve it from the session.
  *
  * An explicit `work` still wins, so callers that know the id are unaffected; the
@@ -939,7 +966,7 @@ function withCurrentWork(definition) {
     ...definition,
     parameters: { ...parameters, ...(required.length === 0 ? { required: [] } : { required }) },
     async execute(args, exec) {
-      const work = resolveWork(exec?.sessionId, args?.work)
+      const work = resolveWork(sessionOf(exec), args?.work)
       if (work === undefined) {
         throw new StoryError('work-not-selected',
           '本会话还没有当前作品：先在面板进入一个作品，或在调用里带上 work')
@@ -954,7 +981,7 @@ function withCurrentWork(definition) {
  * @param {object} ctx - plugin context (services: tools).
  */
 export function apply(ctx) {
-  const disposers = definitions().map(definition => ctx.tools.register(withCurrentWork(definition)))
+  const disposers = definitions().map(definition => ctx.tools.register(definition))
   ctx.effect(() => () => {
     for (const dispose of disposers) dispose()
   }, 'storycraft-tools: work actions')
