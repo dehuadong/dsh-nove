@@ -179,6 +179,7 @@ const OUTPUT_PROPERTIES = {
   skipped: { type: 'array', description: 'Files the import left untouched because they already hold content.', items: { type: 'string' } },
   names: { type: 'array', description: 'Character names found in the old cast file.', items: { type: 'string' } },
   truncated: { type: 'boolean' },
+  cleaned: { type: 'integer', description: 'Stale staging directories removed by this action.' },
   action: { type: 'string', description: 'Action to run next, e.g. story_write.' },
   chapter: { type: 'integer', description: 'Chapter number the next step applies to.' },
   reason: { type: 'string', description: 'Why that action is next.' },
@@ -339,7 +340,10 @@ function definitions() {
       async execute(args, exec) {
         const root = workspaceOf(exec)
         const result = await writeChapter(root, args)
-        return { ok: true, workId: args.work, artifact: result.artifact, words: result.words }
+        return {
+          ok: true, workId: args.work, artifact: result.artifact, words: result.words,
+          ...(result.cleaned > 0 ? { cleaned: result.cleaned } : {}),
+        }
       },
     }),
 

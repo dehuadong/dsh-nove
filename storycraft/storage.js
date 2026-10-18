@@ -206,29 +206,53 @@ export async function writeAtomic(file, text) {
  * @template T
  */
 export async function withWorkLock(root, workId, action) {
+  const lock = await acquireWorkLock(root, workId)
+  try {
+    return await action(lock)
+  } finally {
+    await lock.release()
+  }
+}
+
+/**
+ * Acquire one work's single-writer lock.
+ *
+ * The returned handle can follow a rename: the lock path is the identity other
+ * writers test, so a renamed work must carry its lock to the new path before the
+ * old one is released.
+ * @param {string} root - workspace directory.
+ * @param {string} workId - work identity.
+ * @returns {Promise<{release: () => Promise<void>, moveTo: (nextId: string) => Promise<void>}>} the handle.
+ */
+export async function acquireWorkLock(root, workId) {
   await mkdir(worksDirectory(root), { recursive: true })
-  const lock = join(worksDirectory(root), `.${workId}.lock`)
-  const tryOpen = () => open(lock, 'wx')
+  let lockPath = join(worksDirectory(root), `.${workId}.lock`)
+  const tryOpen = () => open(lockPath, 'wx')
   let handle
   try {
     handle = await tryOpen()
   } catch (error) {
     if (error?.code !== 'EEXIST') throw error
     // A crashed action can leave its lock behind; only an old lock is taken over.
-    const age = await stat(lock).then(info => Date.now() - info.mtimeMs).catch(() => undefined)
+    const age = await stat(lockPath).then(info => Date.now() - info.mtimeMs).catch(() => undefined)
     if (age === undefined || age < STALE_LOCK_MS) {
       throw new StoryError('work-busy', `作品 ${workId} 正在被另一个动作写入，请稍后重试`)
     }
-    await rm(lock, { force: true })
+    await rm(lockPath, { force: true })
     handle = await tryOpen().catch(() => {
       throw new StoryError('work-busy', `作品 ${workId} 正被另一个动作接管，请稍后重试`)
     })
   }
-  try {
-    return await action()
-  } finally {
-    await handle.close().catch(() => {})
-    await rm(lock, { force: true }).catch(() => {})
+  return {
+    async moveTo(nextId) {
+      const next = join(worksDirectory(root), `.${nextId}.lock`)
+      await rename(lockPath, next)
+      lockPath = next
+    },
+    async release() {
+      await handle.close().catch(() => {})
+      await rm(lockPath, { force: true }).catch(() => {})
+    },
   }
 }
 
@@ -302,18 +326,45 @@ export async function readManifest(root, workId) {
  * @param {Record<string, string>} files - work-relative path → content.
  * @returns {Promise<void>} resolves after the commit.
  */
-export async function commitFiles(root, workId, operation, files) {
+export async function commitFiles(root, workId, operation, files, hooks = {}) {
   const workDir = workDirectory(root, workId)
-  await cleanStaleStages(workDir)
+  const cleaned = await cleanStaleStages(workDir)
+  // Validate the staged set before anything touches the real tree: an escaping
+  // path or an empty artifact is a caller bug, not a user error.
+  for (const [relativePath, content] of Object.entries(files)) {
+    const normalized = String(relativePath).replaceAll('\\', '/')
+    if (normalized.startsWith('/') || normalized.split('/').includes('..')) {
+      throw new StoryError('invalid-path', `暂存路径非法：${relativePath}`)
+    }
+    if (typeof content !== 'string' || content === '') {
+      throw new StoryError('empty-artifact', `暂存内容为空：${relativePath}`)
+    }
+  }
   const stage = await openStage(workDir, operation)
   try {
     for (const [relativePath, content] of Object.entries(files)) stage.put(relativePath, content)
     await stage.materialize()
+    // The staged set must equal the planned set: a missing file means the write
+    // silently did not happen.
+    for (const relativePath of Object.keys(files)) {
+      if (await readOptional(stage.staged(relativePath)) === undefined) {
+        throw new StoryError('stage-incomplete', `暂存文件缺失：${relativePath}`)
+      }
+    }
+    if (typeof hooks.beforeCommit === 'function') await hooks.beforeCommit(stage)
     await stage.commit()
+    return { cleaned }
   } catch (error) {
     await stage.discard()
     throw error
   }
+}
+
+/** Append one event line to a JSONL text without touching the disk. */
+function appendEventLine(previous, event) {
+  const seq = previous.split(/\r?\n/).filter(line => line.trim() !== '').length + 1
+  const line = JSON.stringify({ seq, at: now(), ...event })
+  return previous === '' || previous.endsWith('\n') ? `${previous}${line}\n` : `${previous}\n${line}\n`
 }
 
 /** Work-relative path with forward slashes. */
@@ -350,6 +401,7 @@ async function computeProjection(root, manifest) {
       words: chapter.words,
     })),
     writtenChapters: written.length,
+    words: manifest.chapters.reduce((sum, chapter) => sum + (chapter.words ?? 0), 0),
     latestChapter: manifest.chapters.length === 0 ? 0 : manifest.chapters[manifest.chapters.length - 1].number,
     openProblems,
     hooks: {
@@ -373,10 +425,14 @@ export async function readProjection(root, workId) {
   const manifest = await readManifest(root, workId)
   const file = join(workDirectory(root, manifest.workId), 'state', 'projection.json')
   const text = await readOptional(file)
+  const eventsFile = join(workDirectory(root, manifest.workId), 'state', 'events.jsonl')
+  const eventLines = ((await readOptional(eventsFile)) ?? '').split(/\r?\n/).filter(line => line.trim() !== '').length
   if (text !== undefined) {
     try {
       const parsed = JSON.parse(text)
-      if (parsed?.manifestUpdatedAt === manifest.updatedAt) return parsed
+      // Both the manifest stamp and the event count decide freshness: a crash
+      // between the events commit and the manifest write matches neither.
+      if (parsed?.manifestUpdatedAt === manifest.updatedAt && parsed?.events === eventLines) return parsed
     } catch {
       // A corrupt projection is just a stale one.
     }
@@ -525,12 +581,18 @@ export async function initWork(root, input) {
  */
 export async function renameWork(root, input) {
   const oldId = String(input.work)
-  return withWorkLock(root, oldId, async () => {
+  return withWorkLock(root, oldId, async (lock) => {
     const manifest = await readManifest(root, oldId)
     const title = typeof input.title === 'string' && input.title.trim() !== '' ? input.title.trim() : manifest.title
     const requested = typeof input.workId === 'string' && input.workId.trim() !== '' ? input.workId.trim() : undefined
     const newId = requested === undefined ? manifest.workId : slugify(requested)
     if (newId === '') throw new StoryError('invalid-work-id', '作品 id 不能为空')
+    if (requested !== undefined) {
+      // Slugs drop dots, so the requested spelling is what must be checked.
+      if (requested.startsWith('.') || requested.includes('/') || requested.includes('\\') || requested === 'works') {
+        throw new StoryError('invalid-work-id', `作品 id 不能是保留名：${requested}`)
+      }
+    }
     if (newId !== manifest.workId) {
       const target = join(worksDirectory(root), newId)
       if (await readOptional(join(target, 'manifest.json')) !== undefined) {
@@ -541,6 +603,11 @@ export async function renameWork(root, input) {
         manifest.workId = newId
         manifest.title = title
         const written = await writeManifest(root, newId, manifest)
+        // The lock name tracks the identity: other writers test the new path.
+        await lock.moveTo(newId).catch(async (error) => {
+          await rename(target, workDirectory(root, oldId)).catch(() => {})
+          throw error
+        })
         return { workId: written.workId, title: written.title }
       } catch (error) {
         await rename(target, workDirectory(root, oldId)).catch(() => {})
@@ -563,6 +630,10 @@ export async function deleteWork(root, input) {
   const workId = String(input.work)
   return withWorkLock(root, workId, async () => {
     const manifest = await readManifest(root, workId)
+    const pending = await readdir(join(workDirectory(root, manifest.workId), '.staging')).catch(() => [])
+    if (pending.length > 0) {
+      throw new StoryError('work-busy', `作品 ${manifest.workId} 还有未提交的暂存，等它结束再删除`)
+    }
     const trash = join(worksDirectory(root), '.trash')
     await mkdir(trash, { recursive: true })
     const target = join(trash, `${manifest.workId}-${Date.now()}`)
@@ -587,8 +658,12 @@ export async function restoreWork(root, input) {
   } catch {
     entries = []
   }
-  const candidates = entries.filter(entry => entry.startsWith(`${name}-`)).sort()
-  const latest = candidates[candidates.length - 1]
+  const pattern = new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-(\\d+)$`)
+  const candidates = entries
+    .map(entry => ({ entry, match: pattern.exec(entry) }))
+    .filter(item => item.match !== null)
+    .sort((left, right) => Number(left.match[2]) - Number(right.match[2]))
+  const latest = candidates[candidates.length - 1]?.entry
   if (latest === undefined) throw new StoryError('work-not-found', `回收站里没有作品 ${name}`)
   if (await readOptional(join(worksDirectory(root), name, 'manifest.json')) !== undefined) {
     throw new StoryError('work-exists', `已经有作品 ${name}`)
@@ -684,14 +759,19 @@ export async function writeChapter(root, input) {
       }
     }
     const workDir = workDirectory(root, manifest.workId)
-    await cleanStaleStages(workDir)
+    const cleaned = await cleanStaleStages(workDir)
     const stage = await openStage(workDir, 'write')
     const journal = { undo: [] }
     try {
       if (typeof input.title === 'string' && input.title.trim() !== '') entry.title = input.title.trim()
       stage.put(relative(workDir, file).replaceAll('\\', '/'), body.endsWith('\n') ? body : `${body}\n`)
       await stage.materialize()
-      if (settled) await appendStateEvent(root, manifest.workId, journal, { kind: 'reopen', chapter: number })
+      if (settled) {
+        const eventsFile = join(workDir, 'state', 'events.jsonl')
+        const previousEvents = (await readOptional(eventsFile)) ?? ''
+        stage.put(relativeToWork(workDir, eventsFile), appendEventLine(previousEvents, { kind: 'reopen', chapter: number }))
+        await stage.materialize()
+      }
       entry.currentRevision = revision
       entry.words = countWords(body)
       entry.status = 'written'
@@ -701,7 +781,7 @@ export async function writeChapter(root, input) {
       // commit point, so a crash before it leaves the previous chapter intact.
       await stage.commit()
       const written = await writeManifest(root, manifest.workId, manifest)
-      return { manifest: written, entry, artifact: { path: rootRelative(root, file), revision }, words: entry.words }
+      return { manifest: written, entry, artifact: { path: rootRelative(root, file), revision }, words: entry.words, cleaned }
     } catch (error) {
       await stage.discard()
       for (const undo of journal.undo.reverse()) await undo().catch(() => {})
@@ -921,23 +1001,6 @@ export async function reviseChapter(root, input) {
 }
 
 /**
- * Append one event to the state log, recording how to undo it.
- * @param {string} root - workspace directory.
- * @param {string} workId - work identity.
- * @param {{undo: Function[]}} journal - rollback journal.
- * @param {object} event - event body.
- * @returns {Promise<void>} resolves after the append lands.
- */
-async function appendStateEvent(root, workId, journal, event) {
-  const file = join(workDirectory(root, workId), 'state', 'events.jsonl')
-  const previous = (await readOptional(file)) ?? ''
-  const seq = previous.split(/\r?\n/).filter(line => line.trim() !== '').length + 1
-  const line = JSON.stringify({ seq, at: now(), ...event })
-  await writeAtomic(file, previous === '' || previous.endsWith('\n') ? `${previous}${line}\n` : `${previous}\n${line}\n`)
-  journal.undo.push(() => writeAtomic(file, previous))
-}
-
-/**
  * Fold state facts for one chapter into the event log.
  * @param {string} root - workspace directory.
  * @param {{work: string, chapter: number|string, entities?: Array<{name: string, facts: string[]}>, hooks?: Array<{text: string, state: 'opened'|'used'|'resolved'}>}} input - state input.
@@ -1142,19 +1205,21 @@ export async function reopenChapter(root, input) {
     if (stageOf(entry) !== 'settled') {
       throw new StoryError('not-settled', `第 ${number} 章还没结算（当前阶段：${stageOf(entry)}），不需要重开`)
     }
-    const journal = { undo: [] }
-    return withRollback(journal, async () => {
-      await appendStateEvent(root, manifest.workId, journal, { kind: 'reopen', chapter: number })
-      entry.stage = 'written'
-      entry.status = 'written'
-      entry.updatedAt = now()
-      const written = await writeManifest(root, manifest.workId, manifest)
-      return {
-        entry,
-        manifest: written,
-        artifact: { path: rootRelative(root, join(workDirectory(root, manifest.workId), 'manifest.json')) },
-      }
+    const workDir = workDirectory(root, manifest.workId)
+    const eventsFile = join(workDir, 'state', 'events.jsonl')
+    const previousEvents = (await readOptional(eventsFile)) ?? ''
+    await commitFiles(root, manifest.workId, 'reopen', {
+      [relativeToWork(workDir, eventsFile)]: appendEventLine(previousEvents, { kind: 'reopen', chapter: number }),
     })
+    entry.stage = 'written'
+    entry.status = 'written'
+    entry.updatedAt = now()
+    const written = await writeManifest(root, manifest.workId, manifest)
+    return {
+      entry,
+      manifest: written,
+      artifact: { path: rootRelative(root, join(workDir, 'manifest.json')) },
+    }
   })
 }
 

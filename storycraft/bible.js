@@ -291,8 +291,9 @@ export async function writeSummary(root, workId, chapter, text) {
     const file = summaryPath(root, manifest.workId, number)
     const dir = join(workDirectory(root, manifest.workId), 'summaries')
     await mkdir(dir, { recursive: true })
-    // The index is committed with the summary: a stale index is not a state this
-    // action can leave behind.
+    // The index commits with the summary in one staged pass. It is derived data:
+    // readers resolve summaries by chapter file, so a crash between the two
+    // renames costs an index refresh, not a wrong summary.
     const previousIndex = await summaryIndex(root, manifest.workId)
     const chapters = previousIndex.chapters
       .filter(entry => entry.number !== number)

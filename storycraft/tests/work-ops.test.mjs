@@ -94,10 +94,35 @@ try {
   await discarded.discard()
   check('discarded stage leaves nothing', await stat(join(workDir, 'chapters', 'ch-0098.md')).then(() => false).catch(() => true))
 
+  // A failure between staging and commit leaves the real tree untouched.
+  let injected = false
+  await s.commitFiles(root, 'gamma', 'inject', { 'chapters/ch-0002.md': 'x\n' }, {
+    beforeCommit: () => { injected = true; throw new Error('injected failure') },
+  }).then(() => check('injected failure surfaces', false), error => check('injected failure surfaces', /injected failure/.test(error.message)))
+  check('injection ran', injected)
+  check('failed commit leaves the work untouched', await stat(join(workDir, 'chapters', 'ch-0002.md')).then(() => false).catch(() => true))
+
+  // The staged set is validated before anything lands.
+  await s.commitFiles(root, 'gamma', 'escape', { '../escape.md': 'x\n' })
+    .then(() => check('escaping path rejected', false), error => check('escaping path rejected', error.code === 'invalid-path'))
+  await s.commitFiles(root, 'gamma', 'empty', { 'chapters/ch-0003.md': '' })
+    .then(() => check('empty artifact rejected', false), error => check('empty artifact rejected', error.code === 'empty-artifact'))
+
+  // Restoring `a` must not pick up `a-b`'s trashed copy.
+  const shadow = await s.initWork(root, { title: '影子' })
+  await s.deleteWork(root, { work: 'gamma' })
+  await s.deleteWork(root, { work: shadow.workId })
+  await s.restoreWork(root, { name: 'gamma' })
+  check('restore matches the exact name', (await s.status(root, 'gamma')).workId === 'gamma')
+
+  // Reserved identities are refused.
+  await s.initWork(root, { title: '保留名' })
+  await rejects('reserved id refused', 'invalid-work-id', () => s.renameWork(root, { work: '保留名', workId: '.trash' }))
+
   // Bookkeeping directories never look like works.
   await mkdir(join(root, 'works', '.staging', 'write-1'), { recursive: true })
   const withStaging = await s.listWorks(root)
-  check('staging directory ignored', withStaging.length === 2, String(withStaging.length))
+  check('staging directory ignored', withStaging.length === 3, String(withStaging.length))
 } finally {
   await rm(root, { recursive: true, force: true })
 }
