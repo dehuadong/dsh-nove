@@ -168,6 +168,12 @@ window.__ModuleLoader__.load({
       revise(workId, chapter) {
         return `按作品 ${workId} 第 ${chapter} 章最新的审稿清单里未处理的条目修订正文，用 story_revise 落盘并标记处理过的条目。`
       },
+      rename(workId, title) {
+        return `用 story_rename 把作品 ${workId} 的标题改成「${title}」。`
+      },
+      remove(workId) {
+        return `用 story_delete 把作品 ${workId} 移入回收站（不要真的删除文件）。`
+      },
       reopen(workId, chapter) {
         return `把作品 ${workId} 第 ${chapter} 章的结算撤销（story_reopen：只作废结算，不改正文），然后重新审稿、按清单修订、再结算。`
       },
@@ -590,6 +596,25 @@ window.__ModuleLoader__.load({
               className: 'sc-btn sc-btn-primary',
               onClick: () => compose(INSTRUCTIONS.nextChapter(manifest.workId, nextNumber)),
             }, `写第 ${nextNumber} 章`),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn',
+              title: '改作品标题（目录与 id 不变）',
+              onClick: () => {
+                const title = window.prompt('新的作品标题', manifest.title)
+                if (title === null || title.trim() === '') return
+                compose(INSTRUCTIONS.rename(manifest.workId, title.trim()))
+              },
+            }, '改名'),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn',
+              title: '移入回收站，可用 story_restore 恢复',
+              onClick: () => {
+                if (!window.confirm(`把作品「${manifest.title}」移入回收站？文件不会真删，可用 story_restore 恢复。`)) return
+                compose(INSTRUCTIONS.remove(manifest.workId))
+              },
+            }, '删除'),
             h('button', { type: 'button', className: 'sc-btn', onClick: () => { void load() } }, '刷新'),
           ),
         ),

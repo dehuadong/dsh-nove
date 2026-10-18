@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, stat, unlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../storage.js'
+import { openStage } from '../stage.js'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -77,6 +78,21 @@ try {
   const rebuilt = await s.readProjection(root, 'gamma')
   check('deleted projection rebuilds', rebuilt.manifestUpdatedAt === first.manifestUpdatedAt, JSON.stringify(rebuilt.manifestUpdatedAt))
   check('rebuild keeps the same counts', rebuilt.writtenChapters === first.writtenChapters && rebuilt.openProblems === first.openProblems)
+
+  // A stage that never commits leaves the real tree untouched.
+  const workDir = join(root, 'works', 'gamma')
+  const crash = await openStage(workDir, 'crash')
+  crash.put('chapters/ch-0099.md', '未提交的内容\n')
+  await crash.materialize()
+  check('staged file stays out of the work', await stat(join(workDir, 'chapters', 'ch-0099.md')).then(() => false).catch(() => true))
+  await crash.commit()
+  check('commit lands the staged file', (await readFile(join(workDir, 'chapters', 'ch-0099.md'), 'utf8')).includes('未提交'))
+
+  const discarded = await openStage(workDir, 'discard')
+  discarded.put('chapters/ch-0098.md', '丢弃\n')
+  await discarded.materialize()
+  await discarded.discard()
+  check('discarded stage leaves nothing', await stat(join(workDir, 'chapters', 'ch-0098.md')).then(() => false).catch(() => true))
 
   // Bookkeeping directories never look like works.
   await mkdir(join(root, 'works', '.staging', 'write-1'), { recursive: true })

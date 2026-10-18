@@ -12,7 +12,7 @@ import { join } from 'node:path'
 import { mkdir, readdir } from 'node:fs/promises'
 import {
   StoryError, chapterNumber, chapterStem, foldEvents, readChapter, readManifest, readOptional, rootRelative,
-  withWorkLock, workDirectory, writeAtomic,
+  commitFiles, withWorkLock, workDirectory, writeAtomic,
 } from './storage.js'
 
 /** Every truth file, with how its content is validated. */
@@ -154,9 +154,10 @@ export async function writeBible(root, workId, name, content) {
   return withWorkLock(root, workId, async () => {
     const manifest = await readManifest(root, workId)
     const spec = BIBLE_FILES[name]
-    const file = join(workDirectory(root, manifest.workId), spec.file)
-    await mkdir(join(workDirectory(root, manifest.workId), 'bible'), { recursive: true })
-    await writeAtomic(file, content)
+    const workDir = workDirectory(root, manifest.workId)
+    const file = join(workDir, spec.file)
+    await mkdir(join(workDir, 'bible'), { recursive: true })
+    await commitFiles(root, manifest.workId, 'bible', { [spec.file]: content })
     return { name, path: rootRelative(root, file), version: contentVersion(content) }
   })
 }
@@ -189,6 +190,7 @@ export async function importBible(root, workId) {
       { name: 'world', from: 'design/world.md', content: world },
       { name: 'plan', from: 'design/outline.md', content: outline },
     ]
+    const pendingFiles = {}
     for (const target of targets) {
       if (target.content === undefined) continue
       const spec = BIBLE_FILES[target.name]
@@ -197,8 +199,11 @@ export async function importBible(root, workId) {
         skipped.push(`${spec.file}（已有内容，未覆盖）`)
         continue
       }
-      await writeAtomic(join(dir, spec.file), target.content)
+      pendingFiles[spec.file] = target.content
       imported.push({ from: target.from, to: spec.file, version: contentVersion(target.content) })
+    }
+    if (Object.keys(pendingFiles).length > 0) {
+      await commitFiles(root, manifest.workId, 'import', pendingFiles)
     }
     const headings = (pattern) => cast === undefined
       ? []
@@ -286,8 +291,17 @@ export async function writeSummary(root, workId, chapter, text) {
     const file = summaryPath(root, manifest.workId, number)
     const dir = join(workDirectory(root, manifest.workId), 'summaries')
     await mkdir(dir, { recursive: true })
-    await writeAtomic(file, content)
-    await writeAtomic(join(dir, 'index.json'), `${JSON.stringify(await summaryIndex(root, manifest.workId), null, 2)}\n`)
+    // The index is committed with the summary: a stale index is not a state this
+    // action can leave behind.
+    const previousIndex = await summaryIndex(root, manifest.workId)
+    const chapters = previousIndex.chapters
+      .filter(entry => entry.number !== number)
+      .concat({ number, path: `summaries/${chapterStem(number)}.md`, words: [...content.trim()].length })
+      .sort((left, right) => left.number - right.number)
+    await commitFiles(root, manifest.workId, 'summary', {
+      [`summaries/${chapterStem(number)}.md`]: content,
+      'summaries/index.json': `${JSON.stringify({ chapters }, null, 2)}\n`,
+    })
     return { path: rootRelative(root, file), truncated, words: [...body].length }
   })
 }

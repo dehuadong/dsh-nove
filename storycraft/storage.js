@@ -292,6 +292,36 @@ export async function readManifest(root, workId) {
 }
 
 /**
+ * Stage a set of files and commit them in one pass.
+ *
+ * The manifest is never among them: callers write it after this returns, so the
+ * commit point stays the manifest and a crash before it leaves the work intact.
+ * @param {string} root - workspace directory.
+ * @param {string} workId - work identity.
+ * @param {string} operation - short name used in the staging directory.
+ * @param {Record<string, string>} files - work-relative path → content.
+ * @returns {Promise<void>} resolves after the commit.
+ */
+export async function commitFiles(root, workId, operation, files) {
+  const workDir = workDirectory(root, workId)
+  await cleanStaleStages(workDir)
+  const stage = await openStage(workDir, operation)
+  try {
+    for (const [relativePath, content] of Object.entries(files)) stage.put(relativePath, content)
+    await stage.materialize()
+    await stage.commit()
+  } catch (error) {
+    await stage.discard()
+    throw error
+  }
+}
+
+/** Work-relative path with forward slashes. */
+function relativeToWork(workDir, file) {
+  return relative(workDir, file).replaceAll('\\', '/')
+}
+
+/**
  * Recompute the derived projection of one work.
  *
  * It duplicates nothing the manifest owns: stages, revisions and word counts are
@@ -598,28 +628,22 @@ export async function writePlan(root, input) {
     assertStage(entry, ['planned', 'written', 'reviewed', 'revised'],
       `第 ${number} 章已结算：改章纲前先带 reopen 重写正文回退`)
     const file = join(workDirectory(root, manifest.workId), 'outline', `${entry.id}.plan.md`)
-    const journal = { undo: [] }
-    return withRollback(journal, async () => {
-      const previous = await readOptional(file)
-      await writeAtomic(file, [
-        `# 第 ${number} 章 章纲`,
-        '',
-        `- 视角：${fields.视角.trim()}`,
-        `- 目标：${fields.目标.trim()}`,
-        `- 阻力：${fields.阻力.trim()}`,
-        `- 代价：${fields.代价.trim()}`,
-        `- 结尾变化：${fields.结尾变化.trim()}`,
-        '',
-      ].join('\n'))
-      journal.undo.push(async () => {
-        if (previous === undefined) await rm(file, { force: true })
-        else await writeAtomic(file, previous)
-      })
-      if (stageOf(entry) === 'planned') entry.stage = 'planned'
-      entry.updatedAt = now()
-      const written = await writeManifest(root, manifest.workId, manifest)
-      return { manifest: written, entry, artifact: { path: rootRelative(root, file) } }
-    })
+    const workDir = workDirectory(root, manifest.workId)
+    const text = [
+      `# 第 ${number} 章 章纲`,
+      '',
+      `- 视角：${fields.视角.trim()}`,
+      `- 目标：${fields.目标.trim()}`,
+      `- 阻力：${fields.阻力.trim()}`,
+      `- 代价：${fields.代价.trim()}`,
+      `- 结尾变化：${fields.结尾变化.trim()}`,
+      '',
+    ].join('\n')
+    await commitFiles(root, manifest.workId, 'plan', { [relativeToWork(workDir, file)]: text })
+    if (stageOf(entry) === 'planned') entry.stage = 'planned'
+    entry.updatedAt = now()
+    const written = await writeManifest(root, manifest.workId, manifest)
+    return { manifest: written, entry, artifact: { path: rootRelative(root, file) } }
   })
 }
 
@@ -744,17 +768,14 @@ export async function writeReview(root, input) {
       return { id, location, problem: text, suggestion, done: false }
     })
     lines.push('')
-    const journal = { undo: [] }
-    return withRollback(journal, async () => {
-      await writeAtomic(file, lines.join('\n'))
-      journal.undo.push(() => rm(file, { force: true }))
-      entry.status = 'reviewed'
-      entry.stage = 'reviewed'
-      entry.updatedAt = now()
-      await refreshCounters(root, manifest)
-      const written = await writeManifest(root, manifest.workId, manifest)
-      return { manifest: written, entry, artifact: { path: rootRelative(root, file) }, problems: recorded }
-    })
+    const workDir = workDirectory(root, manifest.workId)
+    await commitFiles(root, manifest.workId, 'review', { [relativeToWork(workDir, file)]: lines.join('\n') })
+    entry.status = 'reviewed'
+    entry.stage = 'reviewed'
+    entry.updatedAt = now()
+    await refreshCounters(root, manifest)
+    const written = await writeManifest(root, manifest.workId, manifest)
+    return { manifest: written, entry, artifact: { path: rootRelative(root, file) }, problems: recorded }
   })
 }
 
@@ -879,25 +900,23 @@ export async function reviseChapter(root, input) {
       file = join(chaptersDir, `${entry.id}.r${revision}.md`)
     }
     const reviewFile = latest.file
-    const journal = { undo: [] }
-    return withRollback(journal, async () => {
-      await writeAtomic(file, body.endsWith('\n') ? body : `${body}\n`)
-      journal.undo.push(() => rm(file, { force: true }))
-      const lines = latest.text.split(/\r?\n/).map((line) => {
-        const match = /^- \[ \] (Q\d+) ::/.exec(line)
-        return match !== null && ids.includes(match[1]) ? line.replace('- [ ]', '- [x]') : line
-      })
-      await writeAtomic(reviewFile, lines.join('\n'))
-      journal.undo.push(() => writeAtomic(reviewFile, latest.text))
-      entry.currentRevision = revision
-      entry.words = countWords(body)
-      entry.status = 'revised'
-      entry.stage = 'revised'
-      entry.updatedAt = now()
-      await refreshCounters(root, manifest)
-      const written = await writeManifest(root, manifest.workId, manifest)
-      return { manifest: written, entry, artifact: { path: rootRelative(root, file), revision }, resolved: ids }
+    const workDir = workDirectory(root, manifest.workId)
+    const marked = latest.text.split(/\r?\n/).map((line) => {
+      const match = /^- \[ \] (Q\d+) ::/.exec(line)
+      return match !== null && ids.includes(match[1]) ? line.replace('- [ ]', '- [x]') : line
+    }).join('\n')
+    await commitFiles(root, manifest.workId, 'revise', {
+      [relativeToWork(workDir, file)]: body.endsWith('\n') ? body : `${body}\n`,
+      [relativeToWork(workDir, reviewFile)]: marked,
     })
+    entry.currentRevision = revision
+    entry.words = countWords(body)
+    entry.status = 'revised'
+    entry.stage = 'revised'
+    entry.updatedAt = now()
+    await refreshCounters(root, manifest)
+    const written = await writeManifest(root, manifest.workId, manifest)
+    return { manifest: written, entry, artifact: { path: rootRelative(root, file), revision }, resolved: ids }
   })
 }
 
@@ -985,28 +1004,21 @@ export async function foldState(root, input) {
         `第 ${number} 章还没走完修订（当前阶段：${stageOf(entry)}）：先 story_revise 提交改动，再结算`)
     }
     lines.push(JSON.stringify({ seq: offset + 1, at: now(), chapter: number, kind: 'settle' }))
-    const journal = { undo: [] }
-    return withRollback(journal, async () => {
-      await writeAtomic(
-        eventsFile,
-        previous === '' || previous.endsWith('\n') ? `${previous}${lines.join('\n')}\n` : `${previous}\n${lines.join('\n')}\n`,
-      )
-      journal.undo.push(() => writeAtomic(eventsFile, previous))
-      const hooksFile = join(dir, 'hooks.md')
-      const previousHooks = await readOptional(hooksFile)
-      const folded = foldEvents((await readOptional(eventsFile)) ?? '')
-      await writeAtomic(hooksFile, renderHooks(folded.hooks))
-      journal.undo.push(async () => {
-        if (previousHooks === undefined) await rm(hooksFile, { force: true })
-        else await writeAtomic(hooksFile, previousHooks)
-      })
-      counts.open = folded.hooks.filter(hook => hook.state !== 'resolved').length
-      entry.stage = 'settled'
-      entry.status = 'settled'
-      entry.updatedAt = now()
-      const written = await writeManifest(root, manifest.workId, manifest)
-      return { manifest: written, counts, artifact: { path: rootRelative(root, eventsFile) } }
+    const nextEvents = previous === '' || previous.endsWith('\n')
+      ? `${previous}${lines.join('\n')}\n`
+      : `${previous}\n${lines.join('\n')}\n`
+    const folded = foldEvents(nextEvents)
+    const hooksFile = join(dir, 'hooks.md')
+    await commitFiles(root, manifest.workId, 'settle', {
+      [relativeToWork(dir, eventsFile)]: nextEvents,
+      [relativeToWork(dir, hooksFile)]: renderHooks(folded.hooks),
     })
+    counts.open = folded.hooks.filter(hook => hook.state !== 'resolved').length
+    entry.stage = 'settled'
+    entry.status = 'settled'
+    entry.updatedAt = now()
+    const written = await writeManifest(root, manifest.workId, manifest)
+    return { manifest: written, counts, artifact: { path: rootRelative(root, eventsFile) } }
   })
 }
 
