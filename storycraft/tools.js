@@ -15,7 +15,8 @@
  */
 
 import {
-  StoryError, foldState, initWork, nextStep as nextStepFor, reopenChapter as reopenChapterFor, reviseChapter,
+  StoryError, deleteWork, foldState, initWork, nextStep as nextStepFor, reopenChapter as reopenChapterFor,
+  renameWork, restoreWork, reviseChapter,
   status as readStatus, writeChapter, writePlan,
   writeReview,
 } from './storage.js'
@@ -570,6 +571,68 @@ function definitions() {
         const root = workspaceOf(exec)
         const result = await reopenChapterFor(root, { work: args.work, chapter: args.chapter })
         return { ok: true, workId: args.work, artifact: result.artifact, stage: 'written' }
+      },
+    }),
+
+    action({
+      name: 'story_rename',
+      description: '改作品的标题或作品 id（目录会一起改）。id 必须是新的、不与他人冲突；'
+        + ' 只改标题时目录不动。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '当前作品 id。' },
+          title: { type: 'string', description: '新标题；省略则不改。' },
+          workId: { type: 'string', description: '新作品 id；省略则不改。' },
+        },
+        required: ['work'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const result = await renameWork(root, {
+          work: args.work,
+          ...(typeof args.title === 'string' ? { title: args.title } : {}),
+          ...(typeof args.workId === 'string' ? { workId: args.workId } : {}),
+        })
+        return { ok: true, workId: result.workId }
+      },
+    }),
+
+    action({
+      name: 'story_delete',
+      description: '把作品移进回收站（works/.trash），不再出现在列表里；可用 story_restore 恢复。'
+        + ' 不会真的删除文件。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+        },
+        required: ['work'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const result = await deleteWork(root, { work: args.work })
+        return { ok: true, workId: result.workId, artifact: { path: result.path } }
+      },
+    }),
+
+    action({
+      name: 'story_restore',
+      description: '把回收站里最近一次删除的同名作品恢复回 works/。目标名已被占用时拒绝。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          name: { type: 'string', description: '删除前的作品 id。' },
+        },
+        required: ['name'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const result = await restoreWork(root, { name: args.name })
+        return { ok: true, workId: result.workId }
       },
     }),
 

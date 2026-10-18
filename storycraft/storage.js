@@ -292,6 +292,71 @@ export async function readManifest(root, workId) {
 }
 
 /**
+ * Recompute the derived projection of one work.
+ *
+ * It duplicates nothing the manifest owns: stages, revisions and word counts are
+ * copied, the review and hook counts are folded from artifacts. Reading it back
+ * is cheaper than rescanning every review, and deleting it loses nothing.
+ * @param {string} root - workspace directory.
+ * @param {object} manifest - work manifest with a current `updatedAt`.
+ * @returns {Promise<object>} the projection payload.
+ */
+async function computeProjection(root, manifest) {
+  const dir = workDirectory(root, manifest.workId)
+  const events = (await readOptional(join(dir, 'state', 'events.jsonl'))) ?? ''
+  const folded = foldEvents(events)
+  let openProblems = 0
+  for (const chapter of manifest.chapters) {
+    const latest = await latestReview(root, manifest, chapter)
+    if (latest !== undefined) openProblems += parseReview(latest.text).filter(item => !item.done).length
+  }
+  const written = manifest.chapters.filter(chapter => chapter.currentRevision > 0)
+  return {
+    manifestUpdatedAt: manifest.updatedAt,
+    chapters: manifest.chapters.map(chapter => ({
+      number: chapter.number,
+      stage: stageOf(chapter),
+      revision: chapter.currentRevision,
+      words: chapter.words,
+    })),
+    writtenChapters: written.length,
+    latestChapter: manifest.chapters.length === 0 ? 0 : manifest.chapters[manifest.chapters.length - 1].number,
+    openProblems,
+    hooks: {
+      opened: folded.hooks.filter(hook => hook.state === 'opened').length,
+      used: folded.hooks.filter(hook => hook.state === 'used').length,
+      resolved: folded.hooks.filter(hook => hook.state === 'resolved').length,
+      open: folded.hooks.filter(hook => hook.state !== 'resolved').length,
+    },
+    events: events.split(/\r?\n/).filter(line => line.trim() !== '').length,
+    updatedAt: now(),
+  }
+}
+
+/**
+ * Read one work's projection, rebuilding it when absent or stale.
+ * @param {string} root - workspace directory.
+ * @param {string} workId - work identity.
+ * @returns {Promise<object>} the projection.
+ */
+export async function readProjection(root, workId) {
+  const manifest = await readManifest(root, workId)
+  const file = join(workDirectory(root, manifest.workId), 'state', 'projection.json')
+  const text = await readOptional(file)
+  if (text !== undefined) {
+    try {
+      const parsed = JSON.parse(text)
+      if (parsed?.manifestUpdatedAt === manifest.updatedAt) return parsed
+    } catch {
+      // A corrupt projection is just a stale one.
+    }
+  }
+  const rebuilt = await computeProjection(root, manifest)
+  await writeAtomic(file, `${JSON.stringify(rebuilt, null, 2)}\n`).catch(() => {})
+  return rebuilt
+}
+
+/**
  * Write a manifest after its artifacts are on disk.
  *
  * The commit is rejected when another writer advanced the manifest since this
@@ -317,6 +382,11 @@ async function writeManifest(root, workId, manifest) {
   }
   const next = { ...manifest, updatedAt: now() }
   await writeAtomic(file, `${JSON.stringify(next, null, 2)}\n`)
+  // The projection is derived: a failure here costs a rebuild, not correctness.
+  const projection = await computeProjection(root, next).catch(() => undefined)
+  if (projection !== undefined) {
+    await writeAtomic(join(workDirectory(root, next.workId), 'state', 'projection.json'), `${JSON.stringify(projection, null, 2)}\n`).catch(() => {})
+  }
   return next
 }
 
@@ -411,6 +481,96 @@ export async function initWork(root, input) {
       throw error
     }
   })
+}
+
+/**
+ * Rename a work: its title, its identity, or both.
+ *
+ * The directory, the manifest and the lock path must agree afterwards, so the
+ * directory rename and the manifest write are one unit: a failure renames the
+ * directory back.
+ * @param {string} root - workspace directory.
+ * @param {{work: string, title?: string, workId?: string}} input - rename input.
+ * @returns {Promise<{workId: string, title: string}>} the new identity.
+ */
+export async function renameWork(root, input) {
+  const oldId = String(input.work)
+  return withWorkLock(root, oldId, async () => {
+    const manifest = await readManifest(root, oldId)
+    const title = typeof input.title === 'string' && input.title.trim() !== '' ? input.title.trim() : manifest.title
+    const requested = typeof input.workId === 'string' && input.workId.trim() !== '' ? input.workId.trim() : undefined
+    const newId = requested === undefined ? manifest.workId : slugify(requested)
+    if (newId === '') throw new StoryError('invalid-work-id', '作品 id 不能为空')
+    if (newId !== manifest.workId) {
+      const target = join(worksDirectory(root), newId)
+      if (await readOptional(join(target, 'manifest.json')) !== undefined) {
+        throw new StoryError('work-exists', `已经有作品 ${newId}`)
+      }
+      await rename(workDirectory(root, manifest.workId), target)
+      try {
+        manifest.workId = newId
+        manifest.title = title
+        const written = await writeManifest(root, newId, manifest)
+        return { workId: written.workId, title: written.title }
+      } catch (error) {
+        await rename(target, workDirectory(root, oldId)).catch(() => {})
+        throw error
+      }
+    }
+    manifest.title = title
+    const written = await writeManifest(root, manifest.workId, manifest)
+    return { workId: written.workId, title: written.title }
+  })
+}
+
+/**
+ * Move a work into `works/.trash`, keeping it restorable.
+ * @param {string} root - workspace directory.
+ * @param {{work: string}} input - delete input.
+ * @returns {Promise<{workId: string, path: string}>} the trashed location.
+ */
+export async function deleteWork(root, input) {
+  const workId = String(input.work)
+  return withWorkLock(root, workId, async () => {
+    const manifest = await readManifest(root, workId)
+    const trash = join(worksDirectory(root), '.trash')
+    await mkdir(trash, { recursive: true })
+    const target = join(trash, `${manifest.workId}-${Date.now()}`)
+    await rename(workDirectory(root, manifest.workId), target)
+    return { workId: manifest.workId, path: target }
+  })
+}
+
+/**
+ * Restore the newest trashed copy of one work.
+ * @param {string} root - workspace directory.
+ * @param {{name: string}} input - the work's name at trash time.
+ * @returns {Promise<{workId: string}>} the restored identity.
+ */
+export async function restoreWork(root, input) {
+  const name = String(input.name ?? '').trim()
+  if (name === '') throw new StoryError('invalid-work-id', '要恢复的作品名不能为空')
+  const trash = join(worksDirectory(root), '.trash')
+  let entries
+  try {
+    entries = await readdir(trash)
+  } catch {
+    entries = []
+  }
+  const candidates = entries.filter(entry => entry.startsWith(`${name}-`)).sort()
+  const latest = candidates[candidates.length - 1]
+  if (latest === undefined) throw new StoryError('work-not-found', `回收站里没有作品 ${name}`)
+  if (await readOptional(join(worksDirectory(root), name, 'manifest.json')) !== undefined) {
+    throw new StoryError('work-exists', `已经有作品 ${name}`)
+  }
+  const target = workDirectory(root, name)
+  await rename(join(trash, latest), target)
+  const manifest = await readManifest(root, name)
+  if (manifest.workId !== name) {
+    manifest.workId = name
+    await writeManifest(root, name, manifest)
+  }
+  return { workId: name }
 }
 
 /**

@@ -48,6 +48,20 @@ summaries/ch-0001.md    章节摘要（上限 400 字）
 - `story_summarize`：写章节摘要（超 400 字截断并报告）。
 - `story_brief`：装配写某一章前的上下文——意图、本章章纲、涉及人物、未解伏笔、上一章结尾、文风、字数口径；默认 8 KB，超预算按优先级裁剪并报告裁掉的段；同一输入两次结果逐字节一致。
 
+## 两阶段提交与投影
+
+- 写动作先把产物写进 `works/<作品>/.staging/<动作>-<时间戳>/`，整体校验后一次提交，**进度清单最后写**（提交点）；
+- 提交失败或中断：正式目录不变，暂存目录在下次写动作时清理（超过 24 小时）；
+- `state/projection.json` 是派生视图（章阶段、字数、未处理审稿、伏笔计数、事件数），每次提交重算；删掉它读取时自动重建。
+
+## 作品操作
+
+| 动作 | 行为 |
+| --- | --- |
+| `story_rename` | 改标题或作品 id；改 id 时目录一起改，冲突拒绝 |
+| `story_delete` | 移入 `works/.trash/<作品>-<时间戳>/`，不再出现在列表 |
+| `story_restore` | 恢复回收站里最近一次的同名作品 |
+
 ## 阶段机
 
 每章有一个阶段，只能沿 `已规划 → 已写 → 已审 → 已修订 → 已结算` 前进；动作在入口校验，缺前置就拒绝并指出下一步：
@@ -124,6 +138,7 @@ storycraft/
 - `node storycraft/tests/tools.test.mjs`：十二个动作的注册、schema 形状、端到端行为与拒绝条件。
 - `node storycraft/tests/bible.test.mjs`：真值校验、摘要截断、写前上下文顺序/预算/确定性、旧作品导入。
 - `node storycraft/tests/stage.test.mjs`：阶段推进、五种拒绝、reopen 回退与旧结算作废、`story_next` 判定。
+- `node storycraft/tests/work-ops.test.mjs`：改名（标题/id）、删除到回收站、恢复、投影重建与列表过滤。
 - `node storycraft/e2e/run.mjs`：起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑三条页面 spec——侧栏入口、页面读数、非长篇会话的指令门禁。不调用模型，零额度；需要本机装有 Playwright（可用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装它的目录）。
 - 端到端验收、评审与证据记录在 issue `dehuadong/dsh-nove#3`。
 
