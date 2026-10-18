@@ -730,15 +730,15 @@ window.__ModuleLoader__.load({
             h('button', {
               type: 'button',
               className: 'sc-btn sc-btn-primary',
-              title: next === undefined ? '从章纲写到审稿' : `从当前步骤写到审稿（下一步：${STEP_LABEL[next.action] ?? next.action}）`,
+              title: '写下一章：章纲 → 取上下文 → 正文 → 质检 → 审稿，停在审稿，等你决定修订',
               onClick: () => compose(INSTRUCTIONS.flowToReview(manifest.workId, next === undefined ? nextNumber : next.chapter)),
-            }, '按流程写到审稿'),
+            }, `写第 ${next === undefined ? nextNumber : next.chapter} 章（写到审稿）`),
             h('button', {
               type: 'button',
               className: 'sc-btn',
-              title: '章纲 → 正文 → 质检 → 审稿 → 修订 → 结算 → 摘要，一次做完',
+              title: '写下一章并一次做完：章纲 → 正文 → 质检 → 审稿 → 修订 → 结算 → 摘要',
               onClick: () => compose(INSTRUCTIONS.flowFull(manifest.workId, next === undefined ? nextNumber : next.chapter)),
-            }, '一次走完'),
+            }, `写第 ${next === undefined ? nextNumber : next.chapter} 章（一次做完）`),
             h('button', {
               type: 'button',
               className: 'sc-btn',
