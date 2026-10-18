@@ -828,6 +828,7 @@ window.__ModuleLoader__.load({
       const [presetHealth, setPresetHealth] = useState({ state: 'unknown' })
       const [works, setWorks] = useState([])
       const [trash, setTrash] = useState([])
+      const [trashNote, setTrashNote] = useState(undefined)
       const [selected, setSelected] = useState(undefined)
       const [notice, setNotice] = useState(undefined)
       const compose = useCallback((text) => {
@@ -870,8 +871,16 @@ window.__ModuleLoader__.load({
         try {
           const payload = await face.listWorks(context.root)
           setWorks(payload.works ?? [])
-          const trashed = await face.listTrash(context.root).catch(() => ({ items: [] }))
-          setTrash(trashed.items ?? [])
+          try {
+            const trashed = await face.listTrash(context.root)
+            setTrash(trashed.items ?? [])
+            setTrashNote(undefined)
+          } catch {
+            // The trash route lives in the Host half: a client-only reload cannot
+            // see it until DSH restarts.
+            setTrash([])
+            setTrashNote('回收站不可用：这次改了宿主路由，重启 DSH 后可见')
+          }
           setSelected(current => (payload.works ?? []).some(work => work.workId === current)
             ? current
             : (payload.works ?? [])[0]?.workId)
@@ -937,6 +946,9 @@ window.__ModuleLoader__.load({
                 h('span', { className: 'sc-work-meta' },
                   `更新 ${String(work.updatedAt ?? '').replace('T', ' ').slice(0, 16)}`),
               )),
+            trashNote === undefined
+              ? null
+              : h('p', { className: 'sc-muted', style: { padding: '0 10px', fontSize: 11 } }, trashNote),
             trash.length === 0
               ? null
               : h('div', null,
