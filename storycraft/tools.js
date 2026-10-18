@@ -15,7 +15,7 @@
  */
 
 import {
-  StoryError, deleteWork, foldState, initWork, nextStep as nextStepFor, readChapter, readManifest,
+  StoryError, deleteWork, foldState, initWork, listWorks, nextStep as nextStepFor, readChapter, readManifest,
   reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter, updateSettings,
   status as readStatus, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
 } from './storage.js'
@@ -1069,14 +1069,29 @@ function rawDefinitions() {
         additionalProperties: false,
         properties: {
           work: { type: 'string', description: '要设为当前作品的作品 id；省略则只读。' },
+          title: { type: 'string', description: '按标题指定作品（作者在对话里点名时用）。' },
         },
       },
       async execute(args, exec) {
-        if (typeof args.work === 'string' && args.work.trim() !== '') {
+        const named = typeof args.work === 'string' ? args.work.trim() : ''
+        const title = typeof args.title === 'string' ? args.title.trim() : ''
+        if (named !== '' || title !== '') {
           const root = workspaceOf(exec)
-          const manifest = await readManifest(root, args.work.trim())
+          let workId = named
+          if (workId === '') {
+            const matches = (await listWorks(root)).filter(work => work.title === title)
+            if (matches.length === 0) {
+              throw new StoryError('work-not-found', `没有标题为《${title}》的作品`)
+            }
+            if (matches.length > 1) {
+              throw new StoryError('work-ambiguous',
+                `有 ${matches.length} 部同名作品：${matches.map(work => work.workId).join('、')}，请用 work 指定 id`)
+            }
+            workId = matches[0].workId
+          }
+          const manifest = await readManifest(root, workId)
           setCurrent(sessionOf(exec), manifest.workId)
-          return { ok: true, workId: manifest.workId, current: manifest.workId }
+          return { ok: true, workId: manifest.workId, title: manifest.title, current: manifest.workId }
         }
         const current = getCurrent(sessionOf(exec))
         return current === undefined

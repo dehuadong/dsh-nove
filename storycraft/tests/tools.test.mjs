@@ -184,6 +184,11 @@ try {
   const probe = await byName.get('story_agent_probe').execute({}, exec)
   check('probe reports the missing subagent seam', probe.ok === false && probe.error.code === 'subagent-unavailable', JSON.stringify(probe))
 
+  const byTitle = await byName.get('story_current').execute({ title: '雨里的灯' }, { ...exec, agent: { ...exec.agent, id: 'session-title' } })
+  check('a work can be pointed at by title', byTitle.ok === true && byTitle.workId === work && byTitle.title === '雨里的灯', JSON.stringify(byTitle))
+  const unknownTitle = await byName.get('story_current').execute({ title: '没有这本' }, { ...exec, agent: { ...exec.agent, id: 'session-title' } })
+  check('an unknown title is refused', unknownTitle.ok === false && unknownTitle.error.code === 'work-not-found', JSON.stringify(unknownTitle))
+
   const empty = await byName.get('story_current').execute({}, { ...exec, agent: { ...exec.agent, id: 'session-none' } })
   check('no current work reads as null', empty.ok === true && empty.current === null, JSON.stringify(empty))
   const duplicateTitle = await byName.get('story_propose').execute({
