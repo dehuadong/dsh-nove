@@ -87,6 +87,8 @@ try {
   check('title must match the proposal', mismatched.ok === false && mismatched.error.code === 'proposal-mismatch', JSON.stringify(mismatched))
   const created = await byName.get('story_init').execute({ title: '雨里的灯', proposal: proposal.proposal }, exec)
   check('story_init ok', created.ok === true && typeof created.workId === 'string', JSON.stringify(created))
+  const used = JSON.parse(await readFile(join(root, 'works', '.proposals', `${proposal.proposal}.json`), 'utf8'))
+  check('the proposal records the work it became', used.workId === created.workId && typeof used.usedAt === 'string', JSON.stringify(used))
   const work = created.workId
   check('story_init wrote manifest', (await stat(join(root, 'works', work, 'manifest.json'))).isFile())
 

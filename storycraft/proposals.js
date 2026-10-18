@@ -10,6 +10,9 @@ import { mkdir, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { StoryError, now, readOptional, worksDirectory, writeAtomic } from './storage.js'
 
+/** How long an unused proposal is kept before the next write prunes it. */
+export const PROPOSAL_TTL_MS = 30 * 24 * 60 * 60 * 1000
+
 /** Directory that holds proposals, beside the works. */
 export function proposalsDirectory(root) {
   return join(worksDirectory(root), '.proposals')
@@ -48,8 +51,41 @@ export async function createProposal(root, input) {
     createdAt: now(),
   }
   await mkdir(proposalsDirectory(root), { recursive: true })
+  await pruneProposals(root)
   await writeAtomic(proposalFile(root, id), `${JSON.stringify(proposal, null, 2)}\n`)
   return proposal
+}
+
+/**
+ * Record that a proposal became a work, keeping the file as a record.
+ * @param {string} root - workspace directory.
+ * @param {string} id - proposal id.
+ * @param {string} workId - the work it produced.
+ * @returns {Promise<void>} resolves after the mark lands.
+ */
+export async function markProposalUsed(root, id, workId) {
+  const proposal = await readProposal(root, id)
+  const marked = { ...proposal, usedAt: now(), workId: String(workId) }
+  await writeAtomic(proposalFile(root, id), `${JSON.stringify(marked, null, 2)}\n`)
+}
+
+/**
+ * Drop proposals that were never used and are older than the TTL.
+ * @param {string} root - workspace directory.
+ * @returns {Promise<number>} how many were removed.
+ */
+export async function pruneProposals(root) {
+  const proposals = await listProposals(root)
+  let removed = 0
+  for (const proposal of proposals) {
+    if (typeof proposal.usedAt === 'string') continue
+    const created = Date.parse(String(proposal.createdAt))
+    if (Number.isFinite(created) && Date.now() - created > PROPOSAL_TTL_MS) {
+      await rm(proposalFile(root, proposal.id), { force: true })
+      removed += 1
+    }
+  }
+  return removed
 }
 
 /**

@@ -26,7 +26,7 @@ import {
 import { readVolumes, writeVolume } from './volumes.js'
 import { critique } from './critique.js'
 import { getCurrent, resolveWork, setCurrent } from './current.js'
-import { createProposal, readProposal } from './proposals.js'
+import { createProposal, markProposalUsed, readProposal } from './proposals.js'
 
 /**
  * The session that owns one tool call.
@@ -457,6 +457,7 @@ function rawDefinitions() {
           ...(Array.isArray(args.tags) ? { tags: args.tags } : {}),
           ...(args.wordRange === undefined ? {} : { wordRange: args.wordRange }),
         })
+        await markProposalUsed(root, proposal.id, created.workId).catch(() => {})
         return { ok: true, workId: created.workId, artifact: { path: created.path } }
       },
     }),
