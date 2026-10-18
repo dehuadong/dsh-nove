@@ -15,9 +15,9 @@
  */
 
 import {
-  StoryError, deleteWork, foldState, initWork, listWorks, nextStep as nextStepFor, readChapter, readManifest,
-  reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter, updateSettings,
-  status as readStatus, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
+  StoryError, deleteWork, foldState, initWork, latestReview, listWorks, nextStep as nextStepFor, parseReview,
+  readChapter, readManifest, reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter,
+  status as readStatus, updateSettings, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
 } from './storage.js'
 import {
   assembleBrief as assembleBriefFor, importBible as importFromDesign, readBible as readBibleEntries,
@@ -755,6 +755,100 @@ function rawDefinitions() {
         return {
           ok: true, provider, childId: String(started.childId), readOnly,
           words: written.words, artifact: written.artifact,
+        }
+      },
+    }),
+
+    action({
+      name: 'story_revise_agent',
+      description: '修订子代理：把清单条目与模式交给只读修订者，取回完整新版本，校验后由主编落盘（story_revise）。'
+        + ' 子代理不写文件；通道不可用时直接用 story_revise。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id（可省略，用会话当前作品）。' },
+          chapter: { type: 'integer', description: '章号。' },
+          mode: { type: 'string', enum: ['patch', 'polish', 'rewrite', 'deslop'], description: '修订模式，缺省 patch。' },
+          problemIds: {
+            type: 'array',
+            description: '要处理的条目 id；缺省用最新清单里未处理的条目。',
+            items: { type: 'string' },
+          },
+        },
+        required: ['chapter'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const subagents = pluginContext?.get?.('subagents')
+        const provider = subagents === undefined ? undefined : ['spawn', 'fork'].find(name => subagents.getProvider?.(name) !== undefined)
+        if (provider === undefined || exec?.agent === undefined) {
+          throw new StoryError('subagent-unavailable', '子代理通道不可用：直接用 story_revise')
+        }
+        const mode = ['patch', 'polish', 'rewrite', 'deslop'].includes(args.mode) ? args.mode : 'patch'
+        const manifest = await readManifest(root, args.work)
+        const entry = manifest.chapters.find(chapter => chapter.number === args.chapter)
+        if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${args.chapter} 章`)
+        const latest = await latestReview(root, manifest, entry)
+        if (latest === undefined) throw new StoryError('review-required', `第 ${args.chapter} 章还没有审稿清单：先审稿`)
+        const items = parseReview(latest.text)
+        const open = items.filter(item => !item.done)
+        const ids = Array.isArray(args.problemIds) && args.problemIds.length > 0
+          ? args.problemIds.map(String)
+          : open.map(item => item.id)
+        if (ids.length === 0 && mode === 'patch') {
+          throw new StoryError('missing-problems', '清单里没有未处理条目：换模式（润色/重写/去 AI 味）或先审稿')
+        }
+        const current = await readChapter(root, { work: args.work, chapter: args.chapter })
+        const selected = items.filter(item => ids.includes(item.id))
+        const task = [
+          '你是修订者：按下面的条目与模式改这一章，只返回完整新版本，不要写文件、不要调用动作。',
+          `模式：${mode}。`,
+          mode === 'patch' ? '只改条目点名的位置，其它段落逐字保留。' : '',
+          mode === 'polish' ? '只顺语气与节奏，事实与走向不动。' : '',
+          mode === 'rewrite' ? '整章重写，但事实、视角与章节走向不变。' : '',
+          mode === 'deslop' ? '按语义去腔调，不按词表删词，事实与人物声音不变。' : '',
+          selected.length === 0 ? '本次按模式整体处理，不针对具体条目。' : '要处理的条目：',
+          ...selected.map(item => `- ${item.id}：${item.problem ?? item.text ?? ''}`),
+          '输出完整新版本，用 <<<CHAPTER 与 CHAPTER>>> 包住，前后不要解释。',
+          '---当前正文开始---',
+          current.content,
+          '---当前正文结束---',
+        ].filter(line => line !== '').join('\n')
+        const canPreset = subagents.getProvider?.(provider)?.capabilities?.agentPreset === true
+        const start = presetId => subagents.startActivation({
+          provider,
+          label: `storycraft-revise-${args.chapter}`,
+          request: {
+            prompt: [{ type: 'text', text: task }],
+            parent: exec.agent,
+            ...(presetId === undefined ? {} : { agentPreset: presetId }),
+          },
+          signal: exec.signal,
+          delivery: 'caller',
+        })
+        let readOnly = canPreset
+        let started
+        try {
+          started = await start(canPreset ? 'storycraft-reviser' : undefined)
+        } catch (error) {
+          if (!canPreset) throw error
+          readOnly = false
+          started = await start(undefined)
+        }
+        const result = await started.result
+        const output = (result?.output ?? []).filter(block => block?.type === 'text').map(block => block.text).join('\n')
+        const body = parseChapterBody(output)
+        if (body === undefined) {
+          throw new StoryError('agent-output-invalid',
+            `修订者没有按契约返回完整正文（缺失标记或过短）：用 story_revise 自己改并落盘。原文：${output.slice(0, 500)}`)
+        }
+        const revised = await reviseChapter(root, {
+          work: args.work, chapter: args.chapter, body, problemIds: ids, mode,
+        })
+        return {
+          ok: true, provider, childId: String(started.childId), readOnly, mode,
+          revision: revised.artifact.revision, resolved: revised.resolved,
         }
       },
     }),

@@ -123,6 +123,41 @@
           - id: tool-skill
             name: '@deepseek-ai/dsh-tool-skill'
 
+    # 修订者子代理：按清单与模式改稿，返回完整新版本；落盘由主编完成。
+    - id: preset-storycraft-reviser
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: storycraft-reviser
+        name: 修订者
+        description: 故事工坊的修订者：按条目与模式改稿，只返回完整新版本，不写文件。
+        order: 43
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |
+                你是故事工坊的修订者。你只改稿，不写文件：没有写工具，也没有任何动作。
+                按「修订」技能执行：只动点名的位置，按模式控制幅度，未被点名的段落逐字保留，事实、视角与人物声音不变。
+                去腔调时按语义判断，不做词表替换；拿不准的地方保留原样并说明。
+                输出完整的新版本正文，用 <<<CHAPTER 与 CHAPTER>>> 包住，前后不写解释。
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+            config:
+              write: false
+              edit: false
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+          - id: storycraft-reviser-skills
+            name: 'dsh-storycraft/skills'
+            config:
+              mode: revise
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+
     - id: preset-storycraft-reviewer
       name: '@deepseek-ai/dsh-agent-preset'
       config:

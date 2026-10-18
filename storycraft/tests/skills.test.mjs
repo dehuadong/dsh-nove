@@ -35,6 +35,10 @@ const write = mount('write')
 const writeNames = (await write.provider.list()).map(skill => skill.name)
 check('the writing catalog holds the craft skill', writeNames.length === 1 && writeNames[0] === 'storycraft-write-craft', writeNames.join(','))
 
+const revise = mount('revise')
+const reviseNames = (await revise.provider.list()).map(skill => skill.name)
+check('the revise catalog holds the revise skill', reviseNames.length === 1 && reviseNames[0] === 'storycraft-revise-craft', reviseNames.join(','))
+
 const one = mount('longform')
 check('one form serves one catalog', (await one.provider.list()).length === 1)
 

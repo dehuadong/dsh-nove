@@ -22,11 +22,11 @@ const ctx = {
 tools.apply(ctx, { mode: 'longform' })
 
 const names = registered.map(definition => definition.name).sort()
-check('registers twenty-seven actions', names.length === 27, names.join(','))
+check('registers twenty-eight actions', names.length === 28, names.join(','))
 check('action names', names.join(',') === [
   'story_agent_probe', 'story_bible', 'story_bible_import', 'story_bible_write', 'story_brief', 'story_critique', 'story_current',
   'story_delete', 'story_init', 'story_next', 'story_plan', 'story_rename', 'story_reopen', 'story_restore',
-  'story_outline', 'story_propose', 'story_review', 'story_review_agent', 'story_revise', 'story_settings', 'story_state',
+  'story_outline', 'story_propose', 'story_review', 'story_review_agent', 'story_revise', 'story_revise_agent', 'story_settings', 'story_state',
   'story_status', 'story_summarize', 'story_volume', 'story_volumes', 'story_write', 'story_write_agent',
 ].sort().join(','), names.join(','))
 check('every action declares output schema', registered.every(definition => definition.output?.schema && typeof definition.output?.render === 'function'))

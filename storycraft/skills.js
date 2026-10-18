@@ -32,6 +32,7 @@ const MODES = {
   screenplay: '短剧剧本',
   review: '审稿',
   write: '写作',
+  revise: '修订',
 }
 
 /** Catalogs the studio preset serves; the review catalog belongs to its own role. */
