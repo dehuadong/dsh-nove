@@ -8,6 +8,7 @@ window.__ModuleLoader__.load({
     /** Read-only routes this bundle serves. */
     const ROUTE = {
       works: '/api/dsh-storycraft/works',
+      trash: '/api/dsh-storycraft/trash',
       work: '/api/dsh-storycraft/work',
       chapter: '/api/dsh-storycraft/chapter',
       review: '/api/dsh-storycraft/review',
@@ -33,6 +34,10 @@ window.__ModuleLoader__.load({
 .sc-work-title{font-weight:600}
 .sc-work-meta{color:var(--dsw-alias-label-secondary);font-size:12px}
 .sc-detail{min-height:0;overflow:auto;padding:20px 24px 40px}
+.sc-rename{display:flex;gap:8px;align-items:center;margin:8px 0}
+.sc-rename .sc-input{flex:1}
+.sc-trash-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 10px;font-size:12px;opacity:.8}
+.sc-btn-small{padding:2px 8px;font-size:12px}
 .sc-detail-head{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px}
 .sc-detail-title{margin:0;font-size:18px;font-weight:600}
 .sc-detail-tagline{margin:2px 0 0;color:var(--dsw-alias-label-secondary)}
@@ -168,6 +173,9 @@ window.__ModuleLoader__.load({
       revise(workId, chapter) {
         return `按作品 ${workId} 第 ${chapter} 章最新的审稿清单里未处理的条目修订正文，用 story_revise 落盘并标记处理过的条目。`
       },
+      restore(name) {
+        return `用 story_restore 把回收站里的作品 ${name} 恢复回 works/。`
+      },
       rename(workId, title) {
         return `用 story_rename 把作品 ${workId} 的标题改成「${title}」。`
       },
@@ -197,6 +205,7 @@ window.__ModuleLoader__.load({
       return {
         context: () => currentContext(ctx),
         listWorks: (root) => route(ROUTE.works, { root }),
+        listTrash: (root) => route(ROUTE.trash, { root }),
         work: (root, id) => route(ROUTE.work, { root, id }),
         chapter: (root, id, chapter, view, revision) => route(ROUTE.chapter, { root, id, chapter, view, revision }),
         review: (root, id, chapter) => route(ROUTE.review, { root, id, chapter }),
@@ -537,6 +546,7 @@ window.__ModuleLoader__.load({
       const [bible, setBible] = useState({ status: 'idle' })
       const [brief, setBrief] = useState({ status: 'idle' })
       const [briefChapter, setBriefChapter] = useState(1)
+      const [renaming, setRenaming] = useState(undefined)
 
       const load = useCallback(async () => {
         try {
@@ -600,11 +610,7 @@ window.__ModuleLoader__.load({
               type: 'button',
               className: 'sc-btn',
               title: '改作品标题（目录与 id 不变）',
-              onClick: () => {
-                const title = window.prompt('新的作品标题', manifest.title)
-                if (title === null || title.trim() === '') return
-                compose(INSTRUCTIONS.rename(manifest.workId, title.trim()))
-              },
+              onClick: () => { setRenaming(manifest.title) },
             }, '改名'),
             h('button', {
               type: 'button',
@@ -618,6 +624,33 @@ window.__ModuleLoader__.load({
             h('button', { type: 'button', className: 'sc-btn', onClick: () => { void load() } }, '刷新'),
           ),
         ),
+        renaming === undefined
+          ? null
+          : h('div', { className: 'sc-rename' },
+            h('input', {
+              className: 'sc-input',
+              value: renaming,
+              'aria-label': '新的作品标题',
+              onChange: event => setRenaming(event.target.value),
+              onKeyDown: event => {
+                if (event.key === 'Enter' && renaming.trim() !== '') {
+                  compose(INSTRUCTIONS.rename(manifest.workId, renaming.trim()))
+                  setRenaming(undefined)
+                }
+                if (event.key === 'Escape') setRenaming(undefined)
+              },
+            }),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn sc-btn-primary',
+              disabled: renaming.trim() === '',
+              onClick: () => {
+                compose(INSTRUCTIONS.rename(manifest.workId, renaming.trim()))
+                setRenaming(undefined)
+              },
+            }, '确认改名'),
+            h('button', { type: 'button', className: 'sc-btn', onClick: () => setRenaming(undefined) }, '取消'),
+          ),
         h('div', { className: 'sc-badges' },
           chapters.some(item => item.openProblems > 0)
             ? h('span', { className: 'sc-badge sc-badge-warn' }, `有 ${chapters.reduce((sum, item) => sum + item.openProblems, 0)} 条未处理审稿问题`)
@@ -794,6 +827,7 @@ window.__ModuleLoader__.load({
       const [sessionPreset, setSessionPreset] = useState(undefined)
       const [presetHealth, setPresetHealth] = useState({ state: 'unknown' })
       const [works, setWorks] = useState([])
+      const [trash, setTrash] = useState([])
       const [selected, setSelected] = useState(undefined)
       const [notice, setNotice] = useState(undefined)
       const compose = useCallback((text) => {
@@ -836,6 +870,8 @@ window.__ModuleLoader__.load({
         try {
           const payload = await face.listWorks(context.root)
           setWorks(payload.works ?? [])
+          const trashed = await face.listTrash(context.root).catch(() => ({ items: [] }))
+          setTrash(trashed.items ?? [])
           setSelected(current => (payload.works ?? []).some(work => work.workId === current)
             ? current
             : (payload.works ?? [])[0]?.workId)
@@ -901,6 +937,19 @@ window.__ModuleLoader__.load({
                 h('span', { className: 'sc-work-meta' },
                   `更新 ${String(work.updatedAt ?? '').replace('T', ' ').slice(0, 16)}`),
               )),
+            trash.length === 0
+              ? null
+              : h('div', null,
+                h('div', { className: 'sc-list-label' }, `回收站 ${trash.length}`),
+                ...trash.map(item => h('div', { className: 'sc-trash-row', key: item.path },
+                  h('span', { className: 'sc-work-title' }, item.workId),
+                  h('button', {
+                    type: 'button',
+                    className: 'sc-btn sc-btn-small',
+                    onClick: () => compose(INSTRUCTIONS.restore(item.workId)),
+                  }, '恢复'),
+                )),
+              ),
             h('div', { className: 'sc-list-label' }, '工作区'),
             h('p', { className: 'sc-muted', style: { padding: '0 10px', fontSize: 11 } },
               root === undefined ? '没有打开的会话' : root),

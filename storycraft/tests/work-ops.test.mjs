@@ -57,6 +57,11 @@ try {
   check('delete moved into trash', deleted.path.includes('.trash'), deleted.path)
   const afterDelete = await s.listWorks(root)
   check('deleted work leaves the list', !afterDelete.some(item => item.workId === 'gamma'), JSON.stringify(afterDelete.map(item => item.workId)))
+  // The trash listing reports only well-formed entries.
+  const trashed = await s.listTrash(root)
+  check('trash lists the deleted work', trashed.some(item => item.workId === 'gamma'), JSON.stringify(trashed))
+  check('trash carries the timestamp', trashed.every(item => Number.isInteger(item.trashedAt)), JSON.stringify(trashed))
+
 
   // Restore brings it back with its manifest identity fixed.
   const restored = await s.restoreWork(root, { name: 'gamma' })

@@ -621,6 +621,30 @@ export async function renameWork(root, input) {
 }
 
 /**
+ * List the works currently in the trash, newest first.
+ *
+ * Only names of the form `<workId>-<trashedAt>` are reported, so a stray
+ * directory never looks like a work.
+ * @param {string} root - workspace directory.
+ * @returns {Promise<Array<{workId: string, trashedAt: number, path: string}>>} trash entries.
+ */
+export async function listTrash(root) {
+  let entries
+  try {
+    entries = await readdir(join(worksDirectory(root), '.trash'))
+  } catch {
+    return []
+  }
+  return entries
+    .map(entry => {
+      const match = /^(.*)-(\d+)$/.exec(entry)
+      return match === null ? undefined : { workId: match[1], trashedAt: Number(match[2]), path: entry }
+    })
+    .filter(entry => entry !== undefined)
+    .sort((left, right) => right.trashedAt - left.trashedAt)
+}
+
+/**
  * Move a work into `works/.trash`, keeping it restorable.
  * @param {string} root - workspace directory.
  * @param {{work: string}} input - delete input.

@@ -13,7 +13,7 @@
 
 import { realpath } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
-import { listWorks, readChapter, readReview, readWork, StoryError } from './storage.js'
+import { listTrash, listWorks, readChapter, readReview, readWork, StoryError } from './storage.js'
 import { assembleBrief, readBible } from './bible.js'
 
 /** Requires the host web server; without it the browser surface has no data. */
@@ -151,6 +151,13 @@ export function apply(ctx) {
         const root = await rootOf(ctx, query)
         return { root, works: await listWorks(root) }
       }),
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/trash`,
+      handler: (req, res) => readRoute(req, res, async (query) => ({
+        items: await listTrash(await rootOf(ctx, query)),
+      })),
     }),
     ctx.webServer.register({
       kind: 'exact',
