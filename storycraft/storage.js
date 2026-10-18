@@ -1262,6 +1262,7 @@ export async function status(root, work) {
     })),
     writtenChapters: written.length,
     latestChapter: manifest.chapters.length === 0 ? 0 : manifest.chapters[manifest.chapters.length - 1].number,
+    ...(manifest.wordRange === undefined ? {} : { wordRange: manifest.wordRange }),
     openProblems,
     entities: folded.entities.length,
     hooks: {
@@ -1331,6 +1332,15 @@ export async function nextStep(root, work) {
   const hasPlan = (await readOptional(planFile)) !== undefined
   const hasBody = last.currentRevision > 0
   if (stage === 'settled') {
+    // The rolling window reads summaries; a settled chapter without one leaves a
+    // hole the next chapters would silently inherit.
+    const summary = await readOptional(join(dir, 'summaries', `${last.id}.md`))
+    if (summary === undefined || summary.trim() === '') {
+      return {
+        workId: manifest.workId, chapter: last.number, stage, action: 'story_summarize',
+        reason: `第 ${last.number} 章已结算但没有摘要：先补摘要，后面几章的写前上下文才用得上`, missing: ['summary'],
+      }
+    }
     const next = last.number + 1
     return { workId: manifest.workId, chapter: next, stage: 'planned', action: 'story_plan', reason: `第 ${last.number} 章已结算：写第 ${next} 章章纲`, missing: ['outline'] }
   }

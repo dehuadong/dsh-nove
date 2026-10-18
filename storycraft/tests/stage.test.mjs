@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { existsSync, mkdirSync, readdirSync } from 'node:fs'
 import * as s from '../storage.js'
+import * as b from '../bible.js'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -179,6 +180,19 @@ try {
   await utimes(leftover, old, old)
   await s.writeChapter(root, { work: stagedWork, chapter: 1, body: '第二版。'.repeat(30), rewrite: true })
   check('stale staging cleaned on the next write', !existsSync(leftover), leftover)
+
+  // A settled chapter without a summary asks for the summary first.
+  const noSummaryWork = (await s.initWork(root, { title: '无摘要' })).workId
+  await s.writePlan(root, { ...plan, work: noSummaryWork, chapter: 1 })
+  await s.writeChapter(root, { work: noSummaryWork, chapter: 1, body: '正文。'.repeat(40) })
+  await s.writeReview(root, { work: noSummaryWork, chapter: 1, problems: [{ problem: '一处' }] })
+  await s.reviseChapter(root, { work: noSummaryWork, chapter: 1, body: '改稿。'.repeat(40), problemIds: ['Q1'], mode: 'rewrite' })
+  await s.foldState(root, { work: noSummaryWork, chapter: 1, hooks: [{ text: '一处伏笔', state: 'opened' }] })
+  const afterSettle = await s.nextStep(root, noSummaryWork)
+  check('next asks for a missing summary', afterSettle.action === 'story_summarize' && afterSettle.chapter === 1, JSON.stringify(afterSettle))
+  await b.writeSummary(root, noSummaryWork, 1, '第一章摘要')
+  const afterSummary = await s.nextStep(root, noSummaryWork)
+  check('next moves on once the summary exists', afterSummary.action === 'story_plan' && afterSummary.chapter === 2, JSON.stringify(afterSummary))
 
   // A fresh work with no chapters points at chapter 1 plan.
   const empty = await s.initWork(root, { title: '空作品' })
