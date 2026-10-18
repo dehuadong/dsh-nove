@@ -174,9 +174,9 @@ window.__ModuleLoader__.load({
 
     /** Fixed instruction templates the workbench sends to the current Session. */
     const INSTRUCTIONS = {
-      flowToReview(workId, chapter) {
-        return `写作品 ${workId} 第 ${chapter} 章：按顺序做——章纲（缺则 story_plan）→ story_brief 取上下文 → 正文 story_write → story_critique 质检 → story_review 审稿。`
-          + '做到审稿为止停下，把质检指标与审稿清单报给我，等我决定修订。'
+      flowToRevision(workId, chapter) {
+        return `写作品 ${workId} 第 ${chapter} 章：按顺序做——章纲（缺则 story_plan）→ story_brief 取上下文 → 正文 story_write → story_critique 质检 → story_review 审稿 → 按清单修订 story_revise（mode 用 patch）。`
+          + '做到修订为止停下：把修订结果、剩余未处理条目与字数变化报给我，等我决定是否润色或去 AI 味，再结算。'
       },
       flowFull(workId, chapter) {
         return `写作品 ${workId} 第 ${chapter} 章并一路做完：章纲 → story_brief → 正文 → 质检 → 审稿 → 按清单修订 → 结算 → 摘要。每步结果简短汇报，结尾给出本章摘要与下一步。`
@@ -730,9 +730,9 @@ window.__ModuleLoader__.load({
             h('button', {
               type: 'button',
               className: 'sc-btn sc-btn-primary',
-              title: '写下一章：章纲 → 取上下文 → 正文 → 质检 → 审稿，停在审稿，等你决定修订',
-              onClick: () => compose(INSTRUCTIONS.flowToReview(manifest.workId, next === undefined ? nextNumber : next.chapter)),
-            }, `写第 ${next === undefined ? nextNumber : next.chapter} 章（写到审稿）`),
+              title: '写下一章：章纲 → 取上下文 → 正文 → 质检 → 审稿 → 按清单修订，停在修订，之后可润色/去 AI 味再结算',
+              onClick: () => compose(INSTRUCTIONS.flowToRevision(manifest.workId, next === undefined ? nextNumber : next.chapter)),
+            }, `写第 ${next === undefined ? nextNumber : next.chapter} 章（写到修订）`),
             h('button', {
               type: 'button',
               className: 'sc-btn',
