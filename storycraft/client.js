@@ -62,6 +62,11 @@ window.__ModuleLoader__.load({
 .sc-volume-title{font-weight:600}
 .sc-volume-form{display:flex;flex-direction:column;gap:8px;margin:10px 0;padding:10px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px}
 .sc-narrow{width:84px}
+.sc-projects{padding:4px 2px}
+.sc-project-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.sc-project{display:flex;flex-direction:column;gap:4px;text-align:left;padding:10px 12px;border-radius:10px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:inherit;font:inherit;cursor:pointer}
+.sc-project:hover{background:var(--dsw-alias-bg-layer-2)}
+.sc-project-title{font-weight:600}
 .sc-metrics{margin:10px 0;padding:10px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px}
 .sc-metrics-list{margin:6px 0 0;padding-left:18px;font-size:12px;opacity:.85}
 .sc-chapters{display:flex;flex-direction:column;gap:6px}
@@ -234,8 +239,9 @@ window.__ModuleLoader__.load({
       fold(workId, chapter) {
         return `把作品 ${workId} 第 ${chapter} 章已经发生的事实定稿进状态：人物事实与伏笔变化用 story_state 落盘。`
       },
-      create(title) {
-        return `用故事工坊立项一部长篇作品，标题《${title}》，调用 story_init 落盘后告诉我作品 id。`
+      create(title, form) {
+        const formLabel = { longform: '长篇', short: '短篇', script: '剧本' }[form] ?? '长篇'
+        return `用故事工坊立项一部${formLabel}作品，标题《${title}》，调用 story_init（form 用 ${form ?? 'longform'}）落盘后告诉我作品 id。`
       },
     }
 
@@ -416,6 +422,13 @@ window.__ModuleLoader__.load({
       return typeof preset === 'string' && preset.startsWith('storycraft')
     }
 
+    /** The forms a project may have, in the order the rail shows them. */
+    const FORMS = [
+      { id: 'longform', label: '长篇' },
+      { id: 'short', label: '短篇' },
+      { id: 'script', label: '剧本' },
+    ]
+
     /** Short label of one pipeline action. */
     const STEP_LABEL = {
       story_plan: '章纲',
@@ -450,13 +463,61 @@ window.__ModuleLoader__.load({
       return map[status] ?? status
     }
 
+    /**
+     * Home view: the projects of one form, each opening into its detail page.
+     * @param {object} props - works of this form, the form itself, open/create handlers.
+     * @returns {object} the view.
+     */
+    function ProjectList({ works, form, onOpen, onCreate }) {
+      const [title, setTitle] = useState('')
+      return h('div', { className: 'sc-projects' },
+        h('h2', { className: 'sc-detail-title' }, `${form?.label ?? '作品'}`),
+        works.length === 0
+          ? h('p', { className: 'sc-muted' }, `还没有${form?.label ?? ''}作品：在下面起一个。`)
+          : h('div', { className: 'sc-project-grid' },
+            ...works.map(work => h('button', {
+              key: work.workId,
+              type: 'button',
+              className: 'sc-project',
+              onClick: () => onOpen(work.workId),
+            },
+              h('span', { className: 'sc-project-title' }, work.title),
+              h('span', { className: 'sc-work-meta' },
+                `已写 ${work.writtenChapters}/${work.chapters} 章 · 最新第 ${work.latestChapter} 章`),
+              h('span', { className: 'sc-work-meta' },
+                `未处理 ${work.openProblems} · 更新 ${String(work.updatedAt ?? '').replace('T', ' ').slice(0, 16)}`),
+            )),
+          ),
+        h('div', { className: 'sc-field', style: { marginTop: 14 } },
+          h('input', {
+            className: 'sc-input',
+            placeholder: `新${form?.label ?? ''}作品标题`,
+            value: title,
+            onChange: event => setTitle(event.target.value),
+            onKeyDown: (event) => {
+              if (event.key === 'Enter' && title.trim() !== '') {
+                onCreate(title.trim())
+                setTitle('')
+              }
+            },
+          }),
+          h('button', {
+            type: 'button',
+            className: 'sc-btn sc-btn-primary',
+            disabled: title.trim() === '',
+            onClick: () => { onCreate(title.trim()); setTitle('') },
+          }, '立项'),
+        ),
+      )
+    }
+
     /** Empty state: no work yet, with the one instruction that creates one. */
-    function EmptyState({ face, notice, root, onCreated, canSend }) {
+    function EmptyState({ face, notice, root, form, onCreated, canSend }) {
       const [title, setTitle] = useState('')
       const submit = async () => {
         const trimmed = title.trim()
         if (trimmed === '') return
-        const failure = await face.send(INSTRUCTIONS.create(trimmed))
+        const failure = await face.send(INSTRUCTIONS.create(trimmed, form))
         onCreated(failure)
       }
       return h('div', { className: 'sc-empty' },
@@ -1137,6 +1198,7 @@ window.__ModuleLoader__.load({
       const [presetHealth, setPresetHealth] = useState({ state: 'unknown' })
       const [works, setWorks] = useState([])
       const [trash, setTrash] = useState([])
+      const [typeFilter, setTypeFilter] = useState('longform')
       const [trashNote, setTrashNote] = useState(undefined)
       const [selected, setSelected] = useState(undefined)
       const [notice, setNotice] = useState(undefined)
@@ -1190,9 +1252,10 @@ window.__ModuleLoader__.load({
             setTrash([])
             setTrashNote('回收站不可用：这次改了宿主路由，重启 DSH 后可见')
           }
+          // The home view is the default; an entered work survives a refresh.
           setSelected(current => (payload.works ?? []).some(work => work.workId === current)
             ? current
-            : (payload.works ?? [])[0]?.workId)
+            : undefined)
           setStatus('ready')
         } catch (cause) {
           setStatus('error')
@@ -1238,29 +1301,19 @@ window.__ModuleLoader__.load({
           ),
         ),
         h('div', { className: 'sc-body' },
-          h('nav', { className: 'sc-list', 'aria-label': '作品列表' },
-            h('div', { className: 'sc-list-label' }, '作品'),
-            worksList.length === 0
-              ? h('p', { className: 'sc-muted', style: { padding: '4px 10px' } }, '还没有作品')
-              : worksList.map(work => h('button', {
-                key: work.workId,
-                type: 'button',
-                className: 'sc-work',
-                'aria-current': work.workId === selected ? 'true' : 'false',
-                onClick: () => {
-                  setSelected(work.workId)
-                  setNotice(undefined)
-                  if (sessionId !== undefined) {
-                    void face.setCurrent(context.root, sessionId, work.workId).catch(() => {})
-                  }
-                },
-              },
-                h('span', { className: 'sc-work-title' }, work.title),
-                h('span', { className: 'sc-work-meta' },
-                  `${work.form} · 已写 ${work.writtenChapters}/${work.chapters} 章 · 最新第 ${work.latestChapter} 章 · 未处理 ${work.openProblems}`),
-                h('span', { className: 'sc-work-meta' },
-                  `更新 ${String(work.updatedAt ?? '').replace('T', ' ').slice(0, 16)}`),
-              )),
+          h('nav', { className: 'sc-list', 'aria-label': '作品类型' },
+            h('div', { className: 'sc-list-label' }, '类型'),
+            ...FORMS.map(form => h('button', {
+              key: form.id,
+              type: 'button',
+              className: 'sc-work',
+              'aria-current': typeFilter === form.id ? 'true' : 'false',
+              onClick: () => { setTypeFilter(form.id); setSelected(undefined); setNotice(undefined) },
+            },
+              h('span', { className: 'sc-work-title' }, form.label),
+              h('span', { className: 'sc-work-meta' },
+                `${worksList.filter(work => work.form === form.id).length} 部`),
+            )),
             trashNote === undefined
               ? null
               : h('p', { className: 'sc-muted', style: { padding: '0 10px', fontSize: 11 } }, trashNote),
@@ -1285,6 +1338,20 @@ window.__ModuleLoader__.load({
               : null,
           ),
           h('section', { className: 'sc-detail' },
+            selected === undefined
+              ? h(ProjectList, {
+                works: worksList.filter(work => work.form === typeFilter),
+                form: FORMS.find(form => form.id === typeFilter),
+                onOpen: workId => {
+                  setSelected(workId)
+                  setNotice(undefined)
+                  if (sessionId !== undefined) {
+                    void face.setCurrent(context.root, sessionId, workId).catch(() => {})
+                  }
+                },
+                onCreate: title => compose(INSTRUCTIONS.create(title, typeFilter)),
+              })
+              : null,
             presetHealth.state === 'broken'
               ? h('p', { className: 'sc-notice sc-notice-error' }, `故事工坊预设装载失败：${presetHealth.reason}`)
               : null,
@@ -1302,6 +1369,7 @@ window.__ModuleLoader__.load({
                 face,
                 notice,
                 root,
+                form: typeFilter,
                 canSend: sessionId !== undefined && isStudio(sessionPreset),
                 onCreated: failure => setNotice(failure === undefined ? { kind: 'ok', text: '立项指令已投递，等在会话里看到作品目录后刷新。' } : { kind: 'error', text: failure }),
               })

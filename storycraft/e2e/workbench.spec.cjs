@@ -61,8 +61,12 @@ test.describe('故事工坊工作台', () => {
     // The tab body must receive the composer writer; without it the tab could
     // only open a panel-local draft.
     await expect(page.locator('[data-storycraft-input="yes"]')).toHaveCount(1, { timeout: 15_000 })
-    await expect(page.getByRole('button', { name: /示例短篇/ })).toBeVisible({ timeout: 15_000 })
-    await expect(page.getByText(/longform · 已写 1\/1 章 · 最新第 1 章 · 未处理 0/)).toBeVisible()
+    // The home view lists projects by form; entering one opens its chapters.
+    const project = page.getByRole('button', { name: /示例短篇/ })
+    await expect(project).toBeVisible({ timeout: 15_000 })
+    await project.evaluate(node => node.click())
+    await expect(page.getByText(/longform · 示例短篇 · 1 章 · 已写 1 章/)).toBeVisible()
+    await expect(page.getByRole('button', { name: /^长篇/ })).toHaveCount(1)
 
     await expect(page.locator('button.sc-chapter').filter({ hasText: '灰旗' })).toBeVisible()
     await expect(page.getByText(`已定稿 · 当前版本 r2 · ${facts.words} 字 · 审稿 1 轮 · 未处理 0 条`)).toBeVisible()
@@ -86,6 +90,7 @@ test.describe('故事工坊工作台', () => {
   test('非长篇会话里下发指令只得到说明', async ({ page }) => {
     await openWorkbench(page)
     await expect(page.getByText(/当前会话是 standard 模式|当前会话不是/)).toBeVisible({ timeout: 15_000 })
+    await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())
     const nextChapter = page.getByRole('button', { name: /写第 \d+ 章（写到修订）/ })
     await expect(nextChapter).toBeEnabled()
     await nextChapter.evaluate(node => node.click())
