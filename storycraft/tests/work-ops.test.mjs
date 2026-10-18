@@ -84,6 +84,10 @@ try {
   check('deleted projection rebuilds', rebuilt.manifestUpdatedAt === first.manifestUpdatedAt, JSON.stringify(rebuilt.manifestUpdatedAt))
   check('rebuild keeps the same counts', rebuilt.writtenChapters === first.writtenChapters && rebuilt.openProblems === first.openProblems)
 
+  // A chapter without a summary says so; the page uses this to gate 定稿.
+  const beforeSummary = (await s.readWork(root, 'gamma')).chapters[0]
+  check('chapters report whether they have a summary', beforeSummary.hasSummary === false, String(beforeSummary.hasSummary))
+
   // A stage that never commits leaves the real tree untouched.
   const workDir = join(root, 'works', 'gamma')
   const crash = await openStage(workDir, 'crash')

@@ -1081,11 +1081,16 @@ window.__ModuleLoader__.load({
                             disabled: item.openProblems === 0 && reviseMode === 'patch',
                             onClick: () => compose(INSTRUCTIONS.revise(manifest.workId, item.number, reviseMode)),
                           }, '修订'),
-                        h('button', {
-                          type: 'button',
-                          className: 'sc-btn sc-btn-small',
-                          onClick: () => compose(INSTRUCTIONS.summarize(manifest.workId, item.number)),
-                        }, '摘要'),
+                        item.revision > 0 && item.hasSummary !== true
+                          ? h('button', {
+                            type: 'button',
+                            className: 'sc-btn sc-btn-small',
+                            onClick: () => compose(INSTRUCTIONS.summarize(manifest.workId, item.number)),
+                          }, '摘要')
+                          : null,
+                        item.hasSummary === true
+                          ? h('span', { className: 'sc-badge sc-badge-ok' }, '有摘要')
+                          : null,
                         item.stage === 'settled'
                           ? h('button', {
                             type: 'button',
@@ -1095,7 +1100,8 @@ window.__ModuleLoader__.load({
                           : h('button', {
                             type: 'button',
                             className: 'sc-btn sc-btn-small',
-                            disabled: item.stage !== 'revised' || item.openProblems > 0,
+                            disabled: item.stage !== 'revised' || item.openProblems > 0 || item.hasSummary !== true,
+                            title: item.hasSummary === true ? '把事实与伏笔记进书里并锁定本章' : '先写摘要，再定稿',
                             onClick: () => compose(INSTRUCTIONS.fold(manifest.workId, item.number)),
                           }, '定稿'),
                       )

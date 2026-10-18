@@ -1550,6 +1550,7 @@ export async function readWork(root, work) {
   const chapters = []
   for (const chapter of manifest.chapters) {
     const plan = await readOptional(join(dir, 'outline', `${chapter.id}.plan.md`))
+    const summary = await readOptional(join(dir, 'summaries', `${chapter.id}.md`))
     const latest = await latestReview(root, manifest, chapter)
     chapters.push({
       number: chapter.number,
@@ -1560,6 +1561,7 @@ export async function readWork(root, work) {
       words: chapter.words,
       stage: stageOf(chapter),
       hasPlan: plan !== undefined,
+      hasSummary: summary !== undefined && summary.trim() !== '',
       reviewRound: latest?.round ?? 0,
       openProblems: latest === undefined ? 0 : parseReview(latest.text).filter(item => !item.done).length,
       updatedAt: chapter.updatedAt,
