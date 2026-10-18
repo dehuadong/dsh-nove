@@ -622,9 +622,9 @@ function rawDefinitions() {
         }
         const body = await readChapter(root, { work: args.work, chapter: args.chapter })
         const task = [
-          '你是一个只读审稿人。不要修改、创建或删除任何文件；不要调用任何写文件的工具。',
-          `下面是第 ${args.chapter} 章的正文。只按正文本身找问题：情节断裂、人物动机不成立、设定自相矛盾、信息交代不清、句子重复、套话。`,
-          '输出严格 JSON，形如 {"items":[{"problem":"一句问题","where":"定位到句或段"}]}，最多 8 条，不要输出其它文字。',
+          '你是一个只读审稿人。不要修改、创建或删除任何文件；不要调用任何写文件的工具。按「审稿」技能执行。',
+          `下面是第 ${args.chapter} 章的正文。每条问题给出：问题、位置、读者影响、严重度、修复方向与建议模式。`,
+          '输出严格 JSON：{"items":[{"problem":"一句问题","where":"具体位置","impact":"读者影响","severity":"blocker / major / minor","fix":"修复方向","mode":"patch / polish / rewrite / deslop"}]}，最多 8 条，按严重度降序，不要输出其它文字。',
           '---正文开始---',
           body.content,
           '---正文结束---',

@@ -30,7 +30,11 @@ const MODES = {
   longform: '长篇小说',
   shortform: '短篇小说',
   screenplay: '短剧剧本',
+  review: '审稿',
 }
+
+/** Catalogs the studio preset serves; the review catalog belongs to its own role. */
+const STUDIO_MODES = ['shared', 'longform', 'shortform', 'screenplay']
 
 /** A mode that serves every form's catalog: the studio preset mounts this. */
 const ALL = 'all'
@@ -134,7 +138,7 @@ function readDefinition(candidate) {
  */
 export function apply(ctx, config = {}) {
   const mode = typeof config?.mode === 'string' ? config.mode : ''
-  const modes = mode === ALL ? Object.keys(MODES) : [mode]
+  const modes = mode === ALL ? STUDIO_MODES : [mode]
   if (modes.some(name => !Object.prototype.hasOwnProperty.call(MODES, name))) {
     ctx.logger?.warn?.(`storycraft-skills: unknown mode "${String(mode)}"; serving no skills`)
     return

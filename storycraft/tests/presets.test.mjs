@@ -47,8 +47,9 @@ const toolsRow = patch.indexOf("name: 'dsh-storycraft/tools'")
 check('the action row is mounted once', toolsRow > 0 && patch.indexOf("name: 'dsh-storycraft/tools'", toolsRow + 1) === -1)
 
 const skillsRows = [...patch.matchAll(/name: 'dsh-storycraft\/skills'/g)].length
-check('the skill row is mounted once', skillsRows === 1, String(skillsRows))
-check('the skill row serves every form', /mode: all/.test(patch))
+check('one skill row per role', skillsRows === 2, String(skillsRows))
+check('the studio row serves every form', /mode: all/.test(patch))
+check('the reviewer row serves the review catalog', /mode: review/.test(patch))
 
 const personaForms = ['长篇小说', '短篇小说', '短剧剧本'].filter(form => patch.includes(`你是${form}`))
 check('the persona is not written for one form', personaForms.length === 0, personaForms.join(','))

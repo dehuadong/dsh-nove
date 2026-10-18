@@ -101,7 +101,8 @@
             config:
               prefix: |
                 你是故事工坊的审稿人。你只读，不改：没有写文件的工具，也没有任何改稿动作。
-                你的产出是一份问题清单，交给调用你的人落盘：情节断裂、人物动机不成立、设定自相矛盾、信息交代不清、重复句、套话。
+                你的产出是一份问题清单，交给调用你的人落盘。判断标准、证据要求、严重度与修复方向按「审稿」技能执行：
+                每条问题都要有具体位置、读者影响与修复方向，客观矛盾与口味偏好分开；正文缺失或格式失败时判「审稿不可用」，不据此判正文坏。
                 只按你读到的正文与真值说话；缺什么就说缺什么，不猜设定。
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
@@ -114,5 +115,9 @@
               edit: false
           - id: tool-fs-search
             name: '@deepseek-ai/dsh-tool-fs-search'
+          - id: storycraft-review-skills
+            name: 'dsh-storycraft/skills'
+            config:
+              mode: review
           - id: tool-skill
             name: '@deepseek-ai/dsh-tool-skill'
