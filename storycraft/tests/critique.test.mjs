@@ -90,6 +90,16 @@ try {
   await rejects('deslop must reduce the phrase hits', 'revise-mode-violation', () => s.reviseChapter(root, {
     work, chapter: 1, body: `${'字'.repeat(600)}他不禁又心中一沉，仿佛空气凝固。`, problemIds: ['Q1'], mode: 'deslop',
   }))
+
+  // A body with no hits has nothing to remove: deslop is a no-op there, not an error.
+  const clean = (await s.initWork(root, { title: '干净正文' })).workId
+  await s.writePlan(root, { ...plan, work: clean, chapter: 1 })
+  await s.writeChapter(root, { work: clean, chapter: 1, body: '他把工具收进包里。'.repeat(20) })
+  await s.writeReview(root, { work: clean, chapter: 1, problems: [{ problem: '一处' }] })
+  const deslopped = await s.reviseChapter(root, {
+    work: clean, chapter: 1, body: '他把工具收进包里，抬头看了一眼天。'.repeat(20), problemIds: ['Q1'], mode: 'deslop',
+  })
+  check('deslop accepts a body with no hits', deslopped.entry.lastReviseMode === 'deslop')
 } finally {
   await rm(root, { recursive: true, force: true })
 }

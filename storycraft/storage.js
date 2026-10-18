@@ -1049,7 +1049,9 @@ export async function reviseChapter(root, input) {
     if (mode === 'deslop') {
       const before = critique(previous.content).aiPhrases.count
       const after = critique(body).aiPhrases.count
-      if (after >= before) {
+      // Nothing to remove means the goal is already met; a regression is what the
+      // rule exists to catch.
+      if (before > 0 && after >= before) {
         throw new StoryError('revise-mode-violation',
           `去 AI 味修订没有减少命中的腔调词（${before} → ${after}）`)
       }
