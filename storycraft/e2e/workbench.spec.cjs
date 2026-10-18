@@ -86,7 +86,7 @@ test.describe('故事工坊工作台', () => {
   test('非长篇会话里下发指令只得到说明', async ({ page }) => {
     await openWorkbench(page)
     await expect(page.getByText(/当前会话是 standard 模式|当前会话不是/)).toBeVisible({ timeout: 15_000 })
-    const nextChapter = page.getByRole('button', { name: /下一步：/ })
+    const nextChapter = page.getByRole('button', { name: /按流程写到审稿/ })
     await expect(nextChapter).toBeEnabled()
     await nextChapter.evaluate(node => node.click())
 

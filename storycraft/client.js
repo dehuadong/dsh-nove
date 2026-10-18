@@ -174,6 +174,13 @@ window.__ModuleLoader__.load({
 
     /** Fixed instruction templates the workbench sends to the current Session. */
     const INSTRUCTIONS = {
+      flowToReview(workId, chapter) {
+        return `写作品 ${workId} 第 ${chapter} 章：按顺序做——章纲（缺则 story_plan）→ story_brief 取上下文 → 正文 story_write → story_critique 质检 → story_review 审稿。`
+          + '做到审稿为止停下，把质检指标与审稿清单报给我，等我决定修订。'
+      },
+      flowFull(workId, chapter) {
+        return `写作品 ${workId} 第 ${chapter} 章并一路做完：章纲 → story_brief → 正文 → 质检 → 审稿 → 按清单修订 → 结算 → 摘要。每步结果简短汇报，结尾给出本章摘要与下一步。`
+      },
       step(workId, chapter, action) {
         const label = {
           story_plan: '写本章章纲',
@@ -720,18 +727,18 @@ window.__ModuleLoader__.load({
             h('p', { className: 'sc-detail-tagline' }, `${manifest.form} · ${manifest.workId} · ${chapters.length} 章 · 已写 ${chapters.filter(item => item.revision > 0).length} 章`),
           ),
           h('div', { className: 'sc-header-actions' },
-            next === undefined
-              ? h('button', {
-                type: 'button',
-                className: 'sc-btn sc-btn-primary',
-                onClick: () => compose(INSTRUCTIONS.step(manifest.workId, nextNumber, 'story_plan')),
-              }, `写第 ${nextNumber} 章章纲`)
-              : h('button', {
-                type: 'button',
-                className: 'sc-btn sc-btn-primary',
-                title: next.reason,
-                onClick: () => compose(INSTRUCTIONS.step(manifest.workId, next.chapter, next.action)),
-              }, `下一步：${STEP_LABEL[next.action] ?? next.action}（第 ${next.chapter} 章）`),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn sc-btn-primary',
+              title: next === undefined ? '从章纲写到审稿' : `从当前步骤写到审稿（下一步：${STEP_LABEL[next.action] ?? next.action}）`,
+              onClick: () => compose(INSTRUCTIONS.flowToReview(manifest.workId, next === undefined ? nextNumber : next.chapter)),
+            }, '按流程写到审稿'),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn',
+              title: '章纲 → 正文 → 质检 → 审稿 → 修订 → 结算 → 摘要，一次做完',
+              onClick: () => compose(INSTRUCTIONS.flowFull(manifest.workId, next === undefined ? nextNumber : next.chapter)),
+            }, '一次走完'),
             h('button', {
               type: 'button',
               className: 'sc-btn',
@@ -762,6 +769,9 @@ window.__ModuleLoader__.load({
             h('button', { type: 'button', className: 'sc-btn', onClick: () => { void load() } }, '刷新'),
           ),
         ),
+        next === undefined
+          ? null
+          : h('p', { className: 'sc-muted' }, `下一步：${STEP_LABEL[next.action] ?? next.action}（第 ${next.chapter} 章）— ${next.reason}`),
         settingsForm === undefined
           ? null
           : h('div', { className: 'sc-rename' },
