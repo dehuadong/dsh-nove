@@ -881,6 +881,12 @@ export async function readChapter(root, input) {
   const entry = manifest.chapters.find(chapter => chapter.number === number)
   if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
   const dir = workDirectory(root, manifest.workId)
+  if (input.view === 'summary') {
+    const file = join(dir, 'summaries', `${entry.id}.md`)
+    const content = await readOptional(file)
+    if (content === undefined) throw new StoryError('summary-not-found', `第 ${number} 章还没有摘要`)
+    return { path: rootRelative(root, file), content, revision: 0 }
+  }
   if (input.view === 'plan') {
     const file = join(dir, 'outline', `${entry.id}.plan.md`)
     const content = await readOptional(file)

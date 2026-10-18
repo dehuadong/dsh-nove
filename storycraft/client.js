@@ -62,6 +62,9 @@ window.__ModuleLoader__.load({
 .sc-volume-title{font-weight:600}
 .sc-volume-form{display:flex;flex-direction:column;gap:8px;margin:10px 0;padding:10px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px}
 .sc-narrow{width:84px}
+.sc-two-col{display:grid;grid-template-columns:minmax(240px,0.9fr) minmax(320px,1.1fr);gap:16px;align-items:start}
+.sc-col{min-width:0}
+.sc-chapter-actions{display:flex;flex-wrap:wrap;gap:6px;padding:6px 10px 8px 10px}
 .sc-projects{padding:4px 2px}
 .sc-project-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
 .sc-project{display:flex;flex-direction:column;gap:4px;text-align:left;padding:10px 12px;border-radius:10px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:inherit;font:inherit;cursor:pointer}
@@ -235,6 +238,9 @@ window.__ModuleLoader__.load({
       },
       reopen(workId, chapter) {
         return `把作品 ${workId} 第 ${chapter} 章的定稿撤销（story_reopen：只作废定稿，不改正文），然后重新审稿、按清单修订、再定稿。`
+      },
+      summarize(workId, chapter) {
+        return `用 story_summarize 给作品 ${workId} 第 ${chapter} 章写摘要（不超过 400 字，只写事实与状态变化）。`
       },
       fold(workId, chapter) {
         return `把作品 ${workId} 第 ${chapter} 章已经发生的事实定稿进状态：人物事实与伏笔变化用 story_state 落盘。`
@@ -552,7 +558,7 @@ window.__ModuleLoader__.load({
 
     /** One chapter reader with plan/body tabs, review list and state. */
     /** Inline editor: shows the canned instruction, lets the author add specifics. */
-    function ChapterPanel({ face, root, workId, chapter, onNotice, canSend, compose }) {
+    function ChapterPanel({ face, root, workId, chapter, onNotice, canSend, compose, hideActions }) {
       const [view, setView] = useState('body')
       const [metrics, setMetrics] = useState(undefined)
       const [reviseMode, setReviseMode] = useState('patch')
@@ -597,7 +603,7 @@ window.__ModuleLoader__.load({
             h('p', { className: 'sc-detail-tagline' },
               `${stageLabel(chapter.stage)} · 当前版本 r${chapter.revision} · ${chapter.words} 字 · 审稿 ${chapter.reviewRound} 轮 · 未处理 ${chapter.openProblems} 条`),
           ),
-          h('div', { className: 'sc-header-actions' },
+          hideActions === true ? null : h('div', { className: 'sc-header-actions' },
             chapter.stage === 'settled'
               ? null
               : h('button', {
@@ -703,6 +709,7 @@ window.__ModuleLoader__.load({
         h('div', { className: 'sc-tabs' },
           h('button', { type: 'button', className: 'sc-tab', 'aria-selected': view === 'body' ? 'true' : 'false', onClick: () => setView('body') }, '正文'),
           h('button', { type: 'button', className: 'sc-tab', 'aria-selected': view === 'plan' ? 'true' : 'false', onClick: () => setView('plan') }, '章纲'),
+          h('button', { type: 'button', className: 'sc-tab', 'aria-selected': view === 'summary' ? 'true' : 'false', onClick: () => setView('summary') }, '摘要'),
         ),
         view === 'body' && chapter.revision > 1
           ? h('div', { className: 'sc-tabs' },
@@ -759,6 +766,7 @@ window.__ModuleLoader__.load({
       const [volumeForm, setVolumeForm] = useState(undefined)
       const [settingsForm, setSettingsForm] = useState(undefined)
       const [next, setNext] = useState(undefined)
+      const [reviseMode, setReviseMode] = useState('patch')
 
       const load = useCallback(async () => {
         try {
@@ -986,51 +994,112 @@ window.__ModuleLoader__.load({
         ),
         notice === undefined ? null : h('p', { className: `sc-notice sc-notice-${notice.kind}`, style: { marginTop: 12 } }, notice.text),
 
-        h('div', { className: 'sc-section' },
-          h('h3', { className: 'sc-section-title' }, '章节'),
-          chapters.length === 0
-            ? h('p', { className: 'sc-muted' }, '还没有章节。点「写第 1 章」让模型出章纲并写正文。')
-            : h('div', null,
-              ...chapterGroups(chapters, volumes).map(group => h('div', { key: group.key, className: 'sc-volume' },
-                h('div', { className: 'sc-volume-head' },
-                  h('span', { className: 'sc-volume-title' }, group.title),
-                  h('span', { className: 'sc-badge' }, `${group.chapters.length} 章`),
-                  group.volume?.summary ? h('span', { className: 'sc-badge sc-badge-ok' }, '有卷摘要') : null,
-                  group.volume === undefined
-                    ? null
-                    : h('button', {
+        h('div', { className: 'sc-two-col' },
+          h('div', { className: 'sc-col' },
+            h('h3', { className: 'sc-section-title' }, '章节'),
+            chapters.length === 0
+              ? h('p', { className: 'sc-muted' }, '还没有章节。点「写第 1 章」让模型出章纲并写正文。')
+              : h('div', null,
+                ...chapterGroups(chapters, volumes).map(group => h('div', { key: group.key, className: 'sc-volume' },
+                  h('div', { className: 'sc-volume-head' },
+                    h('span', { className: 'sc-volume-title' }, group.title),
+                    h('span', { className: 'sc-badge' }, `${group.chapters.length} 章`),
+                    group.volume?.summary ? h('span', { className: 'sc-badge sc-badge-ok' }, '有卷摘要') : null,
+                    group.volume === undefined
+                      ? null
+                      : h('button', {
+                        type: 'button',
+                        className: 'sc-btn sc-btn-small',
+                        onClick: () => setVolumeForm({
+                          id: group.volume.id,
+                          title: group.volume.title,
+                          from: group.volume.from,
+                          to: group.volume.to,
+                          summary: group.volume.summary ?? '',
+                        }),
+                      }, '编辑卷'),
+                  ),
+                  h('div', { className: 'sc-chapters' }, ...group.chapters.map(item => h('div', { key: item.number },
+                    h('button', {
                       type: 'button',
-                      className: 'sc-btn sc-btn-small',
-                      onClick: () => setVolumeForm({
-                        id: group.volume.id,
-                        title: group.volume.title,
-                        from: group.volume.from,
-                        to: group.volume.to,
-                        summary: group.volume.summary ?? '',
-                      }),
-                    }, '编辑卷'),
-                ),
-                h('div', { className: 'sc-chapters' }, ...group.chapters.map(item => h('button', {
-                  key: item.number,
-                  type: 'button',
-                  className: 'sc-chapter',
-                  'aria-current': item.number === selected ? 'true' : 'false',
-                  onClick: () => setSelected(item.number),
-                },
-                  h('span', { className: 'sc-chapter-no' }, `第 ${item.number} 章`),
-                  h('span', { className: 'sc-chapter-title' }, item.title === '' ? '（未命名）' : item.title),
-                  h('span', { className: 'sc-badge' }, stageLabel(item.stage)),
-                  h('span', { className: 'sc-badge' }, item.hasPlan ? '有章纲' : '无章纲'),
-                  h('span', { className: 'sc-badge' }, `r${item.revision}`),
-                  h('span', { className: 'sc-badge' }, `${item.words} 字`),
-                  item.openProblems > 0 ? h('span', { className: 'sc-badge sc-badge-warn' }, `${item.openProblems} 问题`) : null,
-                ))),
-              )),
-            ),
-        ),
-
-        chapter === undefined ? null : h('div', { className: 'sc-section' },
-          h(ChapterPanel, { face, root, workId: manifest.workId, chapter, onNotice, canSend, compose }),
+                      className: 'sc-chapter',
+                      'aria-current': item.number === selected ? 'true' : 'false',
+                      onClick: () => setSelected(item.number),
+                    },
+                      h('span', { className: 'sc-chapter-no' }, `第 ${item.number} 章`),
+                      h('span', { className: 'sc-chapter-title' }, item.title === '' ? '（未命名）' : item.title),
+                      h('span', { className: 'sc-badge' }, stageLabel(item.stage)),
+                      h('span', { className: 'sc-badge' }, `r${item.revision}`),
+                      item.openProblems > 0 ? h('span', { className: 'sc-badge sc-badge-warn' }, `${item.openProblems}`) : null,
+                    ),
+                    item.number === selected
+                      ? h('div', { className: 'sc-chapter-actions' },
+                        item.stage === 'settled'
+                          ? null
+                          : h('button', {
+                            type: 'button',
+                            className: 'sc-btn sc-btn-small',
+                            disabled: item.revision === 0,
+                            onClick: () => compose(INSTRUCTIONS.review(manifest.workId, item.number)),
+                          }, '审稿'),
+                        item.stage === 'settled'
+                          ? null
+                          : h('select', {
+                            className: 'sc-input sc-narrow',
+                            'aria-label': `第 ${item.number} 章修订模式`,
+                            value: reviseMode,
+                            onChange: event => setReviseMode(event.target.value),
+                          },
+                            h('option', { value: 'patch' }, '局部修补'),
+                            h('option', { value: 'polish' }, '润色'),
+                            h('option', { value: 'rewrite' }, '重写'),
+                            h('option', { value: 'deslop' }, '去 AI 味'),
+                          ),
+                        item.stage === 'settled'
+                          ? null
+                          : h('button', {
+                            type: 'button',
+                            className: 'sc-btn sc-btn-small',
+                            disabled: item.openProblems === 0 && reviseMode === 'patch',
+                            onClick: () => compose(INSTRUCTIONS.revise(manifest.workId, item.number, reviseMode)),
+                          }, '修订'),
+                        h('button', {
+                          type: 'button',
+                          className: 'sc-btn sc-btn-small',
+                          onClick: () => compose(INSTRUCTIONS.summarize(manifest.workId, item.number)),
+                        }, '摘要'),
+                        item.stage === 'settled'
+                          ? h('button', {
+                            type: 'button',
+                            className: 'sc-btn sc-btn-small',
+                            onClick: () => compose(INSTRUCTIONS.reopen(manifest.workId, item.number)),
+                          }, '撤回定稿')
+                          : h('button', {
+                            type: 'button',
+                            className: 'sc-btn sc-btn-small',
+                            disabled: item.stage !== 'revised' || item.openProblems > 0,
+                            onClick: () => compose(INSTRUCTIONS.fold(manifest.workId, item.number)),
+                          }, '定稿'),
+                      )
+                      : null,
+                  ))),
+                )),
+              ),
+          ),
+          h('div', { className: 'sc-col' },
+            chapter === undefined
+              ? h('p', { className: 'sc-muted' }, '选一章看正文、章纲与审稿清单。')
+              : h(ChapterPanel, {
+                face,
+                root,
+                workId: manifest.workId,
+                chapter,
+                onNotice,
+                canSend,
+                compose,
+                hideActions: true,
+              }),
+          ),
         ),
 
         h('div', { className: 'sc-section' },

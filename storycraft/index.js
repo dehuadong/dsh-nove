@@ -252,7 +252,8 @@ export function apply(ctx) {
       path: `${BASE}/chapter`,
       handler: (req, res) => readRoute(req, res, async (query) => {
         const root = await rootOf(ctx, query)
-        const view = query.get('view') === 'plan' ? 'plan' : 'body'
+        const requested = query.get('view')
+        const view = requested === 'plan' || requested === 'summary' ? requested : 'body'
         const revision = Number(query.get('revision') ?? '0')
         const chapter = await readChapter(root, {
           work: workOf(query),
