@@ -1082,41 +1082,19 @@ function rawDefinitions() {
 
     action({
       name: 'story_current',
-      description: '查看或设置本会话当前在做的作品。设置后，其它动作可以省略 work。'
-        + ' 作者说“接下来写这本书”时用它；只读调用不带 work 时返回当前作品。',
+      description: '只读：本会话当前在做的作品。作品由面板进入时选定，模型不能自己切换；'
+        + ' 返回 null 时说明还没有进入任何作品，请作者在面板里进入一部。',
       parameters: {
         type: 'object',
         additionalProperties: false,
-        properties: {
-          work: { type: 'string', description: '要设为当前作品的作品 id；省略则只读。' },
-          title: { type: 'string', description: '按标题指定作品（作者在对话里点名时用）。' },
-        },
+        properties: {},
       },
       async execute(args, exec) {
-        const named = typeof args.work === 'string' ? args.work.trim() : ''
-        const title = typeof args.title === 'string' ? args.title.trim() : ''
-        if (named !== '' || title !== '') {
-          const root = workspaceOf(exec)
-          let workId = named
-          if (workId === '') {
-            const matches = (await listWorks(root)).filter(work => work.title === title)
-            if (matches.length === 0) {
-              throw new StoryError('work-not-found', `没有标题为《${title}》的作品`)
-            }
-            if (matches.length > 1) {
-              throw new StoryError('work-ambiguous',
-                `有 ${matches.length} 部同名作品：${matches.map(work => work.workId).join('、')}，请用 work 指定 id`)
-            }
-            workId = matches[0].workId
-          }
-          const manifest = await readManifest(root, workId)
-          setCurrent(sessionOf(exec), manifest.workId)
-          return { ok: true, workId: manifest.workId, title: manifest.title, current: manifest.workId }
-        }
         const current = getCurrent(sessionOf(exec))
-        return current === undefined
-          ? { ok: true, current: null }
-          : { ok: true, workId: current, current }
+        if (current === undefined) return { ok: true, current: null }
+        const root = workspaceOf(exec)
+        const manifest = await readManifest(root, current).catch(() => undefined)
+        return { ok: true, workId: current, ...(manifest === undefined ? {} : { title: manifest.title }), current }
       },
     }),
 

@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as tools from '../tools.js'
+import { setCurrent } from '../current.js'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -92,7 +93,7 @@ try {
   const work = created.workId
   check('story_init wrote manifest', (await stat(join(root, 'works', work, 'manifest.json'))).isFile())
   // From here the session is pointed at that work, as the panel would.
-  await byName.get('story_current').execute({ work }, exec)
+  setCurrent('test-session', work)
 
   const earlyPlan = await byName.get('story_plan').execute({
     work, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't',
@@ -184,10 +185,8 @@ try {
   const probe = await byName.get('story_agent_probe').execute({}, exec)
   check('probe reports the missing subagent seam', probe.ok === false && probe.error.code === 'subagent-unavailable', JSON.stringify(probe))
 
-  const byTitle = await byName.get('story_current').execute({ title: '雨里的灯' }, { ...exec, agent: { ...exec.agent, id: 'session-title' } })
-  check('a work can be pointed at by title', byTitle.ok === true && byTitle.workId === work && byTitle.title === '雨里的灯', JSON.stringify(byTitle))
-  const unknownTitle = await byName.get('story_current').execute({ title: '没有这本' }, { ...exec, agent: { ...exec.agent, id: 'session-title' } })
-  check('an unknown title is refused', unknownTitle.ok === false && unknownTitle.error.code === 'work-not-found', JSON.stringify(unknownTitle))
+  const readBack = await byName.get('story_current').execute({}, exec)
+  check('story_current reports the active work', readBack.current === work && readBack.title === '雨里的灯', JSON.stringify(readBack))
 
   const empty = await byName.get('story_current').execute({}, { ...exec, agent: { ...exec.agent, id: 'session-none' } })
   check('no current work reads as null', empty.ok === true && empty.current === null, JSON.stringify(empty))
@@ -202,8 +201,7 @@ try {
     ['proposal', 'title', 'form'].every(key => Object.keys(byName.get('story_propose').output.schema.properties).includes(key))
     && proposalResult.ok === true, JSON.stringify(proposalResult))
 
-  const pointed = await byName.get('story_current').execute({ work }, { ...exec, agent: { ...exec.agent, id: 'session-a' } })
-  check('story_current sets the session work', pointed.current === work, JSON.stringify(pointed))
+  setCurrent('session-a', work)
   await byName.get('story_status').execute({ work: 'another-book' }, { ...exec, agent: { ...exec.agent, id: 'session-a' } })
     .then(() => check('a different work is refused while one is active', false, 'expected a rejection'),
       error => check('a different work is refused while one is active', error.code === 'work-mismatch', String(error.code)))
