@@ -68,7 +68,9 @@ test.describe('故事工坊工作台', () => {
     await expect(page.getByText(`已结算 · 当前版本 r2 · ${facts.words} 字 · 审稿 1 轮 · 未处理 0 条`)).toBeVisible()
     await expect(page.getByText(/本章已结算并锁定。要补审稿或改稿：点「撤销结算」/)).toBeVisible()
     await expect(page.getByRole('button', { name: '撤销结算', exact: true })).toBeEnabled()
-    await expect(page.getByRole('button', { name: '审稿', exact: true })).toBeDisabled()
+    // A settled chapter shows only the actions that can actually do something.
+    await expect(page.getByRole('button', { name: '审稿', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '按清单修订', exact: true })).toHaveCount(0)
 
     await expect(page.getByRole('button', { name: '正文', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: '章纲', exact: true })).toBeVisible()

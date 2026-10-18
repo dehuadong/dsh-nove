@@ -473,33 +473,37 @@ window.__ModuleLoader__.load({
               `${stageLabel(chapter.stage)} · 当前版本 r${chapter.revision} · ${chapter.words} 字 · 审稿 ${chapter.reviewRound} 轮 · 未处理 ${chapter.openProblems} 条`),
           ),
           h('div', { className: 'sc-header-actions' },
-            h('button', {
-              type: 'button',
-              className: 'sc-btn sc-btn-primary',
-              onClick: () => compose(INSTRUCTIONS.review(workId, chapter.number)),
-              disabled: chapter.revision === 0 || chapter.stage === 'settled',
-              title: chapter.stage === 'settled'
-                ? '本章已结算并锁定：先「撤销结算」再审稿'
-                : '只找问题、不改正文，把问题清单落盘',
-            }, '审稿'),
-            h('select', {
-              className: 'sc-input sc-narrow',
-              'aria-label': '修订模式',
-              value: reviseMode,
-              onChange: event => setReviseMode(event.target.value),
-            },
-              h('option', { value: 'patch' }, '局部修补'),
-              h('option', { value: 'polish' }, '润色'),
-              h('option', { value: 'rewrite' }, '重写'),
-              h('option', { value: 'deslop' }, '去 AI 味'),
-            ),
-            h('button', {
-              type: 'button',
-              className: 'sc-btn',
-              onClick: () => compose(INSTRUCTIONS.revise(workId, chapter.number, reviseMode)),
-              disabled: chapter.openProblems === 0 || chapter.stage === 'settled',
-              title: chapter.stage === 'settled' ? '本章已结算：先「撤销结算」' : '按未处理的审稿条目改稿',
-            }, '按清单修订'),
+            chapter.stage === 'settled'
+              ? null
+              : h('button', {
+                type: 'button',
+                className: 'sc-btn sc-btn-primary',
+                onClick: () => compose(INSTRUCTIONS.review(workId, chapter.number)),
+                disabled: chapter.revision === 0,
+                title: '只找问题、不改正文，把问题清单落盘',
+              }, '审稿'),
+            chapter.stage === 'settled'
+              ? null
+              : h('select', {
+                className: 'sc-input sc-narrow',
+                'aria-label': '修订模式',
+                value: reviseMode,
+                onChange: event => setReviseMode(event.target.value),
+              },
+                h('option', { value: 'patch' }, '局部修补'),
+                h('option', { value: 'polish' }, '润色'),
+                h('option', { value: 'rewrite' }, '重写'),
+                h('option', { value: 'deslop' }, '去 AI 味'),
+              ),
+            chapter.stage === 'settled'
+              ? null
+              : h('button', {
+                type: 'button',
+                className: 'sc-btn',
+                onClick: () => compose(INSTRUCTIONS.revise(workId, chapter.number, reviseMode)),
+                disabled: chapter.openProblems === 0,
+                title: chapter.openProblems === 0 ? '没有未处理的审稿条目' : '按未处理的审稿条目改稿',
+              }, '按清单修订'),
             h('button', {
               type: 'button',
               className: 'sc-btn',
