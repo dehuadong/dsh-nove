@@ -1287,6 +1287,7 @@ window.__ModuleLoader__.load({
       const [works, setWorks] = useState([])
       const [trash, setTrash] = useState([])
       const [typeFilter, setTypeFilter] = useState('longform')
+      const [currentId, setCurrentId] = useState(undefined)
       const [trashNote, setTrashNote] = useState(undefined)
       const [selected, setSelected] = useState(undefined)
       const [notice, setNotice] = useState(undefined)
@@ -1328,6 +1329,10 @@ window.__ModuleLoader__.load({
           return
         }
         try {
+          if (sessionId !== undefined) {
+            const pointer = await face.getCurrent(sessionId).catch(() => ({ current: undefined }))
+            setCurrentId(pointer.current ?? undefined)
+          }
           const payload = await face.listWorks(context.root)
           setWorks(payload.works ?? [])
           try {
@@ -1385,6 +1390,10 @@ window.__ModuleLoader__.load({
             h('p', { className: 'sc-subtitle' }, '作品编排：看作品与章节，按固定指令让当前会话继续写。'),
           ),
           h('div', { className: 'sc-header-actions' },
+            currentId === undefined
+              ? null
+              : h('span', { className: 'sc-badge' },
+                `当前作品：${works.find(work => work.workId === currentId)?.title ?? currentId}`),
             h('button', { type: 'button', className: 'sc-btn', onClick: () => { void load() } }, '刷新'),
           ),
         ),
