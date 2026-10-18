@@ -39,6 +39,28 @@ export function clearCurrent(sessionId) {
 }
 
 /**
+ * Snapshot the whole pointer map, for persistence.
+ * @returns {Record<string, string>} sessionId → workId.
+ */
+export function snapshot() {
+  return Object.fromEntries(current.entries())
+}
+
+/**
+ * Load pointers from a snapshot, keeping newer in-memory entries.
+ * @param {Record<string, string>} entries - persisted map.
+ * @returns {void}
+ */
+export function hydrate(entries) {
+  if (entries === null || typeof entries !== 'object') return
+  for (const [sessionId, workId] of Object.entries(entries)) {
+    if (typeof sessionId === 'string' && typeof workId === 'string' && !current.has(sessionId)) {
+      current.set(sessionId, workId)
+    }
+  }
+}
+
+/**
  * Resolve the work an action should touch: an explicit id wins, then the
  * session's current work.
  * @param {string|undefined} sessionId - session identity.

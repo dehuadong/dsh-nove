@@ -76,7 +76,7 @@ check('missing workspace returns structured error', noWorkspace.ok === false && 
 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-tools-'))
 try {
-  const exec = { agent: { session: { header: { cwd: root } } } }
+  const exec = { agent: { id: 'test-session', session: { header: { cwd: root } } } }
   const withoutProposal = await byName.get('story_init').execute({ title: '雨里的灯' }, exec)
   check('init without a proposal is refused', withoutProposal.ok === false && withoutProposal.error.code === 'proposal-required', JSON.stringify(withoutProposal))
   const proposal = await byName.get('story_propose').execute({
@@ -91,6 +91,8 @@ try {
   check('the proposal records the work it became', used.workId === created.workId && typeof used.usedAt === 'string', JSON.stringify(used))
   const work = created.workId
   check('story_init wrote manifest', (await stat(join(root, 'works', work, 'manifest.json'))).isFile())
+  // From here the session is pointed at that work, as the panel would.
+  await byName.get('story_current').execute({ work }, exec)
 
   const earlyPlan = await byName.get('story_plan').execute({
     work, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't',
@@ -216,8 +218,9 @@ try {
   const status = await byName.get('story_status').execute({ work }, exec)
   check('story_status ok', status.ok === true && status.status.writtenChapters === 1, JSON.stringify(status.status ?? status))
 
-  const missing = await byName.get('story_status').execute({ work: '不存在' }, exec)
-  check('unknown work returns structured error', missing.ok === false && missing.error.code === 'work-not-found', JSON.stringify(missing))
+  await byName.get('story_status').execute({ work: '不存在' }, exec)
+    .then(() => check('another id is refused while one work is active', false, 'expected a rejection'),
+      error => check('another id is refused while one work is active', error.code === 'work-mismatch', String(error.code)))
 
   const manifest = JSON.parse(await readFile(join(root, 'works', work, 'manifest.json'), 'utf8'))
   check('manifest tracks revision', manifest.chapters[0].currentRevision === 3, String(manifest.chapters[0].currentRevision))

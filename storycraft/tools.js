@@ -1231,6 +1231,13 @@ function withCurrentWork(definition) {
       // One session drives one work: a call that names a different work would
       // silently write into the wrong book, so it is refused and the author
       // switches in the panel instead.
+      // Without an active work the session may not reach into the works tree at
+      // all: discussion happens before any book is entered, and the panel is the
+      // only way to point a session at one.
+      if (explicit !== undefined && current === undefined) {
+        throw new StoryError('work-not-selected',
+          '本会话还没有进入任何作品：先在面板进入一个作品，再操作它；讨论阶段不读历史作品')
+      }
       if (explicit !== undefined && current !== undefined && explicit !== current) {
         throw new StoryError('work-mismatch',
           `本会话当前作品是 ${current}，不能直接操作 ${explicit}：先在面板切换到那部作品`)

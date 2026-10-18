@@ -285,7 +285,7 @@ window.__ModuleLoader__.load({
         volumes: (root, id) => route(ROUTE.volumes, { root, id }),
         critique: (root, id, chapter) => route(ROUTE.critique, { root, id, chapter }),
         next: (root, id) => route(ROUTE.next, { root, id }),
-        getCurrent: sessionId => route(ROUTE.current, { sessionId }),
+        getCurrent: (root, sessionId) => route(ROUTE.current, { root, sessionId }),
         setCurrent: (root, sessionId, workId) => post(ROUTE.current, { root, sessionId, workId }),
         work: (root, id) => route(ROUTE.work, { root, id }),
         chapter: (root, id, chapter, view, revision) => route(ROUTE.chapter, { root, id, chapter, view, revision }),
@@ -1330,7 +1330,7 @@ window.__ModuleLoader__.load({
         }
         try {
           if (sessionId !== undefined) {
-            const pointer = await face.getCurrent(sessionId).catch(() => ({ current: undefined }))
+            const pointer = await face.getCurrent(root, sessionId).catch(() => ({ current: undefined }))
             setCurrentId(pointer.current ?? undefined)
           }
           const payload = await face.listWorks(context.root)

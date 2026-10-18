@@ -11,11 +11,11 @@
  * Nothing here writes; every mutation is an action the model calls.
  */
 
-import { realpath } from 'node:fs/promises'
+import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
 import { listTrash, listWorks, nextStep, readManifest, readChapter, readReview, readWork, StoryError } from './storage.js'
 import { critique } from './critique.js'
-import { clearCurrent, getCurrent, setCurrent } from './current.js'
+import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent, snapshot as snapshotCurrent } from './current.js'
 import { readVolumes } from './volumes.js'
 import { assembleBrief, readBible } from './bible.js'
 
@@ -112,6 +112,31 @@ async function postRoute(req, res, handler) {
 }
 
 /**
+ * Read the persisted session → work pointers of one workspace.
+ * @param {string} root - workspace directory.
+ * @returns {Promise<Record<string, string>>} the map, empty when absent.
+ */
+async function readCurrentFile(root) {
+  try {
+    const text = await readFile(join(root, 'works', '.current.json'), 'utf8')
+    const parsed = JSON.parse(text)
+    return parsed !== null && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * Persist the session → work pointers of one workspace.
+ * @param {string} root - workspace directory.
+ * @returns {Promise<void>} resolves after the write.
+ */
+async function writeCurrentFile(root) {
+  await mkdir(join(root, 'works'), { recursive: true })
+  await writeFile(join(root, 'works', '.current.json'), `${JSON.stringify(snapshotCurrent(), null, 2)}\n`, 'utf8')
+}
+
+/**
  * Whether a directory is one of the deployment's workspaces.
  *
  * The browser names the workspace it shows; the host only agrees for a
@@ -201,20 +226,27 @@ export function apply(ctx) {
             const sessionId = typeof body?.sessionId === 'string' ? body.sessionId : ''
             if (sessionId === '') throw new StoryError('session-required', '缺少 sessionId')
             const workId = typeof body?.workId === 'string' ? body.workId : ''
+            const root = await rootOf(ctx, new URLSearchParams({ root: String(body?.root ?? '') }))
             if (workId === '') {
               clearCurrent(sessionId)
+              await writeCurrentFile(root)
               return { current: undefined }
             }
-            const root = await rootOf(ctx, new URLSearchParams({ root: String(body?.root ?? '') }))
             const manifest = await readManifest(root, workId)
             setCurrent(sessionId, manifest.workId)
+            await writeCurrentFile(root)
             return { current: manifest.workId }
           })
           return
         }
-        void readRoute(req, res, async (query) => ({
-          current: getCurrent(query.get('sessionId') ?? undefined),
-        }))
+        void readRoute(req, res, async (query) => {
+          const sessionId = query.get('sessionId') ?? undefined
+          const root = query.get('root')
+          if (getCurrent(sessionId) === undefined && root !== null && root !== '') {
+            hydrateCurrent(await readCurrentFile(await rootOf(ctx, query)))
+          }
+          return { current: getCurrent(sessionId) }
+        })
       },
     }),
     ctx.webServer.register({
