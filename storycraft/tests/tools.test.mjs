@@ -197,6 +197,10 @@ try {
 
   const pointed = await byName.get('story_current').execute({ work }, { ...exec, agent: { ...exec.agent, id: 'session-a' } })
   check('story_current sets the session work', pointed.current === work, JSON.stringify(pointed))
+  await byName.get('story_status').execute({ work: 'another-book' }, { ...exec, agent: { ...exec.agent, id: 'session-a' } })
+    .then(() => check('a different work is refused while one is active', false, 'expected a rejection'),
+      error => check('a different work is refused while one is active', error.code === 'work-mismatch', String(error.code)))
+
   const withoutWork = await byName.get('story_status').execute({}, { ...exec, agent: { ...exec.agent, id: 'session-a' } })
   check('work can be omitted once the session points at it', withoutWork.ok === true && withoutWork.workId === work)
   await byName.get('story_status').execute({}, { ...exec, agent: { ...exec.agent, id: 'session-b' } })

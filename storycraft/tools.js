@@ -1225,7 +1225,17 @@ function withCurrentWork(definition) {
     ...definition,
     parameters: { ...parameters, ...(required.length === 0 ? { required: [] } : { required }) },
     async execute(args, exec) {
-      const work = resolveWork(sessionOf(exec), args?.work)
+      const session = sessionOf(exec)
+      const current = getCurrent(session)
+      const explicit = typeof args?.work === 'string' && args.work.trim() !== '' ? args.work.trim() : undefined
+      // One session drives one work: a call that names a different work would
+      // silently write into the wrong book, so it is refused and the author
+      // switches in the panel instead.
+      if (explicit !== undefined && current !== undefined && explicit !== current) {
+        throw new StoryError('work-mismatch',
+          `本会话当前作品是 ${current}，不能直接操作 ${explicit}：先在面板切换到那部作品`)
+      }
+      const work = resolveWork(session, explicit)
       if (work === undefined) {
         throw new StoryError('work-not-selected',
           '本会话还没有当前作品：先在面板进入一个作品，或在调用里带上 work')
