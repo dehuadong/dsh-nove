@@ -38,6 +38,8 @@ window.__ModuleLoader__.load({
 .sc-work-title{font-weight:600}
 .sc-work-meta{color:var(--dsw-alias-label-secondary);font-size:12px}
 .sc-detail{min-height:0;overflow:auto;padding:20px 24px 40px}
+.sc-body-detail{grid-template-columns:minmax(0,1fr)}
+.sc-back{margin:0 0 6px;padding:0;border:0;background:none;color:var(--dsw-alias-brand-primary);font:inherit;font-size:12px;cursor:pointer}
 .sc-rename{display:flex;gap:8px;align-items:center;margin:8px 0}
 .sc-rename .sc-input{flex:1}
 .sc-trash-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 10px;font-size:12px;opacity:.8}
@@ -824,6 +826,11 @@ window.__ModuleLoader__.load({
       return h('div', null,
         h('div', { className: 'sc-detail-head' },
           h('div', null,
+            h('button', {
+              type: 'button',
+              className: 'sc-back',
+              onClick: () => { setSelected(undefined); setNotice(undefined) },
+            }, '← 全部作品'),
             h('h2', { className: 'sc-detail-title' }, manifest.title),
             h('p', { className: 'sc-detail-tagline' }, `${manifest.form} · ${manifest.workId} · ${chapters.length} 章 · 已写 ${chapters.filter(item => item.revision > 0).length} 章`),
           ),
@@ -1369,8 +1376,8 @@ window.__ModuleLoader__.load({
             h('button', { type: 'button', className: 'sc-btn', onClick: () => { void load() } }, '刷新'),
           ),
         ),
-        h('div', { className: 'sc-body' },
-          h('nav', { className: 'sc-list', 'aria-label': '作品类型' },
+        h('div', { className: selected === undefined ? 'sc-body' : 'sc-body sc-body-detail' },
+          selected === undefined ? h('nav', { className: 'sc-list', 'aria-label': '作品类型' },
             h('div', { className: 'sc-list-label' }, '类型'),
             ...FORMS.map(form => h('button', {
               key: form.id,
@@ -1405,7 +1412,7 @@ window.__ModuleLoader__.load({
             sessionId === undefined
               ? h('p', { className: 'sc-muted', style: { padding: '0 10px', fontSize: 11 } }, '没有当前会话：按钮只能读，不能下发指令')
               : null,
-          ),
+          ) : null,
           h('section', { className: 'sc-detail' },
             selected === undefined
               ? h(ProjectList, {
