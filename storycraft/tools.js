@@ -24,6 +24,7 @@ import {
   assembleBrief as assembleBriefFor, importBible as importFromDesign, readBible as readBibleEntries,
   writeBible as writeBibleEntry, writeSummary as writeSummaryEntry,
 } from './bible.js'
+import { readVolumes, writeVolume } from './volumes.js'
 
 /** Requires the tool registry; without it this row stays inert. */
 export const inject = ['tools']
@@ -180,6 +181,22 @@ const OUTPUT_PROPERTIES = {
   names: { type: 'array', description: 'Character names found in the old cast file.', items: { type: 'string' } },
   truncated: { type: 'boolean' },
   cleaned: { type: 'integer', description: 'Stale staging directories removed by this action.' },
+  volumes: {
+    type: 'array',
+    description: 'Volumes of this work, ascending by their first chapter.',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        id: { type: 'string' },
+        title: { type: 'string' },
+        from: { type: 'integer' },
+        to: { type: 'integer' },
+        summary: { type: 'string' },
+      },
+      required: ['id', 'title', 'from', 'to'],
+    },
+  },
   action: { type: 'string', description: 'Action to run next, e.g. story_write.' },
   chapter: { type: 'integer', description: 'Chapter number the next step applies to.' },
   reason: { type: 'string', description: 'Why that action is next.' },
@@ -637,6 +654,54 @@ function definitions() {
         const root = workspaceOf(exec)
         const result = await restoreWork(root, { name: args.name })
         return { ok: true, workId: result.workId }
+      },
+    }),
+
+    action({
+      name: 'story_volume',
+      description: '分卷：新建或更新一卷（标题、起止章、可选摘要）。'
+        + ' 卷数不固定、按故事线由作者确认；区间不得与其它卷重叠，章必须已存在。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+          id: { type: 'string', description: '要更新的卷 id；省略则新建。' },
+          title: { type: 'string', description: '卷标题。' },
+          from: { type: 'integer', description: '起始章号（含）。' },
+          to: { type: 'integer', description: '结束章号（含）。' },
+          summary: { type: 'string', description: '可选：本卷的短摘要。' },
+        },
+        required: ['work', 'title', 'from', 'to'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const result = await writeVolume(root, {
+          work: args.work,
+          ...(typeof args.id === 'string' ? { id: args.id } : {}),
+          title: args.title,
+          from: args.from,
+          to: args.to,
+          ...(typeof args.summary === 'string' ? { summary: args.summary } : {}),
+        })
+        return { ok: true, workId: args.work, volumes: result.volumes, volume: result.volume }
+      },
+    }),
+
+    action({
+      name: 'story_volumes',
+      description: '只读：列出作品的卷与起止章。写新章前想知道自己在哪一卷、上一卷写到哪时用它。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+        },
+        required: ['work'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        return { ok: true, workId: args.work, volumes: await readVolumes(root, args.work) }
       },
     }),
 

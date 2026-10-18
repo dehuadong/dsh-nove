@@ -110,8 +110,8 @@ try {
   // The staged set is validated before anything lands.
   await s.commitFiles(root, 'gamma', 'escape', { '../escape.md': 'x\n' })
     .then(() => check('escaping path rejected', false), error => check('escaping path rejected', error.code === 'invalid-path'))
-  await s.commitFiles(root, 'gamma', 'empty', { 'chapters/ch-0003.md': '' })
-    .then(() => check('empty artifact rejected', false), error => check('empty artifact rejected', error.code === 'empty-artifact'))
+  await s.commitFiles(root, 'gamma', 'empty', { 'chapters/ch-0003.md': null })
+    .then(() => check('non-string artifact rejected', false), error => check('non-string artifact rejected', error.code === 'invalid-artifact'))
 
   // Restoring `a` must not pick up `a-b`'s trashed copy.
   const shadow = await s.initWork(root, { title: '影子' })

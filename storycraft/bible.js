@@ -14,6 +14,7 @@ import {
   StoryError, chapterNumber, chapterStem, foldEvents, readChapter, readManifest, readOptional, rootRelative,
   commitFiles, withWorkLock, workDirectory, writeAtomic,
 } from './storage.js'
+import { readVolumes, volumeOf } from './volumes.js'
 
 /** Every truth file, with how its content is validated. */
 export const BIBLE_FILES = {
@@ -359,6 +360,8 @@ export async function assembleBrief(root, workId, chapter) {
     section('plan', '本章章纲', planText, `outline/${entry.id}.plan.md`, { absent: plan === undefined }),
     section('characters', '本章涉及人物', characterText, 'bible/characters.json', { fallback: matched.length === 0 }),
     section('hooks', '未解伏笔', hookText, 'state/events.jsonl', { absent: hooks.length === 0 }),
+    await volumeSummarySection(root, manifest, number),
+    await recentSummariesSection(root, manifest, number),
     await previousSection(root, manifest, number),
     section('style', '文风要点', raw.style, 'bible/style.md'),
     section('wordPolicy', '字数口径', WORD_POLICY, 'storycraft'),
@@ -398,6 +401,47 @@ function section(name, title, content, source, options = {}) {
     ...(options.fallback === true ? { fallback: true } : {}),
     ...(options.bodyFallback === true ? { bodyFallback: true } : {}),
   }
+}
+
+/** How many recent chapter summaries the rolling window carries. */
+export const RECENT_SUMMARY_WINDOW = 5
+
+/**
+ * The volume that owns the chapter, as one brief section.
+ * @param {string} root - workspace directory.
+ * @param {object} manifest - work manifest.
+ * @param {number} number - chapter being written.
+ * @returns {Promise<object>} section record.
+ */
+async function volumeSummarySection(root, manifest, number) {
+  const volumes = await readVolumes(root, manifest.workId).catch(() => [])
+  const volume = volumeOf(volumes, number)
+  if (volume === undefined) return section('volumeSummary', '本卷摘要', '', '', { absent: true })
+  const summary = typeof volume.summary === 'string' ? volume.summary.trim() : ''
+  return section('volumeSummary', `本卷摘要（${volume.title}）`, summary, 'bible/volumes.json', { absent: summary === '' })
+}
+
+/**
+ * Summaries of the previous chapters, newest window only.
+ *
+ * This is the rolling window: writing chapter 60 reads the same number of
+ * sections as writing chapter 6.
+ * @param {string} root - workspace directory.
+ * @param {object} manifest - work manifest.
+ * @param {number} number - chapter being written.
+ * @returns {Promise<object>} section record.
+ */
+async function recentSummariesSection(root, manifest, number) {
+  const first = Math.max(1, number - RECENT_SUMMARY_WINDOW)
+  const lines = []
+  for (let chapter = first; chapter < number; chapter += 1) {
+    const text = await readSummary(root, manifest.workId, chapter)
+    if (text === undefined || text.trim() === '') continue
+    lines.push(`第 ${chapter} 章：${text.trim()}`)
+  }
+  return section('recentSummaries', `最近 ${lines.length} 章摘要`, lines.join('\n'), 'summaries/', {
+    absent: lines.length === 0,
+  })
 }
 
 /**

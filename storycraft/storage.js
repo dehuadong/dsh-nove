@@ -336,8 +336,10 @@ export async function commitFiles(root, workId, operation, files, hooks = {}) {
     if (normalized.startsWith('/') || normalized.split('/').includes('..')) {
       throw new StoryError('invalid-path', `暂存路径非法：${relativePath}`)
     }
-    if (typeof content !== 'string' || content === '') {
-      throw new StoryError('empty-artifact', `暂存内容为空：${relativePath}`)
+    // Empty content is a legitimate artifact (an author may clear intent.md);
+    // a non-string is not.
+    if (typeof content !== 'string') {
+      throw new StoryError('invalid-artifact', `暂存内容不是字符串：${relativePath}`)
     }
   }
   const stage = await openStage(workDir, operation)

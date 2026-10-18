@@ -9,6 +9,7 @@ window.__ModuleLoader__.load({
     const ROUTE = {
       works: '/api/dsh-storycraft/works',
       trash: '/api/dsh-storycraft/trash',
+      volumes: '/api/dsh-storycraft/volumes',
       work: '/api/dsh-storycraft/work',
       chapter: '/api/dsh-storycraft/chapter',
       review: '/api/dsh-storycraft/review',
@@ -53,6 +54,11 @@ window.__ModuleLoader__.load({
 .sc-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 .sc-section{margin-top:22px}
 .sc-section-title{margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:.06em;color:var(--dsw-alias-label-secondary);text-transform:uppercase}
+.sc-volume{margin-bottom:14px}
+.sc-volume-head{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px}
+.sc-volume-title{font-weight:600}
+.sc-volume-form{display:flex;flex-direction:column;gap:8px;margin:10px 0;padding:10px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px}
+.sc-narrow{width:84px}
 .sc-chapters{display:flex;flex-direction:column;gap:6px}
 .sc-chapter{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:8px 12px;border-radius:10px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:inherit;font:inherit;cursor:pointer}
 .sc-chapter:hover{background:var(--dsw-alias-bg-layer-2)}
@@ -173,6 +179,13 @@ window.__ModuleLoader__.load({
       revise(workId, chapter) {
         return `按作品 ${workId} 第 ${chapter} 章最新的审稿清单里未处理的条目修订正文，用 story_revise 落盘并标记处理过的条目。`
       },
+      volume(workId, volume) {
+        const summary = typeof volume.summary === 'string' && volume.summary.trim() !== ''
+          ? `，摘要：${volume.summary.trim()}`
+          : ''
+        const id = volume.id === undefined ? '' : `（更新卷 ${volume.id}）`
+        return `用 story_volume 给作品 ${workId} 分卷${id}：标题「${volume.title}」，第 ${volume.from}–${volume.to} 章${summary}。`
+      },
       restore(name) {
         return `用 story_restore 把回收站里的作品 ${name} 恢复回 works/。`
       },
@@ -206,6 +219,7 @@ window.__ModuleLoader__.load({
         context: () => currentContext(ctx),
         listWorks: (root) => route(ROUTE.works, { root }),
         listTrash: (root) => route(ROUTE.trash, { root }),
+        volumes: (root, id) => route(ROUTE.volumes, { root, id }),
         work: (root, id) => route(ROUTE.work, { root, id }),
         chapter: (root, id, chapter, view, revision) => route(ROUTE.chapter, { root, id, chapter, view, revision }),
         review: (root, id, chapter) => route(ROUTE.review, { root, id, chapter }),
@@ -547,11 +561,15 @@ window.__ModuleLoader__.load({
       const [brief, setBrief] = useState({ status: 'idle' })
       const [briefChapter, setBriefChapter] = useState(1)
       const [renaming, setRenaming] = useState(undefined)
+      const [volumes, setVolumes] = useState([])
+      const [volumeForm, setVolumeForm] = useState(undefined)
 
       const load = useCallback(async () => {
         try {
           const payload = await face.work(root, workId)
           setDetail({ status: 'ready', ...payload })
+          const listed = await face.volumes(root, workId).catch(() => ({ volumes: [] }))
+          setVolumes(listed.volumes ?? [])
           setSelected(current => current ?? (payload.chapters.length === 0 ? undefined : payload.chapters[payload.chapters.length - 1].number))
         } catch (error) {
           setDetail({ status: 'error', error: error instanceof Error ? error.message : String(error) })
@@ -609,6 +627,12 @@ window.__ModuleLoader__.load({
             h('button', {
               type: 'button',
               className: 'sc-btn',
+              title: '把若干章划成一卷（模型建议，作者确认）',
+              onClick: () => setVolumeForm({ title: '', from: 1, to: chapters.length === 0 ? 1 : chapters.length, summary: '' }),
+            }, '新建卷'),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn',
               title: '改作品标题（目录与 id 不变）',
               onClick: () => { setRenaming(manifest.title) },
             }, '改名'),
@@ -624,6 +648,54 @@ window.__ModuleLoader__.load({
             h('button', { type: 'button', className: 'sc-btn', onClick: () => { void load() } }, '刷新'),
           ),
         ),
+        volumeForm === undefined
+          ? null
+          : h('div', { className: 'sc-volume-form' },
+            h('input', {
+              className: 'sc-input',
+              placeholder: '卷标题，例如：第一折：塌方',
+              value: volumeForm.title,
+              'aria-label': '卷标题',
+              onChange: event => setVolumeForm(form => ({ ...form, title: event.target.value })),
+            }),
+            h('div', { className: 'sc-actions' },
+              h('input', {
+                className: 'sc-input sc-narrow',
+                type: 'number',
+                value: volumeForm.from,
+                'aria-label': '起始章',
+                onChange: event => setVolumeForm(form => ({ ...form, from: Number(event.target.value) })),
+              }),
+              h('span', { className: 'sc-muted' }, '到'),
+              h('input', {
+                className: 'sc-input sc-narrow',
+                type: 'number',
+                value: volumeForm.to,
+                'aria-label': '结束章',
+                onChange: event => setVolumeForm(form => ({ ...form, to: Number(event.target.value) })),
+              }),
+            ),
+            h('textarea', {
+              className: 'sc-input',
+              rows: 2,
+              placeholder: '可选：本卷摘要',
+              value: volumeForm.summary,
+              'aria-label': '卷摘要',
+              onChange: event => setVolumeForm(form => ({ ...form, summary: event.target.value })),
+            }),
+            h('div', { className: 'sc-actions' },
+              h('button', {
+                type: 'button',
+                className: 'sc-btn sc-btn-primary',
+                disabled: volumeForm.title.trim() === '',
+                onClick: () => {
+                  compose(INSTRUCTIONS.volume(manifest.workId, volumeForm))
+                  setVolumeForm(undefined)
+                },
+              }, volumeForm.id === undefined ? '创建卷' : '保存卷'),
+              h('button', { type: 'button', className: 'sc-btn', onClick: () => setVolumeForm(undefined) }, '取消'),
+            ),
+          ),
         renaming === undefined
           ? null
           : h('div', { className: 'sc-rename' },
@@ -664,21 +736,43 @@ window.__ModuleLoader__.load({
           h('h3', { className: 'sc-section-title' }, '章节'),
           chapters.length === 0
             ? h('p', { className: 'sc-muted' }, '还没有章节。点「写第 1 章」让模型出章纲并写正文。')
-            : h('div', { className: 'sc-chapters' }, ...chapters.map(item => h('button', {
-              key: item.number,
-              type: 'button',
-              className: 'sc-chapter',
-              'aria-current': item.number === selected ? 'true' : 'false',
-              onClick: () => setSelected(item.number),
-            },
-              h('span', { className: 'sc-chapter-no' }, `第 ${item.number} 章`),
-              h('span', { className: 'sc-chapter-title' }, item.title === '' ? '（未命名）' : item.title),
-              h('span', { className: 'sc-badge' }, stageLabel(item.stage)),
-              h('span', { className: 'sc-badge' }, item.hasPlan ? '有章纲' : '无章纲'),
-              h('span', { className: 'sc-badge' }, `r${item.revision}`),
-              h('span', { className: 'sc-badge' }, `${item.words} 字`),
-              item.openProblems > 0 ? h('span', { className: 'sc-badge sc-badge-warn' }, `${item.openProblems} 问题`) : null,
-            ))),
+            : h('div', null,
+              ...chapterGroups(chapters, volumes).map(group => h('div', { key: group.key, className: 'sc-volume' },
+                h('div', { className: 'sc-volume-head' },
+                  h('span', { className: 'sc-volume-title' }, group.title),
+                  h('span', { className: 'sc-badge' }, `${group.chapters.length} 章`),
+                  group.volume?.summary ? h('span', { className: 'sc-badge sc-badge-ok' }, '有卷摘要') : null,
+                  group.volume === undefined
+                    ? null
+                    : h('button', {
+                      type: 'button',
+                      className: 'sc-btn sc-btn-small',
+                      onClick: () => setVolumeForm({
+                        id: group.volume.id,
+                        title: group.volume.title,
+                        from: group.volume.from,
+                        to: group.volume.to,
+                        summary: group.volume.summary ?? '',
+                      }),
+                    }, '编辑卷'),
+                ),
+                h('div', { className: 'sc-chapters' }, ...group.chapters.map(item => h('button', {
+                  key: item.number,
+                  type: 'button',
+                  className: 'sc-chapter',
+                  'aria-current': item.number === selected ? 'true' : 'false',
+                  onClick: () => setSelected(item.number),
+                },
+                  h('span', { className: 'sc-chapter-no' }, `第 ${item.number} 章`),
+                  h('span', { className: 'sc-chapter-title' }, item.title === '' ? '（未命名）' : item.title),
+                  h('span', { className: 'sc-badge' }, stageLabel(item.stage)),
+                  h('span', { className: 'sc-badge' }, item.hasPlan ? '有章纲' : '无章纲'),
+                  h('span', { className: 'sc-badge' }, `r${item.revision}`),
+                  h('span', { className: 'sc-badge' }, `${item.words} 字`),
+                  item.openProblems > 0 ? h('span', { className: 'sc-badge sc-badge-warn' }, `${item.openProblems} 问题`) : null,
+                ))),
+              )),
+            ),
         ),
 
         chapter === undefined ? null : h('div', { className: 'sc-section' },
@@ -815,6 +909,28 @@ window.__ModuleLoader__.load({
     /** Tab chip title. */
     function StorycraftTabTitle() {
       return h('span', null, '故事工坊')
+    }
+
+    /**
+     * Group chapters by volume, unassigned last.
+     * @param {object[]} chapters - chapter rows.
+     * @param {object[]} volumes - volumes of the work.
+     * @returns {Array<{key: string, title: string, volume?: object, chapters: object[]}>} groups.
+     */
+    function chapterGroups(chapters, volumes) {
+      const groups = volumes
+        .slice()
+        .sort((left, right) => left.from - right.from)
+        .map(volume => ({
+          key: `v-${volume.id}`,
+          title: `${volume.title}（${volume.from}–${volume.to}）`,
+          volume,
+          chapters: chapters.filter(item => item.number >= volume.from && item.number <= volume.to),
+        }))
+      const covered = new Set(groups.flatMap(group => group.chapters.map(item => item.number)))
+      const rest = chapters.filter(item => !covered.has(item.number))
+      if (rest.length > 0) groups.push({ key: 'unassigned', title: '未分卷', chapters: rest })
+      return groups
     }
 
     /** The workbench page. */
