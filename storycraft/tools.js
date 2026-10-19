@@ -1,8 +1,10 @@
 /**
- * Story actions for the long-form preset.
+ * Story actions for the storycraft work mode.
  *
  * The preset mounts this module, so `ctx.tools.register` files every action in
  * that preset's scope: only sessions composed from this mode see `story_*`.
+ * The same scope owns the delegation guard: subagents spawned into this
+ * composition may read, but their file writes and landing actions are refused.
  * Each action turns model input into artifacts under `<workspace>/works/<work>/`
  * and returns the artifact paths with their revisions; a failure never leaves a
  * partial chapter behind (see `storage.js`).
@@ -15,7 +17,7 @@
  */
 
 import {
-  StoryError, deleteWork, foldState, initWork, latestReview, listWorks, nextStep as nextStepFor, parseReview,
+  StoryError, deleteWork, foldState, initWork, listWorks, nextStep as nextStepFor,
   readChapter, readManifest, reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter,
   status as readStatus, updateSettings, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
 } from './storage.js'
@@ -26,9 +28,7 @@ import {
 } from './bible.js'
 import { readVolumes, writeVolume } from './volumes.js'
 import { critique } from './critique.js'
-import { assembleRoleContext } from './context.js'
-import { checkConsistency } from './consistency.js'
-import { getCurrent, resolveWork, setCurrent } from './current.js'
+import { getCurrent, resolveWork } from './current.js'
 import { createProposal, markProposalUsed, readProposal } from './proposals.js'
 
 /**
@@ -44,111 +44,33 @@ function sessionOf(exec) {
   return typeof id === 'string' && id !== '' ? id : undefined
 }
 
+/**
+ * Delegation depth of the calling agent.
+ *
+ * A spawned subagent's session header carries the depth fixed at delegation,
+ * so a resumed child keeps it; the main session is 0.
+ * @param {object} exec - tool run context.
+ * @returns {number} positive delegation depth, or 0 for the main session.
+ */
+function delegationDepthOf(exec) {
+  const depth = exec?.agent?.session?.header?.delegationDepth
+  return typeof depth === 'number' && depth > 0 ? depth : 0
+}
+
+/**
+ * Tools a delegated subagent may not call.
+ *
+ * Subagents return text; the delegating agent lands artifacts through the
+ * `story_*` actions, so their file and shell access is refused at runtime
+ * rather than hidden from the tool catalog.
+ */
+const DELEGATED_DENIED_TOOLS = new Set(['write', 'edit', 'pwsh', 'bash'])
+
+/** Model-facing denial shared by the guard and the mutating actions. */
+const DELEGATED_DENIAL = '你是被派发的子代理：只把结果返回给派发者，不写文件。落盘由派发者用故事工坊动作完成。'
+
 /** Requires the tool registry; without it this row stays inert. */
 export const inject = ['tools']
-
-/** Plugin context of the mounted preset, used by tools that need host services. */
-let pluginContext
-
-/**
- * Pull a findings list out of a child agent's answer.
- *
- * The child is asked for JSON, but models wrap it in prose or fences; the parser
- * accepts both shapes and returns undefined when nothing usable is found.
- * @param {string} text - child output.
- * @returns {Array<{problem: string, where?: string}>|undefined} findings.
- */
-export function parseFindings(text) {
-  const raw = String(text ?? '')
-  const fenced = /```(?:json)?\s*([\s\S]*?)```/u.exec(raw)
-  const candidate = fenced === null ? raw : fenced[1]
-  const start = candidate.indexOf('{')
-  const end = candidate.lastIndexOf('}')
-  const arrayStart = candidate.indexOf('[')
-  const arrayEnd = candidate.lastIndexOf(']')
-  const slice = start !== -1 && end > start && (arrayStart === -1 || start < arrayStart)
-    ? candidate.slice(start, end + 1)
-    : arrayStart !== -1 && arrayEnd > arrayStart ? candidate.slice(arrayStart, arrayEnd + 1) : candidate
-  let parsed
-  try {
-    parsed = JSON.parse(slice)
-  } catch {
-    return undefined
-  }
-  const list = Array.isArray(parsed) ? parsed : parsed?.items ?? parsed?.problems
-  if (!Array.isArray(list)) return undefined
-  const findings = list
-    .map(item => {
-      const problem = typeof item === 'string' ? item : item?.problem
-      if (typeof problem !== 'string' || problem.trim() === '') return undefined
-      return {
-        problem: problem.trim().slice(0, 300),
-        ...(typeof item?.where === 'string' && item.where.trim() !== '' ? { where: item.where.trim().slice(0, 120) } : {}),
-      }
-    })
-    .filter(item => item !== undefined)
-  return findings.length === 0 ? undefined : findings
-}
-
-/**
- * Split a writer child's answer into an optional title and the body.
- *
- * Title is optional (`<<<TITLE … TITLE>>>`); a missing or empty title leaves the
- * chapter unnamed rather than inventing one.
- * @param {string} text - child output.
- * @returns {{title: string, body: string}|undefined} parsed output.
- */
-export function parseWriterOutput(text) {
-  const raw = String(text ?? '')
-  const body = parseChapterBody(raw)
-  if (body === undefined) return undefined
-  const match = /<<<TITLE\s*([\s\S]*?)\s*TITLE>>>/u.exec(raw)
-  const title = match === null ? '' : match[1].replace(/\s+/gu, ' ').trim().slice(0, 60)
-  return { title, body }
-}
-
-/**
- * Pull the chapter body out of a writer child's answer.
- *
- * The child wraps its prose in `<<<CHAPTER` / `CHAPTER>>>`; a missing marker means
- * the answer was truncated or off-contract, which the parent must not persist.
- * @param {string} text - child output.
- * @returns {string|undefined} the body, or undefined when the contract failed.
- */
-export function parseChapterBody(text) {
-  const raw = String(text ?? '')
-  const start = raw.indexOf('<<<CHAPTER')
-  const end = raw.lastIndexOf('CHAPTER>>>')
-  if (start === -1 || end === -1 || end <= start) return undefined
-  const body = raw
-    .slice(start + '<<<CHAPTER'.length, end)
-    // A child may emit the fence twice; never persist the fence itself.
-    .replace(/^\s*<<<CHAPTER\s*$/gmu, '')
-    .replace(/^\s*CHAPTER>>>\s*$/gmu, '')
-    .trim()
-  if (body.length < 200) return undefined
-  return `${body}\n`
-}
-
-/**
- * Read a JSON object out of a planner child's answer.
- * @param {string} text - child output.
- * @returns {object|undefined} the object, or undefined when nothing parses.
- */
-export function parsePlanJson(text) {
-  const raw = String(text ?? '')
-  const fenced = /```(?:json)?\s*([\s\S]*?)```/u.exec(raw)
-  const candidate = fenced === null ? raw : fenced[1]
-  const start = candidate.indexOf('{')
-  const end = candidate.lastIndexOf('}')
-  if (start === -1 || end <= start) return undefined
-  try {
-    const parsed = JSON.parse(candidate.slice(start, end + 1))
-    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : undefined
-  } catch {
-    return undefined
-  }
-}
 
 /** Provider label used in diagnostics. */
 export const name = 'storycraft-tools'
@@ -314,68 +236,6 @@ const OUTPUT_PROPERTIES = {
   title: {
     type: 'string',
     description: '作品或提案的标题。',
-  },
-  provider: {
-    type: 'string',
-    description: '子代理后端名（spawn / fork）。',
-  },
-  items: {
-    type: 'integer',
-    description: '子代理产出的审稿条目数。',
-  },
-  contextTrace: {
-    type: 'object',
-    description: '本次派活的上下文轨迹：预算、压缩与裁掉、每段来源与字符数。',
-    additionalProperties: false,
-    properties: {
-      budget: { type: 'integer' },
-      dropped: { type: 'array', items: { type: 'string' } },
-      trimmed: { type: 'array', items: { type: 'string' } },
-      overflow: { type: 'boolean' },
-      missing: {
-        type: 'array',
-        items: {
-          type: 'object',
-          additionalProperties: false,
-          properties: { name: { type: 'string' }, reason: { type: 'string' } },
-          required: ['name', 'reason'],
-        },
-      },
-      sections: {
-        type: 'array',
-        items: {
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            name: { type: 'string' },
-            protection: { type: 'string' },
-            source: { type: 'string' },
-            chars: { type: 'integer' },
-            dropped: { type: 'boolean' },
-            trimmed: { type: 'boolean' },
-          },
-          required: ['name', 'protection', 'chars'],
-        },
-      },
-    },
-    required: ['budget', 'sections'],
-  },
-  warnings: {
-    type: 'array',
-    description: '一致性校验的警告（自造地名、未在上下文出现的尺寸/数量）。',
-    items: { type: 'string' },
-  },
-  readOnly: {
-    type: 'boolean',
-    description: '子代理是否跑在只读预设里（false 表示退回了继承预设，需要人工确认它没有写文件）。',
-  },
-  childId: {
-    type: 'string',
-    description: '子代理的会话 id。',
-  },
-  output: {
-    type: 'string',
-    description: '子代理的最终文本输出（截断到 2000 字）。',
   },
   outline: {
     type: 'object',
@@ -563,7 +423,11 @@ function action(spec) {
     description: spec.description,
     parameters: spec.parameters,
     output: OUTPUT,
+    mutates: spec.mutates === true,
     async execute(args, exec) {
+      if (spec.mutates === true && delegationDepthOf(exec) > 0) {
+        return failureOf(new StoryError('subagent-cannot-land', DELEGATED_DENIAL))
+      }
       try {
         return await spec.execute(args ?? {}, exec)
       } catch (error) {
@@ -578,6 +442,7 @@ function rawDefinitions() {
   return [
     action({
       name: 'story_init',
+      mutates: true,
       description: '建立一部作品的骨架：作品目录、进度清单、章纲/正文/审稿/状态四个子目录。'
         + ' 用户要求开始写一部新作品时先调用它。作品 id 由标题生成；同 id 已存在时拒绝，不覆盖已有作品，'
         + ' 需要另起一部时换标题或显式给 workId。',
@@ -632,6 +497,7 @@ function rawDefinitions() {
 
     action({
       name: 'story_propose',
+      mutates: true,
       description: '把与作者谈成的方案落成提案（标题、形态、一句话前提、主要人物与冲突）。'
         + ' 提案不是作品：不建目录、不写章节。方向成熟后写提案给作者看，作者明确同意后再 story_init。'
         + ' 讨论阶段不要调用它，也不要写任何文件。',
@@ -663,464 +529,8 @@ function rawDefinitions() {
     }),
 
     action({
-      name: 'story_agent_probe',
-      description: '探针：从本插件派生一个只读子代理，让它回答一句话，用来确认子代理通道可用。'
-        + ' 不改任何文件；通道不可用时返回可行动的说明。',
-      parameters: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          task: { type: 'string', description: '交给子代理的一句话任务；省略则让它汇报自己的身份与可用动作。' },
-        },
-      },
-      async execute(args, exec) {
-        const subagents = pluginContext?.get?.('subagents')
-        if (subagents === undefined || typeof subagents.startActivation !== 'function') {
-          throw new StoryError('subagent-unavailable', '当前平台没有 subagents 服务：子代理通道不可用，单代理路径照常')
-        }
-        const provider = ['spawn', 'fork'].find(name => subagents.getProvider?.(name) !== undefined)
-        if (provider === undefined) {
-          throw new StoryError('subagent-unavailable',
-            '没有已挂载的子代理后端（spawn / fork）：在 profile 里启用一个 subagent provider 后再试')
-        }
-        if (exec?.agent === undefined) {
-          throw new StoryError('subagent-unavailable', '这次调用没有父代理身份，无法派生子代理')
-        }
-        const text = typeof args.task === 'string' && args.task.trim() !== ''
-          ? args.task.trim()
-          : '用一句话说明：你是谁、你能看到哪些动作、你被谁派生。不要读写任何文件。'
-        const started = await subagents.startActivation({
-          provider,
-          label: 'storycraft-probe',
-          request: { prompt: [{ type: 'text', text }], parent: exec.agent },
-          signal: exec.signal,
-          delivery: 'caller',
-        })
-        const result = await started.result
-        const output = (result?.output ?? [])
-          .filter(block => block?.type === 'text')
-          .map(block => block.text)
-          .join('\n')
-        return { ok: true, provider, childId: String(started.childId), output: output.slice(0, 2000) }
-      },
-    }),
-
-    action({
-      name: 'story_review_agent',
-      description: '审稿子代理：派生一个只读子代理读本章正文并给出问题清单，父代理把清单落盘（story_review）。'
-        + ' 子代理不写文件；通道不可用时退回单代理审稿。',
-      parameters: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          work: { type: 'string', description: '作品 id。' },
-          chapter: { type: 'integer', description: '章号。' },
-        },
-        required: ['chapter'],
-      },
-      async execute(args, exec) {
-        const root = workspaceOf(exec)
-        const subagents = pluginContext?.get?.('subagents')
-        const provider = subagents === undefined ? undefined : ['spawn', 'fork'].find(name => subagents.getProvider?.(name) !== undefined)
-        if (provider === undefined || exec?.agent === undefined) {
-          throw new StoryError('subagent-unavailable', '子代理通道不可用：先用单代理 story_review')
-        }
-        const body = await readChapter(root, { work: args.work, chapter: args.chapter })
-        const task = [
-          '你是一个只读审稿人。不要修改、创建或删除任何文件；不要调用任何写文件的工具。按「审稿」技能执行。',
-          `下面是第 ${args.chapter} 章的正文。每条问题给出：问题、位置、读者影响、严重度、修复方向与建议模式。`,
-          '输出严格 JSON：{"items":[{"problem":"一句问题","where":"具体位置","impact":"读者影响","severity":"blocker / major / minor","fix":"修复方向","mode":"patch / polish / rewrite / deslop"}]}，最多 8 条，按严重度降序，不要输出其它文字。',
-          '---正文开始---',
-          body.content,
-          '---正文结束---',
-        ].join('\n')
-        const canPreset = subagents.getProvider?.(provider)?.capabilities?.agentPreset === true
-        const start = presetId => subagents.startActivation({
-          provider,
-          label: `storycraft-review-${args.chapter}`,
-          request: {
-            prompt: [{ type: 'text', text: task }],
-            parent: exec.agent,
-            ...(presetId === undefined ? {} : { agentPreset: presetId }),
-          },
-          signal: exec.signal,
-          delivery: 'caller',
-        })
-        // The reviewer preset has no write tools and no actions; without it the
-        // child would inherit the studio preset and could write by itself.
-        let readOnly = canPreset
-        let started
-        try {
-          started = await start(canPreset ? 'storycraft-reviewer' : undefined)
-        } catch (error) {
-          if (!canPreset) throw error
-          readOnly = false
-          started = await start(undefined)
-        }
-        const result = await started.result
-        const output = (result?.output ?? []).filter(block => block?.type === 'text').map(block => block.text).join('\n')
-        const findings = parseFindings(output)
-        if (findings === undefined) {
-          throw new StoryError('agent-output-invalid',
-            `子代理没有给出可用清单：把它的输出交给 story_review 落盘，或改用单代理审稿。原文：${output.slice(0, 500)}`)
-        }
-        const review = await writeReview(root, { work: args.work, chapter: args.chapter, problems: findings })
-        return {
-          ok: true, provider, childId: String(started.childId), readOnly,
-          items: findings.length,
-          artifact: review.artifact,
-        }
-      },
-    }),
-
-    action({
-      name: 'story_write_agent',
-      description: '写手子代理：按角色的分层上下文（权威顺序、本章任务、硬约束、人物与状态、最近脉络、文风）交给只读写手，取回整章正文，校验后由主编落盘（story_write）。'
-        + ' 子代理不写文件；通道不可用时请直接用 story_write。',
-      parameters: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          work: { type: 'string', description: '作品 id（可省略，用会话当前作品）。' },
-          chapter: { type: 'integer', description: '章号。' },
-          instruction: { type: 'string', description: '可选：本章的额外要求（语气、重点、禁忌）。' },
-        },
-        required: ['chapter'],
-      },
-      async execute(args, exec) {
-        const root = workspaceOf(exec)
-        const subagents = pluginContext?.get?.('subagents')
-        const provider = subagents === undefined ? undefined : ['spawn', 'fork'].find(name => subagents.getProvider?.(name) !== undefined)
-        if (provider === undefined || exec?.agent === undefined) {
-          throw new StoryError('subagent-unavailable', '子代理通道不可用：直接用 story_write 写正文')
-        }
-        const context = await assembleRoleContext({
-          root,
-          work: args.work,
-          chapter: args.chapter,
-          role: 'writer',
-          ...(typeof args.instruction === 'string' ? { instruction: args.instruction } : {}),
-        })
-        const task = [
-          '你是写手：按下面的上下文写这一章正文，不要写文件、不要调用任何动作。',
-          typeof args.instruction === 'string' && args.instruction.trim() !== ''
-            ? `作者要求：${args.instruction.trim()}`
-            : '',
-          `本章是第 ${args.chapter} 章。`,
-          '先输出 <<<TITLE 本章标题 TITLE>>>（不超过 20 字），再输出整章正文，用 <<<CHAPTER 与 CHAPTER>>> 包住，前后不要解释。',
-          '---上下文开始---',
-          context.text,
-          '---上下文结束---',
-        ].filter(line => line !== '').join('\n')
-        const canPreset = subagents.getProvider?.(provider)?.capabilities?.agentPreset === true
-        const start = presetId => subagents.startActivation({
-          provider,
-          label: `storycraft-write-${args.chapter}`,
-          request: {
-            prompt: [{ type: 'text', text: task }],
-            parent: exec.agent,
-            ...(presetId === undefined ? {} : { agentPreset: presetId }),
-          },
-          signal: exec.signal,
-          delivery: 'caller',
-        })
-        let readOnly = canPreset
-        let started
-        try {
-          started = await start(canPreset ? 'storycraft-writer' : undefined)
-        } catch (error) {
-          if (!canPreset) throw error
-          readOnly = false
-          started = await start(undefined)
-        }
-        const result = await started.result
-        const output = (result?.output ?? []).filter(block => block?.type === 'text').map(block => block.text).join('\n')
-        const parsed = parseWriterOutput(output)
-        if (parsed === undefined) {
-          throw new StoryError('agent-output-invalid',
-            `写手没有按契约返回整章正文（缺失 <<<CHAPTER / CHAPTER>>> 或过短）：把它的输出交给你自己改写后用 story_write 落盘。原文：${output.slice(0, 500)}`)
-        }
-        const consistency = checkConsistency({
-          body: parsed.body,
-          whitelist: context.whitelist,
-          allowedText: context.taskText,
-        })
-        if (consistency.unknownNames.length > 0) {
-          throw new StoryError('consistency-violation',
-            `正文出现上下文里没有的人名：${consistency.unknownNames.join('、')}。重派一次，明确禁止自造人名`)
-        }
-        const written = await writeChapter(root, {
-          work: args.work,
-          chapter: args.chapter,
-          body: parsed.body,
-          ...(parsed.title === '' ? {} : { title: parsed.title }),
-        })
-        return {
-          ok: true, provider, childId: String(started.childId), readOnly,
-          words: written.words, artifact: written.artifact,
-          contextTrace: context.trace,
-          warnings: consistency.warnings,
-        }
-      },
-    }),
-
-    action({
-      name: 'story_revise_agent',
-      description: '修订子代理：把清单条目与模式交给只读修订者，取回完整新版本，校验后由主编落盘（story_revise）。'
-        + ' 子代理不写文件；通道不可用时直接用 story_revise。',
-      parameters: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          work: { type: 'string', description: '作品 id（可省略，用会话当前作品）。' },
-          chapter: { type: 'integer', description: '章号。' },
-          mode: { type: 'string', enum: ['patch', 'polish', 'rewrite', 'deslop'], description: '修订模式，缺省 patch。' },
-          problemIds: {
-            type: 'array',
-            description: '要处理的条目 id；缺省用最新清单里未处理的条目。',
-            items: { type: 'string' },
-          },
-        },
-        required: ['chapter'],
-      },
-      async execute(args, exec) {
-        const root = workspaceOf(exec)
-        const subagents = pluginContext?.get?.('subagents')
-        const provider = subagents === undefined ? undefined : ['spawn', 'fork'].find(name => subagents.getProvider?.(name) !== undefined)
-        if (provider === undefined || exec?.agent === undefined) {
-          throw new StoryError('subagent-unavailable', '子代理通道不可用：直接用 story_revise')
-        }
-        const mode = ['patch', 'polish', 'rewrite', 'deslop'].includes(args.mode) ? args.mode : 'patch'
-        const manifest = await readManifest(root, args.work)
-        const entry = manifest.chapters.find(chapter => chapter.number === args.chapter)
-        if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${args.chapter} 章`)
-        const latest = await latestReview(root, manifest, entry)
-        if (latest === undefined) throw new StoryError('review-required', `第 ${args.chapter} 章还没有审稿清单：先审稿`)
-        const items = parseReview(latest.text)
-        const open = items.filter(item => !item.done)
-        const ids = Array.isArray(args.problemIds) && args.problemIds.length > 0
-          ? args.problemIds.map(String)
-          : open.map(item => item.id)
-        if (ids.length === 0 && mode === 'patch') {
-          throw new StoryError('missing-problems', '清单里没有未处理条目：换模式（润色/重写/去 AI 味）或先审稿')
-        }
-        const current = await readChapter(root, { work: args.work, chapter: args.chapter })
-        const selected = items.filter(item => ids.includes(item.id))
-        const task = [
-          '你是修订者：按下面的条目与模式改这一章，只返回完整新版本，不要写文件、不要调用动作。',
-          `模式：${mode}。`,
-          mode === 'patch' ? '只改条目点名的位置，其它段落逐字保留。' : '',
-          mode === 'polish' ? '只顺语气与节奏，事实与走向不动。' : '',
-          mode === 'rewrite' ? '整章重写，但事实、视角与章节走向不变。' : '',
-          mode === 'deslop' ? '按语义去腔调，不按词表删词，事实与人物声音不变。' : '',
-          selected.length === 0 ? '本次按模式整体处理，不针对具体条目。' : '要处理的条目：',
-          ...selected.map(item => `- ${item.id}：${item.problem ?? item.text ?? ''}`),
-          '输出完整新版本，用 <<<CHAPTER 与 CHAPTER>>> 包住，前后不要解释。',
-          '---当前正文开始---',
-          current.content,
-          '---当前正文结束---',
-        ].filter(line => line !== '').join('\n')
-        const canPreset = subagents.getProvider?.(provider)?.capabilities?.agentPreset === true
-        const start = presetId => subagents.startActivation({
-          provider,
-          label: `storycraft-revise-${args.chapter}`,
-          request: {
-            prompt: [{ type: 'text', text: task }],
-            parent: exec.agent,
-            ...(presetId === undefined ? {} : { agentPreset: presetId }),
-          },
-          signal: exec.signal,
-          delivery: 'caller',
-        })
-        let readOnly = canPreset
-        let started
-        try {
-          started = await start(canPreset ? 'storycraft-reviser' : undefined)
-        } catch (error) {
-          if (!canPreset) throw error
-          readOnly = false
-          started = await start(undefined)
-        }
-        const result = await started.result
-        const output = (result?.output ?? []).filter(block => block?.type === 'text').map(block => block.text).join('\n')
-        const body = parseChapterBody(output)
-        if (body === undefined) {
-          throw new StoryError('agent-output-invalid',
-            `修订者没有按契约返回完整正文（缺失标记或过短）：用 story_revise 自己改并落盘。原文：${output.slice(0, 500)}`)
-        }
-        const revised = await reviseChapter(root, {
-          work: args.work, chapter: args.chapter, body, problemIds: ids, mode,
-        })
-        return {
-          ok: true, provider, childId: String(started.childId), readOnly, mode,
-          revision: revised.artifact.revision, resolved: revised.resolved,
-        }
-      },
-    }),
-
-    action({
-      name: 'story_plan_agent',
-      description: '规划子代理出章纲：把意图、计划、卷图与上一章交给只读规划，取回五项章纲，校验齐全后由主编落盘（story_plan）。',
-      parameters: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          work: { type: 'string', description: '作品 id（可省略，用会话当前作品）。' },
-          chapter: { type: 'integer', description: '章号。' },
-          instruction: { type: 'string', description: '可选：作者对本章的额外要求。' },
-        },
-        required: ['chapter'],
-      },
-      async execute(args, exec) {
-        const root = workspaceOf(exec)
-        const subagents = pluginContext?.get?.('subagents')
-        const provider = subagents === undefined ? undefined : ['spawn', 'fork'].find(name => subagents.getProvider?.(name) !== undefined)
-        if (provider === undefined || exec?.agent === undefined) {
-          throw new StoryError('subagent-unavailable', '子代理通道不可用：直接用 story_plan 写章纲')
-        }
-        const context = await assembleRoleContext({
-          root,
-          work: args.work,
-          chapter: args.chapter,
-          role: 'planner',
-          task: `为第 ${args.chapter} 章出章纲：五项齐全且互相咬合。`,
-          ...(typeof args.instruction === 'string' ? { instruction: args.instruction } : {}),
-        })
-        const task = [
-          '你是规划：为这一章出章纲，不要写正文、不要写文件。',
-          typeof args.instruction === 'string' && args.instruction.trim() !== '' ? `作者要求：${args.instruction.trim()}` : '',
-          `第 ${args.chapter} 章。五项必须齐全且互相咬合；写不出结尾变化就直说这章该并入别章。`,
-          '只输出 JSON：{"perspective":"…","goal":"…","obstacle":"…","cost":"…","turn":"…"}，不要输出其它文字。',
-          '---上下文开始---',
-          context.text,
-          '---上下文结束---',
-        ].filter(line => line !== '').join('\n')
-        const canPreset = subagents.getProvider?.(provider)?.capabilities?.agentPreset === true
-        const start = presetId => subagents.startActivation({
-          provider,
-          label: `storycraft-plan-${args.chapter}`,
-          request: {
-            prompt: [{ type: 'text', text: task }],
-            parent: exec.agent,
-            ...(presetId === undefined ? {} : { agentPreset: presetId }),
-          },
-          signal: exec.signal,
-          delivery: 'caller',
-        })
-        let readOnly = canPreset
-        let started
-        try {
-          started = await start(canPreset ? 'storycraft-planner' : undefined)
-        } catch (error) {
-          if (!canPreset) throw error
-          readOnly = false
-          started = await start(undefined)
-        }
-        const result = await started.result
-        const output = (result?.output ?? []).filter(block => block?.type === 'text').map(block => block.text).join('\n')
-        const parsed = parsePlanJson(output)
-        const fields = ['perspective', 'goal', 'obstacle', 'cost', 'turn']
-        const missing = parsed === undefined ? fields : fields.filter(key => typeof parsed[key] !== 'string' || parsed[key].trim() === '')
-        if (missing.length > 0) {
-          throw new StoryError('agent-output-invalid',
-            `规划没有给出完整五项（缺 ${missing.join('、')}）：用 story_plan 自己补。原文：${output.slice(0, 500)}`)
-        }
-        const written = await writePlan(root, {
-          work: args.work,
-          chapter: args.chapter,
-          perspective: parsed.perspective,
-          goal: parsed.goal,
-          obstacle: parsed.obstacle,
-          cost: parsed.cost,
-          turn: parsed.turn,
-        })
-        return {
-          ok: true, provider, childId: String(started.childId), readOnly,
-          artifact: written.artifact,
-          contextTrace: context.trace,
-        }
-      },
-    }),
-
-    action({
-      name: 'story_outline_agent',
-      description: '规划子代理出全书计划：主线、卷划分、结局方向，取回三段结构后由主编落盘（story_outline，不含确认）。',
-      parameters: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          work: { type: 'string', description: '作品 id（可省略，用会话当前作品）。' },
-          instruction: { type: 'string', description: '可选：作者对全书的额外要求。' },
-        },
-      },
-      async execute(args, exec) {
-        const root = workspaceOf(exec)
-        const subagents = pluginContext?.get?.('subagents')
-        const provider = subagents === undefined ? undefined : ['spawn', 'fork'].find(name => subagents.getProvider?.(name) !== undefined)
-        if (provider === undefined || exec?.agent === undefined) {
-          throw new StoryError('subagent-unavailable', '子代理通道不可用：直接用 story_outline 写计划')
-        }
-        const context = await assembleRoleContext({
-          root,
-          work: args.work,
-          role: 'planner',
-          scope: 'work',
-          task: '为这部作品出全书计划：主线、卷划分、结局方向。',
-          ...(typeof args.instruction === 'string' ? { instruction: args.instruction } : {}),
-        })
-        const task = [
-          '你是规划：为这部作品出全书计划，不要写正文、不要写文件。',
-          typeof args.instruction === 'string' && args.instruction.trim() !== '' ? `作者要求：${args.instruction.trim()}` : '',
-          '三段：主线（主角要什么、被什么阻挡、怎么走）、卷划分（每卷的核心冲突与卷末推力）、结局方向（哪个问题必须被回答、哪种代价必须被支付）。',
-          '只输出 JSON：{"mainline":"…","volumes":"…","ending":"…"}，不要输出其它文字。',
-          '---上下文开始---',
-          context.text,
-          '---上下文结束---',
-        ].filter(line => line !== '').join('\n')
-        const canPreset = subagents.getProvider?.(provider)?.capabilities?.agentPreset === true
-        const start = presetId => subagents.startActivation({
-          provider,
-          label: 'storycraft-outline',
-          request: {
-            prompt: [{ type: 'text', text: task }],
-            parent: exec.agent,
-            ...(presetId === undefined ? {} : { agentPreset: presetId }),
-          },
-          signal: exec.signal,
-          delivery: 'caller',
-        })
-        let readOnly = canPreset
-        let started
-        try {
-          started = await start(canPreset ? 'storycraft-planner' : undefined)
-        } catch (error) {
-          if (!canPreset) throw error
-          readOnly = false
-          started = await start(undefined)
-        }
-        const result = await started.result
-        const output = (result?.output ?? []).filter(block => block?.type === 'text').map(block => block.text).join('\n')
-        const parsed = parsePlanJson(output)
-        if (parsed === undefined || typeof parsed.mainline !== 'string' || parsed.mainline.trim() === '') {
-          throw new StoryError('agent-output-invalid',
-            `规划没有给出可用计划（缺 mainline）：用 story_outline 自己写。原文：${output.slice(0, 500)}`)
-        }
-        const written = await writeOutlineFor(root, {
-          work: args.work,
-          mainline: parsed.mainline,
-          ...(typeof parsed.volumes === 'string' ? { volumes: parsed.volumes } : {}),
-          ...(typeof parsed.ending === 'string' ? { ending: parsed.ending } : {}),
-        })
-        return {
-          ok: true, provider, childId: String(started.childId), readOnly,
-          outline: written.outline,
-          contextTrace: context.trace,
-        }
-      },
-    }),
-
-    action({
       name: 'story_outline',
+      mutates: true,
       description: '全书计划：写主线、卷划分、结局方向到 bible/plan.md；作者同意后用 approve: true 记录下来。'
         + ' 立项后先做这一步，未确认前不能写第 1 章章纲。',
       parameters: {
@@ -1149,6 +559,7 @@ function rawDefinitions() {
 
     action({
       name: 'story_plan',
+      mutates: true,
       description: '写一章的章纲并落盘。五项必须齐全：视角、目标、阻力、代价、结尾变化；缺项会被拒绝。'
         + ' 动笔前先出章纲，改章纲也用这个动作覆盖同一章的章纲文件。',
       parameters: {
@@ -1179,6 +590,7 @@ function rawDefinitions() {
 
     action({
       name: 'story_write',
+      mutates: true,
       description: '把一章正文落盘并更新进度清单。已存在正文时默认拒绝；要改稿传 rewrite: true，会生成新版本而不覆盖旧版。',
       parameters: {
         type: 'object',
@@ -1205,6 +617,7 @@ function rawDefinitions() {
 
     action({
       name: 'story_review',
+      mutates: true,
       description: '把审稿发现落盘成问题清单。只写清单，绝不修改正文；每条含位置、问题、建议。'
         + ' 正文不存在时会被拒绝。',
       parameters: {
@@ -1239,6 +652,7 @@ function rawDefinitions() {
 
     action({
       name: 'story_revise',
+      mutates: true,
       description: '按审稿清单改一章：生成新版本正文、把指定的问题条目标为已处理，旧版本保留。'
         + ' 必须先有审稿清单，且要指明处理哪些条目；条目不存在、正文与当前版本相同都会被拒绝。'
         + ' 只是重写而不针对清单条目时，用 story_write 的 rewrite。',
@@ -1271,6 +685,7 @@ function rawDefinitions() {
 
     action({
       name: 'story_state',
+      mutates: true,
       description: '把本章产生的人物事实与伏笔变化定稿进作品状态，并刷新伏笔视图。'
         + ' 只写变化，不重抄全部设定；「已用」必须指向一条未解伏笔。',
       parameters: {
@@ -1342,6 +757,7 @@ function rawDefinitions() {
 
     action({
       name: 'story_bible_write',
+      mutates: true,
       description: '写一份真值文件并返回内容版本。人物档案必须是六字段齐全的 JSON 数组；'
         + ' 结构不合法会被拒绝且文件不变。作者确认设定或补齐人物后再调用。',
       parameters: {
@@ -1363,6 +779,7 @@ function rawDefinitions() {
 
     action({
       name: 'story_bible_import',
+      mutates: true,
       description: '把旧作品 design/ 下的世界观与大纲收编进真值目录，并列出仍需作者补的项。'
         + ' 只收编结构已知的内容，不替作者编人物档案。',
       parameters: {
@@ -1405,6 +822,7 @@ function rawDefinitions() {
 
     action({
       name: 'story_summarize',
+      mutates: true,
       description: '把一章概括成摘要落盘（上限 400 字），供下一章的写前上下文使用。'
         + ' 写完整章并定稿后调用；摘要只写本章发生的事实与状态变化。',
       parameters: {
@@ -1426,6 +844,7 @@ function rawDefinitions() {
 
     action({
       name: 'story_reopen',
+      mutates: true,
       description: '作废一章的定稿但不改正文：定稿后要补审稿或改稿时先用它。'
         + ' 只对已定稿章有效；作废后该章回到「已写」，再走审稿 → 修订 → 定稿。',
       parameters: {
@@ -1446,6 +865,7 @@ function rawDefinitions() {
 
     action({
       name: 'story_rename',
+      mutates: true,
       description: '改作品的标题或作品 id（目录会一起改）。id 必须是新的、不与他人冲突；'
         + ' 只改标题时目录不动。',
       parameters: {
@@ -1471,6 +891,7 @@ function rawDefinitions() {
 
     action({
       name: 'story_delete',
+      mutates: true,
       description: '把作品移进回收站（works/.trash），不再出现在列表里；可用 story_restore 恢复。'
         + ' 不会真的删除文件。',
       parameters: {
@@ -1490,6 +911,7 @@ function rawDefinitions() {
 
     action({
       name: 'story_restore',
+      mutates: true,
       description: '把回收站里最近一次删除的同名作品恢复回 works/。目标名已被占用时拒绝。',
       parameters: {
         type: 'object',
@@ -1508,6 +930,7 @@ function rawDefinitions() {
 
     action({
       name: 'story_settings',
+      mutates: true,
       description: '设定作品的写作参数：目前是单章字数范围（建档时与作者商定，之后也可改）。'
         + ' 传 null 表示清空、不按字数判定。',
       parameters: {
@@ -1577,6 +1000,7 @@ function rawDefinitions() {
 
     action({
       name: 'story_volume',
+      mutates: true,
       description: '分卷：新建或更新一卷（标题、起止章、可选摘要）。'
         + ' 卷数不固定、按故事线由作者确认；区间不得与其它卷重叠，章必须已存在。',
       parameters: {
@@ -1694,6 +1118,11 @@ function withCurrentWork(definition) {
     ...definition,
     parameters: { ...parameters, ...(required.length === 0 ? { required: [] } : { required }) },
     async execute(args, exec) {
+      // Refuse a delegated writer before resolving `work`, so the child sees
+      // "subagents do not land" instead of a misleading work-selection error.
+      if (definition.mutates === true && delegationDepthOf(exec) > 0) {
+        return failureOf(new StoryError('subagent-cannot-land', DELEGATED_DENIAL))
+      }
       const session = sessionOf(exec)
       const current = getCurrent(session)
       const explicit = typeof args?.work === 'string' && args.work.trim() !== '' ? args.work.trim() : undefined
@@ -1726,8 +1155,16 @@ function withCurrentWork(definition) {
  * @param {object} ctx - plugin context (services: tools).
  */
 export function apply(ctx) {
-  pluginContext = ctx
-  const disposers = definitions().map(definition => ctx.tools.register(definition))
+  // The guard lives in this preset's scope, so it applies to the main agent and
+  // to every subagent spawned into the same composition; the depth predicate
+  // keeps the main agent unrestricted.
+  const denyDelegatedWrites = exec => (
+    delegationDepthOf(exec) > 0 && DELEGATED_DENIED_TOOLS.has(exec.name) ? DELEGATED_DENIAL : undefined
+  )
+  const disposers = [
+    ctx.tools.guard(denyDelegatedWrites),
+    ...definitions().map(definition => ctx.tools.register(definition)),
+  ]
   ctx.effect(() => () => {
     for (const dispose of disposers) dispose()
   }, 'storycraft-tools: work actions')

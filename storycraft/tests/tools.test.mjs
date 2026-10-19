@@ -15,20 +15,25 @@ function check(name, condition, detail) {
 }
 
 const registered = []
+const guards = []
 const ctx = {
-  tools: { register: (definition) => { registered.push(definition); return () => {} } },
+  tools: {
+    register: (definition) => { registered.push(definition); return () => {} },
+    guard: (guard) => { guards.push(guard); return () => {} },
+  },
   effect: (fn) => { const dispose = fn(); return () => dispose?.() },
 }
 tools.apply(ctx, { mode: 'longform' })
 
 const names = registered.map(definition => definition.name).sort()
-check('registers thirty actions', names.length === 30, names.join(','))
+check('registers twenty-four actions', names.length === 24, names.join(','))
 check('action names', names.join(',') === [
-  'story_agent_probe', 'story_bible', 'story_bible_import', 'story_bible_write', 'story_brief', 'story_critique', 'story_current',
+  'story_bible', 'story_bible_import', 'story_bible_write', 'story_brief', 'story_critique', 'story_current',
   'story_delete', 'story_init', 'story_next', 'story_plan', 'story_rename', 'story_reopen', 'story_restore',
-  'story_outline', 'story_outline_agent', 'story_plan_agent', 'story_propose', 'story_review', 'story_review_agent', 'story_revise', 'story_revise_agent', 'story_settings', 'story_state',
-  'story_status', 'story_summarize', 'story_volume', 'story_volumes', 'story_write', 'story_write_agent',
+  'story_outline', 'story_propose', 'story_review', 'story_revise', 'story_settings', 'story_state',
+  'story_status', 'story_summarize', 'story_volume', 'story_volumes', 'story_write',
 ].sort().join(','), names.join(','))
+check('the delegation guard is registered once', guards.length === 1, String(guards.length))
 check('every action declares output schema', registered.every(definition => definition.output?.schema && typeof definition.output?.render === 'function'))
 check('every action declares execute', registered.every(definition => typeof definition.execute === 'function'))
 
@@ -186,23 +191,24 @@ try {
   const statusProps = Object.keys(byName.get('story_status').output.schema.properties.status.properties ?? {})
   check('story_status declares the fields it returns', ['form', 'wordRange', 'chapters', 'hooks'].every(key => statusProps.includes(key)), statusProps.join(','))
 
-  const planJson = tools.parsePlanJson('前言\n```json\n{"perspective":"甲","goal":"g","obstacle":"o","cost":"c","turn":"t"}\n```')
-  check('plan JSON is extracted from fences', planJson?.perspective === '甲', JSON.stringify(planJson))
-  check('plan JSON rejects garbage', tools.parsePlanJson('没有 JSON') === undefined)
-  check('plan JSON rejects arrays', tools.parsePlanJson('[1,2]') === undefined)
-
-  const withTitle = tools.parseWriterOutput('<<<TITLE 塌方夜 TITLE>>>\n<<<CHAPTER\n' + '正文。'.repeat(80) + '\nCHAPTER>>>')
-  check('writer title is parsed', withTitle?.title === '塌方夜' && withTitle.body.startsWith('正文。'), JSON.stringify(withTitle).slice(0, 40))
-  const withoutTitle = tools.parseWriterOutput('<<<CHAPTER\n' + '正文。'.repeat(80) + '\nCHAPTER>>>')
-  check('a missing title stays empty', withoutTitle?.title === '', JSON.stringify(withoutTitle).slice(0, 40))
-
-  const marked = tools.parseChapterBody('说明\n<<<CHAPTER\n' + '正文。'.repeat(80) + '\nCHAPTER>>>\n后记')
-  check('writer body is extracted between markers', typeof marked === 'string' && marked.startsWith('正文。'), String(marked).slice(0, 20))
-  check('a missing marker is rejected', tools.parseChapterBody('正文。'.repeat(80)) === undefined)
-  check('a truncated body is rejected', tools.parseChapterBody('<<<CHAPTER 太短 CHAPTER>>>') === undefined)
-
-  const probe = await byName.get('story_agent_probe').execute({}, exec)
-  check('probe reports the missing subagent seam', probe.ok === false && probe.error.code === 'subagent-unavailable', JSON.stringify(probe))
+  // Delegated subagents share this composition and see the same tools; the
+  // runtime keeps them from landing anything.
+  const childExec = { agent: { ...exec.agent, id: 'child', session: { header: { cwd: root, delegationDepth: 1 } } } }
+  setCurrent('child', work)
+  const manifestBefore = await readFile(join(root, 'works', work, 'manifest.json'), 'utf8')
+  const deniedWrite = await byName.get('story_write').execute({ work, chapter: 1, body, rewrite: true }, childExec)
+  check('a delegated subagent cannot land a chapter', deniedWrite.ok === false && deniedWrite.error.code === 'subagent-cannot-land', JSON.stringify(deniedWrite))
+  check('a refused landing leaves the manifest unchanged',
+    (await readFile(join(root, 'works', work, 'manifest.json'), 'utf8')) === manifestBefore)
+  const childWithoutWork = { agent: { ...exec.agent, id: 'child-nowork', session: { header: { cwd: root, delegationDepth: 1 } } } }
+  const deniedEarly = await byName.get('story_write').execute({ work, chapter: 1, body }, childWithoutWork)
+  check('delegation is refused before work resolution', deniedEarly.ok === false && deniedEarly.error.code === 'subagent-cannot-land', JSON.stringify(deniedEarly))
+  const childRead = await byName.get('story_status').execute({ work }, childExec)
+  check('a delegated subagent keeps read actions', childRead.ok === true && childRead.status.writtenChapters === 1, JSON.stringify(childRead.status ?? childRead))
+  check('the guard refuses delegated file and shell tools',
+    ['write', 'edit', 'pwsh', 'bash'].every(name => typeof guards[0]({ name, agent: childExec.agent }) === 'string'))
+  check('the guard leaves the main agent alone', guards[0]({ name: 'write', agent: exec.agent }) === undefined)
+  check('the guard leaves reads alone for children', guards[0]({ name: 'read', agent: childExec.agent }) === undefined)
 
   const readBack = await byName.get('story_current').execute({}, exec)
   check('story_current reports the active work', readBack.current === work && readBack.title === '雨里的灯', JSON.stringify(readBack))

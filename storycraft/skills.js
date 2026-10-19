@@ -1,11 +1,12 @@
 /**
  * Skill provider for the Storycraft studio preset.
  *
- * The module mounts with `config.mode`: a single form's catalog, or `all` for
- * the studio preset, which serves every form and lets the work's own form decide
- * which body the model reads. The bodies and their helper scripts ship beside
- * this file under `skills/<mode>/<skill>/`, so a form is one directory, not a
- * configuration chore.
+ * The module mounts with `config.mode`: a single catalog, or `all` for the
+ * storycraft work mode, which serves every form and every role craft. The
+ * work's own form and the assigned role decide which body the model reads. The
+ * bodies and their helper scripts ship beside this file under
+ * `skills/<mode>/<skill>/`, so a catalog is one directory, not a configuration
+ * chore.
  *
  * The provider is read-only and re-reads from disk on every `list`/`get`; the
  * catalog is small and the files are the authority.
@@ -36,13 +37,13 @@ const MODES = {
   plan: '规划',
 }
 
-/** Catalogs the studio preset serves; the review catalog belongs to its own role. */
-const STUDIO_MODES = ['shared', 'longform', 'shortform', 'screenplay']
+/** Catalogs the single work mode serves: every form and every role craft. */
+const STUDIO_MODES = ['shared', 'longform', 'shortform', 'screenplay', 'review', 'write', 'revise', 'plan']
 
 /** Catalogs a worker role serves: the craft docs of every form, without the studio method. */
 const FORM_MODES = ['longform', 'shortform', 'screenplay']
 
-/** A mode that serves every form's catalog: the studio preset mounts this. */
+/** A mode that serves every form and every role catalog: the work mode mounts this. */
 const ALL = 'all'
 
 /** Discovery rank; lower wins a name collision, and a preset-local catalog is authoritative. */

@@ -1,4 +1,4 @@
-// The studio preset mounts one skill row that serves every form.
+// The work mode mounts one skill row that serves every form and every role.
 import { apply } from '../skills.js'
 
 let failures = 0
@@ -24,11 +24,14 @@ function mount(mode) {
 
 const all = mount('all')
 const names = (await all.provider.list()).map(skill => skill.name)
-check('all serves every form and the shared catalog', names.length === 4, names.join(','))
+check('all serves every form, every role and the shared catalog', names.length === 8, names.join(','))
 check('the orchestration skill is shared', names.includes('storycraft-studio-orchestration'))
 check('long form skill present', names.includes('storycraft-longform-chapter'))
 check('short form skill present', names.includes('storycraft-short-story'))
 check('script skill present', names.includes('storycraft-short-drama'))
+check('every role craft is reachable from the work mode',
+  ['storycraft-write-craft', 'storycraft-review', 'storycraft-revise-craft', 'storycraft-plan-craft'].every(name => names.includes(name)),
+  names.join(','))
 check('no warning for all', all.warnings.length === 0, all.warnings.join('; '))
 
 const write = mount('write')

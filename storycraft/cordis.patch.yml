@@ -1,9 +1,9 @@
 # 故事工坊 bundle patch.
 #
-# 两层行：本插件的入口行（Host + 浏览器两半），以及一个 Agent 预设声明行。
-# 形态（长篇/短篇/剧本）不是预设：它是作品自己的数据，技能在会话内按形态选用。
-# 子插件列表里放了人设（dsh-persona）、工具、以及本包提供的技能行（dsh-storycraft/skills）。
-# 因此用户在「设置 → Agent 预设」里看到的就是同一份声明，选默认值、查看配置都走宿主能力。
+# 一个工作模式：故事工坊。组合以 DSH 标准预设为基线（整份列表），再叠加
+# 故事工坊的人设、技能与动作。角色（写手/审稿/修订/规划）不是预设：它们是
+# 主编通过官方 subagent 工具派发的子代理，只返回文本；子代理不能落盘由
+# tools.js 的运行时守卫与写动作断言强制。
 - insert:
     - id: storycraft
       name: 'dsh-storycraft'
@@ -13,19 +13,24 @@
       config:
         id: storycraft
         name: 故事工坊
-        description: 故事工坊的责任编辑兼主笔：长篇、短篇、剧本共用一套能力，形态由作品决定。
+        description: 故事工坊：长篇小说创作工作模式。主编派发写手、审稿、修订与规划子代理，落盘由主编完成。
         order: 40
         plugins:
+          # ---- 标准基线（与 @deepseek-ai/dsh-web-app 的 standard 预设一致） ----
           - id: persona
             name: '@deepseek-ai/dsh-persona'
             config:
               prefix: |
-                你是故事工坊的**主编**：不亲自写正文时负责判断与把关，必要时也能自己写。你的职责是弄清作者要什么、守住阶段与闸门、把活派给合适的执行者、验收交付并落盘。
+                你是故事工坊——一个长篇小说创作工作模式。
+
+                默认身份是主编：弄清作者要什么、判断阶段、守住闸门、把活派给子代理、验收交付并用故事工坊动作落盘。你不亲自写正文，除非子代理不可用或作者要求你直接写。
+
+                被派发为子代理时：按任务指定的角色执行，只把文本返回给派发者，不写文件、不调用任何故事工坊的落盘动作。
 
                 工作方式：
-                - 讨论新作品时**完全不碰 works/**：不列目录、不读任何作品的正文与真值、不用 story_status/story_brief/story_bible 去了解别的作品；只凭作者说过的话讨论。重名由 story_propose 检查。
+                - 讨论新作品时完全不碰 works/：不列目录、不读任何作品的正文与真值、不用 story_status/story_brief/story_bible 去了解别的作品；只凭作者说过的话讨论。重名由 story_propose 检查。
                 - 已经有作品在手时，先看它的形态与真值再动笔；缺哪份文件就说缺哪份，不自行补设定。
-                - 先按「故事工坊编排」技能判断阶段与执行者：写作派写手、审稿派审稿人、改稿派修订者、卷纲章纲派规划；子代理不可用或改动很小时自己完成，并说明这次是主编代写。
+                - 先按「故事工坊编排」技能判断阶段与执行者；派活用 subagent，任务里写清对象、输入摘录与输出契约。
                 - 子代理只产出文本，落盘一律由你用故事工坊的动作完成；落盘前校验结构、长度与首尾完整。
                 - 每一步先给方案再落笔；重大改动先问作者。
                 - 事实冲突以设定为准，改新写的部分。
@@ -35,39 +40,53 @@
             name: '@deepseek-ai/dsh-agent-instructions'
             config:
               maxBytes: 65536
-          - id: tool-pwsh
-            name: '@deepseek-ai/dsh-tool-pwsh'
-            disabled: !!js process.platform !== 'win32'
+          - id: time-context
+            name: '@deepseek-ai/dsh-time-context'
           - id: tool-bash
             name: '@deepseek-ai/dsh-tool-bash'
             disabled: !!js process.platform === 'win32'
+          - id: tool-pwsh
+            name: '@deepseek-ai/dsh-tool-pwsh'
+            disabled: !!js process.platform !== 'win32'
           - id: tool-fs
             name: '@deepseek-ai/dsh-tool-fs'
           - id: tool-fs-search
             name: '@deepseek-ai/dsh-tool-fs-search'
             config:
               sampleOverCapGlobResults: false
-          - id: storycraft-skills
-            name: 'dsh-storycraft/skills'
-            config:
-              mode: all
-          - id: storycraft-tools
-            name: 'dsh-storycraft/tools'
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+          - id: tool-schedule
+            name: '@deepseek-ai/dsh-tool-schedule'
+          - id: skill-filesystem
+            name: '@deepseek-ai/dsh-skill-filesystem'
           - id: tool-skill
             name: '@deepseek-ai/dsh-tool-skill'
-          - id: tool-ask-user
-            name: '@deepseek-ai/dsh-tool-ask-user'
-          - id: tool-todo
-            name: '@deepseek-ai/dsh-tool-todo'
+          - id: command-goal
+            name: '@deepseek-ai/dsh-command-goal'
+          - id: tool-goal
+            name: '@deepseek-ai/dsh-tool-goal'
+          - id: planning
+            name: cordis:group
+            group: true
+            isolate:
+              planMode: true
             config:
-              allowParallelInProgress: true
-          - id: tool-web
-            name: '@deepseek-ai/dsh-tool-web'
-            config:
-              fetch: true
-              searchTimeoutMs: 60000
-          - id: present
-            name: '@deepseek-ai/dsh-tool-present'
+              - id: plan-mode
+                name: '@deepseek-ai/dsh-plan-mode'
+                config:
+                  section: |
+                    You are in plan mode. Stay in plan mode until the user approves your plan through exit_plan_mode or switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.
+
+                    Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual repository. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Prefer existing functions and patterns over new machinery.
+
+                    The tool catalog stays the same across modes for request-cache stability. These plan-mode rules override any later tool description or guidance that suggests using mutation tools; those tools remain listed to keep the tool catalog unchanged. Do not use todo_write to track this planning phase: it tracks implementation after an approved plan, while the plan itself belongs in exit_plan_mode.
+
+                    Resolve discoverable facts by inspection. Use ask_user_question only for user-owned choices or material ambiguity that inspection cannot answer. Do not ask the user where code lives or how current behavior works when you can find out.
+
+                    Make the plan decision-complete: state the goal and success criteria; group implementation changes by subsystem; identify public API, schema, and data-flow changes; cover edge cases, failure modes, tests, acceptance criteria, and explicit assumptions. Keep it concise enough to review but detailed enough that another engineer can implement it without making design decisions.
+
+                    When ready, call exit_plan_mode with the complete plan markdown, starting with a # title. Make exit_plan_mode the only and final tool call in that assistant response: it presents the plan for approval, and implementation begins only in a later step after approval. Do not paste the final plan as a plain reply or ask "should I proceed?" through prose or ask_user_question. If review rejects it, incorporate the feedback and present again. If the review channel is unavailable or aborted, stay in plan mode and ask the user to switch modes manually; do not proceed with implementation.
           - id: compaction
             name: cordis:group
             group: true
@@ -85,144 +104,52 @@
                   thresholdChars: 8192
                   headChars: 4096
                   tailChars: 1024
-
-    # 审稿子代理的专用预设：只读。没有写文件的工具、没有 shell、没有 story_* 动作，
-    # 子代理只能把清单作为文本返回，落盘由父代理完成。
-    # 写手子代理：只读上下文与真值，返回整章正文；落盘由主编完成。
-    # 规划子代理：出全书计划与章纲，只返回结构化文本；落盘由主编完成。
-    - id: preset-storycraft-planner
-      name: '@deepseek-ai/dsh-agent-preset'
-      config:
-        id: storycraft-planner
-        name: 规划
-        description: 故事工坊的规划：卷划分、全书计划与章纲，只返回结构，不写文件。
-        order: 44
-        plugins:
-          - id: persona
-            name: '@deepseek-ai/dsh-persona'
+          - id: delegation
+            name: cordis:group
+            group: true
+            isolate:
+              workflowEngine: true
             config:
-              prefix: |
-                你是故事工坊的规划。你不写正文、不写文件：没有写工具，也没有任何动作。
-                按「规划」技能执行：卷按故事线划、每卷有卷末推力；章纲五项（视角、目标、阻力、代价、结尾变化）必须互相咬合，写不出结尾变化就说明这章该并入别章。
-                承接上一章与最近几章摘要；与真值冲突时以真值为准，需要改设定就明说。
-                按调用方要求的 JSON 结构输出，字段写具体，不用「待定」占位。
-          - id: agent-instructions
-            name: '@deepseek-ai/dsh-agent-instructions'
+              - id: tool-subagent-control
+                name: '@deepseek-ai/dsh-tool-subagent-control'
+              - id: tool-subagent-list-agents
+                name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+              # 子代理加入父方组合；深度上限固定为 1，不能再派发。
+              - id: tool-subagent
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: spawn
+                  toolName: subagent
+                  maxDepth: 1
+              - id: workflow-ptc
+                name: '@deepseek-ai/dsh-workflow-ptc'
+                config:
+                  provider: spawn
+              - id: tool-workflow
+                name: '@deepseek-ai/dsh-tool-workflow'
+          - id: tool-ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
             config:
-              maxBytes: 65536
-          - id: tool-fs
-            name: '@deepseek-ai/dsh-tool-fs'
+              allowParallelInProgress: true
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
             config:
-              write: false
-              edit: false
-          - id: tool-fs-search
-            name: '@deepseek-ai/dsh-tool-fs-search'
-          - id: storycraft-planner-skills
+              fetch: true
+              searchTimeoutMs: 60000
+          - id: present
+            name: '@deepseek-ai/dsh-tool-present'
+          - id: tool-plugin-manager
+            name: '@deepseek-ai/dsh-plugin-manager/tools'
+            disabled: true
+          - id: tool-plugin-market
+            name: '@deepseek-ai/dsh-plugin-market/tools'
+            disabled: true
+          # ---- 故事工坊 ----
+          - id: storycraft-skills
             name: 'dsh-storycraft/skills'
             config:
-              mode: plan
-          - id: tool-skill
-            name: '@deepseek-ai/dsh-tool-skill'
-
-    - id: preset-storycraft-writer
-      name: '@deepseek-ai/dsh-agent-preset'
-      config:
-        id: storycraft-writer
-        name: 写手
-        description: 故事工坊的写手：按 brief 与章纲写整章正文，只返回文本，不写文件。
-        order: 42
-        plugins:
-          - id: persona
-            name: '@deepseek-ai/dsh-persona'
-            config:
-              prefix: |
-                你是故事工坊的写手。你只写正文，不写文件：没有写工具，也没有任何改稿或落盘动作。
-                按「写法」技能执行：把章纲转成 2–4 个场景（各有目标、阻力、转折、后果），人物按目标与处境行动，设定化成行动与证据，一章一个变化。
-                长篇单章推进、短篇一篇到底、剧本按场次与台词；形态与本章要求以父代理给的上下文为准。
-                先输出 <<<TITLE 标题 TITLE>>>（20 字内），再输出整章正文，用 <<<CHAPTER 与 CHAPTER>>> 包住，前后不要写任何解释；被截断的正文会被拒绝。
-          - id: agent-instructions
-            name: '@deepseek-ai/dsh-agent-instructions'
-            config:
-              maxBytes: 65536
-          - id: tool-fs
-            name: '@deepseek-ai/dsh-tool-fs'
-            config:
-              write: false
-              edit: false
-          - id: tool-fs-search
-            name: '@deepseek-ai/dsh-tool-fs-search'
-          - id: storycraft-writer-skills
-            name: 'dsh-storycraft/skills'
-            config:
-              mode: write
-          - id: tool-skill
-            name: '@deepseek-ai/dsh-tool-skill'
-
-    # 修订者子代理：按清单与模式改稿，返回完整新版本；落盘由主编完成。
-    - id: preset-storycraft-reviser
-      name: '@deepseek-ai/dsh-agent-preset'
-      config:
-        id: storycraft-reviser
-        name: 修订者
-        description: 故事工坊的修订者：按条目与模式改稿，只返回完整新版本，不写文件。
-        order: 43
-        plugins:
-          - id: persona
-            name: '@deepseek-ai/dsh-persona'
-            config:
-              prefix: |
-                你是故事工坊的修订者。你只改稿，不写文件：没有写工具，也没有任何动作。
-                按「修订」技能执行：只动点名的位置，按模式控制幅度，未被点名的段落逐字保留，事实、视角与人物声音不变。
-                去腔调时按语义判断，不做词表替换；拿不准的地方保留原样并说明。
-                输出完整的新版本正文，用 <<<CHAPTER 与 CHAPTER>>> 包住，前后不写解释。
-          - id: agent-instructions
-            name: '@deepseek-ai/dsh-agent-instructions'
-            config:
-              maxBytes: 65536
-          - id: tool-fs
-            name: '@deepseek-ai/dsh-tool-fs'
-            config:
-              write: false
-              edit: false
-          - id: tool-fs-search
-            name: '@deepseek-ai/dsh-tool-fs-search'
-          - id: storycraft-reviser-skills
-            name: 'dsh-storycraft/skills'
-            config:
-              mode: revise
-          - id: tool-skill
-            name: '@deepseek-ai/dsh-tool-skill'
-
-    - id: preset-storycraft-reviewer
-      name: '@deepseek-ai/dsh-agent-preset'
-      config:
-        id: storycraft-reviewer
-        name: 审稿人
-        description: 故事工坊的只读审稿人：只找问题，不改稿、不写文件。
-        order: 41
-        plugins:
-          - id: persona
-            name: '@deepseek-ai/dsh-persona'
-            config:
-              prefix: |
-                你是故事工坊的审稿人。你只读，不改：没有写文件的工具，也没有任何改稿动作。
-                你的产出是一份问题清单，交给调用你的人落盘。判断标准、证据要求、严重度与修复方向按「审稿」技能执行：
-                每条问题都要有具体位置、读者影响与修复方向，客观矛盾与口味偏好分开；正文缺失或格式失败时判「审稿不可用」，不据此判正文坏。
-                只按你读到的正文与真值说话；缺什么就说缺什么，不猜设定。
-          - id: agent-instructions
-            name: '@deepseek-ai/dsh-agent-instructions'
-            config:
-              maxBytes: 65536
-          - id: tool-fs
-            name: '@deepseek-ai/dsh-tool-fs'
-            config:
-              write: false
-              edit: false
-          - id: tool-fs-search
-            name: '@deepseek-ai/dsh-tool-fs-search'
-          - id: storycraft-review-skills
-            name: 'dsh-storycraft/skills'
-            config:
-              mode: review
-          - id: tool-skill
-            name: '@deepseek-ai/dsh-tool-skill'
+              mode: all
+          - id: storycraft-tools
+            name: 'dsh-storycraft/tools'
