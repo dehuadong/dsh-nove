@@ -11,7 +11,7 @@
     "写实"
   ],
   "createdAt": "2026-10-17T09:50:33.372Z",
-  "updatedAt": "2026-10-18T08:58:39.926Z",
+  "updatedAt": "2026-10-19T07:57:28.098Z",
   "chapters": [
     {
       "id": "ch-0001",
@@ -81,16 +81,61 @@
       "id": "ch-0007",
       "number": 7,
       "title": "",
+      "status": "written",
+      "currentRevision": 8,
+      "words": 4958,
+      "updatedAt": "2026-10-19T06:42:02.360Z",
+      "stage": "written",
+      "lastReviseMode": "patch"
+    },
+    {
+      "id": "ch-0008",
+      "number": 8,
+      "title": "点验",
       "status": "settled",
-      "currentRevision": 6,
-      "words": 4941,
-      "updatedAt": "2026-10-18T08:58:39.926Z",
+      "currentRevision": 4,
+      "words": 4108,
+      "updatedAt": "2026-10-19T06:20:15.951Z",
       "stage": "settled",
       "lastReviseMode": "patch"
+    },
+    {
+      "id": "ch-0009",
+      "number": 9,
+      "title": "井台债单",
+      "status": "settled",
+      "currentRevision": 3,
+      "words": 4919,
+      "updatedAt": "2026-10-19T06:37:41.372Z",
+      "stage": "settled",
+      "lastReviseMode": "patch"
+    },
+    {
+      "id": "ch-0010",
+      "number": 10,
+      "title": "缺四个，往下挖",
+      "status": "settled",
+      "currentRevision": 3,
+      "words": 4516,
+      "updatedAt": "2026-10-19T07:49:19.333Z",
+      "stage": "settled",
+      "planApprovedAt": "2026-10-19T07:24:01.500Z",
+      "lastReviseMode": "patch"
+    },
+    {
+      "id": "ch-0011",
+      "number": 11,
+      "title": "坑底四尺",
+      "status": "written",
+      "currentRevision": 1,
+      "words": 4467,
+      "updatedAt": "2026-10-19T07:57:28.097Z",
+      "stage": "written",
+      "planApprovedAt": "2026-10-19T07:52:58.936Z"
     }
   ],
   "counters": {
-    "reviewRounds": 18,
+    "reviewRounds": 24,
     "openProblems": 0
   },
   "wordRange": {
