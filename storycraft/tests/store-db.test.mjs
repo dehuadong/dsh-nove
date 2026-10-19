@@ -70,6 +70,13 @@ try {
   store.restoreWork(root, { work: renamed.workId })
   check('restore returns it', store.listWorks(root).some(item => item.workId === renamed.workId))
 
+  // Session current pointers live in the store.
+  store.replaceSessionCurrent(root, { 'session-a': renamed.workId, 'session-b': '另一本' })
+  const pointers = store.readSessionCurrent(root)
+  check('session pointers persisted', pointers['session-a'] === renamed.workId && pointers['session-b'] === '另一本')
+  store.replaceSessionCurrent(root, { 'session-a': renamed.workId })
+  check('session pointers can be replaced', Object.keys(store.readSessionCurrent(root)).length === 1)
+
   // Proposals.
   const proposal = store.createProposal(root, { title: '新想法', form: 'short', premise: '一句话' })
   const id = proposal.proposal.id

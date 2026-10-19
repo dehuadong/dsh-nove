@@ -17,6 +17,7 @@ import { approveChapterPlan, approveOutline, listTrash, listWorks, nextStep, rea
 import { critique } from './critique.js'
 import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent, snapshot as snapshotCurrent } from './current.js'
 import { readVolumes } from './volumes.js'
+import { readSessionCurrent, replaceSessionCurrent } from './store-db.js'
 import { assembleBrief, readBible } from './bible.js'
 
 /** Requires the host web server; without it the browser surface has no data. */
@@ -118,9 +119,7 @@ async function postRoute(req, res, handler) {
  */
 async function readCurrentFile(root) {
   try {
-    const text = await readFile(join(root, 'works', '.current.json'), 'utf8')
-    const parsed = JSON.parse(text)
-    return parsed !== null && typeof parsed === 'object' ? parsed : {}
+    return readSessionCurrent(root)
   } catch {
     return {}
   }
@@ -132,8 +131,7 @@ async function readCurrentFile(root) {
  * @returns {Promise<void>} resolves after the write.
  */
 async function writeCurrentFile(root) {
-  await mkdir(join(root, 'works'), { recursive: true })
-  await writeFile(join(root, 'works', '.current.json'), `${JSON.stringify(snapshotCurrent(), null, 2)}\n`, 'utf8')
+  replaceSessionCurrent(root, snapshotCurrent())
 }
 
 /**

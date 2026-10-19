@@ -865,3 +865,36 @@ export function readBible(root, work, name) {
     db.close()
   }
 }
+
+/** Persist the whole session→work map (replaces previous rows). */
+export function replaceSessionCurrent(root, entries) {
+  const db = openStore(root)
+  try {
+    return transaction(db, () => {
+      db.prepare('DELETE FROM session_current').run()
+      const at = now()
+      for (const [sessionId, workId] of Object.entries(entries ?? {})) {
+        if (typeof sessionId !== 'string' || typeof workId !== 'string') continue
+        db.prepare('INSERT INTO session_current (session_id, work_id, updated_at) VALUES (?, ?, ?)')
+          .run(sessionId, workId, at)
+      }
+      return { count: Object.keys(entries ?? {}).length }
+    })
+  } finally {
+    db.close()
+  }
+}
+
+/** Read the session→work map. */
+export function readSessionCurrent(root) {
+  const db = openStore(root)
+  try {
+    const out = {}
+    for (const row of db.prepare('SELECT session_id, work_id FROM session_current').all()) {
+      if (typeof row.work_id === 'string' && row.work_id !== '') out[row.session_id] = row.work_id
+    }
+    return out
+  } finally {
+    db.close()
+  }
+}
