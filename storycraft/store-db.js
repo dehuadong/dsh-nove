@@ -427,6 +427,8 @@ export function writeChapter(root, input) {
         current_revision = ?, words = ?, plan_approved_at = CASE WHEN ? = 1 THEN NULL ELSE plan_approved_at END,
         updated_at = ? WHERE work_id = ? AND number = ?`)
         .run(String(input.title ?? entry.title), revision, words, revision === 1 ? 0 : 1, at, work.work_id, number)
+      const previous = revision - 1
+      if (previous > 0) dropSearchDoc(db, work.work_id, `chapter:${number}:r${previous}`)
       syncSearchDoc(db, work.work_id, `chapter:${number}:r${revision}`, 'chapter', `chapters/${number}`, number, body)
       return { workId: work.work_id, chapter: number, revision, words, reopened: settled && input.reopen === true }
     })
@@ -527,6 +529,7 @@ export function reviseChapter(root, input) {
         .run(work.work_id, number, revision, body, words, now())
       db.prepare("UPDATE chapters SET status = 'revised', stage = 'revised', current_revision = ?, words = ?, updated_at = ? WHERE work_id = ? AND number = ?")
         .run(revision, words, now(), work.work_id, number)
+      dropSearchDoc(db, work.work_id, `chapter:${number}:r${revision - 1}`)
       syncSearchDoc(db, work.work_id, `chapter:${number}:r${revision}`, 'chapter', `chapters/${number}`, number, body)
       return { workId: work.work_id, chapter: number, revision, words, problems: problemIds }
     })
@@ -661,6 +664,19 @@ export function searchTokens(text) {
   return tokens.join(' ')
 }
 
+/**
+ * Drop one search document.
+ * @param {object} db - open store.
+ * @param {string} workId - work id.
+ * @param {string} docId - document id.
+ */
+export function dropSearchDoc(db, workId, docId) {
+  const row = db.prepare('SELECT rowid FROM search_docs WHERE work_id = ? AND doc_id = ?').get(workId, docId)
+  if (row === undefined) return
+  db.prepare('DELETE FROM search_fts WHERE rowid = ?').run(row.rowid)
+  db.prepare('DELETE FROM search_docs WHERE work_id = ? AND doc_id = ?').run(workId, docId)
+}
+
 /** Upsert one search document and its FTS row. */
 function syncSearchDoc(db, workId, docId, kind, source, chapter, body) {
   db.prepare(`INSERT INTO search_docs (work_id, doc_id, kind, source, chapter, body, tokens)
@@ -788,6 +804,40 @@ export async function backupStore(root, destination) {
     const file = destination ?? join(root, '.storycraft', 'backups', `works-${Date.now()}.db`)
     await backupTo(db, file)
     return { file, integrity: integrityCheck(db) }
+  } finally {
+    db.close()
+  }
+}
+
+/** Write one bible entry; character cards also feed the search projection. */
+export function writeBible(root, input) {
+  const name = String(input.name ?? '').trim()
+  if (name === '') throw new StoryError('bible-name-required', '真值需要 name')
+  const content = String(input.content ?? '')
+  const db = openStore(root)
+  try {
+    return transaction(db, () => {
+      const work = ensureWork(db, input.work)
+      db.prepare(`INSERT INTO bible (work_id, name, content, version, updated_at) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(work_id, name) DO UPDATE SET content = excluded.content, version = excluded.version, updated_at = excluded.updated_at`)
+        .run(work.work_id, name, content, randomUUID(), now())
+      if (name === 'characters') {
+        dropSearchDoc(db, work.work_id, 'card:characters')
+        syncSearchDoc(db, work.work_id, 'card:characters', 'card', 'bible/characters', 0, content)
+      }
+      return { workId: work.work_id, name }
+    })
+  } finally {
+    db.close()
+  }
+}
+
+/** Read one bible entry. */
+export function readBible(root, work, name) {
+  const db = openStore(root)
+  try {
+    const row = db.prepare('SELECT content FROM bible WHERE work_id = ? AND name = ?').get(String(work), String(name))
+    return row === undefined ? undefined : row.content
   } finally {
     db.close()
   }

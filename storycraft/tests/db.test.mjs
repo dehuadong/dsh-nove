@@ -64,6 +64,33 @@ try {
     check('withStore closes the handle', handle.prepare('SELECT 1 AS one').get().one === 1)
   })
   check('database path is under .storycraft', databasePath(root).includes('.storycraft'))
+
+  // A newer schema must be refused, not silently downgraded.
+  const newer = openStore(root)
+  newer.exec('PRAGMA user_version = 99')
+  newer.close()
+  try {
+    openStore(root)
+    check('newer schema refused', false, 'opened')
+  } catch (error) {
+    check('newer schema refused', error?.code === 'schema-version-mismatch', error?.code)
+  }
+
+  // A non-database file reports db-corrupt.
+  const corruptRoot = await mkdtemp(join(tmpdir(), 'storycraft-corrupt-'))
+  try {
+    const { mkdir, writeFile } = await import('node:fs/promises')
+    await mkdir(join(corruptRoot, '.storycraft'), { recursive: true })
+    await writeFile(join(corruptRoot, '.storycraft', 'works.db'), 'not a database')
+    try {
+      openStore(corruptRoot)
+      check('corrupt file refused', false, 'opened')
+    } catch (error) {
+      check('corrupt file refused', error?.code === 'db-corrupt', error?.code)
+    }
+  } finally {
+    await rm(corruptRoot, { recursive: true, force: true }).catch(() => {})
+  }
 } finally {
   // Windows may keep WAL files briefly; a leftover temp dir is harmless here.
   await rm(root, { recursive: true, force: true }).catch(() => {})

@@ -174,10 +174,25 @@ export function openStore(root) {
   const file = databasePath(root)
   mkdirSync(dirname(file), { recursive: true })
   const db = new DatabaseSync(file)
-  db.exec('PRAGMA journal_mode = WAL')
-  db.exec('PRAGMA busy_timeout = 5000')
-  db.exec('PRAGMA foreign_keys = ON')
-  const version = db.prepare('PRAGMA user_version').get()?.user_version ?? 0
+  try {
+    db.exec('PRAGMA journal_mode = WAL')
+    db.exec('PRAGMA busy_timeout = 5000')
+    db.exec('PRAGMA foreign_keys = ON')
+  } catch (error) {
+    db.close()
+    const corrupt = new Error(`作品库无法打开：${error.message}`)
+    corrupt.code = 'db-corrupt'
+    throw corrupt
+  }
+  let version
+  try {
+    version = db.prepare('PRAGMA user_version').get()?.user_version ?? 0
+  } catch (error) {
+    db.close()
+    const corrupt = new Error(`作品库损坏或不是数据库：${error.message}`)
+    corrupt.code = 'db-corrupt'
+    throw corrupt
+  }
   if (version > SCHEMA_VERSION) {
     db.close()
     const error = new Error(`作品库版本 ${version} 高于支持的 ${SCHEMA_VERSION}：请升级插件`)
