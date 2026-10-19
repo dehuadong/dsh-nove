@@ -140,6 +140,10 @@ try {
   check('character cards written', cards.ok === true, JSON.stringify(cards))
   const style = await byName.get('story_bible_write').execute({ work, file: 'style', content: '# 文风\n短句。' }, exec)
   check('style written', style.ok === true, JSON.stringify(style))
+  const noChapter = await byName.get('story_context').execute({ work, role: 'writer' }, exec)
+  check('a chapter role without a chapter number is refused', noChapter.ok === false
+    && noChapter.error.code === 'chapter-required', JSON.stringify(noChapter))
+
   const missingChapter = await byName.get('story_context').execute({ work, chapter: 99, role: 'writer' }, exec)
   check('story_context refuses an unknown chapter', missingChapter.ok === false
     && missingChapter.error.code === 'chapter-not-found', JSON.stringify(missingChapter))

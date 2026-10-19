@@ -749,6 +749,9 @@ function rawDefinitions() {
         const root = workspaceOf(exec)
         const role = args.role
         const chapter = args.chapter
+        if (role !== 'planner' && chapter === undefined) {
+          throw new StoryError('chapter-required', `${role} 必须给出章号：只有作品级规划可以省略 chapter`)
+        }
         const instruction = typeof args.instruction === 'string' ? args.instruction : ''
         const mode = typeof args.mode === 'string' ? args.mode : 'patch'
 
