@@ -114,6 +114,8 @@ async function buildFixture() {
     entities: [{ name: '甲', facts: ['丢了半袋粮'] }],
     hooks: [{ text: '灰旗是谁挂的', state: 'opened' }],
   })
+  // An unapproved book plan: the page must offer its confirmation button.
+  await store.writeOutline(fixtureWorkspace, { work, mainline: '一条主线', volumes: '第一卷', ending: '开放' })
   const status = await store.status(fixtureWorkspace, work)
   const events = (await readFileSync(path.join(fixtureWorkspace, 'works', work, 'state', 'events.jsonl'), 'utf8'))
     .split(/\r?\n/).filter(line => line.trim() !== '').length

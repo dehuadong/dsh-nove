@@ -111,6 +111,16 @@ test.describe('故事工坊工作台', () => {
     await expect(page.getByText(`伏笔 未解 ${facts.hooksOpen}`)).toBeVisible()
   })
 
+  test('全书计划可以从面板确认', async ({ page }) => {
+    await openWorkbench(page)
+    await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())
+    const approve = page.getByRole('button', { name: '确认全书计划', exact: true })
+    await expect(approve).toBeVisible({ timeout: 15_000 })
+    await approve.evaluate(node => node.click())
+    await expect(page.getByText('计划已确认')).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole('button', { name: '确认全书计划', exact: true })).toHaveCount(0)
+  })
+
   test('章纲可以从面板确认', async ({ page }) => {
     await openWorkbench(page)
     await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())

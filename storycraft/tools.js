@@ -666,8 +666,8 @@ function rawDefinitions() {
     action({
       name: 'story_outline',
       mutates: true,
-      description: '全书计划：写主线、卷划分、结局方向到 bible/plan.md；作者同意后用 approve: true 记录下来。'
-        + ' 立项后先做这一步，未确认前不能写第 1 章章纲。',
+      description: '全书计划：写主线、卷划分、结局方向到 bible/plan.md。'
+        + ' 写完后请作者在面板点「确认全书计划」；模型不能代签确认。未确认前不能写第 1 章章纲。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -676,14 +676,17 @@ function rawDefinitions() {
           mainline: { type: 'string', description: '主线：主角要什么、被什么阻挡、大致怎么走。' },
           volumes: { type: 'string', description: '可选：卷划分的文字摘要。' },
           ending: { type: 'string', description: '可选：结局方向。' },
-          approve: { type: 'boolean', description: '作者明确同意这份计划时传 true；只记录确认，不改内容。' },
+          approve: { type: 'boolean', description: '已停用：确认改由作者在面板完成。传入会返回 approval-moved。' },
         },
       },
       async execute(args, exec) {
         const root = workspaceOf(exec)
+        if (args.approve === true) {
+          throw new StoryError('approval-moved',
+            '全书计划的确认已移到面板：请作者在工作台点「确认全书计划」，模型不能代签')
+        }
         const result = await writeOutlineFor(root, {
           work: args.work,
-          ...(args.approve === true ? { approve: true } : {}),
           ...(typeof args.mainline === 'string' ? { mainline: args.mainline } : {}),
           ...(typeof args.volumes === 'string' ? { volumes: args.volumes } : {}),
           ...(typeof args.ending === 'string' ? { ending: args.ending } : {}),

@@ -156,7 +156,18 @@ try {
   // The confirmation policy is per work: required by default, opt-out allowed.
   const policyWork = (await s.initWork(root, { title: '策略测试' })).workId
   await s.writeOutline(root, { work: policyWork, mainline: '一条主线' })
-  await s.writeOutline(root, { work: policyWork, approve: true })
+  const beforeOutlineApproval = await s.readWork(root, policyWork)
+  check('a new plan starts unconfirmed', beforeOutlineApproval.manifest.outline?.approvedAt === undefined,
+    JSON.stringify(beforeOutlineApproval.manifest.outline))
+  await s.approveOutline(root, { work: policyWork })
+  const afterOutlineApproval = await s.readWork(root, policyWork)
+  check('host approval is recorded', typeof afterOutlineApproval.manifest.outline?.approvedAt === 'string',
+    JSON.stringify(afterOutlineApproval.manifest.outline))
+  await s.writeOutline(root, { work: policyWork, mainline: '一条主线（改）' })
+  const afterOutlineRewrite = await s.readWork(root, policyWork)
+  check('rewriting the plan clears the confirmation', afterOutlineRewrite.manifest.outline?.approvedAt === undefined,
+    JSON.stringify(afterOutlineRewrite.manifest.outline))
+
   await s.writePlan(root, { work: policyWork, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   const defaultPolicy = (await s.readWork(root, policyWork)).manifest.planApproval
   check('confirmation is required by default', defaultPolicy === 'required', String(defaultPolicy))

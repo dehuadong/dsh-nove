@@ -23,7 +23,7 @@ DSH 里的长篇创作编排：二十五个动作把立项、章纲、正文、�
 1. 作者用自然语言给出想法 → 模型只讨论，不写文件；
 2. 方向成熟后 story_propose 落提案（works/.proposals/，不是作品），作者确认后 story_init（必须带 proposal）；
 3. 立项只建骨架；接着 story_outline 写主线/卷划分/结局方向到 ible/plan.md；
-4. 作者确认后用 story_outline(approve: true) 记录；未确认前 story_plan 被拒（outline-required）；
+4. 作者在面板点「确认全书计划」后由宿主记录（`POST /outline/approve`）；模型不能代签，未确认前 story_plan 被拒（outline-required）；
 6. 单章章纲的确认按作品设置 `planApproval` 执行：默认 `required`（新章取写手上下文时即拒绝，`plan-not-approved`；落盘再校验一次），可设为 `off` 关闭逐章确认；
 5. 确认后才写第 1 章章纲。
 
@@ -124,7 +124,7 @@ summaries/ch-0001.md    章节摘要（上限 400 字）
 - 左侧：当前工作区的作品列表（标题、形态、已写/总章数、最新章号、最近更新时间、未处理问题数）；底部显示当前工作区路径与是否有可下发指令的会话。
 - 右侧：作品详情——章节列表（状态、有无章纲、版本、字数、未处理问题）→ 章节点开后可切「正文 / 章纲」两视图、看审稿清单；「写第 N 章」「审稿」「按清单修订」「定稿」把固定指令投递给当前会话。
 - 「真值」与「写前上下文」两个只读视图：真值列出五件的路径、版本与内容；写前上下文按章显示装配结果、字节占用、被裁项与草稿标记。
-页面只读作品内容；唯一写操作是作者在章纲页点「确认章纲」（`POST /chapter/approve`），它记录 `planApprovedAt`，不碰正文。指令按钮在被点击时才校验——没有会话、或当前会话不是故事工坊时只显示原因不投递；故事工坊预设装载失败时，页面顶部直接显示宿主给出的失败原因。
+页面只读作品内容；写操作只有两个作者确认：章纲页「确认章纲」（`POST /chapter/approve`）与全书计划「确认全书计划」（`POST /outline/approve`），都不碰正文。指令按钮在被点击时才校验——没有会话、或当前会话不是故事工坊时只显示原因不投递；故事工坊预设装载失败时，页面顶部直接显示宿主给出的失败原因。
 
 ## 只读接口
 
@@ -133,6 +133,7 @@ summaries/ch-0001.md    章节摘要（上限 400 字）
 | 路由 | 用途 |
 | --- | --- |
 | `POST /chapter/approve` | 作者确认本章章纲（写 `planApprovedAt`） |
+| `POST /outline/approve` | 作者确认全书计划（写 `outline.approvedAt`） |
 | `GET /api/dsh-storycraft/works?root=<工作区>` | 作品列表 |
 | `GET /api/dsh-storycraft/work?root=&id=` | 一个作品的章节、状态、伏笔 |
 | `GET /api/dsh-storycraft/chapter?root=&id=&chapter=&view=body\|plan&revision=` | 章正文或章纲 |

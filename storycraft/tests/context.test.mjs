@@ -19,7 +19,7 @@ const root = await mkdtemp(join(tmpdir(), 'storycraft-context-'))
 try {
   const work = (await s.initWork(root, { title: '上下文测试', wordRange: { min: 3000, max: 5000 } })).workId
   await s.writeOutline(root, { work, mainline: '一条主线' })
-  await s.writeOutline(root, { work, approve: true })
+  await s.approveOutline(root, { work })
   await s.writePlan(root, { work, chapter: 1, perspective: '周观', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   await s.writePlan(root, { work, chapter: 2, perspective: '周观', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   await s.writeChapter(root, { work, chapter: 1, body: '正文。'.repeat(200) })
@@ -86,7 +86,7 @@ try {
   // A work without character cards cannot dispatch writing or review.
   const bare = (await s.initWork(root, { title: '无人物卡' })).workId
   await s.writeOutline(root, { work: bare, mainline: '一条主线' })
-  await s.writeOutline(root, { work: bare, approve: true })
+  await s.approveOutline(root, { work: bare })
   await s.writePlan(root, { work: bare, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   await s.approveChapterPlan(root, { work: bare, chapter: 1 })
   try {

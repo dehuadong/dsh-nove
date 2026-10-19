@@ -204,7 +204,7 @@ try {
   await s.writeOutline(root, { work: empty.workId, mainline: '一条主线' })
   next = await s.nextStep(root, empty.workId)
   check('written outline still waits for approval', next.action === 'story_outline' && /确认/.test(next.reason), JSON.stringify(next))
-  await s.writeOutline(root, { work: empty.workId, approve: true })
+  await s.approveOutline(root, { work: empty.workId })
   next = await s.nextStep(root, empty.workId)
   check('approved outline moves to chapter 1 plan', next.action === 'story_plan' && next.chapter === 1, JSON.stringify(next))
 } finally {

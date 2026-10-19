@@ -609,26 +609,15 @@ export async function initWork(root, input) {
 }
 
 /**
- * Write the book-level plan, or record the author's approval of it.
- *
- * The plan lives in `bible/plan.md`; approval lives on the manifest so that
- * rewriting the plan automatically invalidates it.
+ * Write the book-level plan. A new plan is unapproved until the author confirms it
+ * in the panel (see {@link approveOutline}).
  * @param {string} root - workspace directory.
- * @param {{work: string, mainline?: string, volumes?: string, ending?: string, approve?: boolean}} input - outline input.
+ * @param {{work: string, mainline?: string, volumes?: string, ending?: string}} input - outline input.
  * @returns {Promise<{workId: string, outline: object}>} the stored outline state.
  */
 export async function writeOutline(root, input) {
   return withWorkLock(root, String(input.work), async () => {
     const manifest = await readManifest(root, input.work)
-    const current = manifest.outline
-    if (input.approve === true) {
-      if (current === undefined || current.writtenAt === undefined) {
-        throw new StoryError('outline-required', '还没有全书计划：先 story_outline 写主线、卷划分与结局方向')
-      }
-      manifest.outline = { ...current, approvedAt: now() }
-      const written = await writeManifest(root, manifest.workId, manifest)
-      return { workId: written.workId, outline: written.outline }
-    }
     const mainline = String(input.mainline ?? '').trim()
     if (mainline === '') throw new StoryError('outline-invalid', '全书计划至少要写主线')
     const lines = [
@@ -647,6 +636,24 @@ export async function writeOutline(root, input) {
     await commitFiles(root, manifest.workId, 'outline', { 'bible/plan.md': lines })
     // A new plan is unapproved until the author says otherwise.
     manifest.outline = { writtenAt: now() }
+    const written = await writeManifest(root, manifest.workId, manifest)
+    return { workId: written.workId, outline: written.outline }
+  })
+}
+
+/**
+ * Record the author's confirmation of the book plan (host-only).
+ * @param {string} root - workspace directory.
+ * @param {{work: string}} input - work identity.
+ * @returns {Promise<{workId: string, outline: object}>} the stored outline state.
+ */
+export async function approveOutline(root, input) {
+  return withWorkLock(root, String(input.work), async () => {
+    const manifest = await readManifest(root, input.work)
+    if (manifest.outline === undefined || manifest.outline.writtenAt === undefined) {
+      throw new StoryError('outline-required', '还没有全书计划：先 story_outline 写主线、卷划分与结局方向')
+    }
+    manifest.outline = { ...manifest.outline, approvedAt: now() }
     const written = await writeManifest(root, manifest.workId, manifest)
     return { workId: written.workId, outline: written.outline }
   })
@@ -1640,6 +1647,10 @@ export async function readWork(root, work) {
       version: manifest.version,
       workId: manifest.workId,
       planApproval: planApprovalPolicy(manifest),
+      outline: manifest.outline === undefined ? undefined : {
+        ...(manifest.outline.writtenAt === undefined ? {} : { writtenAt: manifest.outline.writtenAt }),
+        ...(manifest.outline.approvedAt === undefined ? {} : { approvedAt: manifest.outline.approvedAt }),
+      },
       title: manifest.title,
       form: formOf(manifest),
       tags: manifest.tags,

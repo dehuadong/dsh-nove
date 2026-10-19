@@ -19,7 +19,7 @@ const root = await mkdtemp(join(tmpdir(), 'storycraft-facts-'))
 try {
   const work = (await s.initWork(root, { title: '白名单测试' })).workId
   await s.writeOutline(root, { work, mainline: '一条主线', volumes: '第一卷：从白草滩到黑水滩' })
-  await s.writeOutline(root, { work, approve: true })
+  await s.approveOutline(root, { work })
   await s.writePlan(root, { work, chapter: 1, perspective: '周观', goal: '把墙立起来，用到十六口人和七尺的料', obstacle: 'o', cost: 'c', turn: 't' })
   await b.writeBible(root, work, 'characters', JSON.stringify([
     { name: '周观', role: '主视角', want: '立墙', fear: '塌方', limit: '不拿人命换速度', voice: '短句' },

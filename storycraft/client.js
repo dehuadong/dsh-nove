@@ -16,6 +16,7 @@ window.__ModuleLoader__.load({
       work: '/api/dsh-storycraft/work',
       chapter: '/api/dsh-storycraft/chapter',
       approve: '/api/dsh-storycraft/chapter/approve',
+      outlineApprove: '/api/dsh-storycraft/outline/approve',
       review: '/api/dsh-storycraft/review',
       bible: '/api/dsh-storycraft/bible',
       brief: '/api/dsh-storycraft/brief',
@@ -221,6 +222,9 @@ window.__ModuleLoader__.load({
       planApproved(workId, chapter) {
         return `作品 ${workId} 第 ${chapter} 章的章纲已在面板确认，继续写正文。`
       },
+      outlineApproved(workId) {
+        return `作品 ${workId} 的全书计划已在面板确认，继续写第 1 章章纲。`
+      },
       settings(workId, range, planApproval) {
         const policy = planApproval === 'off'
           ? '章纲确认设为不需要（planApproval 传 off），之后写正文前不必逐章确认。'
@@ -298,6 +302,7 @@ window.__ModuleLoader__.load({
         work: (root, id) => route(ROUTE.work, { root, id }),
         chapter: (root, id, chapter, view, revision) => route(ROUTE.chapter, { root, id, chapter, view, revision }),
         approveChapterPlan: (root, sessionId, workId, chapter) => post(ROUTE.approve, { root, sessionId, workId, chapter }),
+        approveOutline: (root, sessionId, workId) => post(ROUTE.outlineApprove, { root, sessionId, workId }),
         review: (root, id, chapter) => route(ROUTE.review, { root, id, chapter }),
         bible: (root, id) => route(ROUTE.bible, { root, id }),
         brief: (root, id, chapter) => route(ROUTE.brief, { root, id, chapter }),
@@ -904,6 +909,28 @@ window.__ModuleLoader__.load({
               title: '写下一章并一次做完：章纲 → 正文 → 质检 → 审稿 → 修订 → 定稿 → 摘要',
               onClick: () => compose(INSTRUCTIONS.flowFull(manifest.workId, next === undefined ? nextNumber : next.chapter)),
             }, `写第 ${next === undefined ? nextNumber : next.chapter} ${unitOf(manifest.form)}（一次做完）`),
+            manifest.outline?.writtenAt !== undefined && manifest.outline?.approvedAt === undefined
+              ? h('button', {
+                type: 'button',
+                className: 'sc-btn sc-btn-primary',
+                title: '确认全书计划后，才能写第 1 章章纲',
+                onClick: async () => {
+                  try {
+                    await face.approveOutline(root, sessionId, manifest.workId)
+                    const failure = canSend === true ? await face.send(INSTRUCTIONS.outlineApproved(manifest.workId)) : undefined
+                    onNotice(failure === undefined
+                      ? { kind: 'ok', text: '全书计划已确认，已发送「继续写第 1 章章纲」' }
+                      : { kind: 'error', text: `计划已确认，但续写指令没发出去：${failure}` })
+                    void load()
+                  } catch (error) {
+                    onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
+                  }
+                },
+              }, '确认全书计划')
+              : null,
+            manifest.outline?.approvedAt !== undefined
+              ? h('span', { className: 'sc-badge sc-badge-ok' }, '计划已确认')
+              : null,
             h('button', {
               type: 'button',
               className: 'sc-btn',

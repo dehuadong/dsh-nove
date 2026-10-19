@@ -112,8 +112,12 @@ try {
     work, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't',
   }, exec)
   check('writing the outline is not enough', blockedPlan.ok === false && blockedPlan.error.code === 'outline-required', JSON.stringify(blockedPlan))
-  const approved = await byName.get('story_outline').execute({ work, approve: true }, exec)
-  check('approval recorded', approved.ok === true && typeof approved.outline?.approvedAt === 'string', JSON.stringify(approved))
+  const movedApproval = await byName.get('story_outline').execute({ work, approve: true }, exec)
+  check('the model cannot confirm the plan', movedApproval.ok === false
+    && movedApproval.error.code === 'approval-moved', JSON.stringify(movedApproval))
+  await s.writeOutline(root, { work, mainline: '一条主线' })
+  const approved = await s.approveOutline(root, { work })
+  check('the host records the plan approval', typeof approved.outline?.approvedAt === 'string', JSON.stringify(approved))
 
   const plan = await byName.get('story_plan').execute({
     work, chapter: 1, perspective: '林澈', goal: '拿回合同', obstacle: '房东', cost: '人情', turn: '合同是假的',

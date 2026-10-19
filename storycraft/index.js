@@ -13,7 +13,7 @@
 
 import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
-import { approveChapterPlan, listTrash, listWorks, nextStep, readManifest, readChapter, readReview, readWork, StoryError } from './storage.js'
+import { approveChapterPlan, approveOutline, listTrash, listWorks, nextStep, readManifest, readChapter, readReview, readWork, StoryError } from './storage.js'
 import { critique } from './critique.js'
 import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent, snapshot as snapshotCurrent } from './current.js'
 import { readVolumes } from './volumes.js'
@@ -246,6 +246,31 @@ export function apply(ctx) {
             hydrateCurrent(await readCurrentFile(await rootOf(ctx, query)))
           }
           return { current: getCurrent(sessionId) }
+        })
+      },
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/outline/approve`,
+      handler: (req, res) => {
+        if (req.method !== 'POST') {
+          void readRoute(req, res, async () => {
+            throw new StoryError('method-not-allowed', '确认全书计划只接受 POST')
+          })
+          return
+        }
+        void postRoute(req, res, async (body) => {
+          const sessionId = typeof body?.sessionId === 'string' ? body.sessionId : ''
+          const workId = typeof body?.workId === 'string' ? body.workId : ''
+          if (sessionId === '' || workId === '') {
+            throw new StoryError('invalid-body', '确认全书计划需要 sessionId 与 workId')
+          }
+          const root = await rootOf(ctx, new URLSearchParams({ root: String(body?.root ?? '') }))
+          if (getCurrent(sessionId) !== workId) {
+            throw new StoryError('work-mismatch', '只在面板当前作品里确认全书计划')
+          }
+          const approved = await approveOutline(root, { work: workId })
+          return { workId, outline: approved.outline }
         })
       },
     }),
