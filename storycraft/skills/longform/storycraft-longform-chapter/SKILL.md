@@ -69,7 +69,8 @@ whenToUse: 用户要求写长篇的下一章、续写、改章节，或要求检
 ## 输出契约
 
 - 正文、章纲、审稿清单、摘要、状态、卷一律由动作落盘，不要用文件工具直接写 `works/`：动作负责版本、进度清单、暂存与提交，直写会让进度与文件不一致。
-- 只读动作：`story_next`、`story_brief`、`story_bible`、`story_critique`、`story_status`、`story_volumes`。
+- 只读动作：`story_next`、`story_context`、`story_brief`、`story_bible`、`story_critique`、`story_status`、`story_volumes`。
+- 派发给子代理前用 `story_context(work, chapter, role)` 取该角色的分层上下文；自己写前预览仍可用 `story_brief`。
 - 章节末尾不写“作者的话”，不写总结段落。
 
 ## 写作纪律

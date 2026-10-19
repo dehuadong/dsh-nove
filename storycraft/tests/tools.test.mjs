@@ -140,18 +140,23 @@ try {
   check('character cards written', cards.ok === true, JSON.stringify(cards))
   const style = await byName.get('story_bible_write').execute({ work, file: 'style', content: '# 文风\n短句。' }, exec)
   check('style written', style.ok === true, JSON.stringify(style))
+  const missingChapter = await byName.get('story_context').execute({ work, chapter: 99, role: 'writer' }, exec)
+  check('story_context refuses an unknown chapter', missingChapter.ok === false
+    && missingChapter.error.code === 'chapter-not-found', JSON.stringify(missingChapter))
+
   const context = await byName.get('story_context').execute({ work, chapter: 1, role: 'writer' }, exec)
   check('story_context returns writer sections', context.ok === true
-    && ['authority', 'task', 'constraints', 'state', 'style'].every(name => context.contextSections.some(item => item.name === name)),
+    && ['authority', 'task', 'constraints', 'state', 'style'].every(name => context.sections.some(item => item.name === name)),
   JSON.stringify(context).slice(0, 300))
   check('story_context returns a trace', context.ok === true && context.trace.budget > 0, JSON.stringify(context.trace))
   check('whitelist leaves the action as a summary', context.ok === true
-    && Array.isArray(context.whitelist.sample.names) && context.whitelist.names >= 0, JSON.stringify(context.whitelist))
-  check('story_context never writes the whitelist wholesale',
-    context.ok === true && !Object.hasOwn(context.whitelist, 'numbersList'), JSON.stringify(context.whitelist))
+    && typeof context.whitelist.counts.names === 'number' && Array.isArray(context.whitelist.sample.names), JSON.stringify(context.whitelist))
+  check('the whitelist sample stays bounded',
+    context.ok === true && context.whitelist.sample.names.length <= 5 && context.whitelist.sample.numbers.length <= 5, JSON.stringify(context.whitelist.sample))
 
   const plannerAhead = await byName.get('story_context').execute({ work, chapter: 2, role: 'planner' }, exec)
-  check('planning an unlisted chapter works', plannerAhead.ok === true && plannerAhead.contextSections.some(item => item.name === 'plan'), JSON.stringify(plannerAhead).slice(0, 200))
+  check('planning an unlisted chapter works', plannerAhead.ok === true && plannerAhead.sections.some(item => item.name === 'plan'), JSON.stringify(plannerAhead).slice(0, 200))
+
 
   const reviewNoBody = await byName.get('story_context').execute({ work, chapter: 1, role: 'reviser' }, exec)
   check('revision without a review is refused', reviewNoBody.ok === false && reviewNoBody.error.code === 'review-required', JSON.stringify(reviewNoBody))
@@ -184,6 +189,7 @@ try {
     work, chapter: 1, body: `${body}（改）`, problemIds: ['Q1'],
   }, exec)
   check('story_revise ok', revise.ok === true && revise.resolved[0] === 'Q1', JSON.stringify(revise))
+
 
 
   const earlySettle = await byName.get('story_state').execute({ work, chapter: 1, entities: [], hooks: [] }, exec)
@@ -285,6 +291,29 @@ try {
 
   const manifest = JSON.parse(await readFile(join(root, 'works', work, 'manifest.json'), 'utf8'))
   check('manifest tracks revision', manifest.chapters[0].currentRevision === 3, String(manifest.chapters[0].currentRevision))
+
+  // A planned but unwritten chapter: the review path must say so, not crash.
+  await byName.get('story_plan').execute({
+    work, chapter: 2, perspective: '林澈', goal: 'g', obstacle: 'o', cost: 'c', turn: 't',
+  }, exec)
+  const unwritten = await byName.get('story_context').execute({ work, chapter: 2, role: 'reviewer' }, exec)
+  check('reviewing an unwritten chapter is refused', unwritten.ok === false
+    && unwritten.error.code === 'chapter-not-written', JSON.stringify(unwritten))
+
+  // A revision that invents a speaker is refused at landing, like a write.
+  const secondWrite = await byName.get('story_write').execute({ work, chapter: 2, body: '第二章正文。'.repeat(40) }, exec)
+  check('second chapter written', secondWrite.ok === true, JSON.stringify(secondWrite))
+  const secondReview = await byName.get('story_review').execute({
+    work, chapter: 2, problems: [{ location: '开头', problem: '进得太慢' }],
+  }, exec)
+  check('second review written', secondReview.ok === true, JSON.stringify(secondReview))
+  const inventedRevise = `周三说：“改。”`.repeat(30)
+  const refusedRevise = await byName.get('story_revise').execute({
+    work, chapter: 2, body: inventedRevise, problemIds: ['Q1'],
+  }, exec)
+  check('a revision that invents a speaker is refused', refusedRevise.ok === false
+    && refusedRevise.error.code === 'consistency-violation', JSON.stringify(refusedRevise))
+
 } finally {
   await rm(root, { recursive: true, force: true })
 }

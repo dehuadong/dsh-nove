@@ -19,7 +19,7 @@ const DIGITS = { 零: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6,
  * @param {string} text - numeral text.
  * @returns {string} digits, or the input when it is not a numeral.
  */
-function toArabic(text) {
+export function toArabic(text) {
   if (!/^[零一二三四五六七八九十百千万两]+$/u.test(text)) return text
   let total = 0
   let section = 0
@@ -44,13 +44,16 @@ function toArabic(text) {
   return String(total + section + number)
 }
 
+/** Place-name shape, shared with the consistency checker. */
+export const PLACE_PATTERN = /[\u4e00-\u9fa5]{2}(?:滩|城|镇|村|堡|州|府|县|关|口|山|河)/gu
+
 /**
  * Read the character cards of one work, tolerating a missing file.
  * @param {string} root - workspace directory.
  * @param {string} workId - work identity.
  * @returns {Promise<object[]>} card records.
  */
-async function readCards(root, workId) {
+export async function readCards(root, workId) {
   const text = await readOptional(join(workDirectory(root, workId), 'bible', 'characters.json'))
   return text === undefined ? [] : parseCharacters(text)
 }
@@ -78,9 +81,8 @@ export async function deriveWhitelist(root, input) {
   }
   const source = [intent, plan, volumes, chapterPlan].join('\n')
 
-  const placePattern = /[\u4e00-\u9fa5]{2}(?:滩|城|镇|村|堡|州|府|县|关|口|山|河)/gu
   const places = new Set(
-    (source.match(placePattern) ?? []).filter(place => !/[0-9零一二三四五六七八九十百千万两]/u.test(place[0])),
+    (source.match(PLACE_PATTERN) ?? []).filter(place => !/[0-9零一二三四五六七八九十百千万两]/u.test(place[0])),
   )
   const numbers = new Set()
   for (const match of source.matchAll(/[0-9]+(?:\.[0-9]+)?/gu)) numbers.add(match[0])
@@ -104,12 +106,15 @@ export async function deriveWhitelist(root, input) {
  */
 export function summariseWhitelist(whitelist) {
   return {
-    names: whitelist.names.length,
-    places: whitelist.places.length,
-    numbers: whitelist.numbers.length,
+    counts: {
+      names: whitelist.names.length,
+      places: whitelist.places.length,
+      numbers: whitelist.numbers.length,
+    },
     sample: {
       names: whitelist.names.slice(0, 5),
       places: whitelist.places.slice(0, 5),
+      numbers: whitelist.numbers.slice(0, 5),
     },
   }
 }

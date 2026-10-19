@@ -184,6 +184,28 @@ const OUTPUT_PROPERTIES = {
         },
       },
       overflow: { type: 'boolean' },
+      sections: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            name: { type: 'string' },
+            protection: { type: 'string' },
+            source: { type: 'string' },
+            chars: { type: 'integer' },
+            dropped: { type: 'boolean' },
+            trimmed: { type: 'boolean' },
+          },
+          required: ['name', 'protection'],
+        },
+      },
+      review: {
+        type: 'object',
+        additionalProperties: false,
+        properties: { round: { type: 'integer' }, revision: { type: 'integer' } },
+        required: ['round', 'revision'],
+      },
     },
     required: ['budget'],
   },
@@ -192,20 +214,28 @@ const OUTPUT_PROPERTIES = {
     additionalProperties: false,
     description: 'Fact whitelist summary: counts and a few samples only.',
     properties: {
-      names: { type: 'integer' },
-      places: { type: 'integer' },
-      numbers: { type: 'integer' },
+      counts: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          names: { type: 'integer' },
+          places: { type: 'integer' },
+          numbers: { type: 'integer' },
+        },
+        required: ['names', 'places', 'numbers'],
+      },
       sample: {
         type: 'object',
         additionalProperties: false,
         properties: {
           names: { type: 'array', items: { type: 'string' } },
           places: { type: 'array', items: { type: 'string' } },
+          numbers: { type: 'array', items: { type: 'string' } },
         },
-        required: ['names', 'places'],
+        required: ['names', 'places', 'numbers'],
       },
     },
-    required: ['names', 'places', 'numbers', 'sample'],
+    required: ['counts', 'sample'],
   },
   files: {
     type: 'array',
@@ -236,6 +266,7 @@ const OUTPUT_PROPERTIES = {
         source: { type: 'string' },
         content: { type: 'string' },
         bytes: { type: 'integer' },
+        protection: { type: 'string' },
         absent: { type: 'boolean' },
         draft: { type: 'boolean' },
         note: { type: 'string' },
@@ -476,6 +507,22 @@ const OUTPUT = {
 }
 
 /**
+ * Refuse a chapter body that invents people, warns about unknown places or sizes.
+ * @param {string} root - workspace directory.
+ * @param {{work: string, chapter: number, body: string}} draft - the body about to land.
+ * @returns {Promise<{warnings: string[]}>} warnings that do not block.
+ */
+async function checkDraft(root, draft) {
+  const whitelist = await deriveWhitelist(root, { work: draft.work, chapter: draft.chapter })
+  const consistency = checkConsistency({ body: draft.body, whitelist })
+  if (consistency.unknownNames.length > 0) {
+    throw new StoryError('consistency-violation',
+      `正文出现上下文里没有的人名：${consistency.unknownNames.join('、')}。改写后再落盘`)
+  }
+  return { warnings: consistency.warnings }
+}
+
+/**
  * One action definition.
  * @param {object} spec - name, description, parameters, execute.
  * @returns {object} a registry-ready ToolDefinition.
@@ -653,8 +700,7 @@ function rawDefinitions() {
 
     action({
       name: 'story_context',
-      description: '派发前取一份按角色分层的故事上下文：权威顺序、任务、硬约束、人物与状态、最近脉络、文风；'
-        + '规划另带全书计划、卷图与人物卡，审稿/修订带章纲与正文。'
+      description: '派发前取一份按角色分层的故事上下文：权威顺序、任务、硬约束、章纲/全书计划、正文、人物与状态、最近脉络、标准。'
         + ' 只读；返回每段的保护级别、预算轨迹与白名单摘要，供主编拼子代理 prompt。',
       parameters: {
         type: 'object',
@@ -673,7 +719,6 @@ function rawDefinitions() {
             enum: ['patch', 'polish', 'rewrite', 'deslop'],
             description: '仅修订使用，缺省 patch。',
           },
-          budget: { type: 'integer', description: '上下文字符预算，缺省 8000。' },
         },
         required: ['work', 'role'],
       },
@@ -687,26 +732,29 @@ function rawDefinitions() {
         // The action reads the chapter, its plan and its latest review itself;
         // the caller never pastes a body or a list.
         let body = ''
-        let task = ''
+        let review
         if (role === 'reviewer' || role === 'reviser') {
-          const read = await readChapter(root, { work: args.work, chapter })
-          body = read.content
           const manifest = await readManifest(root, args.work)
           const entry = manifest.chapters.find(item => item.number === chapter)
-          const review = entry === undefined ? undefined : await latestReview(root, manifest, entry)
-          const open = review === undefined ? [] : parseReview(review.text).filter(item => !item.done)
+          if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${chapter} 章：先写章纲再派活`)
+          try {
+            body = (await readChapter(root, { work: args.work, chapter })).content
+          } catch (error) {
+            if (error?.code === 'body-not-found') {
+              throw new StoryError('chapter-not-written', `第 ${chapter} 章还没有正文：先写正文，再审稿或修订`)
+            }
+            throw error
+          }
+          const latest = await latestReview(root, manifest, entry)
+          const open = latest === undefined ? [] : parseReview(latest.text).filter(item => !item.done)
           if (role === 'reviser' && open.length === 0) {
             throw new StoryError('review-required', `第 ${chapter} 章没有未处理的审稿条目：先 story_review，再修订`)
           }
-          task = role === 'reviewer'
-            ? [`审第 ${chapter} 章。`, ...open.map(item => `- ${item.id}：${item.problem}`)].join('\n')
-            : [`按条目修订第 ${chapter} 章，模式：${mode}。`, ...open.map(item => `- ${item.id}：${item.problem}`)].join('\n')
-        } else if (role === 'writer') {
-          task = `写第 ${chapter} 章正文。`
-        } else if (role === 'planner') {
-          task = chapter === undefined
-            ? '为这部作品出全书计划：主线、卷划分、结局方向。'
-            : `为第 ${chapter} 章出章纲：五项齐全且互相咬合。`
+          review = {
+            round: latest?.round,
+            revision: latest?.revision,
+            open: open.map(item => ({ id: item.id, problem: item.problem })),
+          }
         }
 
         const context = await assembleRoleContext({
@@ -715,26 +763,32 @@ function rawDefinitions() {
           ...(chapter === undefined ? {} : { chapter }),
           role,
           ...(role === 'planner' ? { scope: chapter === undefined ? 'work' : 'chapter' } : {}),
-          task,
+          ...(role === 'planner' ? { task: chapter === undefined
+            ? '为这部作品出全书计划：主线、卷划分、结局方向。'
+            : `为第 ${chapter} 章出章纲：五项齐全且互相咬合。` } : {}),
           instruction,
           ...(role === 'reviser' ? { mode } : {}),
           ...(body === '' ? {} : { body }),
-          ...(Number.isInteger(args.budget) ? { budget: args.budget } : {}),
+          ...(review === undefined ? {} : { review }),
         })
         return {
           ok: true,
           workId: args.work,
           role,
           ...(chapter === undefined ? {} : { chapter }),
-          contextSections: context.sections.filter(item => item.content !== '').map(item => ({
-            name: item.name,
-            title: item.title,
-            source: item.source ?? '',
-            content: item.content,
-            protection: item.protection,
-            chars: item.content.length,
-          })),
-          trace: context.trace,
+          sections: context.sections
+            .filter(item => item.content !== '')
+            .map(item => ({
+              name: item.name,
+              title: item.title,
+              source: item.source ?? '',
+              content: item.content,
+              protection: item.protection,
+            })),
+          trace: {
+            ...context.trace,
+            ...(review === undefined ? {} : { review: { round: review.round ?? 0, revision: review.revision ?? 0 } }),
+          },
           whitelist: context.whitelist,
         }
       },
@@ -759,17 +813,12 @@ function rawDefinitions() {
       },
       async execute(args, exec) {
         const root = workspaceOf(exec)
-        const whitelist = await deriveWhitelist(root, { work: args.work, chapter: args.chapter })
-        const consistency = checkConsistency({ body: args.body, whitelist })
-        if (consistency.unknownNames.length > 0) {
-          throw new StoryError('consistency-violation',
-            `正文出现上下文里没有的人名：${consistency.unknownNames.join('、')}。改写后再落盘`)
-        }
+        const { warnings } = await checkDraft(root, args)
         const result = await writeChapter(root, args)
         return {
           ok: true, workId: args.work, artifact: result.artifact, words: result.words,
           ...(result.cleaned > 0 ? { cleaned: result.cleaned } : {}),
-          ...(consistency.warnings.length === 0 ? {} : { warnings: consistency.warnings }),
+          ...(warnings.length === 0 ? {} : { warnings }),
         }
       },
     }),
@@ -837,16 +886,11 @@ function rawDefinitions() {
       },
       async execute(args, exec) {
         const root = workspaceOf(exec)
-        const whitelist = await deriveWhitelist(root, { work: args.work, chapter: args.chapter })
-        const consistency = checkConsistency({ body: args.body, whitelist })
-        if (consistency.unknownNames.length > 0) {
-          throw new StoryError('consistency-violation',
-            `修订稿出现上下文里没有的人名：${consistency.unknownNames.join('、')}。改写后再提交`)
-        }
+        const { warnings } = await checkDraft(root, args)
         const result = await reviseChapter(root, args)
         return {
           ok: true, workId: args.work, artifact: result.artifact, resolved: result.resolved,
-          ...(consistency.warnings.length === 0 ? {} : { warnings: consistency.warnings }),
+          ...(warnings.length === 0 ? {} : { warnings }),
         }
       },
     }),

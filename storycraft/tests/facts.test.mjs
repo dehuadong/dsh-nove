@@ -34,8 +34,8 @@ try {
   check('numbers also carry digits', whitelist.numbers.includes('16') && whitelist.numbers.includes('7'), whitelist.numbers.join(','))
 
   const summary = summariseWhitelist(whitelist)
-  check('summary exposes counts', summary.names === 1 && summary.places >= 2, JSON.stringify(summary))
-  check('summary exposes only samples', summary.sample.names.length <= 5 && summary.sample.places.length <= 5, JSON.stringify(summary.sample))
+  check('summary exposes counts', summary.counts.names === 1 && summary.counts.places >= 2, JSON.stringify(summary))
+  check('summary exposes only samples', summary.sample.names.length <= 5 && summary.sample.numbers.length <= 5, JSON.stringify(summary.sample))
 } finally {
   await rm(root, { recursive: true, force: true })
 }

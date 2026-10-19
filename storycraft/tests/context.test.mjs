@@ -32,19 +32,19 @@ try {
   await writeFile(join(dir, 'bible', 'style.md'), '# 文风\n短句，少形容。', 'utf8')
   await writeFile(join(dir, 'state', 'events.jsonl'), `${JSON.stringify({ seq: 1, at: new Date().toISOString(), chapter: 1, kind: 'hook', text: '一处未解', state: 'opened' })}\n`, 'utf8')
 
-  const out = await assembleRoleContext({ root, work, chapter: 2, role: 'writer', instruction: '写得紧一点' })
+  const out = await assembleRoleContext({ root, work, chapter: 2, role: 'writer', task: '写第 2 章正文。', instruction: '写得紧一点' })
   const names = out.trace.sections.map(item => item.name)
   check('writer gets the seven sections', ['authority', 'task', 'constraints', 'state', 'recent', 'style'].every(name => names.includes(name)), names.join(','))
   check('authority and task are protected', out.trace.sections.filter(item => ['authority', 'task', 'constraints'].includes(item.name)).every(item => item.protection === 'protected'))
   check('state and recent are compressible', out.trace.sections.filter(item => ['state', 'recent', 'style'].includes(item.name)).every(item => item.protection === 'compressible'))
   check('constraints carry the word range', out.text.includes('3000–5000'), out.text.slice(0, 200))
   check('constraints carry the lead character', out.text.includes('周观') && out.text.includes('不拿人命换速度'), out.text.slice(0, 300))
-  check('whitelist summary lists sample names', out.whitelist.names === 2 && out.whitelist.sample.names.join(',') === '周观,韩松', JSON.stringify(out.whitelist))
-  check('whitelist summary counts numbers', typeof out.whitelist.numbers === 'number', JSON.stringify(out.whitelist))
+  check('whitelist summary lists sample names', out.whitelist.counts.names === 2 && out.whitelist.sample.names.join(',') === '周观,韩松', JSON.stringify(out.whitelist))
+  check('whitelist summary counts numbers', typeof out.whitelist.counts.numbers === 'number', JSON.stringify(out.whitelist))
   check('recent uses summaries', out.text.includes('第一章摘要'), out.text.slice(0, 300))
 
   // A tight budget drops compressible sections before protected ones.
-  const tight = await assembleRoleContext({ root, work, chapter: 2, role: 'writer', budget: 150 })
+  const tight = await assembleRoleContext({ root, work, chapter: 2, role: 'writer', task: '写第 2 章正文。', budget: 150 })
   const dropped = tight.trace.dropped
   check('recent is dropped first', dropped[0] === 'recent', dropped.join(','))
   check('protected sections survive the budget', tight.text.includes('权威顺序') && tight.text.includes('本章任务'))
@@ -56,7 +56,7 @@ try {
   const planner = await assembleRoleContext({ root, work, chapter: 2, role: 'planner', task: '为第 2 章出章纲' })
   check('planner gets the book plan', planner.text.includes('一条主线'), planner.text.slice(0, 200))
   check('planner gets character cards', planner.text.includes('韩松') && planner.text.includes('语气'), planner.text.slice(0, 400))
-  check('planner whitelist comes from the context', planner.whitelist.names === 2, JSON.stringify(planner.whitelist))
+  check('planner whitelist comes from the context', planner.whitelist.counts.names === 2, JSON.stringify(planner.whitelist))
 
   // Planning chapter 3 has no manifest entry yet; that must still work.
   const plannedAhead = await assembleRoleContext({
@@ -71,17 +71,21 @@ try {
   check('work scope still carries hooks', workScope.text.includes('一处未解'))
 
   try {
-    await assembleRoleContext({ root, work, chapter: 2, role: 'reviewer', body: '' })
+    await assembleRoleContext({ root, work, chapter: 2, role: 'reviewer', task: '审第 2 章。', body: '' })
     check('a review without a body is refused', false, 'expected rejection')
   } catch (error) {
     check('a review without a body is refused', error?.code === 'chapter-not-written', String(error?.code))
   }
 
   const review = await assembleRoleContext({
-    root, work, chapter: 2, role: 'reviewer', body: '这一章正文。'.repeat(100), task: '- Q1：节奏慢',
+    root, work, chapter: 2, role: 'reviewer', body: '这一章正文。'.repeat(100),
+    review: { round: 1, revision: 1, open: [{ id: 'Q1', problem: '节奏慢' }] },
   })
   check('reviewer gets the body as protected', review.trace.sections.some(item => item.name === 'body' && item.protection === 'protected'))
-  check('reviewer task carries the items', review.text.includes('Q1'))
+  check('reviewer task carries the items', review.text.includes('Q1'), review.text.slice(0, 300))
+  check('reviewer gets the chapter plan before the body',
+    review.trace.sections.map(item => item.name).indexOf('plan') < review.trace.sections.map(item => item.name).indexOf('body'))
+  check('reviewer gets a standards segment', review.trace.sections.some(item => item.name === 'standard' && item.protection === 'protected'))
 } finally {
   await rm(root, { recursive: true, force: true })
 }
