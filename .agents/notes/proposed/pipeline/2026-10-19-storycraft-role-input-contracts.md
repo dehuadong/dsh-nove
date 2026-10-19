@@ -45,7 +45,7 @@ updated: 2026-10-19
 
 | 模块 | 职责 | 依赖 |
 | --- | --- | --- |
-| `facts.js`（新增） | **唯一**白名单派生：`deriveWhitelist(root, {work, chapter?, extraText?})`；来源为人物卡、意图、计划、卷图、章纲与任务文字；**不读正文** | `storage.js` |
+| `facts.js`（新增） | **唯一**白名单派生：`deriveWhitelist(root, {work, chapter?})`；来源只有已落盘资料（人物卡、意图、计划、卷图、章纲）；**不读正文、不收任务文字**，调用方无法注入 | `storage.js` |
 | `context.js` | 组装分段上下文与轨迹；白名单只取摘要（数量 + 样例） | `facts.js`、`storage.js` |
 | `consistency.js` | 纯函数：正文 × 白名单比对 | 无 |
 | `tools.js` | 校验调用点固定在这里（`story_write`、`story_revise`） | 三者 |
@@ -54,7 +54,7 @@ updated: 2026-10-19
 
 `story_brief` 继续服务主编自己写与预览（8KB 字节、既有段序），本次不改；`story_context` 只服务派发（字符预算、保护级别、轨迹）。两者共享数据来源，合并留待后续工作项。输出 schema 不复用 `story_brief` 的段结构。
 
-入口拒绝（仅写作/审稿/修订路径）：章不存在 → `chapter-not-found`；章有正文但无章纲 → `plan-not-found`；人物卡缺失 → `bible-missing`。规划路径不要求清单条目、章纲或人物卡。
+入口拒绝（仅写作/审稿/修订路径）：章不存在 → `chapter-not-found`；该章缺章纲 → `plan-not-found`（无论是否已有正文）；人物卡缺失 → `bible-missing`。规划路径不要求清单条目、章纲或人物卡。
 
 保护级别：权威顺序、任务、硬约束、正文、全书计划为 `protected`；人物与状态、最近脉络、文风、人物卡为 `compressible`。预算默认 8000 字符，先压缩（头尾保留 + 标记）再整段裁掉，顺序 `recent → state → style`。
 
@@ -98,7 +98,7 @@ updated: 2026-10-19
 1. 分段与保护级别：`context.test.mjs` 断言四角色的段集合与 protection；
 2. 入口拒绝：`context.test.mjs` 覆盖 `chapter-not-found`、`plan-not-found`、`bible-missing`，以及规划路径不要求前置；
 3. 预算：裁剪顺序 `recent → state → style` 由测试观察（先压缩 recent，再裁 state，最后 style）；
-4. 校验：`consistency.test.mjs` 与动作层测试覆盖 `story_write`/`story_revise` 的拒绝与告警；白名单由 `facts.js` 派生、正文不参与；
+4. 校验：`consistency.test.mjs` 与动作层测试覆盖 `story_write`/`story_revise` 的拒绝与告警；白名单由 `facts.js` 只从已落盘资料派生，正文与任务文字都不参与（测试需分别用含新人名/新数字的正文与指令证明它们不会自我放行）；
 5. 接线：`context.js`/`consistency.js`/`facts.js` 均被 `tools.js` 引用（可 grep 证明），不再有死代码；
 6. 模板：编排技能里四段派发模板可查。
 
