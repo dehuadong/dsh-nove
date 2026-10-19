@@ -15,6 +15,7 @@ window.__ModuleLoader__.load({
       current: '/api/dsh-storycraft/current',
       work: '/api/dsh-storycraft/work',
       chapter: '/api/dsh-storycraft/chapter',
+      approve: '/api/dsh-storycraft/chapter/approve',
       review: '/api/dsh-storycraft/review',
       bible: '/api/dsh-storycraft/bible',
       brief: '/api/dsh-storycraft/brief',
@@ -289,6 +290,7 @@ window.__ModuleLoader__.load({
         setCurrent: (root, sessionId, workId) => post(ROUTE.current, { root, sessionId, workId }),
         work: (root, id) => route(ROUTE.work, { root, id }),
         chapter: (root, id, chapter, view, revision) => route(ROUTE.chapter, { root, id, chapter, view, revision }),
+        approveChapterPlan: (root, sessionId, workId, chapter) => post(ROUTE.approve, { root, sessionId, workId, chapter }),
         review: (root, id, chapter) => route(ROUTE.review, { root, id, chapter }),
         bible: (root, id) => route(ROUTE.bible, { root, id }),
         brief: (root, id, chapter) => route(ROUTE.brief, { root, id, chapter }),
@@ -543,7 +545,7 @@ window.__ModuleLoader__.load({
         h('h2', { className: 'sc-detail-title' }, '还没有作品'),
         h('p', null, '先和模型把想法聊清楚：讨论阶段不写文件；方向定了它会给一份建项方案，你确认后才立项。'),
         h('ul', { className: 'sc-steps' },
-          h('li', null, '长篇 / 短篇 / 剧本共用同一套动作（二十一个）：立项（带形态与字数范围）、章纲、正文、审稿、修订、定稿、进度，以及真值、导入、摘要、写前上下文。'),
+          h('li', null, '长篇 / 短篇 / 剧本共用同一套动作：立项（带形态与字数范围）、章纲、正文、审稿、修订、定稿、进度，以及真值、导入、摘要、写前上下文。'),
           h('li', null, '短篇小说 / 短剧剧本：同一套动作，技能按作品形态选用；形态在建档时写进作品。'),
         ),
         notice === undefined ? null : h('p', { className: `sc-notice sc-notice-${notice.kind}` }, notice.text),
@@ -571,7 +573,7 @@ window.__ModuleLoader__.load({
 
     /** One chapter reader with plan/body tabs, review list and state. */
     /** Inline editor: shows the canned instruction, lets the author add specifics. */
-    function ChapterPanel({ face, root, workId, chapter, unit, onNotice, canSend, compose, hideActions }) {
+    function ChapterPanel({ face, root, workId, sessionId, chapter, unit, onNotice, onApproved, canSend, compose, hideActions }) {
       const [view, setView] = useState('body')
       const [metrics, setMetrics] = useState(undefined)
       const [reviseMode, setReviseMode] = useState('patch')
@@ -724,6 +726,25 @@ window.__ModuleLoader__.load({
           h('button', { type: 'button', className: 'sc-tab', 'aria-selected': view === 'plan' ? 'true' : 'false', onClick: () => setView('plan') }, '章纲'),
           h('button', { type: 'button', className: 'sc-tab', 'aria-selected': view === 'summary' ? 'true' : 'false', onClick: () => setView('summary') }, '摘要'),
         ),
+        view === 'plan'
+          ? h('div', { className: 'sc-row' },
+            chapter.planApproved === true
+              ? h('span', { className: 'sc-badge sc-badge-ok' }, '章纲已确认')
+              : h('button', {
+                type: 'button',
+                className: 'sc-btn sc-btn-small',
+                onClick: async () => {
+                  try {
+                    await face.approveChapterPlan(root, sessionId, workId, chapter.number)
+                    onNotice?.({ kind: 'ok', text: '章纲已确认，可以写正文了' })
+                    onApproved?.()
+                  } catch (error) {
+                    onNotice?.({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
+                  }
+                },
+              }, '确认章纲'),
+          )
+          : null,
         view === 'body' && chapter.revision > 1
           ? h('div', { className: 'sc-tabs' },
             ...Array.from({ length: chapter.revision }, (_, index) => index + 1).map(version => h('button', {
@@ -1126,6 +1147,8 @@ window.__ModuleLoader__.load({
                 face,
                 root,
                 workId: manifest.workId,
+                sessionId,
+                onApproved: () => { void load() },
                 chapter,
                 unit: unitOf(manifest.form),
                 onNotice,

@@ -94,6 +94,10 @@ async function buildFixture() {
   await store.writePlan(fixtureWorkspace, {
     work, chapter: 1, perspective: '甲', goal: '救火', obstacle: '断电', cost: '时间', turn: '找到出口',
   })
+  // Chapter 2 has a plan but no body: the page must offer its confirmation.
+  await store.writePlan(fixtureWorkspace, {
+    work, chapter: 2, perspective: '甲', goal: '找回灰旗', obstacle: '渠水', cost: '脚伤', turn: '旗是空的',
+  })
   const first = '灰旗在风里翻了一夜。'.repeat(60)
   await store.writeChapter(fixtureWorkspace, { work, chapter: 1, title: '灰旗', body: first })
   await store.writeReview(fixtureWorkspace, {

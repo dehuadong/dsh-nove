@@ -38,10 +38,22 @@ try {
   check('plan artifact path', plan.artifact.path.endsWith('ch-0001.plan.md'), plan.artifact.path)
   check('plan exists on disk', (await stat(join(root, plan.artifact.path))).isFile())
 
+  const beforeApproval = (await s.readWork(root, work)).chapters[0]
+  check('a new plan starts unapproved', beforeApproval.planApproved === false, JSON.stringify(beforeApproval))
+  const approved = await s.approveChapterPlan(root, { work, chapter: 1 })
+  check('approval records a timestamp', typeof approved.entry.planApprovedAt === 'string')
+  const afterApproval = (await s.readWork(root, work)).chapters[0]
+  check('readWork exposes the approval', afterApproval.planApproved === true, JSON.stringify(afterApproval))
+
   await rejects('empty body rejected', 'empty-body', () => s.writeChapter(root, { work, chapter: 1, body: '  ' }))
   const write1 = await s.writeChapter(root, { work, chapter: 1, title: '雨里的灯', body: '他站在雨里。'.repeat(50) })
   check('first body revision is 1', write1.artifact.revision === 1, String(write1.artifact.revision))
   check('words counted', write1.words > 0, String(write1.words))
+
+  await s.writePlan(root, { work, chapter: 1, perspective: '林澈', goal: '拿回合同（改）', obstacle: '房东堵门', cost: '欠下人情', turn: '发现合同是假的' })
+  const afterReplan = (await s.readWork(root, work)).chapters[0]
+  check('rewriting the plan clears the approval', afterReplan.planApproved === false, JSON.stringify(afterReplan))
+  await s.approveChapterPlan(root, { work, chapter: 1 })
 
   await rejects('second write without rewrite rejected', 'chapter-exists', () => s.writeChapter(root, { work, chapter: 1, body: '另一版' }))
   const filesAfterReject = (await readdir(join(root, 'works', work, 'chapters'))).sort()

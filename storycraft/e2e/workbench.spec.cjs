@@ -78,7 +78,7 @@ test.describe('故事工坊工作台', () => {
     await expect(project).toBeVisible({ timeout: 15_000 })
     await expect(page.getByRole('button', { name: /^长篇/ })).toHaveCount(1)
     await project.evaluate(node => node.click())
-    await expect(page.getByText(/longform · 示例短篇 · 1 章 · 已写 1 章/)).toBeVisible()
+    await expect(page.getByText(/longform · 示例短篇 · 2 章 · 已写 1 章/)).toBeVisible()
     // A project is a subpage: the type rail is gone and a way back remains.
     await expect(page.getByRole('button', { name: /^长篇/ })).toHaveCount(0)
     const back = page.getByRole('button', { name: /全部作品/ })
@@ -88,9 +88,11 @@ test.describe('故事工坊工作台', () => {
     await expect(page.getByRole('button', { name: /^长篇/ })).toHaveCount(1, { timeout: 10_000 })
     await expect(page.getByRole('button', { name: /示例短篇/ })).toBeVisible()
     await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())
-    await expect(page.getByText(/longform · 示例短篇 · 1 章 · 已写 1 章/)).toBeVisible()
+    await expect(page.getByText(/longform · 示例短篇 · 2 章 · 已写 1 章/)).toBeVisible()
 
-    await expect(page.locator('button.sc-chapter').filter({ hasText: '灰旗' })).toBeVisible()
+    const firstChapter = page.locator('button.sc-chapter').filter({ hasText: '灰旗' })
+    await expect(firstChapter).toBeVisible()
+    await firstChapter.evaluate(node => node.click())
     await expect(page.getByText(`已定稿 · 当前版本 r2 · ${facts.words} 字 · 审稿 1 轮 · 未处理 0 条`)).toBeVisible()
     await expect(page.getByText(/本章已定稿并锁定。要补审稿或改稿：点「撤回定稿」/)).toBeVisible()
     await expect(page.getByRole('button', { name: '撤回定稿', exact: true })).toBeEnabled()
@@ -107,6 +109,19 @@ test.describe('故事工坊工作台', () => {
 
     await expect(page.getByText(`状态事件 ${facts.events}`)).toBeVisible()
     await expect(page.getByText(`伏笔 未解 ${facts.hooksOpen}`)).toBeVisible()
+  })
+
+  test('章纲可以从面板确认', async ({ page }) => {
+    await openWorkbench(page)
+    await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())
+    const second = page.locator('button.sc-chapter').filter({ hasText: '第 2 章' })
+    await expect(second).toBeVisible({ timeout: 15_000 })
+    await second.evaluate(node => node.click())
+    await page.getByRole('button', { name: '章纲', exact: true }).evaluate(node => node.click())
+    const approve = page.getByRole('button', { name: '确认章纲', exact: true })
+    await expect(approve).toBeVisible()
+    await approve.evaluate(node => node.click())
+    await expect(page.getByText('章纲已确认')).toBeVisible({ timeout: 10_000 })
   })
 
   test('非长篇会话里下发指令只得到说明', async ({ page }) => {

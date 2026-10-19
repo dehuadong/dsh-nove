@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as tools from '../tools.js'
+import * as s from '../storage.js'
 import { setCurrent } from '../current.js'
 
 let failures = 0
@@ -105,8 +106,8 @@ try {
   }, exec)
   check('the first chapter plan needs an approved outline', earlyPlan.ok === false && earlyPlan.error.code === 'outline-required', JSON.stringify(earlyPlan))
   await byName.get('story_outline').execute({ work, mainline: '一条主线' }, exec)
-  const unapproved = await byName.get('story_outline').execute({ work }, exec)
-  check('an unapproved outline blocks nothing by itself', unapproved.ok === true || unapproved.ok === false)
+  const blockedUnapproved = await byName.get('story_outline').execute({ work }, exec)
+  check('an unapproved outline blocks nothing by itself', blockedUnapproved.ok === true || blockedUnapproved.ok === false)
   const blockedPlan = await byName.get('story_plan').execute({
     work, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't',
   }, exec)
@@ -118,6 +119,21 @@ try {
     work, chapter: 1, perspective: '林澈', goal: '拿回合同', obstacle: '房东', cost: '人情', turn: '合同是假的',
   }, exec)
   check('story_plan ok', plan.ok === true && plan.artifact.path.endsWith('ch-0001.plan.md'), JSON.stringify(plan))
+
+  const bodyBeforeApproval = '他站在雨里。'.repeat(60)
+  const blockedPlanWrite = await byName.get('story_write').execute({ work, chapter: 1, body: bodyBeforeApproval }, exec)
+  check('an unapproved chapter plan blocks writing', blockedPlanWrite.ok === false
+    && blockedPlanWrite.error.code === 'plan-not-approved', JSON.stringify(blockedPlanWrite))
+  const approvedPlan = await s.approveChapterPlan(root, { work, chapter: 1 })
+  check('the author confirms the chapter plan', typeof approvedPlan.entry.planApprovedAt === 'string')
+
+  const replanned = await byName.get('story_plan').execute({
+    work, chapter: 1, perspective: '林澈', goal: '拿回合同', obstacle: '房东', cost: '人情', turn: '合同是假的（修）',
+  }, exec)
+  check('rewriting a plan clears its approval', replanned.ok === true)
+  const afterReplan = JSON.parse(await readFile(join(root, 'works', work, 'manifest.json'), 'utf8'))
+  check('approval is cleared on replan', afterReplan.chapters[0].planApprovedAt === undefined)
+  await s.approveChapterPlan(root, { work, chapter: 1 })
 
   const badPlan = await byName.get('story_plan').execute({
     work, chapter: 2, perspective: '林澈', goal: '', obstacle: 'x', cost: 'y', turn: 'z',
@@ -305,6 +321,7 @@ try {
     && unwritten.error.code === 'chapter-not-written', JSON.stringify(unwritten))
 
   // A revision that invents a speaker is refused at landing, like a write.
+  await s.approveChapterPlan(root, { work, chapter: 2 })
   const secondWrite = await byName.get('story_write').execute({ work, chapter: 2, body: '第二章正文。'.repeat(40) }, exec)
   check('second chapter written', secondWrite.ok === true, JSON.stringify(secondWrite))
   const secondReview = await byName.get('story_review').execute({

@@ -849,10 +849,38 @@ export async function writePlan(root, input) {
       '',
     ].join('\n')
     await commitFiles(root, manifest.workId, 'plan', { [relativeToWork(workDir, file)]: text })
+    // A fresh plan is unapproved until the author confirms it in the panel.
+    delete entry.planApprovedAt
     if (stageOf(entry) === 'planned') entry.stage = 'planned'
     entry.updatedAt = now()
     const written = await writeManifest(root, manifest.workId, manifest)
     return { manifest: written, entry, artifact: { path: rootRelative(root, file) } }
+  })
+}
+
+/**
+ * Record the author's confirmation of one chapter plan.
+ *
+ * Only the host route calls this: the model has no approval action, so it cannot
+ * confirm on the author's behalf.
+ * @param {string} root - workspace directory.
+ * @param {{work: string, chapter: number|string}} input - target chapter.
+ * @returns {Promise<{manifest: object, entry: object}>} the updated chapter entry.
+ */
+export async function approveChapterPlan(root, input) {
+  return withWorkLock(root, String(input.work), async () => {
+    const manifest = await readManifest(root, input.work)
+    const number = chapterNumber(input.chapter)
+    const entry = manifest.chapters.find(chapter => chapter.number === number)
+    if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${number} 章：先写章纲`)
+    const planFile = join(workDirectory(root, manifest.workId), 'outline', `${entry.id}.plan.md`)
+    if ((await readOptional(planFile)) === undefined) {
+      throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲：先 story_plan，再确认`)
+    }
+    entry.planApprovedAt = now()
+    entry.updatedAt = now()
+    const written = await writeManifest(root, manifest.workId, manifest)
+    return { manifest: written, entry }
   })
 }
 
@@ -1468,6 +1496,13 @@ async function nextStepRaw(root, work) {
     return { workId: manifest.workId, chapter: last.number, stage, action: 'story_plan', reason: `第 ${last.number} 章缺章纲`, missing: ['outline'] }
   }
   if (!hasBody) {
+    if (last.planApprovedAt === undefined) {
+      return {
+        workId: manifest.workId, chapter: last.number, stage, action: 'story_write',
+        reason: `第 ${last.number} 章章纲等作者确认：在面板「章纲」里点「确认章纲」，然后写正文`,
+        missing: ['plan-approval'],
+      }
+    }
     return { workId: manifest.workId, chapter: last.number, stage, action: 'story_write', reason: `第 ${last.number} 章已有章纲，写正文`, missing: ['body'] }
   }
   if (stage === 'written') {
@@ -1561,6 +1596,7 @@ export async function readWork(root, work) {
       words: chapter.words,
       stage: stageOf(chapter),
       hasPlan: plan !== undefined,
+      planApproved: chapter.planApprovedAt !== undefined,
       hasSummary: summary !== undefined && summary.trim() !== '',
       reviewRound: latest?.round ?? 0,
       openProblems: latest === undefined ? 0 : parseReview(latest.text).filter(item => !item.done).length,
