@@ -27,6 +27,7 @@
     "critique.js",
     "facts.js",
     "context.js",
+    "scope.js",
     "consistency.js",
     "stage.js",
     "current.js",

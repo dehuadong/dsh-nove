@@ -34,11 +34,19 @@ check('action names', names.join(',') === [
   'story_outline', 'story_propose', 'story_review', 'story_revise', 'story_settings', 'story_state',
   'story_status', 'story_summarize', 'story_volume', 'story_volumes', 'story_write',
 ].sort().join(','), names.join(','))
-check('the delegation guard is registered once', guards.length === 1, String(guards.length))
+check('the delegation and scope guards are registered', guards.length === 2, String(guards.length))
 check('every action declares output schema', registered.every(definition => definition.output?.schema && typeof definition.output?.render === 'function'))
 check('every action declares execute', registered.every(definition => typeof definition.execute === 'function'))
 
 const byName = new Map(registered.map(definition => [definition.name, definition]))
+const scopeGuard = guards[1]
+const fakeSession = id => ({ header: { id, cwd: 'E:\\repo' } })
+const fakeExec = (name, args, id = 'scope-main') => ({ name, arguments: args, agent: { id, session: fakeSession(id) } })
+
+check('scope guard denies works without a current work',
+  scopeGuard(fakeExec('read', { file_path: 'works/别的书/chapters/ch-0001.md' })) !== undefined)
+check('scope guard allows project files',
+  scopeGuard(fakeExec('read', { file_path: 'AGENTS.md' })) === undefined)
 // The tool registry asserts the output schema against its supported subset and
 // rejects the whole plugin row on a violation, which silently marks the preset
 // broken. Mirror those rules here so that regression is caught offline.

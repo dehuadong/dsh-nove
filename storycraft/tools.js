@@ -33,7 +33,9 @@ import { assembleRoleContext } from './context.js'
 import { checkConsistency } from './consistency.js'
 import { deriveWhitelist, summariseWhitelist } from './facts.js'
 import { getCurrent, resolveWork } from './current.js'
+import { join } from 'node:path'
 import { createProposal, markProposalUsed, readProposal } from './proposals.js'
+import { SCOPE_MESSAGES, scopeDenial } from './scope.js'
 
 /**
  * The session that owns one tool call.
@@ -1407,6 +1409,67 @@ function withCurrentWork(definition) {
 }
 
 /**
+ * Walk to the root session of one call (a subagent points at its dispatcher).
+ * @param {object} ctx - plugin context.
+ * @param {object} session - calling session.
+ * @returns {object|undefined} root session.
+ */
+function rootSessionOf(ctx, session) {
+  let current = session
+  const sessions = typeof ctx?.get === 'function' ? ctx.get('sessions') : undefined
+  for (let depth = 0; depth < 8; depth += 1) {
+    const parent = current?.header?.parentSession
+    if (typeof parent !== 'string' || parent === '') return current
+    const next = sessions?.get?.(parent)
+    if (next === undefined) return current
+    current = next
+  }
+  return current
+}
+
+/**
+ * The live working directory of one session, falling back to its header.
+ * @param {object} ctx - plugin context.
+ * @param {object} session - calling session.
+ * @returns {string|undefined} absolute directory.
+ */
+function workingDirectoryOf(ctx, session) {
+  const service = typeof ctx?.get === 'function' ? ctx.get('workingDirectory') : undefined
+  try {
+    const value = service?.get?.(session)
+    if (typeof value === 'string' && value !== '') return value
+  } catch {
+    // fall through to the immutable header
+  }
+  const header = session?.header?.cwd
+  return typeof header === 'string' && header !== '' ? header : undefined
+}
+
+/**
+ * Deny file/DB access outside the session's work scope. Details live in scope.js.
+ * @param {object} ctx - plugin context.
+ * @param {object} exec - pending tool call.
+ * @returns {string|undefined} denial copy.
+ */
+function scopeDenialOf(ctx, exec) {
+  const session = exec?.agent?.session
+  if (session === undefined) return undefined
+  const root = rootSessionOf(ctx, session)
+  const rootCwd = root?.header?.cwd
+  const cwd = workingDirectoryOf(ctx, session)
+  if (typeof rootCwd !== 'string' || rootCwd === '' || cwd === undefined) return SCOPE_MESSAGES.discussion
+  const currentWork = getCurrent(root?.header?.id ?? session.header?.id)
+  return scopeDenial({
+    tool: exec.name,
+    arguments: exec.arguments ?? {},
+    cwd,
+    worksRoot: join(rootCwd, 'works'),
+    dbRoot: join(rootCwd, '.storycraft'),
+    ...(currentWork === undefined ? {} : { currentWork }),
+  })
+}
+
+/**
  * Register the studio actions in the calling (preset) scope.
  * @param {object} ctx - plugin context (services: tools).
  */
@@ -1417,8 +1480,10 @@ export function apply(ctx) {
   const denyDelegatedWrites = exec => (
     delegationDepthOf(exec) > 0 && DELEGATED_DENIED_TOOLS.has(exec.name) ? DELEGATED_DENIAL : undefined
   )
+  const denyOutOfScope = exec => scopeDenialOf(ctx, exec)
   const disposers = [
     ctx.tools.guard(denyDelegatedWrites),
+    ctx.tools.guard(denyOutOfScope),
     ...definitions().map(definition => ctx.tools.register(definition)),
   ]
   ctx.effect(() => () => {
