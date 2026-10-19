@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：全书计划确认改为宿主闸门
-status: proposed
+status: implemented
 created: 2026-10-19
 updated: 2026-10-19
+verification: 13 套断言与 7 条页面 spec 全过；approve 动作被拒、任何章章纲闸门、面板确认与 story_next 一致
 ---
 
 # Agent Note：故事工坊：全书计划确认改为宿主闸门
@@ -11,7 +12,7 @@ updated: 2026-10-19
 
 「作者确认」目前有两种实现：全书计划由模型调 `story_outline(approve: true)` 记录；单章章纲由面板按钮走宿主路由。前者可被模型代签，后者不能。
 
-## 提案
+## 决定
 
 ### 确认只在宿主
 
@@ -35,7 +36,7 @@ updated: 2026-10-19
 - **静默忽略 `approve`**：旧会话会以为已确认；否决，改为显式 `approval-moved`。
 - **合并 `/outline/approve` 与 `/chapter/approve`**：参数与语义不同；否决，只共用会话校验。
 
-## 验收条件
+## 验证
 
 产品行为与验收由 #15 拥有；本节只说明这份设计怎样被证明：
 
@@ -49,9 +50,9 @@ updated: 2026-10-19
 
 与 `implemented/workspace/2026-10-18-storycraft-outline-stage.md` 是**部分替代**：那份的提纲阶段、`outline-required` 时机与计划文件结构继续有效；本记录只取代「确认由模型动作完成」这一部分。两份记录互相链接。
 
-#15 验证通过后，本记录迁 `implemented`。
+本记录已随 #15 交付迁入 implemented。
 
-## 风险
+## 后果
 
 - 旧会话依赖 `approve: true` 会收到错误，需要作者点面板；
 - 未进入作品时按钮不可用；

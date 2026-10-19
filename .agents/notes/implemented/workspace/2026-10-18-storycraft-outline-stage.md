@@ -8,7 +8,7 @@ verification: 十套离线断言全过（新增：空作品先指提纲、写下
 
 # Agent Note：故事工坊：提纲阶段与作者确认
 
-> 2026-10-19：确认机制已被部分取代——提纲阶段与 `outline-required` 闸门仍有效，但「谁确认」改由宿主闸门承担（见 `proposed/workspace/2026-10-19-storycraft-outline-approval.md` 与 #15）；模型不再能调 `approve`。
+> 2026-10-19：确认机制已被部分取代——提纲阶段与 `outline-required` 闸门仍有效，但「谁确认」改由宿主闸门承担（见 `implemented/workspace/2026-10-19-storycraft-outline-approval.md` 与 #15）；模型不再能调 `approve`。
 
 ## 问题
 
