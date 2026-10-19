@@ -47,6 +47,9 @@ export function toArabic(text) {
 /** Place-name shape, shared with the consistency checker. */
 export const PLACE_PATTERN = /[\u4e00-\u9fa5]{2}(?:滩|城|镇|村|堡|州|府|县|关|口|山|河)/gu
 
+/** Characters that disqualify a place fragment (particles, units, prepositions). */
+export const PLACE_STOP = /[0-9零一二三四五六七八九十百千万两的着了过是在把被和与上下里外中尺您我他这那有]/u
+
 /** Speech verbs that introduce an attribution. */
 const SPEECH_VERBS = ['说', '道', '问', '答', '喊', '叫', '嚷', '叹', '点头', '摇头']
 
@@ -156,9 +159,8 @@ export async function deriveWhitelist(root, input) {
 
   const source = [intent, plan, volumes, chapterPlan, stateText, ...textFiles].join('\n')
 
-  const placeStop = /[0-9零一二三四五六七八九十百千万两的着了过是在把被和与上下里外中尺]/u
   const places = new Set(
-    (source.match(PLACE_PATTERN) ?? []).filter(place => !placeStop.test(place)),
+    (source.match(PLACE_PATTERN) ?? []).filter(place => !PLACE_STOP.test(place)),
   )
   const numbers = new Set()
   for (const match of source.matchAll(/[0-9]+(?:\.[0-9]+)?/gu)) numbers.add(match[0])

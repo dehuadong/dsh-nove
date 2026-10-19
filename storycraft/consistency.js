@@ -7,7 +7,7 @@
  * before comparison.
  */
 
-import { PLACE_PATTERN, extractSpeakerNames, toArabic } from './facts.js'
+import { PLACE_PATTERN, PLACE_STOP, extractSpeakerNames, toArabic } from './facts.js'
 
 /** Characters that begin a verb phrase, not a name. */
 const VERB_LEADS = new Set(['进', '到', '往', '了', '在', '出', '回', '上', '下', '走', '去', '来', '把', '被', '向', '从', '跟', '和', '对'])
@@ -43,7 +43,7 @@ export function checkConsistency(input) {
   const numeralLead = /[0-9零一二三四五六七八九十百千万半两]/u
   const unknownPlaces = [...new Set(
     (body.match(PLACE_PATTERN) ?? [])
-      .filter(place => !VERB_LEADS.has(place[0]) && !numeralLead.test(place[0]))
+      .filter(place => !VERB_LEADS.has(place[0]) && !numeralLead.test(place[0]) && !PLACE_STOP.test(place))
       .filter(place => !places.has(place)),
   )]
 
