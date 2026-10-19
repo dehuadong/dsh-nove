@@ -901,6 +901,12 @@ export async function writeChapter(root, input) {
     if ((await readOptional(planFile)) === undefined) {
       throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲：先 story_plan，再写正文`)
     }
+    // The public write action opts into the author gate; the check runs under
+    // the same lock as the write, so a replan cannot slip between them.
+    if (input.requirePlanApproval === true && entry.currentRevision === 0 && entry.planApprovedAt === undefined) {
+      throw new StoryError('plan-not-approved',
+        `第 ${number} 章章纲还没经作者确认：请在面板「章纲」里点「确认章纲」后再写正文`)
+    }
     const settled = stageOf(entry) === 'settled'
     if (settled && input.reopen !== true) {
       throw new StoryError('chapter-settled',

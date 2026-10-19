@@ -839,14 +839,8 @@ function rawDefinitions() {
       },
       async execute(args, exec) {
         const root = workspaceOf(exec)
-        const manifest = await readManifest(root, args.work)
-        const entry = manifest.chapters.find(item => item.number === args.chapter)
-        if (entry !== undefined && entry.currentRevision === 0 && entry.planApprovedAt === undefined) {
-          throw new StoryError('plan-not-approved',
-            `第 ${args.chapter} 章章纲还没经作者确认：请在面板「章纲」里点「确认章纲」后再写正文`)
-        }
         const { warnings } = await checkDraft(root, args)
-        const result = await writeChapter(root, args)
+        const result = await writeChapter(root, { ...args, requirePlanApproval: true })
         return {
           ok: true, workId: args.work, artifact: result.artifact, words: result.words,
           ...(result.cleaned > 0 ? { cleaned: result.cleaned } : {}),

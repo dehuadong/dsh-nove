@@ -124,6 +124,10 @@ try {
   const blockedPlanWrite = await byName.get('story_write').execute({ work, chapter: 1, body: bodyBeforeApproval }, exec)
   check('an unapproved chapter plan blocks writing', blockedPlanWrite.ok === false
     && blockedPlanWrite.error.code === 'plan-not-approved', JSON.stringify(blockedPlanWrite))
+  const waiting = await byName.get('story_next').execute({ work }, exec)
+  check('story_next asks for the panel confirmation', waiting.ok === true
+    && waiting.missing.includes('plan-approval') && /确认/.test(waiting.reason), JSON.stringify(waiting))
+
   const approvedPlan = await s.approveChapterPlan(root, { work, chapter: 1 })
   check('the author confirms the chapter plan', typeof approvedPlan.entry.planApprovedAt === 'string')
 
@@ -133,6 +137,9 @@ try {
   check('rewriting a plan clears its approval', replanned.ok === true)
   const afterReplan = JSON.parse(await readFile(join(root, 'works', work, 'manifest.json'), 'utf8'))
   check('approval is cleared on replan', afterReplan.chapters[0].planApprovedAt === undefined)
+  const afterReplanWrite = await byName.get('story_write').execute({ work, chapter: 1, body: bodyBeforeApproval }, exec)
+  check('a replanned chapter cannot be written before confirming again', afterReplanWrite.ok === false
+    && afterReplanWrite.error.code === 'plan-not-approved', JSON.stringify(afterReplanWrite))
   await s.approveChapterPlan(root, { work, chapter: 1 })
 
   const badPlan = await byName.get('story_plan').execute({

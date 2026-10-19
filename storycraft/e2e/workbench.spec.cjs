@@ -122,6 +122,7 @@ test.describe('故事工坊工作台', () => {
     await expect(approve).toBeVisible()
     await approve.evaluate(node => node.click())
     await expect(page.getByText('章纲已确认')).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole('button', { name: '确认章纲', exact: true })).toHaveCount(0)
   })
 
   test('非长篇会话里下发指令只得到说明', async ({ page }) => {
