@@ -39,7 +39,10 @@
 
 文档和仓库治理工作可以绕过该工程工作流；涉及重要产品、技术、架构或其他工程合同变化时，仍遵守 GATES 门控规则。
 
+
 ## DSH 插件与预设
+
+DeepSeek Harness 包工作区：packages文档地址 `E:\dsh-nove\deepseek-harness\packages`
 
 改插件或预设前，按顺序读：包内流程技能 → 目标包 README → 源码。不要凭记忆写 Loader 行或 Config 字段。
 
