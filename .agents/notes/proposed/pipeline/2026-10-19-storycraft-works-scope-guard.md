@@ -16,6 +16,7 @@ updated: 2026-10-19
 ### 作用域根
 
 - `worksRoot = <根会话 header.cwd>/works`，根会话 = 沿 `header.parentSession` 向上找到的最顶层会话；`header.cwd` 是会话创建目录、不可变，工作区根**不随 cd 变化**；
+- 第二个受保护根：`<根会话 header.cwd>/.storycraft`（作品入库后的库、`-wal`、`-shm`）。它与 `worksRoot` 同样处理，且库文件**无法按作品隔离**，因此一律拒绝直接访问；
 - 相对路径的基准是**当前会话的实时工作目录**：取 `ctx.workingDirectory.get(session)`（同步、不抛；`ensure` 是异步，不能用），它才是 `working_directory` cd 之后的真实目录；缺失时回退到该会话 `header.cwd`；
 - 归一化 `..`、正/反斜杠、Windows 小写；`ctx.workingDirectory.get` 的返回值可能已经是绝对路径，直接使用。
 
@@ -34,14 +35,14 @@ scopeDenial({ tool, arguments, cwd, worksRoot, currentWork }) -> string | undefi
 | `glob` | `path`（**省略即视为整工作区**，直接拒绝） |
 | `grep` | `path` 与 `include`（`pattern` 是内容正则，不按路径处理） |
 | `pwsh`、`bash` | `workdir` 与 `command` 中的路径片段 |
-| `working_directory` | `cd`（**不允许进入 works/**） |
+| `working_directory` | `cd`（**不允许进入 works/ 或 .storycraft/**） |
 
 - 目标在 `worksRoot` 下：
   - 无当前作品 → `讨论阶段不读历史作品：请先在面板进入一部作品，或给 path 限定到项目目录。`
   - 有当前作品但不在 `works/<currentWork>/` → `只能访问当前作品：works/<其他作品> 不在当前会话的作用域内。`
   - 当前作品内 → 放行；
 - `glob`/`grep` 省略路径 → `检索默认会扫进 works/：请给 path 限定到项目目录或当前作品。`
-- `working_directory` 的 `cd` 指向 `works/` → `不进入作品目录：请用相对项目根的路径访问作品。`
+- `working_directory` 的 `cd` 指向 `works/` 或 `.storycraft/` → `不进入作品目录：请用相对项目根的路径访问作品。`
 - shell：只匹配**路径段** `works`，左边界含分隔符与路径起始：`(^|[\s"'=:/\\])works([/\\]|$)`；因此 `./works/x`、`/repo/works/x`、`E:\repo\works\x` 都会命中，而 `packages/workspace` 不会；`workdir` 按路径判定，`command` 出现无法解析的 `works` 片段时保守拒绝；
 - 项目级路径（`AGENTS.md`、`docs/`、`storycraft/`、`deepseek-harness/`、`packages/workspace/`）不参与判定。
 
@@ -68,7 +69,7 @@ scopeDenial({ tool, arguments, cwd, worksRoot, currentWork }) -> string | undefi
 
 产品行为与验收由 #17 拥有。本设计只证明：
 
-1. `scope.test` 覆盖路径矩阵：相对/绝对、正/反斜杠、`..`、当前作品内外、大小写，以及 **cd 到项目目录后 `../works/x` 仍按实时 cwd 解析并拒绝**；
+1. `scope.test` 覆盖路径矩阵：相对/绝对、正/反斜杠、`..`、当前作品内外、大小写、`.storycraft` 下的库与 `-wal`/`-shm`，以及 **cd 到项目目录后 `../works/x` 仍按实时 cwd 解析并拒绝**；
 2. `scope.test` 覆盖工具参数矩阵：`glob`/`grep` 省略 path、`grep.include`、shell 的 `workdir` 与 `command`、`read_image`、`working_directory` 的 `cd`；
 3. shell 片段匹配：`packages/workspace` 放行；`works/其他`、`./works/x`、`/repo/works/x`、`E:\repo\works\x` 均拒绝；
 4. `tools.test` 断言两个守卫都已注册，并覆盖拒绝文案；
