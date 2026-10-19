@@ -156,7 +156,7 @@ CREATE TABLE IF NOT EXISTS search_docs (
   PRIMARY KEY (work_id, doc_id)
 );
 
-CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(tokens);
+CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(tokens, content='search_docs', content_rowid='rowid');
 
 CREATE INDEX IF NOT EXISTS idx_chapters_work ON chapters(work_id);
 CREATE INDEX IF NOT EXISTS idx_versions_work ON chapter_versions(work_id, number);
@@ -227,15 +227,41 @@ export function withStore(root, fn) {
  * @param {() => any} fn - callback.
  * @returns {any} callback result.
  */
+/** Map a SQLite lock error to the studio's `work-busy` contract. */
+function mapBusy(error) {
+  const text = String(error?.message ?? '')
+  if (error?.errcode === 5 || /SQLITE_BUSY|database is locked/iu.test(text)) {
+    const busy = new Error('作品库正被另一个动作写入，请稍后重试')
+    busy.code = 'work-busy'
+    return busy
+  }
+  return error
+}
+
+/**
+ * Run one write transaction (`BEGIN IMMEDIATE`). A failed BEGIN is reported as
+ * `work-busy` instead of a masked rollback.
+ * @param {DatabaseSync} db - open store.
+ * @param {() => any} fn - callback.
+ * @returns {any} callback result.
+ */
 export function transaction(db, fn) {
-  db.exec('BEGIN IMMEDIATE')
+  try {
+    db.exec('BEGIN IMMEDIATE')
+  } catch (error) {
+    throw mapBusy(error)
+  }
   try {
     const result = fn()
     db.exec('COMMIT')
     return result
   } catch (error) {
-    db.exec('ROLLBACK')
-    throw error
+    try {
+      db.exec('ROLLBACK')
+    } catch {
+      // The transaction may already be gone; the original error matters.
+    }
+    throw mapBusy(error)
   }
 }
 

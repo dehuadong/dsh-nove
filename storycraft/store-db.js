@@ -7,7 +7,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, utimes, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { openStore, transaction } from './db.js'
 import { StoryError, chapterNumber, countWords, parseReview } from './storage.js'
@@ -21,7 +21,11 @@ function now() {
 
 /** Normalise a work title into a directory-safe id. */
 function workIdOf(title) {
-  return String(title).trim().replace(/[\\/:*?"<>|]/gu, '').replace(/\s+/gu, ' ').slice(0, 40)
+  const id = String(title).trim().replace(/\s+/gu, '-').slice(0, 40)
+  if (!/^[\p{Script=Han}A-Za-z0-9-]+$/u.test(id)) {
+    throw new StoryError('invalid-work-id', `作品 id 只能包含汉字、字母、数字与连字符：${id}`)
+  }
+  return id
 }
 
 /** Read one work manifest, or throw. */
@@ -72,7 +76,7 @@ export function readManifest(root, work) {
  */
 export function initWork(root, input) {
   const title = String(input.title ?? '').trim()
-  if (title === '') throw new StoryError('title-required', '作品需要标题')
+  if (title === '') throw new StoryError('invalid-title', '作品需要标题')
   const form = input.form ?? 'longform'
   if (!FORMS.has(form)) throw new StoryError('form-invalid', `未知形态：${form}`)
   if (input.wordRange !== undefined) {
@@ -85,10 +89,11 @@ export function initWork(root, input) {
   const db = openStore(root)
   try {
     return transaction(db, () => {
-      const base = workIdOf(title)
-      let workId = base
-      for (let index = 2; db.prepare('SELECT 1 FROM works WHERE work_id = ?').get(workId) !== undefined; index += 1) {
-        workId = `${base}-${index}`
+      const workId = typeof input.workId === 'string' && input.workId.trim() !== ''
+        ? workIdOf(input.workId)
+        : workIdOf(title)
+      if (db.prepare('SELECT 1 FROM works WHERE work_id = ?').get(workId) !== undefined) {
+        throw new StoryError('work-exists', `作品已存在：${workId}`)
       }
       const at = now()
       db.prepare(`INSERT INTO works (work_id, title, form, tags, plan_approval, word_min, word_max, created_at, updated_at)
@@ -207,11 +212,12 @@ export function renameWork(root, input) {
       const title = typeof input.title === 'string' && input.title.trim() !== '' ? input.title.trim() : row.title
       const nextId = typeof input.workId === 'string' && input.workId.trim() !== ''
         ? workIdOf(input.workId)
-        : (title === row.title ? row.work_id : workIdOf(title))
+        : row.work_id
       if (nextId !== row.work_id && db.prepare('SELECT 1 FROM works WHERE work_id = ?').get(nextId) !== undefined) {
         throw new StoryError('work-exists', `作品已存在：${nextId}`)
       }
       db.prepare('UPDATE works SET work_id = ?, title = ?, updated_at = ? WHERE work_id = ?').run(nextId, title, now(), row.work_id)
+      db.prepare('UPDATE search_docs SET work_id = ? WHERE work_id = ?').run(nextId, row.work_id)
       return { workId: nextId, title }
     })
   } finally {
@@ -444,7 +450,7 @@ export function readChapter(root, input) {
   try {
     const work = ensureWork(db, input.work)
     const entry = chapterRow(db, work.work_id, number)
-    if (entry === undefined || entry.current_revision === 0) throw new StoryError('chapter-not-written', `第 ${number} 章还没有正文`)
+    if (entry === undefined || entry.current_revision === 0) throw new StoryError('body-not-found', `第 ${number} 章还没有正文`)
     const row = db.prepare('SELECT body, words FROM chapter_versions WHERE work_id = ? AND number = ? AND revision = ?')
       .get(work.work_id, number, entry.current_revision)
     return { workId: work.work_id, chapter: number, revision: entry.current_revision, words: row.words, body: row.body }
@@ -504,7 +510,7 @@ export function reviseChapter(root, input) {
   const body = String(input.body ?? '')
   if (body.trim() === '') throw new StoryError('empty-body', '正文不能为空')
   const problemIds = Array.isArray(input.problemIds) ? input.problemIds : []
-  if (problemIds.length === 0) throw new StoryError('problem-required', '修订要指定至少一条问题')
+  if (problemIds.length === 0) throw new StoryError('missing-problems', '修订要指定至少一条问题')
   const db = openStore(root)
   try {
     return transaction(db, () => {
@@ -519,7 +525,7 @@ export function reviseChapter(root, input) {
       if (missing.length > 0) throw new StoryError('problem-not-found', `问题不存在或已处理：${missing.join('、')}`)
       const current = db.prepare('SELECT body FROM chapter_versions WHERE work_id = ? AND number = ? AND revision = ?')
         .get(work.work_id, number, entry.current_revision)
-      if (current.body === body) throw new StoryError('revision-identical', '修订后的正文与当前版本相同')
+      if (current.body === body) throw new StoryError('unchanged-body', '修订后的正文与当前版本相同')
       let text = review.text
       for (const id of problemIds) text = text.replace(new RegExp(`^- \\[ \\] ${id} ::`, 'mu'), `- [x] ${id} ::`)
       db.prepare('UPDATE reviews SET text = ? WHERE work_id = ? AND number = ? AND round = ?').run(text, work.work_id, number, review.round)
@@ -610,11 +616,11 @@ export function readEvents(root, work, upToChapter) {
 /** Write a volume. */
 export function writeVolume(root, input) {
   const id = String(input.id ?? '').trim()
-  if (id === '') throw new StoryError('volume-id-required', '卷需要 id')
+  if (id === '') throw new StoryError('volume-invalid', '卷需要 id')
   const from = Number(input.from)
   const to = Number(input.to)
   if (!Number.isInteger(from) || !Number.isInteger(to) || from <= 0 || to < from) {
-    throw new StoryError('volume-range-invalid', '卷的章范围不合法')
+    throw new StoryError('volume-invalid', '卷的章范围不合法')
   }
   const db = openStore(root)
   try {
@@ -671,22 +677,21 @@ export function searchTokens(text) {
  * @param {string} docId - document id.
  */
 export function dropSearchDoc(db, workId, docId) {
-  const row = db.prepare('SELECT rowid FROM search_docs WHERE work_id = ? AND doc_id = ?').get(workId, docId)
+  const row = db.prepare('SELECT rowid, tokens FROM search_docs WHERE work_id = ? AND doc_id = ?').get(workId, docId)
   if (row === undefined) return
-  db.prepare('DELETE FROM search_fts WHERE rowid = ?').run(row.rowid)
+  db.prepare("INSERT INTO search_fts(search_fts, rowid, tokens) VALUES('delete', ?, ?)").run(row.rowid, row.tokens)
   db.prepare('DELETE FROM search_docs WHERE work_id = ? AND doc_id = ?').run(workId, docId)
 }
 
 /** Upsert one search document and its FTS row. */
 function syncSearchDoc(db, workId, docId, kind, source, chapter, body) {
+  const tokens = searchTokens(body)
+  dropSearchDoc(db, workId, docId)
   db.prepare(`INSERT INTO search_docs (work_id, doc_id, kind, source, chapter, body, tokens)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(work_id, doc_id) DO UPDATE SET kind = excluded.kind, source = excluded.source,
-      chapter = excluded.chapter, body = excluded.body, tokens = excluded.tokens`)
-    .run(workId, docId, kind, source, chapter, body, searchTokens(body))
+    VALUES (?, ?, ?, ?, ?, ?, ?)`)
+    .run(workId, docId, kind, source, chapter, body, tokens)
   const row = db.prepare('SELECT rowid FROM search_docs WHERE work_id = ? AND doc_id = ?').get(workId, docId)
-  db.prepare('DELETE FROM search_fts WHERE rowid = ?').run(row.rowid)
-  db.prepare('INSERT INTO search_fts (rowid, tokens) VALUES (?, ?)').run(row.rowid, searchTokens(body))
+  db.prepare('INSERT INTO search_fts (rowid, tokens) VALUES (?, ?)').run(row.rowid, tokens)
 }
 
 /**
@@ -779,12 +784,18 @@ export async function exportWork(root, work, destination) {
       await put(join('reviews', `${stem(review.number)}.r${review.round}.md`), review.text)
     }
     for (const entry of db.prepare('SELECT * FROM bible WHERE work_id = ? ORDER BY name').all(workRow.work_id)) {
-      await put(join('bible', entry.name === 'plan' ? 'plan.md' : `${entry.name}.md`), entry.content)
+      const name = entry.name === 'plan' ? 'plan.md' : entry.name === 'characters' ? 'characters.json' : `${entry.name}.md`
+      await put(join('bible', name), entry.content)
     }
     await put('volumes.json', JSON.stringify(db.prepare('SELECT * FROM volumes WHERE work_id = ? ORDER BY from_ch').all(workRow.work_id), null, 2) + '\n')
     await put('state/events.jsonl', db.prepare('SELECT * FROM events WHERE work_id = ? ORDER BY seq').all(workRow.work_id)
       .map(row => JSON.stringify({ seq: row.seq, at: row.at, chapter: row.chapter, kind: row.kind, ...JSON.parse(row.payload) })).join('\n') + '\n')
-    await put('proposals.json', JSON.stringify(db.prepare('SELECT * FROM proposals ORDER BY created_at').all(), null, 2) + '\n')
+    for (const proposal of db.prepare('SELECT * FROM proposals ORDER BY created_at').all()) {
+      await put(join('proposals', `${proposal.id}.json`), JSON.stringify(proposal, null, 2) + '\n')
+    }
+    // Fixed mtimes make zips and directory copies reproducible.
+    const fixed = new Date('2000-01-01T00:00:00.000Z')
+    for (const relative of files) await utimes(join(target, relative), fixed, fixed)
     return { directory: target, files: files.length }
   } finally {
     db.close()
@@ -798,12 +809,24 @@ export async function exportWork(root, work, destination) {
  * @returns {Promise<{file: string, integrity: string}>} backup result.
  */
 export async function backupStore(root, destination) {
-  const { backupTo, integrityCheck } = await import('./db.js')
+  const { backupTo, integrityCheck, openStore: open } = await import('./db.js')
   const db = openStore(root)
   try {
     const file = destination ?? join(root, '.storycraft', 'backups', `works-${Date.now()}.db`)
-    await backupTo(db, file)
-    return { file, integrity: integrityCheck(db) }
+    try {
+      await backupTo(db, file)
+    } catch (error) {
+      const failed = new Error(`备份失败：${error.message}`)
+      failed.code = 'backup-failed'
+      if (error?.code === 'db-corrupt') failed.code = 'db-corrupt'
+      throw failed
+    }
+    const copy = open(root)
+    try {
+      return { file, integrity: integrityCheck(copy) }
+    } finally {
+      copy.close()
+    }
   } finally {
     db.close()
   }

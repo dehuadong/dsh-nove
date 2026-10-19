@@ -48,7 +48,7 @@ try {
   const latest = store.latestReview(root, work, 1)
   check('latest review has one open item', latest.items.length === 1 && latest.items[0].done === false)
   throws('unknown problem refused', 'problem-not-found', () => store.reviseChapter(root, { work, chapter: 1, body: '修订版', problemIds: ['Q9'] }))
-  throws('identical revision refused', 'revision-identical', () => store.reviseChapter(root, { work, chapter: 1, body: '另一版正文', problemIds: ['Q1'] }))
+  throws('identical revision refused', 'unchanged-body', () => store.reviseChapter(root, { work, chapter: 1, body: '另一版正文', problemIds: ['Q1'] }))
   const revised = store.reviseChapter(root, { work, chapter: 1, body: '修订版正文，多一拍。', problemIds: ['Q1'] })
   check('revision r3 and item closed', revised.revision === 3 && store.latestReview(root, work, 1).items[0].done === true)
 
@@ -69,7 +69,7 @@ try {
 
   const volume = store.writeVolume(root, { work, id: 'v1', title: '第一卷', from: 1, to: 5, summary: '开局' })
   check('volume written', volume.volume.id === 'v1' && store.readVolumes(root, work).length === 1)
-  throws('volume range invalid', 'volume-range-invalid', () => store.writeVolume(root, { work, id: 'v2', from: 5, to: 2 }))
+  throws('volume range invalid', 'volume-invalid', () => store.writeVolume(root, { work, id: 'v2', from: 5, to: 2 }))
 } finally {
   await rm(root, { recursive: true, force: true }).catch(() => {})
 }

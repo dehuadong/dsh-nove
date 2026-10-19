@@ -49,19 +49,26 @@ try {
   db.prepare('INSERT INTO chapters (work_id, number, updated_at) VALUES (?, ?, ?)').run(work, 1, new Date().toISOString())
   db.prepare("INSERT INTO bible (work_id, name, content, version, updated_at) VALUES (?, 'style', '短句', 'v1', ?)").run(work, new Date().toISOString())
   db.close()
-  const renamed = store.renameWork(root, { work, title: '改名作品' })
-  check('rename changes id and title', renamed.workId === '改名作品' && renamed.title === '改名作品', JSON.stringify(renamed))
+  const titled = store.renameWork(root, { work, title: '只改标题' })
+  check('title-only rename keeps the id', titled.workId === work && titled.title === '只改标题', JSON.stringify(titled))
+  const renamed = store.renameWork(root, { work, workId: '改名作品', title: '改名作品' })
+  check('explicit rename changes id and title', renamed.workId === '改名作品' && renamed.title === '改名作品', JSON.stringify(renamed))
   const renamedDb = openStore(root)
   check('rename cascades to chapters', renamedDb.prepare('SELECT work_id FROM chapters').get()?.work_id === '改名作品')
   check('rename cascades to bible', renamedDb.prepare('SELECT work_id FROM bible').get()?.work_id === '改名作品')
   renamedDb.close()
 
+  // Works are isolated: another work does not see these chapters.
+  store.initWork(root, { title: '另一本' })
+  check('listWorks isolates works', store.listWorks(root).length === 2)
+  check('readManifest only returns its own chapters', store.readManifest(root, '另一本').chapters.length === 0)
+
   // Trash and restore.
   store.deleteWork(root, { work: renamed.workId })
-  check('trashed work leaves the active list', store.listWorks(root).length === 0)
+  check('trashed work leaves the active list', !store.listWorks(root).some(item => item.workId === renamed.workId))
   check('trash lists it', store.listTrash(root)[0]?.workId === '改名作品')
   store.restoreWork(root, { work: renamed.workId })
-  check('restore returns it', store.listWorks(root).length === 1)
+  check('restore returns it', store.listWorks(root).some(item => item.workId === renamed.workId))
 
   // Proposals.
   const proposal = store.createProposal(root, { title: '新想法', form: 'short', premise: '一句话' })

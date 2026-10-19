@@ -1,5 +1,5 @@
 // Search projection + export/backup (S4/S5).
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as store from '../store-db.js'
@@ -51,13 +51,19 @@ try {
   const reviews = await readdir(join(first.directory, 'reviews'))
   check('export includes review rounds', reviews.includes('ch-0001.r1.md'), reviews.join(','))
   const bible = await readdir(join(first.directory, 'bible'))
-  check('export includes world and characters', bible.includes('world.md') && bible.includes('characters.md'), bible.join(','))
+  check('export includes world and characters', bible.includes('world.md') && bible.includes('characters.json'), bible.join(','))
   const events = await readFile(join(first.directory, 'state', 'events.jsonl'), 'utf8')
   check('export includes events', events.includes('周砚'))
 
-  const second = await store.exportWork(root, work, join(root, '.storycraft', 'exports', 'two'))
+  const renamed = store.renameWork(root, { work, workId: '检索改名' })
+  const afterRename = store.search(root, '检索改名', '河工', 5)
+  check('search survives rename', afterRename.some(hit => hit.kind === 'chapter'))
+  const second = await store.exportWork(root, renamed.workId, join(root, '.storycraft', 'exports', 'two'))
   const again = JSON.parse(await readFile(join(second.directory, 'manifest.json'), 'utf8'))
   check('two exports share manifest content', JSON.stringify(again) === JSON.stringify(manifest))
+  const firstTime = (await stat(join(first.directory, 'manifest.json'))).mtimeMs
+  const secondTime = (await stat(join(second.directory, 'manifest.json'))).mtimeMs
+  check('export mtimes are normalized', firstTime === secondTime, `${firstTime} vs ${secondTime}`)
 
   const backup = await store.backupStore(root, join(root, '.storycraft', 'backups', 'b.db'))
   check('backup integrity ok', backup.integrity === 'ok', backup.integrity)

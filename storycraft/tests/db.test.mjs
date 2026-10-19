@@ -65,6 +65,23 @@ try {
   })
   check('database path is under .storycraft', databasePath(root).includes('.storycraft'))
 
+  // A second writer must see work-busy, not a masked rollback.
+  const holder = openStore(root)
+  const contender = openStore(root)
+  holder.exec('BEGIN IMMEDIATE')
+  contender.exec('PRAGMA busy_timeout = 50')
+  try {
+    transaction(contender, () => contender.prepare('INSERT INTO works (work_id, title, form, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+      .run('争用', '争用', 'longform', new Date().toISOString(), new Date().toISOString()))
+    check('second writer gets work-busy', false, 'wrote')
+  } catch (error) {
+    check('second writer gets work-busy', error?.code === 'work-busy', error?.code)
+  } finally {
+    holder.exec('ROLLBACK')
+    holder.close()
+    contender.close()
+  }
+
   // A newer schema must be refused, not silently downgraded.
   const newer = openStore(root)
   newer.exec('PRAGMA user_version = 99')
