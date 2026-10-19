@@ -40,7 +40,7 @@ whenToUse: 作者提出写作需求、需要决定下一步做什么、或要在
 派活用 `subagent`。任务里给三样东西：
 
 1. 一句话任务：对象（作品/章号）、目标、禁止事项；
-2. 输入：先调 `story_context`（作品、章号、角色、作者要求），把返回的 `contextSections` 按顺序拼进任务；**不要**用 `story_brief` 派发，也不要整库打开；
+2. 输入：先调 `story_context`（作品、章号、角色、作者要求），把返回的 `sections` 按顺序拼进任务；**不要**用 `story_brief` 派发，也不要整库打开；
 3. 输出契约：清单 JSON 还是整章正文（带首尾标记），并点名要读的技能（`storycraft-write-craft` / `storycraft-review` / `storycraft-revise-craft` / `storycraft-plan-craft`）。
 
 子代理**不落盘**：它继承同一套工具，但 `write`、`edit`、外壳与 `story_*` 写动作会被守卫拒绝。不要让它试，也不要把落盘交给它；它返回文本后，你用动作落盘。`story_write` / `story_revise` 会做一致性校验：自造人名会被拒收，地名与尺寸进 `warnings`。

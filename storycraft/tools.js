@@ -149,23 +149,6 @@ const OUTPUT_PROPERTIES = {
   resolved: { type: 'array', description: 'Review item ids marked as addressed.', items: { type: 'string' } },
   warnings: { type: 'array', description: 'Consistency warnings that did not block the write.', items: { type: 'string' } },
   role: { type: 'string' },
-  contextSections: {
-    type: 'array',
-    description: 'Role context sections, in prompt order.',
-    items: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        name: { type: 'string' },
-        title: { type: 'string' },
-        source: { type: 'string' },
-        content: { type: 'string' },
-        protection: { type: 'string' },
-        chars: { type: 'integer' },
-      },
-      required: ['name', 'title', 'content', 'protection'],
-    },
-  },
   trace: {
     type: 'object',
     additionalProperties: false,
@@ -507,6 +490,43 @@ const OUTPUT = {
 }
 
 /**
+ * Output contract for `story_context`. It cannot reuse the brief's section shape:
+ * those sections require `bytes` and have no protection level.
+ */
+const CONTEXT_OUTPUT = {
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      ok: OUTPUT_PROPERTIES.ok,
+      workId: OUTPUT_PROPERTIES.workId,
+      role: OUTPUT_PROPERTIES.role,
+      chapter: { type: 'integer' },
+      sections: {
+        type: 'array',
+        description: 'Role context sections, in prompt order.',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            name: { type: 'string' },
+            title: { type: 'string' },
+            source: { type: 'string' },
+            content: { type: 'string' },
+            protection: { type: 'string' },
+          },
+          required: ['name', 'title', 'content', 'protection'],
+        },
+      },
+      trace: OUTPUT_PROPERTIES.trace,
+      whitelist: OUTPUT_PROPERTIES.whitelist,
+    },
+    required: ['ok', 'sections', 'trace', 'whitelist'],
+  },
+  render: OUTPUT.render,
+}
+
+/**
  * Refuse a chapter body that invents people, warns about unknown places or sizes.
  * @param {string} root - workspace directory.
  * @param {{work: string, chapter: number, body: string}} draft - the body about to land.
@@ -532,7 +552,7 @@ function action(spec) {
     name: spec.name,
     description: spec.description,
     parameters: spec.parameters,
-    output: OUTPUT,
+    output: spec.output ?? OUTPUT,
     mutates: spec.mutates === true,
     async execute(args, exec) {
       if (spec.mutates === true && delegationDepthOf(exec) > 0) {
@@ -722,6 +742,7 @@ function rawDefinitions() {
         },
         required: ['work', 'role'],
       },
+      output: CONTEXT_OUTPUT,
       async execute(args, exec) {
         const root = workspaceOf(exec)
         const role = args.role

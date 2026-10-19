@@ -314,6 +314,11 @@ try {
   check('a revision that invents a speaker is refused', refusedRevise.ok === false
     && refusedRevise.error.code === 'consistency-violation', JSON.stringify(refusedRevise))
 
+  // Removing the plan makes the dispatch action refuse before any work starts.
+  await rm(join(root, 'works', work, 'outline', 'ch-0002.plan.md'))
+  const noPlan = await byName.get('story_context').execute({ work, chapter: 2, role: 'reviewer' }, exec)
+  check('a chapter without a plan is refused', noPlan.ok === false && noPlan.error.code === 'plan-not-found', JSON.stringify(noPlan))
+
 } finally {
   await rm(root, { recursive: true, force: true })
 }

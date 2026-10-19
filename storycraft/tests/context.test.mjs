@@ -77,6 +77,18 @@ try {
     check('a review without a body is refused', error?.code === 'chapter-not-written', String(error?.code))
   }
 
+  // A work without character cards cannot dispatch writing or review.
+  const bare = (await s.initWork(root, { title: '无人物卡' })).workId
+  await s.writeOutline(root, { work: bare, mainline: '一条主线' })
+  await s.writeOutline(root, { work: bare, approve: true })
+  await s.writePlan(root, { work: bare, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+  try {
+    await assembleRoleContext({ root, work: bare, chapter: 1, role: 'writer', task: '写第 1 章正文。' })
+    check('missing character cards are refused', false, 'expected rejection')
+  } catch (error) {
+    check('missing character cards are refused', error?.code === 'bible-missing', String(error?.code))
+  }
+
   const review = await assembleRoleContext({
     root, work, chapter: 2, role: 'reviewer', body: '这一章正文。'.repeat(100),
     review: { round: 1, revision: 1, open: [{ id: 'Q1', problem: '节奏慢' }] },
