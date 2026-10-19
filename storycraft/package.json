@@ -21,6 +21,7 @@
     "client.js",
     "skills.js",
     "tools.js",
+    "db.js",
     "storage.js",
     "bible.js",
     "volumes.js",
