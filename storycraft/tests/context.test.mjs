@@ -32,6 +32,12 @@ try {
   await writeFile(join(dir, 'bible', 'style.md'), '# 文风\n短句，少形容。', 'utf8')
   await writeFile(join(dir, 'state', 'events.jsonl'), `${JSON.stringify({ seq: 1, at: new Date().toISOString(), chapter: 1, kind: 'hook', text: '一处未解', state: 'opened' })}\n`, 'utf8')
 
+  const unapprovedContext = await assembleRoleContext({
+    root, work, chapter: 2, role: 'writer', task: '写第 2 章正文。',
+  }).then(() => undefined, error => error)
+  check('writer context refuses an unconfirmed plan', unapprovedContext?.code === 'plan-not-approved', String(unapprovedContext?.code))
+  await s.approveChapterPlan(root, { work, chapter: 2 })
+
   const out = await assembleRoleContext({ root, work, chapter: 2, role: 'writer', task: '写第 2 章正文。', instruction: '写得紧一点' })
   const names = out.trace.sections.map(item => item.name)
   check('writer gets the seven sections', ['authority', 'task', 'constraints', 'state', 'recent', 'style'].every(name => names.includes(name)), names.join(','))
@@ -82,6 +88,7 @@ try {
   await s.writeOutline(root, { work: bare, mainline: '一条主线' })
   await s.writeOutline(root, { work: bare, approve: true })
   await s.writePlan(root, { work: bare, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+  await s.approveChapterPlan(root, { work: bare, chapter: 1 })
   try {
     await assembleRoleContext({ root, work: bare, chapter: 1, role: 'writer', task: '写第 1 章正文。' })
     check('missing character cards are refused', false, 'expected rejection')

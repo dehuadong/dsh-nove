@@ -10,7 +10,8 @@
 import { join } from 'node:path'
 import { deriveWhitelist, readCards, summariseWhitelist } from './facts.js'
 import {
-  StoryError, chapterNumber, chapterStem, foldEvents, formOf, readManifest, readOptional, unitOf, workDirectory,
+  StoryError, chapterNumber, chapterStem, foldEvents, formOf, planApprovalPolicy, readManifest, readOptional, unitOf,
+  workDirectory,
 } from './storage.js'
 
 /** Default budget for one role context, in characters. */
@@ -101,6 +102,13 @@ export async function assembleRoleContext(input) {
   const chapterPlan = entry === undefined ? undefined : await readOptional(join(dir, 'outline', `${entry.id}.plan.md`))
   if (needsPlan && chapterPlan === undefined) {
     throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲：先 story_plan，再派活`)
+  }
+
+  // Stop before a writer is dispatched: an unconfirmed plan means no draft yet.
+  if (role === 'writer' && planApprovalPolicy(manifest) === 'required'
+    && entry !== undefined && entry.currentRevision === 0 && entry.planApprovedAt === undefined) {
+    throw new StoryError('plan-not-approved',
+      `第 ${number} 章章纲还没经作者确认：请在面板「章纲」里点「确认章纲」，再取写手上下文`)
   }
 
   const characters = (await readCards(root, manifest.workId)) ?? []

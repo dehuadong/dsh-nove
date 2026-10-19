@@ -128,6 +128,10 @@ try {
   check('story_next asks for the panel confirmation', waiting.ok === true
     && waiting.missing.includes('plan-approval') && /确认/.test(waiting.reason), JSON.stringify(waiting))
 
+  const earlyGate = await byName.get('story_context').execute({ work, chapter: 1, role: 'writer' }, exec)
+  check('writer context is refused before the author confirms', earlyGate.ok === false
+    && earlyGate.error.code === 'plan-not-approved', JSON.stringify(earlyGate))
+
   const approvedPlan = await s.approveChapterPlan(root, { work, chapter: 1 })
   check('the author confirms the chapter plan', typeof approvedPlan.entry.planApprovedAt === 'string')
 
