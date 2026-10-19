@@ -843,7 +843,7 @@ function rawDefinitions() {
         const consistency = checkConsistency({
           body: parsed.body,
           whitelist: context.whitelist,
-          task: context.text,
+          allowedText: context.text,
         })
         if (consistency.unknownNames.length > 0) {
           throw new StoryError('consistency-violation',
@@ -983,6 +983,7 @@ function rawDefinitions() {
           work: args.work,
           chapter: args.chapter,
           role: 'planner',
+          task: `为第 ${args.chapter} 章出章纲：五项齐全且互相咬合。`,
           ...(typeof args.instruction === 'string' ? { instruction: args.instruction } : {}),
         })
         const task = [
@@ -1036,6 +1037,7 @@ function rawDefinitions() {
         return {
           ok: true, provider, childId: String(started.childId), readOnly,
           artifact: written.artifact,
+          contextTrace: context.trace,
         }
       },
     }),
@@ -1109,7 +1111,11 @@ function rawDefinitions() {
           ...(typeof parsed.volumes === 'string' ? { volumes: parsed.volumes } : {}),
           ...(typeof parsed.ending === 'string' ? { ending: parsed.ending } : {}),
         })
-        return { ok: true, provider, childId: String(started.childId), readOnly, outline: written.outline }
+        return {
+          ok: true, provider, childId: String(started.childId), readOnly,
+          outline: written.outline,
+          contextTrace: context.trace,
+        }
       },
     }),
 

@@ -76,7 +76,9 @@ export async function assembleRoleContext(input) {
   const number = scope === 'work' ? undefined : chapterNumber(input.chapter)
   const dir = workDirectory(root, manifest.workId)
   const entry = number === undefined ? undefined : manifest.chapters.find(item => item.number === number)
-  if (scope === 'chapter' && entry === undefined) {
+  // Planning a chapter runs before its manifest entry (and its plan) exist; the
+  // writing path still validates both.
+  if (scope === 'chapter' && role !== 'planner' && entry === undefined) {
     throw new StoryError('chapter-not-found', `没有第 ${number} 章：先写章纲再派活`)
   }
   const form = formOf(manifest)
@@ -90,8 +92,11 @@ export async function assembleRoleContext(input) {
   if (scope === 'work') {
     taskText = String(input.task ?? '').trim()
     if (taskText === '') throw new StoryError('task-required', '作品级派活需要一句任务说明')
-  } else if (role === 'writer' || role === 'planner') {
-    const plan = await readOptional(join(dir, 'outline', `${entry.id}.plan.md`))
+  } else if (role === 'planner') {
+    taskText = String(input.task ?? '').trim()
+    if (taskText === '') throw new StoryError('task-required', `第 ${number} 章的规划需要一句任务说明`)
+  } else if (role === 'writer') {
+    const plan = entry === undefined ? undefined : await readOptional(join(dir, 'outline', `${entry.id}.plan.md`))
     if (plan === undefined) {
       throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲：先 story_plan，再派活`)
     }
@@ -100,14 +105,14 @@ export async function assembleRoleContext(input) {
     taskText = String(input.task ?? '').trim()
   }
   const instruction = String(input.instruction ?? '').trim()
-  const task = section('task', '本章任务', [
+  const task = section('task', scope === 'work' ? '作品任务' : '本章任务', [
     instruction === '' ? '' : `作者要求：${instruction}`,
     taskText,
   ].filter(line => line !== '').join('\n'), 'protected', 'outline + 本次要求')
 
   // 3. constraints — protected
-  const characters = await readCharacters(root, manifest.workId)
-  if (characters === undefined) {
+  const characters = (await readCharacters(root, manifest.workId)) ?? []
+  if (characters.length === 0 && role === 'writer') {
     throw new StoryError('bible-missing', '人物卡缺失：先用 story_bible_write 建 bible/characters.json 再派活')
   }
   const perspective = scope === 'work' ? undefined : /- 视角：(.+)/u.exec(taskText)?.[1]?.trim()
@@ -115,9 +120,11 @@ export async function assembleRoleContext(input) {
   const intent = (await readOptional(join(dir, 'bible', 'intent.md'))) ?? ''
   const constraintLines = [
     `形态：${form}（单位：${unit}）`,
-    manifest.wordRange === undefined
-      ? '字数：未设定（按作者习惯）'
-      : `字数：单章 ${manifest.wordRange.min}–${manifest.wordRange.max} 字`,
+    scope === 'work'
+      ? ''
+      : manifest.wordRange === undefined
+        ? '字数：未设定（按作者习惯）'
+        : `字数：单章 ${manifest.wordRange.min}–${manifest.wordRange.max} 字`,
     // 叙事人称与显式禁令尚无写入入口，先用意图文件里的口径；接入 settings 后再补。
     ...(lead === undefined ? [] : [
       `主角：${lead.name}`,

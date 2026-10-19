@@ -1,72 +1,111 @@
 /**
  * Output consistency checks against the assembler's fact whitelist.
  *
- * A writing role may not invent people, places or measurements: names come from
- * the character file, places and numbers from the context that was actually sent.
- * Unknown names block the write; unknown places and numbers only warn, because a
- * legitimate new detail is possible and should not be thrown away silently.
+ * Names block a write; places and measurements only warn. The heuristics are
+ * deliberately conservative: a false positive here would reject good prose, so
+ * each candidate is first checked against the known names and Chinese numerals
+ * are normalised before comparison.
  */
 
 /** Verbs that follow a speaker in Chinese prose. */
-const SPEECH_VERBS = ['说', '道', '问', '答', '喊', '叫', '嚷', '叹', '笑', '骂', '嘀咕', '点头', '摇头']
+const SPEECH_VERBS = ['说', '道', '问', '答', '喊', '叫', '嚷', '叹', '点头', '摇头']
+
+/** Characters that begin a verb phrase, not a name. */
+const VERB_LEADS = new Set(['进', '到', '往', '了', '在', '出', '回', '上', '下', '走', '去', '来', '把', '被', '向', '从', '跟', '和', '对'])
 
 /** Units that make a number a measurement worth checking. */
 const MEASURE_UNITS = '尺寸丈斤石斗升里步两文贯天日人个'
 
+/** Chinese digit values. */
+const DIGITS = { 零: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 }
+
 /**
- * Collect speaker-like names from prose.
- * @param {string} body - chapter body.
- * @returns {string[]} candidate names in order of appearance.
+ * Convert a Chinese numeral (up to 万) into a plain number string.
+ * @param {string} text - numeral text such as 十六 or 三千五百.
+ * @returns {string} digits, or the input when it has no numeral.
  */
-function speakerNames(body) {
-  const names = []
-  for (const verb of SPEECH_VERBS) {
-    const pattern = new RegExp(`([\\u4e00-\\u9fa5]{2,3})${verb}`, 'gu')
-    for (const match of String(body).matchAll(pattern)) names.push(match[1])
+export function toArabic(text) {
+  const source = String(text)
+  if (!/[零一二三四五六七八九十百千万两]/u.test(source)) return source
+  let total = 0
+  let section = 0
+  let number = 0
+  for (const char of source) {
+    if (DIGITS[char] !== undefined) {
+      number = DIGITS[char]
+      continue
+    }
+    if (char === '十' || char === '百' || char === '千') {
+      const unit = char === '十' ? 10 : char === '百' ? 100 : 1000
+      section += (number === 0 ? 1 : number) * unit
+      number = 0
+      continue
+    }
+    if (char === '万') {
+      total += (section + number) * 10000
+      section = 0
+      number = 0
+    }
   }
-  return names
+  return String(total + section + number)
+}
+
+/** Normalise a measurement to `digits+unit`. */
+function normaliseMeasurement(text) {
+  const match = new RegExp(`^([0-9零一二三四五六七八九十百千万两]+)([${MEASURE_UNITS}])$`, 'u').exec(String(text))
+  if (match === null) return String(text)
+  return `${toArabic(match[1])}${match[2]}`
 }
 
 /**
- * Collect numbers that carry a unit.
+ * Candidate speakers: the run of characters before a speech verb.
+ *
+ * The window is wide enough to cover an attribution like 周观冷笑道 so that a
+ * known name inside it clears the whole phrase.
  * @param {string} body - chapter body.
- * @returns {string[]} magnitudes like `七尺`, `十六口`.
+ * @returns {string[]} candidate windows.
  */
-function measurements(body) {
-  const pattern = new RegExp(`[0-9零一二三四五六七八九十百千万半两]+[${MEASURE_UNITS}]`, 'gu')
-  return [...new Set(String(body).match(pattern) ?? [])]
+function speakerWindows(body) {
+  const windows = []
+  for (const verb of SPEECH_VERBS) {
+    const pattern = new RegExp(`([\\u4e00-\\u9fa5]{1,5})${verb}`, 'gu')
+    for (const match of String(body).matchAll(pattern)) windows.push(match[1])
+  }
+  return windows
 }
 
 /**
  * Compare one chapter body with the whitelist the context carried.
- * @param {{body: string, whitelist: {names?: string[], places?: string[], numbers?: string[]}, task?: string}} input - check input.
+ * @param {{body: string, whitelist: {names?: string[], places?: string[], numbers?: string[]}, allowedText?: string}} input - check input.
  * @returns {{unknownNames: string[], unknownPlaces: string[], unknownNumbers: string[], warnings: string[]}} findings.
  */
 export function checkConsistency(input) {
   const body = String(input.body ?? '')
   const names = new Set(input.whitelist?.names ?? [])
   const places = new Set(input.whitelist?.places ?? [])
-  const numbers = new Set(input.whitelist?.numbers ?? [])
-  const task = String(input.task ?? '')
+  const numbers = new Set((input.whitelist?.numbers ?? []).map(normaliseMeasurement))
+  const allowedText = String(input.allowedText ?? '')
 
-  const unknownNames = [...new Set(speakerNames(body).filter(name => !names.has(name)))]
-
-  const placePattern = /[\u4e00-\u9fa5]{2}(?:滩|城|镇|村|堡|州|府|县|关|口|山|河)/gu
-  const numeral = /[0-9零一二三四五六七八九十百千万半两]/u
-  const unknownPlaces = [...new Set(
-    (body.match(placePattern) ?? [])
-      // 「十六口人」is a count, not a place name.
-      .filter(place => !numeral.test(place[0]))
-      .filter(place => !places.has(place) && !task.includes(place)),
+  // A window that contains a known name is not an invented speaker; only windows
+  // with no known name at all are reported.
+  const unknownNames = [...new Set(
+    speakerWindows(body).filter(window => ![...names].some(name => name !== '' && window.includes(name))),
   )]
 
-  const knownNumbers = [...numbers]
-  const unknownNumbers = measurements(body).filter(item => {
-    const digits = item.replace(/[^0-9零一二三四五六七八九十百千万半两]/gu, '')
-    if (numbers.has(digits) || numbers.has(item)) return false
-    // A measurement the task already states is fine even if written differently.
-    return !knownNumbers.some(known => known !== '' && item.includes(known))
-  })
+  const numeralLead = /[0-9零一二三四五六七八九十百千万半两]/u
+  const placePattern = /[\u4e00-\u9fa5]{2}(?:滩|城|镇|村|堡|州|府|县|关|口|山|河)/gu
+  const unknownPlaces = [...new Set(
+    (body.match(placePattern) ?? [])
+      .filter(place => !VERB_LEADS.has(place[0]) && !numeralLead.test(place[0]))
+      .filter(place => !places.has(place) && !allowedText.includes(place)),
+  )]
+
+  const patterns = new RegExp(`[0-9零一二三四五六七八九十百千万半两]+[${MEASURE_UNITS}]`, 'gu')
+  const unknownNumbers = [...new Set(
+    (body.match(patterns) ?? [])
+      .map(normaliseMeasurement)
+      .filter(item => !numbers.has(item) && !allowedText.includes(item)),
+  )]
 
   const warnings = []
   if (unknownPlaces.length > 0) warnings.push(`出现上下文里没有的地名：${unknownPlaces.join('、')}`)

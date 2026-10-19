@@ -30,10 +30,16 @@ const unknownPlace = checkConsistency({ body: '队伍开往黑水滩。', whitel
 check('unknown places warn', unknownPlace.unknownPlaces.includes('黑水滩') && unknownPlace.warnings.length === 1, unknownPlace.warnings.join(';'))
 
 const unknownSize = checkConsistency({ body: '墙高一丈二。', whitelist })
-check('unknown measurements warn', unknownSize.unknownNumbers.includes('一丈'), unknownSize.unknownNumbers.join(','))
+check('unknown measurements warn', unknownSize.unknownNumbers.includes('1丈'), unknownSize.unknownNumbers.join(','))
 check('known measurements pass', checkConsistency({ body: '墙高七尺。', whitelist }).unknownNumbers.length === 0)
 
-const taskProvidesPlace = checkConsistency({ body: '队伍开往黑水滩。', whitelist, task: '本章目标是赶到黑水滩' })
+const verboseAttribution = checkConsistency({
+  body: '周观冷笑道：“挪。”\n韩松低声道：“量。”',
+  whitelist,
+})
+check('verb-laden attribution is not a new name', verboseAttribution.unknownNames.length === 0, verboseAttribution.unknownNames.join(','))
+
+const taskProvidesPlace = checkConsistency({ body: '队伍开往黑水滩。', whitelist, allowedText: '本章目标是赶到黑水滩' })
 check('a place the task states is allowed', taskProvidesPlace.unknownPlaces.length === 0, taskProvidesPlace.unknownPlaces.join(','))
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`)

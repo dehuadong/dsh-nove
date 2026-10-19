@@ -52,6 +52,12 @@ try {
 
   // Reviewer path: body is protected and present.
   // Work-scoped planning has no chapter entry; it still carries state and recent context.
+  // Planning chapter 3 has no manifest entry yet; that must still work.
+  const plannedAhead = await assembleRoleContext({
+    root, work, chapter: 3, role: 'planner', task: '为第 3 章出章纲',
+  })
+  check('planning a chapter without a manifest entry works', plannedAhead.text.includes('为第 3 章出章纲'))
+
   const workScope = await assembleRoleContext({
     root, work, role: 'planner', scope: 'work', task: '出全书计划',
   })
