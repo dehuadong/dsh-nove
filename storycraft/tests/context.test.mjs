@@ -51,6 +51,13 @@ try {
   check('trace records the budget', tight.trace.budget === 150)
 
   // Reviewer path: body is protected and present.
+  // Work-scoped planning has no chapter entry; it still carries state and recent context.
+  const workScope = await assembleRoleContext({
+    root, work, role: 'planner', scope: 'work', task: '出全书计划',
+  })
+  check('work scope needs no chapter', workScope.text.includes('出全书计划'))
+  check('work scope still carries hooks', workScope.text.includes('一处未解'))
+
   const review = await assembleRoleContext({
     root, work, chapter: 2, role: 'reviewer', body: '这一章正文。'.repeat(100), task: '- Q1：节奏慢',
   })

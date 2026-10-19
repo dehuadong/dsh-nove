@@ -27,6 +27,7 @@ import {
 import { readVolumes, writeVolume } from './volumes.js'
 import { critique } from './critique.js'
 import { assembleRoleContext } from './context.js'
+import { checkConsistency } from './consistency.js'
 import { getCurrent, resolveWork, setCurrent } from './current.js'
 import { createProposal, markProposalUsed, readProposal } from './proposals.js'
 
@@ -358,6 +359,11 @@ const OUTPUT_PROPERTIES = {
       },
     },
     required: ['budget', 'sections'],
+  },
+  warnings: {
+    type: 'array',
+    description: '一致性校验的警告（自造地名、未在上下文出现的尺寸/数量）。',
+    items: { type: 'string' },
   },
   readOnly: {
     type: 'boolean',
@@ -834,6 +840,15 @@ function rawDefinitions() {
           throw new StoryError('agent-output-invalid',
             `写手没有按契约返回整章正文（缺失 <<<CHAPTER / CHAPTER>>> 或过短）：把它的输出交给你自己改写后用 story_write 落盘。原文：${output.slice(0, 500)}`)
         }
+        const consistency = checkConsistency({
+          body: parsed.body,
+          whitelist: context.whitelist,
+          task: context.text,
+        })
+        if (consistency.unknownNames.length > 0) {
+          throw new StoryError('consistency-violation',
+            `正文出现上下文里没有的人名：${consistency.unknownNames.join('、')}。重派一次，明确禁止自造人名`)
+        }
         const written = await writeChapter(root, {
           work: args.work,
           chapter: args.chapter,
@@ -844,6 +859,7 @@ function rawDefinitions() {
           ok: true, provider, childId: String(started.childId), readOnly,
           words: written.words, artifact: written.artifact,
           contextTrace: context.trace,
+          warnings: consistency.warnings,
         }
       },
     }),
@@ -962,18 +978,20 @@ function rawDefinitions() {
         if (provider === undefined || exec?.agent === undefined) {
           throw new StoryError('subagent-unavailable', '子代理通道不可用：直接用 story_plan 写章纲')
         }
-        const brief = await assembleBriefFor(root, args.work, args.chapter)
-        const context = brief.sections
-          .filter(section => section.absent !== true && typeof section.content === 'string' && section.content.trim() !== '')
-          .map(section => `## ${section.title}\n${section.content}`)
-          .join('\n\n')
+        const context = await assembleRoleContext({
+          root,
+          work: args.work,
+          chapter: args.chapter,
+          role: 'planner',
+          ...(typeof args.instruction === 'string' ? { instruction: args.instruction } : {}),
+        })
         const task = [
           '你是规划：为这一章出章纲，不要写正文、不要写文件。',
           typeof args.instruction === 'string' && args.instruction.trim() !== '' ? `作者要求：${args.instruction.trim()}` : '',
           `第 ${args.chapter} 章。五项必须齐全且互相咬合；写不出结尾变化就直说这章该并入别章。`,
           '只输出 JSON：{"perspective":"…","goal":"…","obstacle":"…","cost":"…","turn":"…"}，不要输出其它文字。',
           '---上下文开始---',
-          context,
+          context.text,
           '---上下文结束---',
         ].filter(line => line !== '').join('\n')
         const canPreset = subagents.getProvider?.(provider)?.capabilities?.agentPreset === true
@@ -1040,18 +1058,22 @@ function rawDefinitions() {
         if (provider === undefined || exec?.agent === undefined) {
           throw new StoryError('subagent-unavailable', '子代理通道不可用：直接用 story_outline 写计划')
         }
-        const bible = await readBibleEntries(root, args.work).catch(() => ({ files: [] }))
-        const context = (bible.files ?? [])
-          .filter(entry => entry.name === 'intent' || entry.name === 'plan')
-          .map(entry => `## ${entry.name}\n${entry.content ?? ''}`)
-          .join('\n\n')
+        const context = await assembleRoleContext({
+          root,
+          work: args.work,
+          role: 'planner',
+          scope: 'work',
+          task: '为这部作品出全书计划：主线、卷划分、结局方向。',
+          ...(typeof args.instruction === 'string' ? { instruction: args.instruction } : {}),
+        })
         const task = [
           '你是规划：为这部作品出全书计划，不要写正文、不要写文件。',
           typeof args.instruction === 'string' && args.instruction.trim() !== '' ? `作者要求：${args.instruction.trim()}` : '',
           '三段：主线（主角要什么、被什么阻挡、怎么走）、卷划分（每卷的核心冲突与卷末推力）、结局方向（哪个问题必须被回答、哪种代价必须被支付）。',
           '只输出 JSON：{"mainline":"…","volumes":"…","ending":"…"}，不要输出其它文字。',
-          '---已有意图与计划---',
-          context === '' ? '（空）' : context,
+          '---上下文开始---',
+          context.text,
+          '---上下文结束---',
         ].filter(line => line !== '').join('\n')
         const canPreset = subagents.getProvider?.(provider)?.capabilities?.agentPreset === true
         const start = presetId => subagents.startActivation({

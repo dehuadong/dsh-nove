@@ -26,6 +26,7 @@
     "volumes.js",
     "critique.js",
     "context.js",
+    "consistency.js",
     "stage.js",
     "current.js",
     "proposals.js",

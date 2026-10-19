@@ -70,12 +70,15 @@ function section(name, title, content, protection, source) {
  * @returns {Promise<{sections: object[], text: string, trace: object, whitelist: object}>} the context package.
  */
 export async function assembleRoleContext(input) {
-  const { root, chapter, role } = input
+  const { root, role } = input
+  const scope = input.scope === 'work' ? 'work' : 'chapter'
   const manifest = await readManifest(root, input.work)
-  const number = chapterNumber(chapter)
+  const number = scope === 'work' ? undefined : chapterNumber(input.chapter)
   const dir = workDirectory(root, manifest.workId)
-  const entry = manifest.chapters.find(item => item.number === number)
-  if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${number} 章：先写章纲再派活`)
+  const entry = number === undefined ? undefined : manifest.chapters.find(item => item.number === number)
+  if (scope === 'chapter' && entry === undefined) {
+    throw new StoryError('chapter-not-found', `没有第 ${number} 章：先写章纲再派活`)
+  }
   const form = formOf(manifest)
   const unit = unitOf(form)
 
@@ -84,7 +87,10 @@ export async function assembleRoleContext(input) {
 
   // 2. task — protected
   let taskText = ''
-  if (role === 'writer' || role === 'planner') {
+  if (scope === 'work') {
+    taskText = String(input.task ?? '').trim()
+    if (taskText === '') throw new StoryError('task-required', '作品级派活需要一句任务说明')
+  } else if (role === 'writer' || role === 'planner') {
     const plan = await readOptional(join(dir, 'outline', `${entry.id}.plan.md`))
     if (plan === undefined) {
       throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲：先 story_plan，再派活`)
@@ -104,7 +110,7 @@ export async function assembleRoleContext(input) {
   if (characters === undefined) {
     throw new StoryError('bible-missing', '人物卡缺失：先用 story_bible_write 建 bible/characters.json 再派活')
   }
-  const perspective = /- 视角：(.+)/u.exec(taskText)?.[1]?.trim()
+  const perspective = scope === 'work' ? undefined : /- 视角：(.+)/u.exec(taskText)?.[1]?.trim()
   const lead = characters.find(item => item?.name !== undefined && perspective !== undefined && perspective.includes(item.name))
   const intent = (await readOptional(join(dir, 'bible', 'intent.md'))) ?? ''
   const constraintLines = [
@@ -140,13 +146,14 @@ export async function assembleRoleContext(input) {
 
   // 5. recent — compressible (last three summaries + the previous chapter's tail)
   const summaries = []
-  for (let index = Math.max(1, number - 3); index < number; index += 1) {
+  const lastNumber = number ?? (manifest.chapters.length === 0 ? 1 : manifest.chapters[manifest.chapters.length - 1].number + 1)
+  for (let index = Math.max(1, lastNumber - 3); index < lastNumber; index += 1) {
     const text = await readOptional(join(dir, 'summaries', `${chapterStem(index)}.md`))
     if (text !== undefined && text.trim() !== '') summaries.push(`第 ${index} 章：${text.trim()}`)
   }
-  if (number > 1) {
-    const previousBody = await readOptional(join(dir, 'chapters', `${chapterStem(number - 1)}.md`))
-      ?? await readOptional(join(dir, 'chapters', `${chapterStem(number - 1)}.r2.md`))
+  if (lastNumber > 1) {
+    const previousBody = await readOptional(join(dir, 'chapters', `${chapterStem(lastNumber - 1)}.md`))
+      ?? await readOptional(join(dir, 'chapters', `${chapterStem(lastNumber - 1)}.r2.md`))
     if (previousBody !== undefined) {
       const tail = previousBody.trim().slice(-400)
       summaries.push(`上一章结尾：…${tail}`)
