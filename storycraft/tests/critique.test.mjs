@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../storage.js'
 import * as b from '../bible.js'
+import { countWords } from '../storage.js'
 import { critique } from '../critique.js'
 
 let failures = 0
@@ -27,6 +28,8 @@ const line = '他把工具收进包里，抬头看了一眼天。'
 const prose = `${line}${line}${line}风停了，空气仿佛凝固，他心里不禁一沉。与此同时，远处传来铁器碰撞的声音。`
 const metrics = critique(prose)
 check('words counts characters', metrics.words > 0, String(metrics.words))
+check('words follows the shared counter', metrics.words === countWords(prose), `${metrics.words} vs ${countWords(prose)}`)
+check('chars includes punctuation', metrics.chars >= metrics.words, `${metrics.chars} vs ${metrics.words}`)
 check('sentences counted', metrics.sentences.count === 5, JSON.stringify(metrics.sentences))
 check('repeated sentence detected', metrics.repeated.some(item => item.count === 3), JSON.stringify(metrics.repeated))
 check('ai phrases detected', metrics.aiPhrases.count >= 3, JSON.stringify(metrics.aiPhrases))

@@ -200,6 +200,10 @@ try {
   check('a refused consistency check leaves the work untouched',
     (await readFile(join(root, 'works', work, 'manifest.json'), 'utf8')) === manifestBeforeConsistency)
 
+  const sameText = await byName.get('story_critique').execute({ work, chapter: 1 }, exec)
+  check('critique and write report the same word count', sameText.ok === true
+    && sameText.metrics.words === write.words, `${sameText.metrics?.words} vs ${write.words}`)
+
   const rewrite = await byName.get('story_write').execute({ work, chapter: 1, body, rewrite: true }, exec)
   check('rewrite creates revision 2', rewrite.ok === true && rewrite.artifact.revision === 2, JSON.stringify(rewrite))
 

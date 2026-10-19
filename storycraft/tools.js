@@ -344,6 +344,7 @@ const OUTPUT_PROPERTIES = {
     additionalProperties: false,
     properties: {
       words: { type: 'integer' },
+      chars: { type: 'integer' },
       sentences: {
         type: 'object',
         additionalProperties: false,

@@ -44,10 +44,13 @@ function normalizeSentence(sentence) {
  * @param {{min?: number, max?: number}|undefined} wordRange - the work's own range, if any.
  * @returns {object} metrics.
  */
+import { countWords } from './storage.js'
+
 export function critique(text, wordRange) {
   const body = String(text ?? '')
-  const chars = [...body.replace(/\s/gu, '')]
-  const words = chars.length
+  // One counting rule for the whole plugin: the same number story_write records.
+  const words = countWords(body)
+  const chars = [...body.replace(/\s/gu, '')].length
 
   const sentences = body
     .split(SENTENCE_BREAK)
@@ -92,6 +95,7 @@ export function critique(text, wordRange) {
   const hasRange = Number.isInteger(min) && Number.isInteger(max)
   return {
     words,
+    chars,
     sentences: {
       count: sentences.length,
       averageLength: average,
