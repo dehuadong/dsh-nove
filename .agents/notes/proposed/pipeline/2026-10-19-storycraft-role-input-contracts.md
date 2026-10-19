@@ -19,7 +19,7 @@ updated: 2026-10-19
 
 ### 输入由只读动作交付
 
-新增 `story_context(work, chapter?, role, scope?)`，只读，返回：
+新增 `story_context(work, chapter?, role, instruction?, mode?)`，只读，返回：
 
 | 字段 | 内容 |
 | --- | --- |
@@ -38,6 +38,21 @@ updated: 2026-10-19
 | 修订 | 权威顺序、本章任务（条目与模式）、硬约束、正文、人物与状态、最近脉络、修订标准 |
 
 **任务段由动作生成**：四个角色的任务文字都由 `story_context` 组装，作者指令以「作者要求」并入同一段并进入轨迹；不接受主编自拼、不入轨迹的任务文本。
+
+**动作自己取料**：`story_context` 从磁盘读章纲、当前正文与最新审稿清单；不接受调用方粘贴正文或条目。`mode` 只影响修订的任务段（条目 + 模式规则）。
+
+### 模块分工
+
+| 模块 | 职责 | 依赖 |
+| --- | --- | --- |
+| `facts.js`（新增） | **唯一**白名单派生：`deriveWhitelist(root, {work, chapter?, extraText?})`；来源为人物卡、意图、计划、卷图、章纲与任务文字；**不读正文** | `storage.js` |
+| `context.js` | 组装分段上下文与轨迹；白名单只取摘要（数量 + 样例） | `facts.js`、`storage.js` |
+| `consistency.js` | 纯函数：正文 × 白名单比对 | 无 |
+| `tools.js` | 校验调用点固定在这里（`story_write`、`story_revise`） | 三者 |
+
+### 与 `story_brief` 的边界
+
+`story_brief` 继续服务主编自己写与预览（8KB 字节、既有段序），本次不改；`story_context` 只服务派发（字符预算、保护级别、轨迹）。两者共享数据来源，合并留待后续工作项。输出 schema 不复用 `story_brief` 的段结构。
 
 入口拒绝（仅写作/审稿/修订路径）：章不存在 → `chapter-not-found`；章有正文但无章纲 → `plan-not-found`；人物卡缺失 → `bible-missing`。规划路径不要求清单条目、章纲或人物卡。
 
@@ -79,9 +94,9 @@ updated: 2026-10-19
 ## 验收条件
 
 1. `story_context` 四角色各返回契约内的段，带 `trace` 与白名单摘要；
-2. 写作/审稿/修订路径的入口拒绝可观察：`chapter-not-found`、`plan-not-found`、`bible-missing`；规划路径不要求清单条目、章纲与人物卡；
+2. `story_context` 自己读章纲、正文与审稿清单：写作/审稿/修订路径缺前置按 `chapter-not-found`、`plan-not-found`、`bible-missing` 拒绝；规划路径不要求清单条目、章纲与人物卡；
 3. 预算裁剪顺序可观察：先压缩 recent，再裁 state；
-4. `story_write`/`story_revise` 的校验可被单元测试直接驱动（不依赖模型）；
+4. `story_write`/`story_revise` 的校验可被单元测试直接驱动（不依赖模型），白名单由 `facts.js` 派生、正文不参与；
 5. `context.js`/`consistency.js` 被生产引用；
 6. 四个角色的派发模板在编排技能里可查。
 
