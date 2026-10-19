@@ -7,6 +7,8 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { openStore, transaction } from './db.js'
 import { StoryError, chapterNumber, countWords, parseReview } from './storage.js'
 
@@ -425,6 +427,7 @@ export function writeChapter(root, input) {
         current_revision = ?, words = ?, plan_approved_at = CASE WHEN ? = 1 THEN NULL ELSE plan_approved_at END,
         updated_at = ? WHERE work_id = ? AND number = ?`)
         .run(String(input.title ?? entry.title), revision, words, revision === 1 ? 0 : 1, at, work.work_id, number)
+      syncSearchDoc(db, work.work_id, `chapter:${number}:r${revision}`, 'chapter', `chapters/${number}`, number, body)
       return { workId: work.work_id, chapter: number, revision, words, reopened: settled && input.reopen === true }
     })
   } finally {
@@ -524,6 +527,7 @@ export function reviseChapter(root, input) {
         .run(work.work_id, number, revision, body, words, now())
       db.prepare("UPDATE chapters SET status = 'revised', stage = 'revised', current_revision = ?, words = ?, updated_at = ? WHERE work_id = ? AND number = ?")
         .run(revision, words, now(), work.work_id, number)
+      syncSearchDoc(db, work.work_id, `chapter:${number}:r${revision}`, 'chapter', `chapters/${number}`, number, body)
       return { workId: work.work_id, chapter: number, revision, words, problems: problemIds }
     })
   } finally {
@@ -544,6 +548,7 @@ export function writeSummary(root, input) {
       db.prepare(`INSERT INTO summaries (work_id, number, text, written_at) VALUES (?, ?, ?, ?)
         ON CONFLICT(work_id, number) DO UPDATE SET text = excluded.text, written_at = excluded.written_at`)
         .run(work.work_id, number, text, now())
+      syncSearchDoc(db, work.work_id, `summary:${number}`, 'summary', `summaries/${number}`, number, text)
       return { workId: work.work_id, chapter: number, chars: text.length }
     })
   } finally {
@@ -576,6 +581,7 @@ export function foldState(root, input) {
       for (const event of events) {
         db.prepare('INSERT INTO events (work_id, seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?, ?)')
           .run(work.work_id, seq, now(), number, String(event.kind), JSON.stringify(event))
+        syncSearchDoc(db, work.work_id, `event:${seq}`, String(event.kind), 'state/events.jsonl', number, JSON.stringify(event))
         seq += 1
       }
       return { workId: work.work_id, chapter: number, appended: events.length, seq: seq - 1 }
@@ -614,6 +620,7 @@ export function writeVolume(root, input) {
       db.prepare(`INSERT INTO volumes (work_id, id, title, from_ch, to_ch, summary) VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(work_id, id) DO UPDATE SET title = excluded.title, from_ch = excluded.from_ch, to_ch = excluded.to_ch, summary = excluded.summary`)
         .run(work.work_id, id, String(input.title ?? id), from, to, String(input.summary ?? ''))
+      syncSearchDoc(db, work.work_id, `volume:${id}`, 'volume', 'volumes', from, `${String(input.title ?? id)} ${String(input.summary ?? '')}`)
       return { workId: work.work_id, volume: { id, title: String(input.title ?? id), from, to } }
     })
   } finally {
@@ -627,6 +634,160 @@ export function readVolumes(root, work) {
   try {
     return db.prepare('SELECT * FROM volumes WHERE work_id = ? ORDER BY from_ch').all(String(work))
       .map(row => ({ id: row.id, title: row.title, from: row.from_ch, to: row.to_ch, summary: row.summary ?? '' }))
+  } finally {
+    db.close()
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Search projection (S4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Tokenize text for FTS5: CJK bigrams + unigrams, latin words.
+ * @param {string} text - source text.
+ * @returns {string} space-separated tokens.
+ */
+export function searchTokens(text) {
+  const tokens = []
+  for (const match of String(text).matchAll(/[\u4e00-\u9fa5]+/gu)) {
+    const run = match[0]
+    for (let index = 0; index < run.length; index += 1) {
+      if (index + 1 < run.length) tokens.push(run.slice(index, index + 2))
+      tokens.push(run[index])
+    }
+  }
+  for (const match of String(text).matchAll(/[A-Za-z][A-Za-z0-9_-]+/gu)) tokens.push(match[0].toLowerCase())
+  return tokens.join(' ')
+}
+
+/** Upsert one search document and its FTS row. */
+function syncSearchDoc(db, workId, docId, kind, source, chapter, body) {
+  db.prepare(`INSERT INTO search_docs (work_id, doc_id, kind, source, chapter, body, tokens)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(work_id, doc_id) DO UPDATE SET kind = excluded.kind, source = excluded.source,
+      chapter = excluded.chapter, body = excluded.body, tokens = excluded.tokens`)
+    .run(workId, docId, kind, source, chapter, body, searchTokens(body))
+  const row = db.prepare('SELECT rowid FROM search_docs WHERE work_id = ? AND doc_id = ?').get(workId, docId)
+  db.prepare('DELETE FROM search_fts WHERE rowid = ?').run(row.rowid)
+  db.prepare('INSERT INTO search_fts (rowid, tokens) VALUES (?, ?)').run(row.rowid, searchTokens(body))
+}
+
+/**
+ * Search one work.
+ * @param {string} root - workspace.
+ * @param {string} work - work id.
+ * @param {string} query - natural query.
+ * @param {number} [limit] - result limit.
+ * @returns {Array<object>} ranked documents.
+ */
+export function search(root, work, query, limit = 5) {
+  const tokens = searchTokens(query).split(' ').filter(token => token !== '')
+  if (tokens.length === 0) return []
+  const db = openStore(root)
+  try {
+    const match = tokens.map(token => `"${token.replaceAll('"', '""')}"`).join(' OR ')
+    return db.prepare(`SELECT d.doc_id AS id, d.kind, d.source, d.chapter, d.body, bm25(search_fts) AS score
+      FROM search_fts JOIN search_docs d ON d.rowid = search_fts.rowid
+      WHERE search_fts MATCH ? AND d.work_id = ? ORDER BY score, d.chapter DESC, d.doc_id LIMIT ?`)
+      .all(match, String(work), limit)
+      .map(row => ({ id: row.id, kind: row.kind, source: row.source, chapter: row.chapter, body: row.body, score: row.score }))
+  } finally {
+    db.close()
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Export and backup (S5)
+// ---------------------------------------------------------------------------
+
+/** Render the export manifest. */
+function exportManifest(db, workId) {
+  const work = ensureWork(db, workId)
+  const chapters = db.prepare('SELECT * FROM chapters WHERE work_id = ? ORDER BY number').all(workId)
+  return {
+    schemaVersion: 1,
+    title: work.title,
+    form: work.form,
+    tags: work.tags === null ? [] : JSON.parse(work.tags),
+    wordRange: work.word_min === null ? null : { min: work.word_min, max: work.word_max },
+    planApproval: work.plan_approval,
+    outline: work.outline_written_at === null ? null : {
+      writtenAt: work.outline_written_at,
+      approvedAt: work.outline_approved_at,
+    },
+    chapters: chapters.map(chapter => ({
+      number: chapter.number,
+      title: chapter.title,
+      status: chapter.status,
+      stage: chapter.stage,
+      currentRevision: chapter.current_revision,
+      words: chapter.words,
+      planApprovedAt: chapter.plan_approved_at,
+    })),
+  }
+}
+
+/**
+ * Export one work as a directory tree.
+ * @param {string} root - workspace.
+ * @param {string} work - work id.
+ * @param {string} [destination] - target directory.
+ * @returns {Promise<{directory: string, files: number}>} export summary.
+ */
+export async function exportWork(root, work, destination) {
+  const db = openStore(root)
+  try {
+    const workRow = ensureWork(db, work)
+    const target = destination ?? join(root, '.storycraft', 'exports', `${workRow.work_id}-${Date.now()}`)
+    const files = []
+    const put = async (relative, text) => {
+      const file = join(target, relative)
+      await mkdir(join(file, '..'), { recursive: true })
+      await writeFile(file, text, 'utf8')
+      files.push(relative)
+    }
+    const stem = number => `ch-${String(number).padStart(4, '0')}`
+    await put('manifest.json', JSON.stringify(exportManifest(db, workRow.work_id), null, 2) + '\n')
+    for (const version of db.prepare('SELECT * FROM chapter_versions WHERE work_id = ? ORDER BY number, revision').all(workRow.work_id)) {
+      const name = version.revision === 1 ? `${stem(version.number)}.md` : `${stem(version.number)}.r${version.revision}.md`
+      await put(join('chapters', name), version.body.endsWith('\n') ? version.body : `${version.body}\n`)
+    }
+    for (const plan of db.prepare('SELECT * FROM chapter_plans WHERE work_id = ? ORDER BY number').all(workRow.work_id)) {
+      await put(join('outline', `${stem(plan.number)}.plan.md`), plan.text)
+    }
+    for (const summary of db.prepare('SELECT * FROM summaries WHERE work_id = ? ORDER BY number').all(workRow.work_id)) {
+      await put(join('summaries', `${stem(summary.number)}.md`), summary.text)
+    }
+    for (const review of db.prepare('SELECT * FROM reviews WHERE work_id = ? ORDER BY number, round').all(workRow.work_id)) {
+      await put(join('reviews', `${stem(review.number)}.r${review.round}.md`), review.text)
+    }
+    for (const entry of db.prepare('SELECT * FROM bible WHERE work_id = ? ORDER BY name').all(workRow.work_id)) {
+      await put(join('bible', entry.name === 'plan' ? 'plan.md' : `${entry.name}.md`), entry.content)
+    }
+    await put('volumes.json', JSON.stringify(db.prepare('SELECT * FROM volumes WHERE work_id = ? ORDER BY from_ch').all(workRow.work_id), null, 2) + '\n')
+    await put('state/events.jsonl', db.prepare('SELECT * FROM events WHERE work_id = ? ORDER BY seq').all(workRow.work_id)
+      .map(row => JSON.stringify({ seq: row.seq, at: row.at, chapter: row.chapter, kind: row.kind, ...JSON.parse(row.payload) })).join('\n') + '\n')
+    await put('proposals.json', JSON.stringify(db.prepare('SELECT * FROM proposals ORDER BY created_at').all(), null, 2) + '\n')
+    return { directory: target, files: files.length }
+  } finally {
+    db.close()
+  }
+}
+
+/**
+ * Copy the store to a backup file with an integrity check.
+ * @param {string} root - workspace.
+ * @param {string} [destination] - backup file.
+ * @returns {Promise<{file: string, integrity: string}>} backup result.
+ */
+export async function backupStore(root, destination) {
+  const { backupTo, integrityCheck } = await import('./db.js')
+  const db = openStore(root)
+  try {
+    const file = destination ?? join(root, '.storycraft', 'backups', `works-${Date.now()}.db`)
+    await backupTo(db, file)
+    return { file, integrity: integrityCheck(db) }
   } finally {
     db.close()
   }

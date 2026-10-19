@@ -156,7 +156,7 @@ CREATE TABLE IF NOT EXISTS search_docs (
   PRIMARY KEY (work_id, doc_id)
 );
 
-CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(tokens, content='search_docs', content_rowid='rowid');
+CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(tokens);
 
 CREATE INDEX IF NOT EXISTS idx_chapters_work ON chapters(work_id);
 CREATE INDEX IF NOT EXISTS idx_versions_work ON chapter_versions(work_id, number);
