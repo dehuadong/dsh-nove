@@ -34,8 +34,8 @@ updated: 2026-10-19
 | 写手 | 权威顺序、本章任务（章纲 + 作者要求）、硬约束、人物与状态、最近脉络、文风 |
 | 规划（章级） | 同上，另加全书计划与卷图、人物卡；任务段由动作生成（「为第 N 章出章纲」+ 作者要求） |
 | 规划（作品级） | 权威顺序、作品任务、硬约束（不含单章字数）、全书计划与卷图、人物卡、人物与状态、最近脉络、文风 |
-| 审稿 | 权威顺序、本章任务（未处理条目或「审正文」）、硬约束、正文、人物与状态、最近脉络、审稿标准 |
-| 修订 | 权威顺序、本章任务（条目与模式）、硬约束、正文、人物与状态、最近脉络、修订标准 |
+| 审稿 | 权威顺序、本章任务（未处理条目或「审正文」）、硬约束、章纲、正文、人物与状态、最近脉络、审稿标准 |
+| 修订 | 权威顺序、本章任务（条目与模式）、硬约束、章纲、正文、人物与状态、最近脉络、修订标准 |
 
 **任务段由动作生成**：四个角色的任务文字都由 `story_context` 组装，作者指令以「作者要求」并入同一段并进入轨迹；不接受主编自拼、不入轨迹的任务文本。
 
@@ -47,16 +47,24 @@ updated: 2026-10-19
 | --- | --- | --- |
 | `facts.js`（新增） | **唯一**白名单派生：`deriveWhitelist(root, {work, chapter?})`；来源只有已落盘资料（人物卡、意图、计划、卷图、章纲）；**不读正文、不收任务文字**，调用方无法注入 | `storage.js` |
 | `context.js` | 组装分段上下文与轨迹；白名单只取摘要（数量 + 样例） | `facts.js`、`storage.js` |
-| `consistency.js` | 纯函数：正文 × 白名单比对 | 无 |
+| `consistency.js` | 纯函数：正文 × 白名单比对；**不接受 allowedText**，正文与任务都不能自我放行 | 无 |
 | `tools.js` | 校验调用点固定在这里（`story_write`、`story_revise`） | 三者 |
+
+审稿标准与修订标准不是动作拼的：它们来自各自技能（`skills/review/storycraft-review`、`skills/revise/storycraft-revise-craft`），段 `source` 记为技能路径，保护级别 `protected`。
 
 ### 与 `story_brief` 的边界
 
-`story_brief` 继续服务主编自己写与预览（8KB 字节、既有段序），本次不改；`story_context` 只服务派发（字符预算、保护级别、轨迹）。两者共享数据来源，合并留待后续工作项。输出 schema 不复用 `story_brief` 的段结构。
+`story_brief` 继续服务主编自己写与预览（8KB 字节、既有段序），本次不改其行为；但**派发路径必须改走 `story_context`**：预设人设里「写前上下文用 story_brief」与编排技能交接里的「从 story_brief 取必要段落」都要改成 `story_context`，否则两套输入并存。输出 schema 不复用 `story_brief` 的段结构；合并留待后续工作项。
 
-入口拒绝（仅写作/审稿/修订路径）：章不存在 → `chapter-not-found`；该章缺章纲 → `plan-not-found`（无论是否已有正文）；人物卡缺失 → `bible-missing`。规划路径不要求清单条目、章纲或人物卡。
+### 入口校验的属主
 
-保护级别：权威顺序、任务、硬约束、正文、全书计划为 `protected`；人物与状态、最近脉络、文风、人物卡为 `compressible`。预算默认 8000 字符，先压缩（头尾保留 + 标记）再整段裁掉，顺序 `recent → state → style`。
+前置校验只在 `story_context` 一处：写作/审稿/修订路径缺章 → `chapter-not-found`，缺章纲 → `plan-not-found`（无论是否已有正文），缺人物卡 → `bible-missing`。`story_write`/`story_revise` 不再重复前置校验，只做一致性检查与既有阶段闸门。
+
+审稿与修订的边界行为：没有正文 → `chapter-not-written`；审稿没有未处理条目时任务段为「审正文」，仍可派；修订没有条目 → 沿用 `review-required`；清单比正文旧时按**最新一份**执行，轨迹记录所用清单版本。
+
+规划路径不要求清单条目、章纲或人物卡。
+
+保护级别：权威顺序、任务、硬约束、正文、全书计划为 `protected`；人物与状态、最近脉络、文风、人物卡为 `compressible`。预算默认 8000 字符，先压缩（头尾保留 + 标记）再整段裁掉，顺序 `recent → state → characters → style`。
 
 ### 校验在落盘处
 
@@ -96,11 +104,11 @@ updated: 2026-10-19
 产品行为与验收由 #12 拥有；本节只说明这份设计怎样被证明：
 
 1. 分段与保护级别：`context.test.mjs` 断言四角色的段集合与 protection；
-2. 入口拒绝：`context.test.mjs` 覆盖 `chapter-not-found`、`plan-not-found`、`bible-missing`，以及规划路径不要求前置；
+2. 入口拒绝：`context.test.mjs` 覆盖 `chapter-not-found`、`plan-not-found`、`bible-missing`、`chapter-not-written` 与规划路径不要求前置；动作层另测 `story_write` 不重复前置校验；
 3. 预算：裁剪顺序 `recent → state → style` 由测试观察（先压缩 recent，再裁 state，最后 style）；
-4. 校验：`consistency.test.mjs` 与动作层测试覆盖 `story_write`/`story_revise` 的拒绝与告警；白名单由 `facts.js` 只从已落盘资料派生，正文与任务文字都不参与（测试需分别用含新人名/新数字的正文与指令证明它们不会自我放行）；
+4. 校验：`consistency.test.mjs` 与动作层测试覆盖 `story_write`/`story_revise` 的拒绝与告警；`consistency.js` 不再有 `allowedText` 参数，白名单由 `facts.js` 只从已落盘资料派生；测试分别用含新人名/新数字的正文与指令证明它们不会自我放行；
 5. 接线：`context.js`/`consistency.js`/`facts.js` 均被 `tools.js` 引用（可 grep 证明），不再有死代码；
-6. 模板：编排技能里四段派发模板可查。
+6. 模板与接线：编排技能里四段派发模板可查，且技能与预设都不再把派发交给 `story_brief`。
 
 ## 风险
 
