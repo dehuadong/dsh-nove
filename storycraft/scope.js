@@ -7,7 +7,7 @@
  * synchronous and total: malformed input denies instead of throwing.
  */
 
-import { isAbsolute, join, normalize, relative, resolve, sep } from 'node:path'
+import { dirname, isAbsolute, join, normalize, resolve, sep } from 'node:path'
 
 /** Denial copy, fixed so acceptance can assert it. */
 export const SCOPE_MESSAGES = {
@@ -46,30 +46,48 @@ function absolute(cwd, value) {
   return isAbsolute(value) ? normalize(value) : resolve(cwd, value)
 }
 
-/** Fold case for matching when Windows paths are case-insensitive. */
-function foldText(text) {
-  return process.platform === 'win32' ? text.toLowerCase() : text
+/**
+ * Split a shell command into rough path tokens (quotes stripped).
+ * @param {string} command - shell command text.
+ * @returns {string[]} tokens.
+ */
+function shellTokens(command) {
+  return String(command)
+    .split(/[\s;|&]+/u)
+    .map(token => token.replace(/^["']|["']$/gu, ''))
+    .filter(token => token !== '')
 }
 
 /**
- * Whether a shell command mentions the work store or the database store.
- * `works` matches as a whole path segment (bare, trailing, or with a work name);
- * `workspace` and `myworks` do not match.
+ * Store a shell command can reach: `database`, `works` (with a work name when
+ * the token names one), or nothing.
  * @param {string} command - shell command text.
- * @returns {{works: Array<string|undefined>, database: boolean}} mentions.
+ * @param {string} cwd - live working directory.
+ * @param {string} worksRoot - protected work root.
+ * @param {string} dbRoot - protected database root.
+ * @returns {{database: boolean, works: Array<string|undefined>}} hits.
  */
-function shellMentions(command) {
-  if (typeof command !== 'string') return { works: [], database: false }
-  const text = foldText(command)
-  const works = []
-  const pattern = /(?:^|[\s"'=:/\\])works(?=$|[/\\\s"';&|])/gu
-  for (const match of text.matchAll(pattern)) {
-    const after = text.slice(match.index + match[0].length)
-    const name = /^[/\\]([^/\\\s"']+)/u.exec(after)
-    works.push(name === null ? undefined : name[1])
+function shellHits(command, cwd, worksRoot, dbRoot) {
+  const hits = { database: false, works: [] }
+  for (const token of shellTokens(command)) {
+    const target = absolute(cwd, token)
+    if (target === undefined) continue
+    if (within(dbRoot, target)) {
+      hits.database = true
+      continue
+    }
+    if (!within(worksRoot, target)) continue
+    const rest = target.slice(shellLength(worksRoot)).replace(/^[/\\]/u, '')
+    const name = rest.split(/[/\\]/u)[0]
+    hits.works.push(name === '' ? undefined : name)
   }
-  const database = /(?:^|[\s"'=:/\\])\.storycraft(?=$|[/\\\s"';&|])/u.test(text)
-  return { works, database }
+  return hits
+}
+
+/** Length of the root prefix, tolerating a trailing separator. */
+function shellLength(root) {
+  const normalized = normalize(root)
+  return normalized.endsWith(sep) ? normalized.length - 1 : normalized.length
 }
 
 /**
@@ -100,6 +118,9 @@ export function scopeDenial(input) {
   if (SEARCH_TOOLS.has(tool)) {
     // Without an explicit path the tool recurses the whole workspace, works included.
     if (typeof args.path !== 'string' || args.path.trim() === '') return SCOPE_MESSAGES.search
+    const target = absolute(cwd, args.path)
+    // A path at or above the work store still recurses into it (and .storycraft).
+    if (target !== undefined && within(target, worksRoot)) return SCOPE_MESSAGES.search
     const denial = check(args.path)
     if (denial !== undefined) return denial
     if (typeof args.include !== 'string' || args.include.trim() === '') return undefined
@@ -117,14 +138,15 @@ export function scopeDenial(input) {
   if (SHELL_TOOLS.has(tool)) {
     const workdir = check(args.workdir)
     if (workdir !== undefined) return workdir
-    const mentioned = shellMentions(args.command)
+    const mentioned = shellHits(args.command, cwd, worksRoot, dbRoot)
     if (mentioned.database) return SCOPE_MESSAGES.database
     if (mentioned.works.length === 0) return undefined
     const current = typeof input.currentWork === 'string' ? input.currentWork : ''
+    if (current === '') return SCOPE_MESSAGES.discussion
     for (const name of mentioned.works) {
       // A bare `works` (listing/Set-Location) cannot be proven to stay inside the
       // current work, so it is treated as reaching the whole store.
-      if (current === '' || name === undefined || fold(name) !== fold(current)) return SCOPE_MESSAGES.otherWork
+      if (name === undefined || fold(name) !== fold(current)) return SCOPE_MESSAGES.otherWork
     }
     return undefined
   }

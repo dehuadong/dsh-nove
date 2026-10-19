@@ -60,6 +60,12 @@ const cases = [
   ['working_directory project allowed', { tool: 'working_directory', arguments: { cd: 'docs' } }, undefined],
   ['working_directory works denied', { tool: 'working_directory', arguments: { cd: 'works' } }, cdDenied],
   ['working_directory db denied', { tool: 'working_directory', arguments: { cd: '.storycraft' } }, cdDenied],
+  ['project path with works segment allowed', { tool: 'pwsh', arguments: { command: 'node docs/works/x.mjs' }, currentWork: current }, undefined],
+  ['quoted storycraft path denied', { tool: 'pwsh', arguments: { command: "Join-Path '.storycraft' 'works.db'" } }, database],
+  ['shell works without current work is discussion', { tool: 'bash', arguments: { command: `cat works/${current}/chapters/ch-0001.md` } }, discussion],
+  ['glob at workspace root denied', { tool: 'glob', arguments: { pattern: '**/*.md', path: '.' } }, search],
+  ['glob above workspace denied', { tool: 'glob', arguments: { pattern: '**/*.md', path: '..' } }, search],
+  ['grep at workspace root denied', { tool: 'grep', arguments: { pattern: '井', path: '.' } }, search],
   ['unknown tool allowed', { tool: 'todo_write', arguments: {} }, undefined],
   ['missing cwd denies conservatively', { tool: 'read', arguments: { file_path: 'AGENTS.md' }, cwd: '' }, discussion],
 ]

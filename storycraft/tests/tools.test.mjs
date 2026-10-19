@@ -66,6 +66,20 @@ check('a subagent can read the parent session work',
   scopeGuard(childExec('read', { file_path: 'works/大朔营造/chapters/ch-0001.md' })) === undefined)
 check('a subagent cannot read another work',
   scopeGuard(childExec('read', { file_path: 'works/别的书/chapters/ch-0001.md' })) === otherWorkCopy)
+// After a working_directory change the guard must resolve reads against the live cwd.
+let liveCwd = scopeRoot
+services.workingDirectory = { get: () => liveCwd }
+const cwdExec = (name, args) => ({ name, arguments: args, agent: { id: 'scope-cwd', session: fakeSession('scope-cwd') } })
+setCurrent('scope-cwd', '大朔营造')
+liveCwd = 'E:\\repo\\docs'
+check('a read after cd into docs cannot escape to works',
+  scopeGuard(cwdExec('read', { file_path: '../works/别的书/chapters/ch-0001.md' })) === otherWorkCopy)
+liveCwd = scopeRoot
+check('a read after cd back to the root can reach the current work',
+  scopeGuard(cwdExec('read', { file_path: 'works/大朔营造/chapters/ch-0001.md' })) === undefined)
+setCurrent('scope-cwd', undefined)
+delete services.workingDirectory
+
 delete services.sessions
 delete services.workingDirectory
 setCurrent('scope-parent', undefined)
