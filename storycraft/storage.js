@@ -661,6 +661,14 @@ export async function writeOutline(root, input) {
  * @param {{work: string, wordRange?: {min: number, max: number}|null}} input - settings input.
  * @returns {Promise<{workId: string, wordRange?: {min: number, max: number}}>} the stored settings.
  */
+/** Whether a new chapter needs the author's plan confirmation.
+ * @param {object} manifest - work manifest.
+ * @returns {'required'|'off'} the current policy.
+ */
+export function planApprovalPolicy(manifest) {
+  return manifest.planApproval === 'off' ? 'off' : 'required'
+}
+
 export async function updateSettings(root, input) {
   return withWorkLock(root, String(input.work), async (lock) => {
     const manifest = await readManifest(root, input.work)
@@ -674,8 +682,20 @@ export async function updateSettings(root, input) {
       }
       manifest.wordRange = { min, max }
     }
+    if (input.planApproval === null) {
+      delete manifest.planApproval
+    } else if (input.planApproval !== undefined) {
+      if (input.planApproval !== 'required' && input.planApproval !== 'off') {
+        throw new StoryError('plan-approval-invalid', `章纲确认策略只能是 required 或 off：${String(input.planApproval)}`)
+      }
+      manifest.planApproval = input.planApproval
+    }
     const written = await writeManifest(root, manifest.workId, manifest)
-    return { workId: written.workId, ...(written.wordRange === undefined ? {} : { wordRange: written.wordRange }) }
+    return {
+      workId: written.workId,
+      planApproval: planApprovalPolicy(written),
+      ...(written.wordRange === undefined ? {} : { wordRange: written.wordRange }),
+    }
   })
 }
 
@@ -903,7 +923,8 @@ export async function writeChapter(root, input) {
     }
     // The public write action opts into the author gate; the check runs under
     // the same lock as the write, so a replan cannot slip between them.
-    if (input.requirePlanApproval === true && entry.currentRevision === 0 && entry.planApprovedAt === undefined) {
+    if (input.requirePlanApproval === true && planApprovalPolicy(manifest) === 'required'
+      && entry.currentRevision === 0 && entry.planApprovedAt === undefined) {
       throw new StoryError('plan-not-approved',
         `第 ${number} 章章纲还没经作者确认：请在面板「章纲」里点「确认章纲」后再写正文`)
     }
@@ -1358,6 +1379,7 @@ export async function status(root, work) {
   const manifest = await readManifest(root, work)
   const events = (await readOptional(join(workDirectory(root, manifest.workId), 'state', 'events.jsonl'))) ?? ''
   const folded = foldEvents(events)
+  const planApproval = planApprovalPolicy(manifest)
   const written = manifest.chapters.filter(chapter => chapter.currentRevision > 0)
   let openProblems = 0
   for (const chapter of manifest.chapters) {
@@ -1366,6 +1388,7 @@ export async function status(root, work) {
   }
   return {
     workId: manifest.workId,
+    planApproval,
     title: manifest.title,
     chapters: manifest.chapters.map(chapter => ({
       number: chapter.number,
@@ -1502,7 +1525,7 @@ async function nextStepRaw(root, work) {
     return { workId: manifest.workId, chapter: last.number, stage, action: 'story_plan', reason: `第 ${last.number} 章缺章纲`, missing: ['outline'] }
   }
   if (!hasBody) {
-    if (last.planApprovedAt === undefined) {
+    if (planApprovalPolicy(manifest) === 'required' && last.planApprovedAt === undefined) {
       return {
         workId: manifest.workId, chapter: last.number, stage, action: 'story_write',
         reason: `第 ${last.number} 章章纲等作者确认：在面板「章纲」里点「确认章纲」，然后写正文`,
@@ -1588,6 +1611,7 @@ export async function listWorks(root) {
 export async function readWork(root, work) {
   const manifest = await readManifest(root, work)
   const dir = workDirectory(root, manifest.workId)
+  const planApproval = planApprovalPolicy(manifest)
   const chapters = []
   for (const chapter of manifest.chapters) {
     const plan = await readOptional(join(dir, 'outline', `${chapter.id}.plan.md`))
@@ -1615,6 +1639,7 @@ export async function readWork(root, work) {
     manifest: {
       version: manifest.version,
       workId: manifest.workId,
+      planApproval: planApprovalPolicy(manifest),
       title: manifest.title,
       form: formOf(manifest),
       tags: manifest.tags,

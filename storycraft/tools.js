@@ -18,6 +18,7 @@
 
 import {
   StoryError, deleteWork, foldState, initWork, latestReview, listWorks, nextStep as nextStepFor,
+  planApprovalPolicy,
   parseReview, readChapter, readManifest, reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter,
   status as readStatus, updateSettings, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
 } from './storage.js'
@@ -149,6 +150,7 @@ const OUTPUT_PROPERTIES = {
   resolved: { type: 'array', description: 'Review item ids marked as addressed.', items: { type: 'string' } },
   warnings: { type: 'array', description: 'Consistency warnings that did not block the write.', items: { type: 'string' } },
   role: { type: 'string' },
+  planApproval: { type: 'string', enum: ['required', 'off'] },
   trace: {
     type: 'object',
     additionalProperties: false,
@@ -839,8 +841,9 @@ function rawDefinitions() {
       },
       async execute(args, exec) {
         const root = workspaceOf(exec)
+        const policy = planApprovalPolicy(await readManifest(root, args.work))
         const { warnings } = await checkDraft(root, args)
-        const result = await writeChapter(root, { ...args, requirePlanApproval: true })
+        const result = await writeChapter(root, { ...args, requirePlanApproval: policy === 'required' })
         return {
           ok: true, workId: args.work, artifact: result.artifact, words: result.words,
           ...(result.cleaned > 0 ? { cleaned: result.cleaned } : {}),
@@ -1169,8 +1172,8 @@ function rawDefinitions() {
     action({
       name: 'story_settings',
       mutates: true,
-      description: '设定作品的写作参数：目前是单章字数范围（建档时与作者商定，之后也可改）。'
-        + ' 传 null 表示清空、不按字数判定。',
+      description: '设定作品的写作参数：单章字数范围与章纲确认策略。'
+        + ' 字数传 null 表示清空、不按字数判定；planApproval 传 required 表示每章章纲必须作者在面板确认，传 off 表示不需要确认。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -1184,6 +1187,11 @@ function rawDefinitions() {
             description: '单章字数范围；省略表示不改。',
           },
           clear: { type: 'boolean', description: '传 true 清空字数范围（不按字数判定）。' },
+          planApproval: {
+            type: 'string',
+            enum: ['required', 'off'],
+            description: '章纲确认策略：required 每章必须确认；off 不需要确认。省略表示不改。',
+          },
         },
         required: ['work'],
       },
@@ -1192,8 +1200,14 @@ function rawDefinitions() {
         const result = await updateSettings(root, {
           work: args.work,
           ...(args.clear === true ? { wordRange: null } : args.wordRange === undefined ? {} : { wordRange: args.wordRange }),
+          ...(args.planApproval === undefined ? {} : { planApproval: args.planApproval }),
         })
-        return { ok: true, workId: result.workId, ...(result.wordRange === undefined ? {} : { wordRange: result.wordRange }) }
+        return {
+          ok: true,
+          workId: result.workId,
+          ...(result.wordRange === undefined ? {} : { wordRange: result.wordRange }),
+          ...(result.planApproval === undefined ? {} : { planApproval: result.planApproval }),
+        }
       },
     }),
 

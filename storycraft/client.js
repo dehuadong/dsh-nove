@@ -218,10 +218,14 @@ window.__ModuleLoader__.load({
         }
         return `把作品 ${workId} 第 ${chapter} 章按「${label}」再修一遍（story_revise 的 mode 传 ${mode}，不需要新的审稿条目），落盘为新版本。`
       },
-      settings(workId, range) {
-        return range === null
-          ? `用 story_settings 给作品 ${workId} 清空字数范围（不按字数判定）。`
-          : `用 story_settings 给作品 ${workId} 设定单章字数范围 ${range.min}–${range.max} 字。`
+      settings(workId, range, planApproval) {
+        const policy = planApproval === 'off'
+          ? '章纲确认设为不需要（planApproval 传 off），之后写正文前不必逐章确认。'
+          : '章纲确认设为每章必须（planApproval 传 required），写正文前需要作者在面板确认章纲。'
+        const size = range === null
+          ? '清空字数范围（不按字数判定）'
+          : `设定单章字数范围 ${range.min}–${range.max} 字`
+        return `用 story_settings 给作品 ${workId} ${size}；${policy}`
       },
       volume(workId, volume) {
         const summary = typeof volume.summary === 'string' && volume.summary.trim() !== ''
@@ -892,7 +896,10 @@ window.__ModuleLoader__.load({
               type: 'button',
               className: 'sc-btn',
               title: '设定单章字数范围（不设就不判定）',
-              onClick: () => setSettingsForm(manifest.wordRange ?? { min: 3000, max: 5000 }),
+              onClick: () => setSettingsForm({
+                ...(manifest.wordRange ?? { min: 3000, max: 5000 }),
+                planApproval: manifest.planApproval ?? 'required',
+              }),
             }, '字数范围'),
             h('button', {
               type: 'button',
@@ -940,19 +947,29 @@ window.__ModuleLoader__.load({
               'aria-label': '最多字数',
               onChange: event => setSettingsForm(form => ({ ...form, max: Number(event.target.value) })),
             }),
+            h('span', { className: 'sc-muted' }, '章纲确认'),
+            h('select', {
+              className: 'sc-input sc-narrow',
+              'aria-label': '章纲确认策略',
+              value: settingsForm.planApproval ?? 'required',
+              onChange: event => setSettingsForm(form => ({ ...form, planApproval: event.target.value })),
+            },
+            h('option', { value: 'required' }, '每章必须确认'),
+            h('option', { value: 'off' }, '不需要确认'),
+            ),
             h('button', {
               type: 'button',
               className: 'sc-btn sc-btn-primary',
               onClick: () => {
-                compose(INSTRUCTIONS.settings(manifest.workId, settingsForm))
+                compose(INSTRUCTIONS.settings(manifest.workId, settingsForm, settingsForm.planApproval))
                 setSettingsForm(undefined)
               },
-            }, '保存范围'),
+            }, '保存设置'),
             h('button', {
               type: 'button',
               className: 'sc-btn',
               onClick: () => {
-                compose(INSTRUCTIONS.settings(manifest.workId, null))
+                compose(INSTRUCTIONS.settings(manifest.workId, null, settingsForm.planApproval))
                 setSettingsForm(undefined)
               },
             }, '清空'),

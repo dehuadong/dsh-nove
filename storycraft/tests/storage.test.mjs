@@ -153,6 +153,20 @@ try {
   await rejects('reopened write without flag is rejected', 'chapter-settled', () => s.writeChapter(root, { work, chapter: 1, body: 'x' }))
   const manifestAfter = await readFile(join(root, 'works', work, 'manifest.json'), 'utf8')
   check('manifest unchanged after failure', manifestBefore === manifestAfter)
+  // The confirmation policy is per work: required by default, opt-out allowed.
+  const policyWork = (await s.initWork(root, { title: '策略测试' })).workId
+  await s.writeOutline(root, { work: policyWork, mainline: '一条主线' })
+  await s.writeOutline(root, { work: policyWork, approve: true })
+  await s.writePlan(root, { work: policyWork, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+  const defaultPolicy = (await s.readWork(root, policyWork)).manifest.planApproval
+  check('confirmation is required by default', defaultPolicy === 'required', String(defaultPolicy))
+  await rejects('required policy blocks an unconfirmed chapter', 'plan-not-approved',
+    () => s.writeChapter(root, { work: policyWork, chapter: 1, body: '正文。'.repeat(60), requirePlanApproval: true }))
+  const switched = await s.updateSettings(root, { work: policyWork, planApproval: 'off' })
+  check('policy can be switched off', switched.planApproval === 'off', JSON.stringify(switched))
+  const offWrite = await s.writeChapter(root, { work: policyWork, chapter: 1, body: '正文。'.repeat(60), requirePlanApproval: true })
+  check('off policy allows writing without confirmation', offWrite.artifact.revision === 1, JSON.stringify(offWrite.artifact))
+
 } finally {
   await rm(root, { recursive: true, force: true })
 }
