@@ -504,7 +504,7 @@ const CONTEXT_OUTPUT = {
       chapter: { type: 'integer' },
       sections: {
         type: 'array',
-        description: 'Role context sections, in prompt order.',
+        description: 'Role context sections, in prompt order (success only).',
         items: {
           type: 'object',
           additionalProperties: false,
@@ -520,8 +520,10 @@ const CONTEXT_OUTPUT = {
       },
       trace: OUTPUT_PROPERTIES.trace,
       whitelist: OUTPUT_PROPERTIES.whitelist,
+      error: OUTPUT_PROPERTIES.error,
+      missing: { type: 'array', items: { type: 'string' } },
     },
-    required: ['ok', 'sections', 'trace', 'whitelist'],
+    required: ['ok'],
   },
   render: OUTPUT.render,
 }

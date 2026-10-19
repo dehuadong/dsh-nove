@@ -33,6 +33,16 @@ const unknownSize = checkConsistency({ body: '墙高一丈二。', whitelist })
 check('unknown measurements warn', unknownSize.unknownNumbers.includes('1丈'), unknownSize.unknownNumbers.join(','))
 check('known measurements pass', checkConsistency({ body: '墙高七尺。', whitelist }).unknownNumbers.length === 0)
 
+// The live failure: prose ran through the old window heuristic as "names".
+const prose = checkConsistency({
+  body: '他道：“走。”\n她道：“等。”\n书吏道：“画。”\n绳上有一道印。',
+  whitelist,
+})
+check('prose is not a new name', prose.unknownNames.length === 0, prose.unknownNames.join(','))
+
+const namedWithNumber = checkConsistency({ body: '郑三道：“再量一遍。”', whitelist })
+check('a surname with a number is still a name', namedWithNumber.unknownNames.includes('郑三'), namedWithNumber.unknownNames.join(','))
+
 const verboseAttribution = checkConsistency({
   body: '周观冷笑道：“挪。”\n韩松低声道：“量。”',
   whitelist,
