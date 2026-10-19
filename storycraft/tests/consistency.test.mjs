@@ -40,6 +40,12 @@ const prose = checkConsistency({
 })
 check('prose is not a new name', prose.unknownNames.length === 0, prose.unknownNames.join(','))
 
+const liveGarbage = checkConsistency({
+  body: '得跟我说道：“走。”\n尺走一道：“量。”\n问就说道：“等。”',
+  whitelist,
+})
+check('the live garbage windows are not names', liveGarbage.unknownNames.length === 0, liveGarbage.unknownNames.join(','))
+
 const namedWithNumber = checkConsistency({ body: '郑三道：“再量一遍。”', whitelist })
 check('a surname with a number is still a name', namedWithNumber.unknownNames.includes('郑三'), namedWithNumber.unknownNames.join(','))
 

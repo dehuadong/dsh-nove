@@ -26,14 +26,23 @@ try {
   ]))
   await writeFile(join(root, 'works', work, 'bible', 'intent.md'), '# 意图\n故事发生在白草滩。\n', 'utf8')
 
-  const whitelist = await deriveWhitelist(root, { work, chapter: 1 })
-  check('names come from the character cards', whitelist.names.join(',') === '周观', whitelist.names.join(','))
-  check('places come from the intent file', whitelist.places.includes('白草滩'), whitelist.places.join(','))
-  check('places come from the volume text', whitelist.places.includes('黑水滩'), whitelist.places.join(','))
-  check('numbers keep the Chinese spelling', whitelist.numbers.includes('十六') && whitelist.numbers.includes('七'), whitelist.numbers.join(','))
-  check('numbers also carry digits', whitelist.numbers.includes('16') && whitelist.numbers.includes('7'), whitelist.numbers.join(','))
+  // A secondary character introduced in an earlier chapter is established even
+  // when there is no character card for him.
+  await s.writePlan(root, { work, chapter: 2, perspective: '周观', goal: 'g2', obstacle: 'o', cost: 'c', turn: 't' })
+  await s.writeChapter(root, { work, chapter: 1, body: '阿六道：“我去提水。”'.repeat(20) })
+  await b.writeSummary(root, work, 1, '阿六去提水。')
 
-  const summary = summariseWhitelist(whitelist)
+  const whitelist = await deriveWhitelist(root, { work, chapter: 2 })
+  check('earlier chapters establish secondary names', whitelist.names.includes('阿六'), whitelist.names.join(','))
+
+  const firstChapter = await deriveWhitelist(root, { work, chapter: 1 })
+  check('names come from the character cards', firstChapter.names.includes('周观'), firstChapter.names.join(','))
+  check('places come from the intent file', firstChapter.places.includes('白草滩'), whitelist.places.join(','))
+  check('places come from the volume text', firstChapter.places.includes('黑水滩'), whitelist.places.join(','))
+  check('numbers keep the Chinese spelling', firstChapter.numbers.includes('十六') && firstChapter.numbers.includes('七'), firstChapter.numbers.join(','))
+  check('numbers also carry digits', firstChapter.numbers.includes('16') && firstChapter.numbers.includes('7'), firstChapter.numbers.join(','))
+
+  const summary = summariseWhitelist(firstChapter)
   check('summary exposes counts', summary.counts.names === 1 && summary.counts.places >= 2, JSON.stringify(summary))
   check('summary exposes only samples', summary.sample.names.length <= 5 && summary.sample.numbers.length <= 5, JSON.stringify(summary.sample))
 } finally {

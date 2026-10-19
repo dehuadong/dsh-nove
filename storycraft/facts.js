@@ -47,6 +47,60 @@ export function toArabic(text) {
 /** Place-name shape, shared with the consistency checker. */
 export const PLACE_PATTERN = /[\u4e00-\u9fa5]{2}(?:滩|城|镇|村|堡|州|府|县|关|口|山|河)/gu
 
+/** Speech verbs that introduce an attribution. */
+const SPEECH_VERBS = ['说', '道', '问', '答', '喊', '叫', '嚷', '叹', '点头', '摇头']
+
+/** Characters that cannot begin a person's name. */
+const LEAD_STOP = new Set([
+  '他', '她', '你', '我', '咱', '其', '此', '该', '某', '众', '各', '每',
+  '的', '了', '着', '过', '是', '在', '没', '不', '有', '又', '便', '就', '都',
+  '也', '还', '只', '很', '更', '最', '和', '与', '及', '或', '而', '但', '却',
+  '上', '下', '里', '外', '中', '前', '后', '边', '沿', '底', '内', '旁',
+  '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '百', '千', '万', '半',
+  '声', '应', '知', '门', '口', '手', '眼', '头', '脸', '身', '话', '字', '处',
+  '得', '跟', '同', '向', '对', '给', '让', '叫', '使', '走', '正',
+])
+
+/** Characters that cannot appear inside a person's name. */
+const INNER_STOP = new Set([
+  '的', '了', '着', '过', '是', '在', '没', '不', '有', '上', '下', '里', '外',
+  '中', '前', '后', '边', '沿', '底', '内', '旁', '声', '应', '知', '处',
+  '得', '跟', '同', '向', '对', '给', '让', '叫', '使', '走', '说', '问', '答', '道',
+  '我', '你', '他', '她', '它', '么', '呢', '吧', '啊', '又', '才', '正', '把', '被',
+])
+
+/** Nouns that describe a role, not a named person. */
+export const ROLE_NOUNS = new Set([
+  '老人', '众人', '有人', '那人', '这人', '汉子', '妇人', '孩子', '小孩', '士兵', '亲兵',
+  '流民', '民夫', '工匠', '书生', '官差', '差役', '掌柜', '伙计', '乡绅', '队正', '里正',
+  '书吏', '书办', '驿卒', '差官', '军士', '队副', '里长', '保长', '甲长', '乡亲', '兵丁',
+  '民壮', '衙役', '押司', '官军', '守军', '监工', '工头',
+])
+
+/**
+ * Extract speaker-like names from prose.
+ * @param {string} text - prose to scan.
+ * @param {string[]} known - names already accepted; a window containing one is skipped.
+ * @returns {string[]} candidate names.
+ */
+export function extractSpeakerNames(text, known = []) {
+  const names = []
+  for (const verb of SPEECH_VERBS) {
+    const pattern = new RegExp(`([\u4e00-\u9fa5]{1,5})${verb}(?=[：:，,。！？!?、“])`, 'gu')
+    for (const match of String(text).matchAll(pattern)) {
+      const full = match[1]
+      if (known.some(name => name !== '' && full.includes(name))) continue
+      if ([...ROLE_NOUNS].some(noun => full.includes(noun))) continue
+      const window = full.slice(-3)
+      if (window.length < 2) continue
+      if (LEAD_STOP.has(window[0])) continue
+      if ([...window.slice(1)].some(char => INNER_STOP.has(char))) continue
+      names.push(window)
+    }
+  }
+  return names
+}
+
 /**
  * Read the character cards of one work, tolerating a missing file.
  * @param {string} root - workspace directory.
@@ -79,10 +133,32 @@ export async function deriveWhitelist(root, input) {
       chapterPlan = (await readOptional(join(dir, 'outline', `${entry.id}.plan.md`))) ?? ''
     }
   }
-  const source = [intent, plan, volumes, chapterPlan].join('\n')
+  // Names already used in landed prose are established: cards alone miss the
+  // secondary cast (阿六、秦老卒…), and flagging them as invented blocks real work.
+  const known = cards.map(card => card.name).filter(name => typeof name === 'string' && name !== '')
+  const established = new Set(known)
+  const stateText = (await readOptional(join(dir, 'state', 'events.jsonl'))) ?? ''
+  for (const match of stateText.matchAll(/"name"\s*:\s*"([^"]+)"/gu)) established.add(match[1])
+  const textFiles = []
+  for (const entry of manifest.chapters) {
+    const files = [`${entry.id}.md`, ...Array.from({ length: Math.max(0, (entry.currentRevision ?? 1) - 1) }, (_, index) => `${entry.id}.r${index + 2}.md`)]
+    for (const file of files) {
+      if (input.chapter !== undefined && chapterNumber(input.chapter) === entry.number) continue
+      const text = await readOptional(join(dir, 'chapters', file))
+      if (text !== undefined) textFiles.push(text)
+    }
+    const summary = await readOptional(join(dir, 'summaries', `${entry.id}.md`))
+    if (summary !== undefined) textFiles.push(summary)
+  }
+  for (const text of textFiles) {
+    for (const name of extractSpeakerNames(text, [...established])) established.add(name)
+  }
 
+  const source = [intent, plan, volumes, chapterPlan, stateText, ...textFiles].join('\n')
+
+  const placeStop = /[0-9零一二三四五六七八九十百千万两的着了过是在把被和与上下里外中尺]/u
   const places = new Set(
-    (source.match(PLACE_PATTERN) ?? []).filter(place => !/[0-9零一二三四五六七八九十百千万两]/u.test(place[0])),
+    (source.match(PLACE_PATTERN) ?? []).filter(place => !placeStop.test(place)),
   )
   const numbers = new Set()
   for (const match of source.matchAll(/[0-9]+(?:\.[0-9]+)?/gu)) numbers.add(match[0])
@@ -92,7 +168,7 @@ export async function deriveWhitelist(root, input) {
   }
 
   return {
-    names: cards.map(card => card.name).filter(name => typeof name === 'string' && name !== ''),
+    names: [...established],
     places: [...places],
     numbers: [...numbers],
   }
