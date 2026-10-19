@@ -15,9 +15,9 @@ updated: 2026-10-19
 
 ### 作用域根
 
-- `worksRoot = <根会话 header.cwd>/works`，根会话 = 沿 `header.parentSession` 向上找到的最顶层会话；工作区根**不随 cd 变化**；
-- 相对路径按**当前会话**的实际 `header.cwd` 解析（`working_directory` 可能已改变它），再归一化 `..`、正/反斜杠、Windows 小写；
-- 不依赖 `ctx.workingDirectory.ensure()`（异步且会抛），守卫保持同步与全函数。
+- `worksRoot = <根会话 header.cwd>/works`，根会话 = 沿 `header.parentSession` 向上找到的最顶层会话；`header.cwd` 是会话创建目录、不可变，工作区根**不随 cd 变化**；
+- 相对路径的基准是**当前会话的实时工作目录**：取 `ctx.workingDirectory.get(session)`（同步、不抛；`ensure` 是异步，不能用），它才是 `working_directory` cd 之后的真实目录；缺失时回退到该会话 `header.cwd`；
+- 归一化 `..`、正/反斜杠、Windows 小写；`ctx.workingDirectory.get` 的返回值可能已经是绝对路径，直接使用。
 
 ### 纯函数 `scope.js`
 
@@ -42,7 +42,7 @@ scopeDenial({ tool, arguments, cwd, worksRoot, currentWork }) -> string | undefi
   - 当前作品内 → 放行；
 - `glob`/`grep` 省略路径 → `检索默认会扫进 works/：请给 path 限定到项目目录或当前作品。`
 - `working_directory` 的 `cd` 指向 `works/` → `不进入作品目录：请用相对项目根的路径访问作品。`
-- shell：只匹配**路径段** `works`（`(^|[\s"'=:])works([/\\]|$)`），不匹配 `workspace`；`workdir` 按路径判定，`command` 出现无法解析的 `works` 片段时保守拒绝；
+- shell：只匹配**路径段** `works`，左边界含分隔符与路径起始：`(^|[\s"'=:/\\])works([/\\]|$)`；因此 `./works/x`、`/repo/works/x`、`E:\repo\works\x` 都会命中，而 `packages/workspace` 不会；`workdir` 按路径判定，`command` 出现无法解析的 `works` 片段时保守拒绝；
 - 项目级路径（`AGENTS.md`、`docs/`、`storycraft/`、`deepseek-harness/`、`packages/workspace/`）不参与判定。
 
 ### 当前作品的来源
@@ -68,9 +68,9 @@ scopeDenial({ tool, arguments, cwd, worksRoot, currentWork }) -> string | undefi
 
 产品行为与验收由 #17 拥有。本设计只证明：
 
-1. `scope.test` 覆盖路径矩阵：相对/绝对、正/反斜杠、`..`、当前作品内外、大小写、`working_directory` 改 cwd 后的相对路径；
+1. `scope.test` 覆盖路径矩阵：相对/绝对、正/反斜杠、`..`、当前作品内外、大小写，以及 **cd 到项目目录后 `../works/x` 仍按实时 cwd 解析并拒绝**；
 2. `scope.test` 覆盖工具参数矩阵：`glob`/`grep` 省略 path、`grep.include`、shell 的 `workdir` 与 `command`、`read_image`、`working_directory` 的 `cd`；
-3. shell 片段匹配：`packages/workspace` 放行，`works/其他` 拒绝；
+3. shell 片段匹配：`packages/workspace` 放行；`works/其他`、`./works/x`、`/repo/works/x`、`E:\repo\works\x` 均拒绝；
 4. `tools.test` 断言两个守卫都已注册，并覆盖拒绝文案；
 5. `node scripts/decisions/check.mjs` 通过。
 
