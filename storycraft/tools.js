@@ -843,7 +843,7 @@ function rawDefinitions() {
         const consistency = checkConsistency({
           body: parsed.body,
           whitelist: context.whitelist,
-          allowedText: context.text,
+          allowedText: context.taskText,
         })
         if (consistency.unknownNames.length > 0) {
           throw new StoryError('consistency-violation',

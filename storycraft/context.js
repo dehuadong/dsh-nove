@@ -168,6 +168,28 @@ export async function assembleRoleContext(input) {
   }
   const recent = section('recent', '最近脉络', summaries.join('\n'), 'compressible', 'summaries/ + 上一章结尾')
 
+  // 5b. book plan — planning needs the plan it must stay consistent with
+  const planText = await readOptional(join(dir, 'bible', 'plan.md'))
+  const volumesText = await readOptional(join(dir, 'bible', 'volumes.json'))
+  let volumeTitles = ''
+  if (volumesText !== undefined) {
+    try {
+      const parsed = JSON.parse(volumesText)
+      const volumes = Array.isArray(parsed) ? parsed : (parsed?.volumes ?? [])
+      volumeTitles = volumes
+        .map(volume => `- ${volume.title}（第 ${volume.from}–${volume.to} 章）${volume.summary === undefined ? '' : `：${volume.summary}`}`)
+        .join('\n')
+    } catch {
+      volumeTitles = '（卷图无法解析）'
+    }
+  }
+  const planSection = role === 'planner'
+    ? section('plan', '全书计划与卷图', [
+      planText === undefined ? '（还没有全书计划）' : planText.trim(),
+      volumeTitles === '' ? '' : `卷图：\n${volumeTitles}`,
+    ].filter(line => line !== '').join('\n'), 'protected', 'bible/plan.md + bible/volumes.json')
+    : undefined
+
   // 6. style — compressible
   const styleText = await readOptional(join(dir, 'bible', 'style.md'))
   const style = section('style', '文风要点', styleText ?? '', 'compressible', 'bible/style.md')
@@ -177,7 +199,17 @@ export async function assembleRoleContext(input) {
   const bodySection = body === '' ? undefined
     : section('body', '待处理的正文', `---正文开始---\n${body}\n---正文结束---`, 'protected', 'chapters/')
 
+  const characterBrief = role === 'planner'
+    ? section('characters', '人物卡（节选）', characters.slice(0, 6).map(item => [
+      `- ${item.name}：${item.role}`,
+      ...(item.limit === undefined ? [] : [`  边界：${item.limit}`]),
+      ...(item.voice === undefined ? [] : [`  语气：${item.voice}`]),
+    ].join('\n')).join('\n'), 'compressible', 'bible/characters.json')
+    : undefined
+
   const sections = [authority, task, constraints, state, recent, style]
+  if (characterBrief !== undefined) sections.splice(3, 0, characterBrief)
+  if (planSection !== undefined) sections.splice(3, 0, planSection)
   if (bodySection !== undefined) sections.splice(3, 0, bodySection)
 
   // Budget: drop or shorten compressible sections in TRIM_ORDER; protected stay.
@@ -229,13 +261,17 @@ export async function assembleRoleContext(input) {
 
   // Fact whitelist: names from the character file, places mentioned by the intent,
   // and every number that appears in the context actually sent.
-  const placePattern = /(?:在|到|往|回|自)([\u4e00-\u9fa5]{2,6})(?:滩|城|镇|村|堡|州|府|县|关|口|山|河)/gu
-  const places = new Set()
-  for (const match of intent.matchAll(placePattern)) places.add(match[1] + match[0].slice(-1))
+  const source = `${text}\n${intent}\n${planText ?? ''}\n${volumeTitles}`
+  const placePattern = /[\u4e00-\u9fa5]{2}(?:滩|城|镇|村|堡|州|府|县|关|口|山|河)/gu
+  const places = new Set((source.match(placePattern) ?? []).filter(place => !/[0-9零一二三四五六七八九十百千万两]/u.test(place[0])))
+  const numbers = new Set([
+    ...(source.match(/[0-9]+(?:\.[0-9]+)?/gu) ?? []),
+    ...(source.match(/[零一二三四五六七八九十百千万两]+/gu) ?? []),
+  ])
   const whitelist = {
     names: characters.map(item => item?.name).filter(name => typeof name === 'string' && name !== ''),
-    places: [...places].slice(0, 50),
-    numbers: [...new Set((text.match(/\d+(?:\.\d+)?/gu) ?? []))].slice(0, 200),
+    places: [...places].slice(0, 100),
+    numbers: [...numbers].slice(0, 300),
   }
-  return { sections: segments, text, trace, whitelist }
+  return { sections: segments, text, trace, whitelist, taskText }
 }

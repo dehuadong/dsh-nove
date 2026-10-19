@@ -52,6 +52,12 @@ try {
 
   // Reviewer path: body is protected and present.
   // Work-scoped planning has no chapter entry; it still carries state and recent context.
+  // A planner sees the book plan, the volume map and the character cards.
+  const planner = await assembleRoleContext({ root, work, chapter: 2, role: 'planner', task: '为第 2 章出章纲' })
+  check('planner gets the book plan', planner.text.includes('一条主线'), planner.text.slice(0, 200))
+  check('planner gets character cards', planner.text.includes('韩松') && planner.text.includes('语气'), planner.text.slice(0, 400))
+  check('planner whitelist comes from the context', planner.whitelist.names.includes('周观'), planner.whitelist.names.join(','))
+
   // Planning chapter 3 has no manifest entry yet; that must still work.
   const plannedAhead = await assembleRoleContext({
     root, work, chapter: 3, role: 'planner', task: '为第 3 章出章纲',

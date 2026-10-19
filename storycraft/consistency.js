@@ -10,11 +10,17 @@
 /** Verbs that follow a speaker in Chinese prose. */
 const SPEECH_VERBS = ['说', '道', '问', '答', '喊', '叫', '嚷', '叹', '点头', '摇头']
 
+/** Nouns that describe a role, not a named person. */
+const ROLE_NOUNS = new Set([
+  '老人', '众人', '有人', '那人', '这人', '汉子', '妇人', '孩子', '小孩', '士兵', '亲兵',
+  '流民', '民夫', '工匠', '书生', '官差', '差役', '掌柜', '伙计', '乡绅', '队正', '里正',
+])
+
 /** Characters that begin a verb phrase, not a name. */
 const VERB_LEADS = new Set(['进', '到', '往', '了', '在', '出', '回', '上', '下', '走', '去', '来', '把', '被', '向', '从', '跟', '和', '对'])
 
 /** Units that make a number a measurement worth checking. */
-const MEASURE_UNITS = '尺寸丈斤石斗升里步两文贯天日人个'
+const MEASURE_UNITS = '尺寸丈斤石斗升里步两文贯天日人个口名匹头袋车间座段件张条根'
 
 /** Chinese digit values. */
 const DIGITS = { 零: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 }
@@ -83,13 +89,22 @@ export function checkConsistency(input) {
   const body = String(input.body ?? '')
   const names = new Set(input.whitelist?.names ?? [])
   const places = new Set(input.whitelist?.places ?? [])
-  const numbers = new Set((input.whitelist?.numbers ?? []).map(normaliseMeasurement))
+  // Keep every spelling a faithful number can take: as written, as digits, and as
+  // digits with its unit, so 十六 in the plan matches 十六口 in the prose.
+  const numbers = new Set()
+  for (const entry of input.whitelist?.numbers ?? []) {
+    numbers.add(String(entry))
+    numbers.add(toArabic(entry))
+    numbers.add(normaliseMeasurement(entry))
+  }
   const allowedText = String(input.allowedText ?? '')
 
   // A window that contains a known name is not an invented speaker; only windows
   // with no known name at all are reported.
   const unknownNames = [...new Set(
-    speakerWindows(body).filter(window => ![...names].some(name => name !== '' && window.includes(name))),
+    speakerWindows(body)
+      .filter(window => ![...names].some(name => name !== '' && window.includes(name)))
+      .filter(window => ![...ROLE_NOUNS].some(noun => window.includes(noun))),
   )]
 
   const numeralLead = /[0-9零一二三四五六七八九十百千万半两]/u
@@ -104,7 +119,11 @@ export function checkConsistency(input) {
   const unknownNumbers = [...new Set(
     (body.match(patterns) ?? [])
       .map(normaliseMeasurement)
-      .filter(item => !numbers.has(item) && !allowedText.includes(item)),
+      .filter(item => {
+        if (numbers.has(item) || allowedText.includes(item)) return false
+        const digits = item.replace(/[^0-9]/gu, '')
+        return digits === '' || !numbers.has(digits)
+      }),
   )]
 
   const warnings = []
