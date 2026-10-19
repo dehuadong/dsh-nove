@@ -1,0 +1,59 @@
+{
+  "manifestUpdatedAt": "2026-10-18T08:58:39.926Z",
+  "chapters": [
+    {
+      "number": 1,
+      "stage": "settled",
+      "revision": 2,
+      "words": 3969
+    },
+    {
+      "number": 2,
+      "stage": "settled",
+      "revision": 2,
+      "words": 3789
+    },
+    {
+      "number": 3,
+      "stage": "settled",
+      "revision": 7,
+      "words": 4456
+    },
+    {
+      "number": 4,
+      "stage": "settled",
+      "revision": 5,
+      "words": 4427
+    },
+    {
+      "number": 5,
+      "stage": "settled",
+      "revision": 2,
+      "words": 4133
+    },
+    {
+      "number": 6,
+      "stage": "settled",
+      "revision": 6,
+      "words": 4658
+    },
+    {
+      "number": 7,
+      "stage": "settled",
+      "revision": 6,
+      "words": 4941
+    }
+  ],
+  "writtenChapters": 7,
+  "words": 30373,
+  "latestChapter": 7,
+  "openProblems": 0,
+  "hooks": {
+    "opened": 23,
+    "used": 5,
+    "resolved": 2,
+    "open": 28
+  },
+  "events": 155,
+  "updatedAt": "2026-10-18T08:58:39.928Z"
+}

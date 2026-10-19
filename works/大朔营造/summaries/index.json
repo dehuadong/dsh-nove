@@ -13,7 +13,27 @@
     {
       "number": 3,
       "path": "summaries/ch-0003.md",
-      "words": 349
+      "words": 370
+    },
+    {
+      "number": 4,
+      "path": "summaries/ch-0004.md",
+      "words": 282
+    },
+    {
+      "number": 5,
+      "path": "summaries/ch-0005.md",
+      "words": 328
+    },
+    {
+      "number": 6,
+      "path": "summaries/ch-0006.md",
+      "words": 278
+    },
+    {
+      "number": 7,
+      "path": "summaries/ch-0007.md",
+      "words": 360
     }
   ]
 }

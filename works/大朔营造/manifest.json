@@ -1,7 +1,7 @@
 {
   "version": 1,
   "workId": "大朔营造",
-  "title": "大朔营造",
+  "title": "工程天团定鼎九州",
   "form": "longform",
   "tags": [
     "基建",
@@ -11,7 +11,7 @@
     "写实"
   ],
   "createdAt": "2026-10-17T09:50:33.372Z",
-  "updatedAt": "2026-10-17T10:36:37.362Z",
+  "updatedAt": "2026-10-18T08:58:39.926Z",
   "chapters": [
     {
       "id": "ch-0001",
@@ -38,14 +38,67 @@
       "number": 3,
       "title": "做小",
       "status": "settled",
-      "currentRevision": 4,
-      "words": 3895,
-      "updatedAt": "2026-10-17T10:36:37.362Z",
-      "stage": "settled"
+      "currentRevision": 7,
+      "words": 4456,
+      "updatedAt": "2026-10-18T03:42:14.180Z",
+      "stage": "settled",
+      "lastReviseMode": "polish"
+    },
+    {
+      "id": "ch-0004",
+      "number": 4,
+      "title": "第四章　过道",
+      "status": "settled",
+      "currentRevision": 5,
+      "words": 4427,
+      "updatedAt": "2026-10-18T03:45:42.156Z",
+      "stage": "settled",
+      "lastReviseMode": "patch"
+    },
+    {
+      "id": "ch-0005",
+      "number": 5,
+      "title": "第五章　量墙",
+      "status": "settled",
+      "currentRevision": 2,
+      "words": 4133,
+      "updatedAt": "2026-10-18T03:54:56.076Z",
+      "stage": "settled",
+      "lastReviseMode": "patch"
+    },
+    {
+      "id": "ch-0006",
+      "number": 6,
+      "title": "第六章　八步",
+      "status": "settled",
+      "currentRevision": 6,
+      "words": 4658,
+      "updatedAt": "2026-10-18T08:40:52.614Z",
+      "stage": "settled",
+      "lastReviseMode": "patch"
+    },
+    {
+      "id": "ch-0007",
+      "number": 7,
+      "title": "",
+      "status": "settled",
+      "currentRevision": 6,
+      "words": 4941,
+      "updatedAt": "2026-10-18T08:58:39.926Z",
+      "stage": "settled",
+      "lastReviseMode": "patch"
     }
   ],
   "counters": {
-    "reviewRounds": 4,
+    "reviewRounds": 18,
     "openProblems": 0
+  },
+  "wordRange": {
+    "min": 4000,
+    "max": 5000
+  },
+  "outline": {
+    "writtenAt": "2026-10-18T08:34:44.745Z",
+    "approvedAt": "2026-10-18T08:35:52.731Z"
   }
 }
