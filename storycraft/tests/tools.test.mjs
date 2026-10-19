@@ -17,12 +17,14 @@ function check(name, condition, detail) {
 
 const registered = []
 const guards = []
+const services = {}
 const ctx = {
   tools: {
     register: (definition) => { registered.push(definition); return () => {} },
     guard: (guard) => { guards.push(guard); return () => {} },
   },
   effect: (fn) => { const dispose = fn(); return () => dispose?.() },
+  get: (name) => services[name],
 }
 tools.apply(ctx, { mode: 'longform' })
 
@@ -40,13 +42,33 @@ check('every action declares execute', registered.every(definition => typeof def
 
 const byName = new Map(registered.map(definition => [definition.name, definition]))
 const scopeGuard = guards[1]
-const fakeSession = id => ({ header: { id, cwd: 'E:\\repo' } })
+const scopeRoot = 'E:\\repo'
+const discussionCopy = '讨论阶段不读历史作品：请先在面板进入一部作品，或给 path 限定到项目目录。'
+const otherWorkCopy = '只能访问当前作品：works/<其他作品> 不在当前会话的作用域内。'
+const fakeSession = id => ({ header: { id, cwd: scopeRoot } })
 const fakeExec = (name, args, id = 'scope-main') => ({ name, arguments: args, agent: { id, session: fakeSession(id) } })
 
 check('scope guard denies works without a current work',
-  scopeGuard(fakeExec('read', { file_path: 'works/别的书/chapters/ch-0001.md' })) !== undefined)
+  scopeGuard(fakeExec('read', { file_path: 'works/别的书/chapters/ch-0001.md' })) === discussionCopy)
 check('scope guard allows project files',
   scopeGuard(fakeExec('read', { file_path: 'AGENTS.md' })) === undefined)
+
+// A subagent inherits the parent session's work pointer and live cwd.
+const parentSession = fakeSession('scope-parent')
+const childSession = {
+  header: { id: 'scope-child', cwd: 'E:\\elsewhere', parentSession: 'scope-parent' },
+}
+services.sessions = { get: id => (id === 'scope-parent' ? parentSession : undefined) }
+services.workingDirectory = { get: session => (session === childSession ? scopeRoot : session.header.cwd) }
+setCurrent('scope-parent', '大朔营造')
+const childExec = (name, args) => ({ name, arguments: args, agent: { id: 'scope-child', session: childSession } })
+check('a subagent can read the parent session work',
+  scopeGuard(childExec('read', { file_path: 'works/大朔营造/chapters/ch-0001.md' })) === undefined)
+check('a subagent cannot read another work',
+  scopeGuard(childExec('read', { file_path: 'works/别的书/chapters/ch-0001.md' })) === otherWorkCopy)
+delete services.sessions
+delete services.workingDirectory
+setCurrent('scope-parent', undefined)
 // The tool registry asserts the output schema against its supported subset and
 // rejects the whole plugin row on a violation, which silently marks the preset
 // broken. Mirror those rules here so that regression is caught offline.

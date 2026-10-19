@@ -46,13 +46,29 @@ function absolute(cwd, value) {
   return isAbsolute(value) ? normalize(value) : resolve(cwd, value)
 }
 
-/** Whether a shell command mentions the work store or the database store. */
+/** Fold case for matching when Windows paths are case-insensitive. */
+function foldText(text) {
+  return process.platform === 'win32' ? text.toLowerCase() : text
+}
+
+/**
+ * Whether a shell command mentions the work store or the database store.
+ * `works` matches as a whole path segment (bare, trailing, or with a work name);
+ * `workspace` and `myworks` do not match.
+ * @param {string} command - shell command text.
+ * @returns {{works: Array<string|undefined>, database: boolean}} mentions.
+ */
 function shellMentions(command) {
   if (typeof command !== 'string') return { works: [], database: false }
+  const text = foldText(command)
   const works = []
-  const pattern = /(^|[\s"'=:/\\])works[/\\]([^/\s"']+)/gu
-  for (const match of command.matchAll(pattern)) works.push(match[2])
-  const database = /(^|[\s"'=:/\\])\.storycraft([/\\]|$)/u.test(command)
+  const pattern = /(?:^|[\s"'=:/\\])works(?=$|[/\\\s"';&|])/gu
+  for (const match of text.matchAll(pattern)) {
+    const after = text.slice(match.index + match[0].length)
+    const name = /^[/\\]([^/\\\s"']+)/u.exec(after)
+    works.push(name === null ? undefined : name[1])
+  }
+  const database = /(?:^|[\s"'=:/\\])\.storycraft(?=$|[/\\\s"';&|])/u.test(text)
   return { works, database }
 }
 
@@ -84,7 +100,10 @@ export function scopeDenial(input) {
   if (SEARCH_TOOLS.has(tool)) {
     // Without an explicit path the tool recurses the whole workspace, works included.
     if (typeof args.path !== 'string' || args.path.trim() === '') return SCOPE_MESSAGES.search
-    return check(args.path)
+    const denial = check(args.path)
+    if (denial !== undefined) return denial
+    if (typeof args.include !== 'string' || args.include.trim() === '') return undefined
+    return check(isAbsolute(args.include) ? args.include : join(args.path, args.include))
   }
 
   if (tool === 'working_directory') {
@@ -103,7 +122,9 @@ export function scopeDenial(input) {
     if (mentioned.works.length === 0) return undefined
     const current = typeof input.currentWork === 'string' ? input.currentWork : ''
     for (const name of mentioned.works) {
-      if (current === '' || name !== current) return SCOPE_MESSAGES.otherWork
+      // A bare `works` (listing/Set-Location) cannot be proven to stay inside the
+      // current work, so it is treated as reaching the whole store.
+      if (current === '' || name === undefined || fold(name) !== fold(current)) return SCOPE_MESSAGES.otherWork
     }
     return undefined
   }
