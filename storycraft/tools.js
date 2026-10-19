@@ -26,6 +26,7 @@ import {
 } from './bible.js'
 import { readVolumes, writeVolume } from './volumes.js'
 import { critique } from './critique.js'
+import { assembleRoleContext } from './context.js'
 import { getCurrent, resolveWork, setCurrent } from './current.js'
 import { createProposal, markProposalUsed, readProposal } from './proposals.js'
 
@@ -320,6 +321,30 @@ const OUTPUT_PROPERTIES = {
   items: {
     type: 'integer',
     description: '子代理产出的审稿条目数。',
+  },
+  contextTrace: {
+    type: 'object',
+    description: '本次派活的上下文轨迹：预算、被裁掉的段、每段字符数。',
+    additionalProperties: false,
+    properties: {
+      budget: { type: 'integer' },
+      dropped: { type: 'array', items: { type: 'string' } },
+      overflow: { type: 'boolean' },
+      sections: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            name: { type: 'string' },
+            protection: { type: 'string' },
+            chars: { type: 'integer' },
+          },
+          required: ['name', 'protection', 'chars'],
+        },
+      },
+    },
+    required: ['budget', 'sections'],
   },
   readOnly: {
     type: 'boolean',
@@ -750,20 +775,22 @@ function rawDefinitions() {
         if (provider === undefined || exec?.agent === undefined) {
           throw new StoryError('subagent-unavailable', '子代理通道不可用：直接用 story_write 写正文')
         }
-        const brief = await assembleBriefFor(root, args.work, args.chapter)
-        const context = brief.sections
-          .filter(section => section.absent !== true && typeof section.content === 'string' && section.content.trim() !== '')
-          .map(section => `## ${section.title}\n${section.content}`)
-          .join('\n\n')
+        const context = await assembleRoleContext({
+          root,
+          work: args.work,
+          chapter: args.chapter,
+          role: 'writer',
+          ...(typeof args.instruction === 'string' ? { instruction: args.instruction } : {}),
+        })
         const task = [
           '你是写手：按下面的上下文写这一章正文，不要写文件、不要调用任何动作。',
           typeof args.instruction === 'string' && args.instruction.trim() !== ''
             ? `作者要求：${args.instruction.trim()}`
             : '',
-          `作品形态：${brief.form ?? 'longform'}；本章是第 ${args.chapter} 章。`,
+          `本章是第 ${args.chapter} 章。`,
           '先输出 <<<TITLE 本章标题 TITLE>>>（不超过 20 字），再输出整章正文，用 <<<CHAPTER 与 CHAPTER>>> 包住，前后不要解释。',
           '---上下文开始---',
-          context,
+          context.text,
           '---上下文结束---',
         ].filter(line => line !== '').join('\n')
         const canPreset = subagents.getProvider?.(provider)?.capabilities?.agentPreset === true
@@ -803,6 +830,7 @@ function rawDefinitions() {
         return {
           ok: true, provider, childId: String(started.childId), readOnly,
           words: written.words, artifact: written.artifact,
+          contextTrace: context.trace,
         }
       },
     }),
