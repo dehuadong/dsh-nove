@@ -91,6 +91,10 @@ async function buildFixture() {
   const store = await import(pathToFileURL(path.join(projectRoot, 'storage.js')).href)
   const created = await store.initWork(fixtureWorkspace, { title: '示例短篇' })
   const work = created.workId
+  // The outline gate applies to every chapter plan now, so the fixture approves
+  // the book plan first and rewrites it unapproved at the end for the panel spec.
+  await store.writeOutline(fixtureWorkspace, { work, mainline: '一条主线' })
+  await store.approveOutline(fixtureWorkspace, { work })
   await store.writePlan(fixtureWorkspace, {
     work, chapter: 1, perspective: '甲', goal: '救火', obstacle: '断电', cost: '时间', turn: '找到出口',
   })

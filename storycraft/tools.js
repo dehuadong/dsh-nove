@@ -667,7 +667,7 @@ function rawDefinitions() {
       name: 'story_outline',
       mutates: true,
       description: '全书计划：写主线、卷划分、结局方向到 bible/plan.md。'
-        + ' 写完后请作者在面板点「确认全书计划」；模型不能代签确认。未确认前不能写第 1 章章纲。',
+        + ' 写完后请作者在面板点「确认全书计划」；模型不能代签确认。未确认前不能写任何章的章纲。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -717,9 +717,9 @@ function rawDefinitions() {
       async execute(args, exec) {
         const root = workspaceOf(exec)
         const manifest = await readManifest(root, args.work)
-        if (manifest.chapters.length === 0 && manifest.outline?.approvedAt === undefined) {
+        if (manifest.outline?.approvedAt === undefined) {
           throw new StoryError('outline-required',
-            '全书计划还没确认：先 story_outline 写主线/卷划分/结局方向，等作者同意后 approve，再写章纲')
+            '全书计划还没确认：写完后请作者在面板点「确认全书计划」，再写章纲（模型不能代签）')
         }
         const result = await writePlan(root, args)
         return { ok: true, workId: args.work, artifact: result.artifact }

@@ -223,7 +223,7 @@ window.__ModuleLoader__.load({
         return `作品 ${workId} 第 ${chapter} 章的章纲已在面板确认，继续写正文。`
       },
       outlineApproved(workId) {
-        return `作品 ${workId} 的全书计划已在面板确认，继续写第 1 章章纲。`
+        return `作品 ${workId} 的全书计划已在面板确认，按 story_next 给出的下一步继续。`
       },
       settings(workId, range, planApproval) {
         const policy = planApproval === 'off'
