@@ -324,12 +324,22 @@ const OUTPUT_PROPERTIES = {
   },
   contextTrace: {
     type: 'object',
-    description: '本次派活的上下文轨迹：预算、被裁掉的段、每段字符数。',
+    description: '本次派活的上下文轨迹：预算、压缩与裁掉、每段来源与字符数。',
     additionalProperties: false,
     properties: {
       budget: { type: 'integer' },
       dropped: { type: 'array', items: { type: 'string' } },
+      trimmed: { type: 'array', items: { type: 'string' } },
       overflow: { type: 'boolean' },
+      missing: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: { name: { type: 'string' }, reason: { type: 'string' } },
+          required: ['name', 'reason'],
+        },
+      },
       sections: {
         type: 'array',
         items: {
@@ -338,7 +348,10 @@ const OUTPUT_PROPERTIES = {
           properties: {
             name: { type: 'string' },
             protection: { type: 'string' },
+            source: { type: 'string' },
             chars: { type: 'integer' },
+            dropped: { type: 'boolean' },
+            trimmed: { type: 'boolean' },
           },
           required: ['name', 'protection', 'chars'],
         },
@@ -756,7 +769,7 @@ function rawDefinitions() {
 
     action({
       name: 'story_write_agent',
-      description: '写手子代理：把本章 brief 与章纲交给只读写手，取回整章正文，校验后由主编落盘（story_write）。'
+      description: '写手子代理：按角色的分层上下文（权威顺序、本章任务、硬约束、人物与状态、最近脉络、文风）交给只读写手，取回整章正文，校验后由主编落盘（story_write）。'
         + ' 子代理不写文件；通道不可用时请直接用 story_write。',
       parameters: {
         type: 'object',

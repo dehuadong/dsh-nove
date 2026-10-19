@@ -8,8 +8,9 @@
  */
 
 import { join } from 'node:path'
+import { parseCharacters } from './bible.js'
 import {
-  chapterNumber, chapterStem, foldEvents, formOf, readManifest, readOptional, unitOf, workDirectory,
+  StoryError, chapterNumber, chapterStem, foldEvents, formOf, readManifest, readOptional, unitOf, workDirectory,
 } from './storage.js'
 
 /** Default budget for one role context, in characters. */
@@ -46,18 +47,13 @@ const AUTHORITY = {
  */
 async function readCharacters(root, workId) {
   const text = await readOptional(join(workDirectory(root, workId), 'bible', 'characters.json'))
-  if (text === undefined) return []
-  try {
-    const parsed = JSON.parse(text)
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
+  if (text === undefined) return undefined
+  return parseCharacters(text)
 }
 
 /** One section record. */
-function section(name, title, content, protection) {
-  return { name, title, content: String(content ?? '').trim(), protection }
+function section(name, title, content, protection, source) {
+  return { name, title, content: String(content ?? '').trim(), protection, source }
 }
 
 /**
@@ -79,49 +75,68 @@ export async function assembleRoleContext(input) {
   const number = chapterNumber(chapter)
   const dir = workDirectory(root, manifest.workId)
   const entry = manifest.chapters.find(item => item.number === number)
+  if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${number} 章：先写章纲再派活`)
   const form = formOf(manifest)
   const unit = unitOf(form)
 
   // 1. authority — protected
-  const authority = section('authority', '权威顺序', AUTHORITY[role] ?? AUTHORITY.writer, 'protected')
+  const authority = section('authority', '权威顺序', AUTHORITY[role] ?? AUTHORITY.writer, 'protected', 'storycraft/context.js')
 
   // 2. task — protected
   let taskText = ''
   if (role === 'writer' || role === 'planner') {
-    const plan = await readOptional(join(dir, 'outline', `${entry?.id ?? chapterStem(number)}.plan.md`))
-    taskText = plan ?? '（本章还没有章纲）'
+    const plan = await readOptional(join(dir, 'outline', `${entry.id}.plan.md`))
+    if (plan === undefined) {
+      throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲：先 story_plan，再派活`)
+    }
+    taskText = plan
   } else {
     taskText = String(input.task ?? '').trim()
   }
-  const task = section('task', '本章任务', taskText, 'protected')
+  const instruction = String(input.instruction ?? '').trim()
+  const task = section('task', '本章任务', [
+    instruction === '' ? '' : `作者要求：${instruction}`,
+    taskText,
+  ].filter(line => line !== '').join('\n'), 'protected', 'outline + 本次要求')
 
   // 3. constraints — protected
   const characters = await readCharacters(root, manifest.workId)
+  if (characters === undefined) {
+    throw new StoryError('bible-missing', '人物卡缺失：先用 story_bible_write 建 bible/characters.json 再派活')
+  }
   const perspective = /- 视角：(.+)/u.exec(taskText)?.[1]?.trim()
   const lead = characters.find(item => item?.name !== undefined && perspective !== undefined && perspective.includes(item.name))
+  const intent = (await readOptional(join(dir, 'bible', 'intent.md'))) ?? ''
   const constraintLines = [
     `形态：${form}（单位：${unit}）`,
     manifest.wordRange === undefined
       ? '字数：未设定（按作者习惯）'
       : `字数：单章 ${manifest.wordRange.min}–${manifest.wordRange.max} 字`,
-    manifest.writing?.person === undefined ? '' : `叙事人称：${manifest.writing.person}`,
-    ...(Array.isArray(manifest.writing?.prohibitions) ? manifest.writing.prohibitions.map(item => `禁令：${item}`) : []),
+    // 叙事人称与显式禁令尚无写入入口，先用意图文件里的口径；接入 settings 后再补。
     ...(lead === undefined ? [] : [
       `主角：${lead.name}`,
       ...(lead.limit === undefined ? [] : [`行为边界：${lead.limit}`]),
       ...(lead.voice === undefined ? [] : [`语气：${lead.voice}`]),
     ]),
+    ...(intent.trim() === '' ? [] : ['本书口径（摘自意图文件）：', intent.trim().slice(0, 600)]),
   ].filter(line => line !== '')
-  const constraints = section('constraints', '硬约束', constraintLines.join('\n'), 'protected')
+  const constraints = section('constraints', '硬约束', constraintLines.join('\n'), 'protected', 'manifest + bible/characters + bible/intent')
 
   // 4. state — compressible (open hooks + characters in play)
   const events = (await readOptional(join(dir, 'state', 'events.jsonl'))) ?? ''
   const folded = foldEvents(events)
   const openHooks = folded.hooks.filter(hook => hook.state !== 'resolved')
   const stateLines = [
-    ...(openHooks.length === 0 ? ['未解伏笔：无'] : ['未解伏笔：', ...openHooks.slice(0, 8).map(hook => `- ${hook.text}（${hook.state}，第 ${hook.openedChapter} 章）`)]),
+    ...(folded.entities.length === 0 ? [] : [
+      '人物事实：',
+      ...folded.entities.slice(0, 8).map(entity => `- ${entity.name}：${(entity.facts ?? []).slice(-3).join('；')}`),
+    ]),
+    ...(openHooks.length === 0 ? ['未解伏笔：无'] : [
+      '未解伏笔：',
+      ...openHooks.slice(0, 8).map(hook => `- ${hook.text}（${hook.state}，第 ${hook.openedChapter} 章）`),
+    ]),
   ]
-  const state = section('state', '人物与状态', stateLines.join('\n'), 'compressible')
+  const state = section('state', '人物与状态', stateLines.join('\n'), 'compressible', 'state/events.jsonl')
 
   // 5. recent — compressible (last three summaries + the previous chapter's tail)
   const summaries = []
@@ -129,56 +144,84 @@ export async function assembleRoleContext(input) {
     const text = await readOptional(join(dir, 'summaries', `${chapterStem(index)}.md`))
     if (text !== undefined && text.trim() !== '') summaries.push(`第 ${index} 章：${text.trim()}`)
   }
-  const recent = section('recent', '最近脉络', summaries.join('\n'), 'compressible')
+  if (number > 1) {
+    const previousBody = await readOptional(join(dir, 'chapters', `${chapterStem(number - 1)}.md`))
+      ?? await readOptional(join(dir, 'chapters', `${chapterStem(number - 1)}.r2.md`))
+    if (previousBody !== undefined) {
+      const tail = previousBody.trim().slice(-400)
+      summaries.push(`上一章结尾：…${tail}`)
+    }
+  }
+  const recent = section('recent', '最近脉络', summaries.join('\n'), 'compressible', 'summaries/ + 上一章结尾')
 
   // 6. style — compressible
   const styleText = await readOptional(join(dir, 'bible', 'style.md'))
-  const style = section('style', '文风要点', styleText ?? '', 'compressible')
+  const style = section('style', '文风要点', styleText ?? '', 'compressible', 'bible/style.md')
 
   // 7. body — protected when the role judges prose rather than writes it
   const body = String(input.body ?? '').trim()
   const bodySection = body === '' ? undefined
-    : section('body', '待处理的正文', `---正文开始---\n${body}\n---正文结束---`, 'protected')
+    : section('body', '待处理的正文', `---正文开始---\n${body}\n---正文结束---`, 'protected', 'chapters/')
 
   const sections = [authority, task, constraints, state, recent, style]
   if (bodySection !== undefined) sections.splice(3, 0, bodySection)
 
   // Budget: drop or shorten compressible sections in TRIM_ORDER; protected stay.
   const budget = Number.isInteger(input.budget) && input.budget > 0 ? input.budget : DEFAULT_CONTEXT_BUDGET
-  const trace = { budget, sections: [], trimmed: [], dropped: [], overflow: false }
-  const kept = sections.map(item => ({ ...item, content: item.content, trimmedTo: undefined }))
-  let total = kept.reduce((sum, item) => sum + item.content.length, 0)
+  const trace = { budget, sections: [], trimmed: [], dropped: [], overflow: false, missing: [] }
+  const segments = sections.map(item => ({ ...item, content: item.content, trimmed: false }))
+  for (const item of segments) {
+    if (item.content === '') trace.missing.push({ name: item.name, reason: '没有可用内容' })
+  }
+  let total = segments.reduce((sum, item) => sum + item.content.length, 0)
   for (const name of TRIM_ORDER) {
     if (total <= budget) break
-    const target = kept.find(item => item.name === name)
+    const target = segments.find(item => item.name === name)
     if (target === undefined || target.protection !== 'compressible') continue
     if (target.content === '') continue
-    // Drop the whole section first; if that is not enough the next one goes too.
-    total -= target.content.length
-    target.content = ''
-    trace.dropped.push(name)
+    const others = total - target.content.length
+    const allowed = budget - others
+    if (allowed >= 80) {
+      // Shrink this section (head + tail) before giving up on it entirely.
+      const head = target.content.slice(0, Math.floor(allowed * 0.7))
+      const tail = target.content.slice(-Math.floor(allowed * 0.25))
+      target.content = `${head}\n…（已压缩）…\n${tail}`
+      target.trimmed = true
+      trace.trimmed.push(name)
+    } else {
+      target.content = ''
+      trace.dropped.push(name)
+    }
+    total = segments.reduce((sum, item) => sum + item.content.length, 0)
   }
   if (total > budget) {
     // Protected sections alone exceed the budget: report it instead of trimming them.
     trace.overflow = true
   }
-  for (const item of kept) {
+  for (const item of segments) {
     trace.sections.push({
       name: item.name,
       protection: item.protection,
+      source: item.source,
       chars: item.content.length,
       ...(trace.dropped.includes(item.name) ? { dropped: true } : {}),
+      ...(item.trimmed === true ? { trimmed: true } : {}),
     })
   }
-  const text = kept
+  const text = segments
     .filter(item => item.content !== '')
     .map(item => `## ${item.title}\n${item.content}`)
     .join('\n\n')
 
-  // Fact whitelist: names from the character file, volume titles, numbers in the task.
+  // Fact whitelist: names from the character file, places mentioned by the intent,
+  // and every number that appears in the context actually sent.
+  const placePattern = /(?:在|到|往|回|自)([\u4e00-\u9fa5]{2,6})(?:滩|城|镇|村|堡|州|府|县|关|口|山|河)/gu
+  const places = new Set()
+  for (const match of intent.matchAll(placePattern)) places.add(match[1] + match[0].slice(-1))
   const whitelist = {
     names: characters.map(item => item?.name).filter(name => typeof name === 'string' && name !== ''),
-    numbers: [...new Set((`${taskText}\n${stateLines.join('\n')}`.match(/\d+(?:\.\d+)?/gu) ?? []))].slice(0, 100),
+    places: [...places].slice(0, 50),
+    numbers: [...new Set((text.match(/\d+(?:\.\d+)?/gu) ?? []))].slice(0, 200),
   }
-  return { sections: kept, text, trace, whitelist }
+  return { sections: segments, text, trace, whitelist }
 }

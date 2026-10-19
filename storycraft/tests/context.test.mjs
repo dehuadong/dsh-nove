@@ -25,10 +25,10 @@ try {
   await s.writeChapter(root, { work, chapter: 1, body: '正文。'.repeat(200) })
   await b.writeSummary(root, work, 1, '第一章摘要'.repeat(50))
   const dir = join(root, 'works', work)
-  await writeFile(join(dir, 'bible', 'characters.json'), JSON.stringify([
-    { name: '周观', limit: '不拿人命换速度', voice: '短句' },
-    { name: '韩松', limit: '没有数据不签', voice: '反问' },
-  ]), 'utf8')
+  await b.writeBible(root, work, 'characters', JSON.stringify([
+    { name: '周观', role: '主视角', want: '把墙立起来', fear: '塌方', limit: '不拿人命换速度', voice: '短句' },
+    { name: '韩松', role: '总工', want: '验证做法', fear: '算错', limit: '没有数据不签', voice: '反问' },
+  ]))
   await writeFile(join(dir, 'bible', 'style.md'), '# 文风\n短句，少形容。', 'utf8')
   await writeFile(join(dir, 'state', 'events.jsonl'), `${JSON.stringify({ seq: 1, at: new Date().toISOString(), chapter: 1, kind: 'hook', text: '一处未解', state: 'opened' })}\n`, 'utf8')
 
