@@ -1526,9 +1526,21 @@ async function nextStepRaw(root, work) {
       }
     }
     const next = last.number + 1
+    if (manifest.outline?.approvedAt === undefined) {
+      return {
+        workId: manifest.workId, chapter: next, stage: 'planned', action: 'story_outline',
+        reason: '全书计划等作者确认：先在面板点「确认全书计划」，再写下一章章纲', missing: ['outline'],
+      }
+    }
     return { workId: manifest.workId, chapter: next, stage: 'planned', action: 'story_plan', reason: `第 ${last.number} 章已定稿：写第 ${next} 章章纲`, missing: ['outline'] }
   }
   if (!hasPlan) {
+    if (manifest.outline?.approvedAt === undefined) {
+      return {
+        workId: manifest.workId, chapter: last.number, stage, action: 'story_outline',
+        reason: '全书计划等作者确认：先在面板点「确认全书计划」，再写章纲', missing: ['outline'],
+      }
+    }
     return { workId: manifest.workId, chapter: last.number, stage, action: 'story_plan', reason: `第 ${last.number} 章缺章纲`, missing: ['outline'] }
   }
   if (!hasBody) {

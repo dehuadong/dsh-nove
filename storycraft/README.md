@@ -23,9 +23,9 @@ DSH 里的长篇创作编排：二十五个动作把立项、章纲、正文、�
 1. 作者用自然语言给出想法 → 模型只讨论，不写文件；
 2. 方向成熟后 story_propose 落提案（works/.proposals/，不是作品），作者确认后 story_init（必须带 proposal）；
 3. 立项只建骨架；接着 story_outline 写主线/卷划分/结局方向到 ible/plan.md；
-4. 作者在面板点「确认全书计划」后由宿主记录（`POST /outline/approve`）；模型不能代签，未确认前 story_plan 被拒（outline-required）；
+4. 作者在面板点「确认全书计划」后由宿主记录（`POST /outline/approve`）；模型不能代签，未确认前任何章的 story_plan 都被拒（outline-required）；
 6. 单章章纲的确认按作品设置 `planApproval` 执行：默认 `required`（新章取写手上下文时即拒绝，`plan-not-approved`；落盘再校验一次），可设为 `off` 关闭逐章确认；
-5. 确认后才写第 1 章章纲。
+5. 确认后才能写任何章的章纲。
 
 ## 形态
 

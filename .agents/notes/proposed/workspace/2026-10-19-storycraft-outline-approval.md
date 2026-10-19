@@ -17,7 +17,7 @@ updated: 2026-10-19
 
 - 新 `approveOutline(root, {work})`：要求 `manifest.outline.writtenAt` 存在（`story_init` 预置的占位 `plan.md` 不算），写 `manifest.outline.approvedAt`；`writeOutline` 仍负责写内容并清空确认；
 - 宿主路由 `POST /outline/approve`：入参 `{root, sessionId, workId}`，校验 `getCurrent(sessionId) === workId`，否则 `work-mismatch`；
-- `story_outline` 删除 `approve` 参数；传入时返回 `approval-moved`（`StoryError`），消息指向面板按钮，不静默忽略。
+- `story_outline` 保留 `approve` 参数但在动作层拒绝：`approve: true` 返回 `approval-moved`（`StoryError`），消息指向面板按钮，不静默忽略。
 
 ### 面板
 
@@ -37,12 +37,19 @@ updated: 2026-10-19
 
 ## 验收条件
 
-1. `story_outline(approve: true)` 返回 `approval-moved`，不写确认；
-2. 未确认时 `story_plan` 仍 `outline-required`；
-3. 面板确认后 `approvedAt` 有值，`story_plan` 可用（任何章，不只是第 1 章）；
-4. 再次写计划清空确认；此后任何 `story_plan` 都被 `outline-required` 拒绝；
-5. 面板按钮状态与直接发送行为可用；
-6. 13 套断言与 6 条页面 spec 不回归。
+产品行为与验收由 #15 拥有；本节只说明这份设计怎样被证明：
+
+1. `story_outline(approve: true)` 返回 `approval-moved`（tools 测试）；
+2. 未确认时任何章的 `story_plan` 与 `story_next` 都指向 `story_outline`（tools 测试覆盖「后续章」与「定稿后下一章」）；
+3. 面板确认后 `approvedAt` 有值（storage 测试）；按钮状态与直接发送可用（页面 spec）；
+4. 再次写计划清空确认（storage 测试）；
+5. `node scripts/decisions/check.mjs` 通过；13 套断言与 7 条页面 spec 全绿。
+
+## 与既有记录的关系
+
+与 `implemented/workspace/2026-10-18-storycraft-outline-stage.md` 是**部分替代**：那份的提纲阶段、`outline-required` 时机与计划文件结构继续有效；本记录只取代「确认由模型动作完成」这一部分。两份记录互相链接。
+
+#15 验证通过后，本记录迁 `implemented`。
 
 ## 风险
 

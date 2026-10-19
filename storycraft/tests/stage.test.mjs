@@ -186,6 +186,8 @@ try {
 
   // A settled chapter without a summary asks for the summary first.
   const noSummaryWork = (await s.initWork(root, { title: '无摘要' })).workId
+  await s.writeOutline(root, { work: noSummaryWork, mainline: '一条主线' })
+  await s.approveOutline(root, { work: noSummaryWork })
   await s.writePlan(root, { ...plan, work: noSummaryWork, chapter: 1 })
   await s.writeChapter(root, { work: noSummaryWork, chapter: 1, body: '正文。'.repeat(40) })
   await s.writeReview(root, { work: noSummaryWork, chapter: 1, problems: [{ problem: '一处' }] })

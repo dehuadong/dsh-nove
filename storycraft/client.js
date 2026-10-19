@@ -913,13 +913,13 @@ window.__ModuleLoader__.load({
               ? h('button', {
                 type: 'button',
                 className: 'sc-btn sc-btn-primary',
-                title: '确认全书计划后，才能写第 1 章章纲',
+                title: '确认全书计划后，才能写章纲',
                 onClick: async () => {
                   try {
                     await face.approveOutline(root, sessionId, manifest.workId)
                     const failure = canSend === true ? await face.send(INSTRUCTIONS.outlineApproved(manifest.workId)) : undefined
                     onNotice(failure === undefined
-                      ? { kind: 'ok', text: '全书计划已确认，已发送「继续写第 1 章章纲」' }
+                      ? { kind: 'ok', text: '全书计划已确认，已发送「按下一步继续」' }
                       : { kind: 'error', text: `计划已确认，但续写指令没发出去：${failure}` })
                     void load()
                   } catch (error) {

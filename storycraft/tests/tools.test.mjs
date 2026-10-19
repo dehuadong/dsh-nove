@@ -359,6 +359,18 @@ try {
   const noPlan = await byName.get('story_context').execute({ work, chapter: 2, role: 'reviewer' }, exec)
   check('a chapter without a plan is refused', noPlan.ok === false && noPlan.error.code === 'plan-not-found', JSON.stringify(noPlan))
 
+  // The outline gate applies to any chapter, not only before the first plan,
+  // and story_next must agree with it after a mid-book plan rewrite.
+  await s.writeOutline(root, { work, mainline: '一条主线（重写）' })
+  const blockedLaterPlan = await byName.get('story_plan').execute({
+    work, chapter: 3, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't',
+  }, exec)
+  check('the outline gate applies to later chapters', blockedLaterPlan.ok === false
+    && blockedLaterPlan.error.code === 'outline-required', JSON.stringify(blockedLaterPlan))
+  const blockedNext = await byName.get('story_next').execute({ work }, exec)
+  check('story_next agrees with the gate', blockedNext.ok === true
+    && blockedNext.action === 'story_outline', JSON.stringify(blockedNext))
+
 } finally {
   await rm(root, { recursive: true, force: true })
 }
