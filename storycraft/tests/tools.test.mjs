@@ -1,7 +1,7 @@
 // Throwaway verification for storycraft/tools.js registration and dispatch.
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import * as tools from '../tools.js'
 import * as s from '../storage.js'
 import { setCurrent } from '../current.js'
@@ -42,7 +42,7 @@ check('every action declares execute', registered.every(definition => typeof def
 
 const byName = new Map(registered.map(definition => [definition.name, definition]))
 const scopeGuard = guards[1]
-const scopeRoot = 'E:\\repo'
+const scopeRoot = resolve('repo')
 const discussionCopy = '讨论阶段不读历史作品：请先在面板进入一部作品，或给 path 限定到项目目录。'
 const otherWorkCopy = '只能访问当前作品：works/<其他作品> 不在当前会话的作用域内。'
 const fakeSession = id => ({ header: { id, cwd: scopeRoot } })
@@ -56,7 +56,7 @@ check('scope guard allows project files',
 // A subagent inherits the parent session's work pointer and live cwd.
 const parentSession = fakeSession('scope-parent')
 const childSession = {
-  header: { id: 'scope-child', cwd: 'E:\\elsewhere', parentSession: 'scope-parent' },
+  header: { id: 'scope-child', cwd: resolve('elsewhere'), parentSession: 'scope-parent' },
 }
 services.sessions = { get: id => (id === 'scope-parent' ? parentSession : undefined) }
 services.workingDirectory = { get: session => (session === childSession ? scopeRoot : session.header.cwd) }
@@ -71,7 +71,7 @@ let liveCwd = scopeRoot
 services.workingDirectory = { get: () => liveCwd }
 const cwdExec = (name, args) => ({ name, arguments: args, agent: { id: 'scope-cwd', session: fakeSession('scope-cwd') } })
 setCurrent('scope-cwd', '大朔营造')
-liveCwd = 'E:\\repo\\docs'
+liveCwd = join(scopeRoot, 'docs')
 check('a read after cd into docs cannot escape to works',
   scopeGuard(cwdExec('read', { file_path: '../works/别的书/chapters/ch-0001.md' })) === otherWorkCopy)
 liveCwd = scopeRoot

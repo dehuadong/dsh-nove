@@ -66,6 +66,8 @@ const cases = [
   ['glob at workspace root denied', { tool: 'glob', arguments: { pattern: '**/*.md', path: '.' } }, search],
   ['glob above workspace denied', { tool: 'glob', arguments: { pattern: '**/*.md', path: '..' } }, search],
   ['grep at workspace root denied', { tool: 'grep', arguments: { pattern: '井', path: '.' } }, search],
+  ['flag equals works denied', { tool: 'pwsh', arguments: { command: 'tool --directory=works' }, currentWork: current }, otherWork],
+  ['myworks project segment allowed', { tool: 'pwsh', arguments: { command: 'node myworks/x.js' }, currentWork: current }, undefined],
   ['unknown tool allowed', { tool: 'todo_write', arguments: {} }, undefined],
   ['missing cwd denies conservatively', { tool: 'read', arguments: { file_path: 'AGENTS.md' }, cwd: '' }, discussion],
 ]
@@ -74,6 +76,7 @@ if (process.platform === 'win32') {
   cases.push(['case-insensitive works denied', { tool: 'read', arguments: { file_path: `Works/${other}/chapters/ch-0001.md` }, currentWork: current }, otherWork])
   cases.push(['case-insensitive db denied', { tool: 'read', arguments: { file_path: '.StoryCraft/works.db' } }, database])
   cases.push(['absolute windows works denied', { tool: 'pwsh', arguments: { command: `Get-Content ${worksRoot}\\${other}\\chapters\\ch-0001.md` }, currentWork: current }, otherWork])
+  cases.push(['case-insensitive shell works denied', { tool: 'pwsh', arguments: { command: `Get-ChildItem WORKS/${other}` }, currentWork: current }, otherWork])
 }
 
 for (const [name, input, expected] of cases) {

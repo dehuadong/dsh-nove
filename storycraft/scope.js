@@ -52,10 +52,16 @@ function absolute(cwd, value) {
  * @returns {string[]} tokens.
  */
 function shellTokens(command) {
-  return String(command)
-    .split(/[\s;|&]+/u)
-    .map(token => token.replace(/^["']|["']$/gu, ''))
-    .filter(token => token !== '')
+  const tokens = []
+  for (const raw of String(command).split(/[\s;|&]+/u)) {
+    const token = raw.replace(/^["']|["']$/gu, '')
+    if (token === '') continue
+    tokens.push(token)
+    // `--directory=works` and `x=works/y` carry the path after '='.
+    const equals = token.indexOf('=')
+    if (equals !== -1 && equals + 1 < token.length) tokens.push(token.slice(equals + 1))
+  }
+  return tokens
 }
 
 /**
