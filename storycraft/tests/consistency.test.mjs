@@ -39,8 +39,8 @@ const verboseAttribution = checkConsistency({
 })
 check('verb-laden attribution is not a new name', verboseAttribution.unknownNames.length === 0, verboseAttribution.unknownNames.join(','))
 
-const taskProvidesPlace = checkConsistency({ body: '队伍开往黑水滩。', whitelist, allowedText: '本章目标是赶到黑水滩' })
-check('a place the task states is allowed', taskProvidesPlace.unknownPlaces.length === 0, taskProvidesPlace.unknownPlaces.join(','))
+const numberWords = checkConsistency({ body: '三个时辰，七尺高。', whitelist: { ...whitelist, numbers: ['3', '7尺'] } })
+check('number spellings match across Chinese and digits', numberWords.unknownNumbers.length === 0, numberWords.unknownNumbers.join(','))
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`)
 process.exitCode = failures === 0 ? 0 : 1

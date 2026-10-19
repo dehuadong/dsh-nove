@@ -26,9 +26,9 @@ const ctx = {
 tools.apply(ctx, { mode: 'longform' })
 
 const names = registered.map(definition => definition.name).sort()
-check('registers twenty-four actions', names.length === 24, names.join(','))
+check('registers twenty-five actions', names.length === 25, names.join(','))
 check('action names', names.join(',') === [
-  'story_bible', 'story_bible_import', 'story_bible_write', 'story_brief', 'story_critique', 'story_current',
+  'story_bible', 'story_bible_import', 'story_bible_write', 'story_brief', 'story_context', 'story_critique', 'story_current',
   'story_delete', 'story_init', 'story_next', 'story_plan', 'story_rename', 'story_reopen', 'story_restore',
   'story_outline', 'story_propose', 'story_review', 'story_revise', 'story_settings', 'story_state',
   'story_status', 'story_summarize', 'story_volume', 'story_volumes', 'story_write',
@@ -131,6 +131,39 @@ try {
   const afterWrite = JSON.parse(await readFile(join(root, 'works', work, 'manifest.json'), 'utf8'))
   check('chapter status written', afterWrite.chapters[0].status === 'written', afterWrite.chapters[0].status)
   check('chapter words recorded', afterWrite.chapters[0].words > 0, String(afterWrite.chapters[0].words))
+  // The role context is the dispatch input: sections, trace, whitelist summary.
+  const cards = await byName.get('story_bible_write').execute({
+    work,
+    file: 'characters',
+    content: JSON.stringify([{ name: '林澈', role: '司机', want: '把灯还回去', fear: '再丢一次', limit: '不撒谎', voice: '短句' }]),
+  }, exec)
+  check('character cards written', cards.ok === true, JSON.stringify(cards))
+  const style = await byName.get('story_bible_write').execute({ work, file: 'style', content: '# 文风\n短句。' }, exec)
+  check('style written', style.ok === true, JSON.stringify(style))
+  const context = await byName.get('story_context').execute({ work, chapter: 1, role: 'writer' }, exec)
+  check('story_context returns writer sections', context.ok === true
+    && ['authority', 'task', 'constraints', 'state', 'style'].every(name => context.contextSections.some(item => item.name === name)),
+  JSON.stringify(context).slice(0, 300))
+  check('story_context returns a trace', context.ok === true && context.trace.budget > 0, JSON.stringify(context.trace))
+  check('whitelist leaves the action as a summary', context.ok === true
+    && Array.isArray(context.whitelist.sample.names) && context.whitelist.names >= 0, JSON.stringify(context.whitelist))
+  check('story_context never writes the whitelist wholesale',
+    context.ok === true && !Object.hasOwn(context.whitelist, 'numbersList'), JSON.stringify(context.whitelist))
+
+  const plannerAhead = await byName.get('story_context').execute({ work, chapter: 2, role: 'planner' }, exec)
+  check('planning an unlisted chapter works', plannerAhead.ok === true && plannerAhead.contextSections.some(item => item.name === 'plan'), JSON.stringify(plannerAhead).slice(0, 200))
+
+  const reviewNoBody = await byName.get('story_context').execute({ work, chapter: 1, role: 'reviser' }, exec)
+  check('revision without a review is refused', reviewNoBody.ok === false && reviewNoBody.error.code === 'review-required', JSON.stringify(reviewNoBody))
+
+  // Consistency runs at the landing action: an invented speaker blocks the write.
+  const invented = `周三说：“走。”`.repeat(30)
+  const manifestBeforeConsistency = await readFile(join(root, 'works', work, 'manifest.json'), 'utf8')
+  const rejected = await byName.get('story_write').execute({ work, chapter: 1, body: invented, rewrite: true }, exec)
+  check('an invented speaker is refused at landing', rejected.ok === false && rejected.error.code === 'consistency-violation', JSON.stringify(rejected))
+  check('a refused consistency check leaves the work untouched',
+    (await readFile(join(root, 'works', work, 'manifest.json'), 'utf8')) === manifestBeforeConsistency)
+
   const rewrite = await byName.get('story_write').execute({ work, chapter: 1, body, rewrite: true }, exec)
   check('rewrite creates revision 2', rewrite.ok === true && rewrite.artifact.revision === 2, JSON.stringify(rewrite))
 

@@ -40,14 +40,25 @@ whenToUse: 作者提出写作需求、需要决定下一步做什么、或要在
 派活用 `subagent`。任务里给三样东西：
 
 1. 一句话任务：对象（作品/章号）、目标、禁止事项；
-2. 输入摘录：从 `story_brief` 取必要段落，不整库打开；
+2. 输入：先调 `story_context`（作品、章号、角色、作者要求），把返回的 `contextSections` 按顺序拼进任务；**不要**用 `story_brief` 派发，也不要整库打开；
 3. 输出契约：清单 JSON 还是整章正文（带首尾标记），并点名要读的技能（`storycraft-write-craft` / `storycraft-review` / `storycraft-revise-craft` / `storycraft-plan-craft`）。
 
-子代理**不落盘**：它的 `write`、`edit`、外壳与 `story_*` 写动作会被拒绝，返回的是「只返回文本」的失败。不要让它试，也不要把落盘交给它；它返回文本后，你用动作落盘。落盘前校验：能解析、长度合理、首尾完整、与旧版确有差异。
+子代理**不落盘**：它继承同一套工具，但 `write`、`edit`、外壳与 `story_*` 写动作会被守卫拒绝。不要让它试，也不要把落盘交给它；它返回文本后，你用动作落盘。`story_write` / `story_revise` 会做一致性校验：自造人名会被拒收，地名与尺寸进 `warnings`。
+
+## 四类派发模板
+
+| 角色 | 先取上下文 | 技能 | 输出契约 |
+| --- | --- | --- | --- |
+| 写手 | `story_context(work, chapter, role: 'writer', instruction)` | `storycraft-write-craft` | `<<<TITLE … TITLE>>>` + `<<<CHAPTER … CHAPTER>>>` 整章正文 |
+| 审稿 | `story_context(work, chapter, role: 'reviewer', instruction)` | `storycraft-review` | JSON `{items:[{problem,where,impact,severity,fix,mode}]}`，最多 8 条 |
+| 修订 | `story_context(work, chapter, role: 'reviser', instruction, mode)` | `storycraft-revise-craft` | 修订后的整章正文（同一对首尾标记） |
+| 规划 | `story_context(work, chapter?, role: 'planner', instruction)` | `storycraft-plan-craft` | 章纲 JSON（五项）或全书计划 JSON（三段） |
+
+任务段一律由 `story_context` 生成，作者要求写进它的 `instruction`，不要在任务里另写一套上下文。
 
 ## 验收与回退
 
-- 子代理输出不合契约 → 重试一次；
+- 子代理输出不合契约 → 重派一次（可收紧任务里的禁令）；
 - 再失败 → 自己完成，并在汇报里说明「这次是主编代写」；
 - 落盘失败 → 动作会报错，按错误里的「先做什么」处理，不猜测、不直接写文件。
 

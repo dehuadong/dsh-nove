@@ -39,8 +39,8 @@ try {
   check('state and recent are compressible', out.trace.sections.filter(item => ['state', 'recent', 'style'].includes(item.name)).every(item => item.protection === 'compressible'))
   check('constraints carry the word range', out.text.includes('3000–5000'), out.text.slice(0, 200))
   check('constraints carry the lead character', out.text.includes('周观') && out.text.includes('不拿人命换速度'), out.text.slice(0, 300))
-  check('whitelist lists the characters', out.whitelist.names.join(',') === '周观,韩松', out.whitelist.names.join(','))
-  check('whitelist collects numbers from the task', Array.isArray(out.whitelist.numbers) && out.whitelist.numbers.length >= 0)
+  check('whitelist summary lists sample names', out.whitelist.names === 2 && out.whitelist.sample.names.join(',') === '周观,韩松', JSON.stringify(out.whitelist))
+  check('whitelist summary counts numbers', typeof out.whitelist.numbers === 'number', JSON.stringify(out.whitelist))
   check('recent uses summaries', out.text.includes('第一章摘要'), out.text.slice(0, 300))
 
   // A tight budget drops compressible sections before protected ones.
@@ -56,7 +56,7 @@ try {
   const planner = await assembleRoleContext({ root, work, chapter: 2, role: 'planner', task: '为第 2 章出章纲' })
   check('planner gets the book plan', planner.text.includes('一条主线'), planner.text.slice(0, 200))
   check('planner gets character cards', planner.text.includes('韩松') && planner.text.includes('语气'), planner.text.slice(0, 400))
-  check('planner whitelist comes from the context', planner.whitelist.names.includes('周观'), planner.whitelist.names.join(','))
+  check('planner whitelist comes from the context', planner.whitelist.names === 2, JSON.stringify(planner.whitelist))
 
   // Planning chapter 3 has no manifest entry yet; that must still work.
   const plannedAhead = await assembleRoleContext({
@@ -69,6 +69,13 @@ try {
   })
   check('work scope needs no chapter', workScope.text.includes('出全书计划'))
   check('work scope still carries hooks', workScope.text.includes('一处未解'))
+
+  try {
+    await assembleRoleContext({ root, work, chapter: 2, role: 'reviewer', body: '' })
+    check('a review without a body is refused', false, 'expected rejection')
+  } catch (error) {
+    check('a review without a body is refused', error?.code === 'chapter-not-written', String(error?.code))
+  }
 
   const review = await assembleRoleContext({
     root, work, chapter: 2, role: 'reviewer', body: '这一章正文。'.repeat(100), task: '- Q1：节奏慢',

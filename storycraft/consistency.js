@@ -82,7 +82,7 @@ function speakerWindows(body) {
 
 /**
  * Compare one chapter body with the whitelist the context carried.
- * @param {{body: string, whitelist: {names?: string[], places?: string[], numbers?: string[]}, allowedText?: string}} input - check input.
+ * @param {{body: string, whitelist: {names?: string[], places?: string[], numbers?: string[]}}} input - check input.
  * @returns {{unknownNames: string[], unknownPlaces: string[], unknownNumbers: string[], warnings: string[]}} findings.
  */
 export function checkConsistency(input) {
@@ -97,7 +97,6 @@ export function checkConsistency(input) {
     numbers.add(toArabic(entry))
     numbers.add(normaliseMeasurement(entry))
   }
-  const allowedText = String(input.allowedText ?? '')
 
   // A window that contains a known name is not an invented speaker; only windows
   // with no known name at all are reported.
@@ -112,7 +111,7 @@ export function checkConsistency(input) {
   const unknownPlaces = [...new Set(
     (body.match(placePattern) ?? [])
       .filter(place => !VERB_LEADS.has(place[0]) && !numeralLead.test(place[0]))
-      .filter(place => !places.has(place) && !allowedText.includes(place)),
+      .filter(place => !places.has(place)),
   )]
 
   const patterns = new RegExp(`[0-9零一二三四五六七八九十百千万半两]+[${MEASURE_UNITS}]`, 'gu')
@@ -120,7 +119,7 @@ export function checkConsistency(input) {
     (body.match(patterns) ?? [])
       .map(normaliseMeasurement)
       .filter(item => {
-        if (numbers.has(item) || allowedText.includes(item)) return false
+        if (numbers.has(item)) return false
         const digits = item.replace(/[^0-9]/gu, '')
         return digits === '' || !numbers.has(digits)
       }),

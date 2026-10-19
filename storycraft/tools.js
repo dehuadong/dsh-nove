@@ -17,8 +17,8 @@
  */
 
 import {
-  StoryError, deleteWork, foldState, initWork, listWorks, nextStep as nextStepFor,
-  readChapter, readManifest, reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter,
+  StoryError, deleteWork, foldState, initWork, latestReview, listWorks, nextStep as nextStepFor,
+  parseReview, readChapter, readManifest, reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter,
   status as readStatus, updateSettings, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
 } from './storage.js'
 import {
@@ -28,6 +28,9 @@ import {
 } from './bible.js'
 import { readVolumes, writeVolume } from './volumes.js'
 import { critique } from './critique.js'
+import { assembleRoleContext } from './context.js'
+import { checkConsistency } from './consistency.js'
+import { deriveWhitelist, summariseWhitelist } from './facts.js'
 import { getCurrent, resolveWork } from './current.js'
 import { createProposal, markProposalUsed, readProposal } from './proposals.js'
 
@@ -144,6 +147,66 @@ const OUTPUT_PROPERTIES = {
     },
   },
   resolved: { type: 'array', description: 'Review item ids marked as addressed.', items: { type: 'string' } },
+  warnings: { type: 'array', description: 'Consistency warnings that did not block the write.', items: { type: 'string' } },
+  role: { type: 'string' },
+  contextSections: {
+    type: 'array',
+    description: 'Role context sections, in prompt order.',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        name: { type: 'string' },
+        title: { type: 'string' },
+        source: { type: 'string' },
+        content: { type: 'string' },
+        protection: { type: 'string' },
+        chars: { type: 'integer' },
+      },
+      required: ['name', 'title', 'content', 'protection'],
+    },
+  },
+  trace: {
+    type: 'object',
+    additionalProperties: false,
+    description: 'Budget and trimming record for one dispatch.',
+    properties: {
+      budget: { type: 'integer' },
+      trimmed: { type: 'array', items: { type: 'string' } },
+      dropped: { type: 'array', items: { type: 'string' } },
+      missing: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: { name: { type: 'string' }, reason: { type: 'string' } },
+          required: ['name', 'reason'],
+        },
+      },
+      overflow: { type: 'boolean' },
+    },
+    required: ['budget'],
+  },
+  whitelist: {
+    type: 'object',
+    additionalProperties: false,
+    description: 'Fact whitelist summary: counts and a few samples only.',
+    properties: {
+      names: { type: 'integer' },
+      places: { type: 'integer' },
+      numbers: { type: 'integer' },
+      sample: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          names: { type: 'array', items: { type: 'string' } },
+          places: { type: 'array', items: { type: 'string' } },
+        },
+        required: ['names', 'places'],
+      },
+    },
+    required: ['names', 'places', 'numbers', 'sample'],
+  },
   files: {
     type: 'array',
     description: 'Truth files with their content version.',
@@ -589,6 +652,95 @@ function rawDefinitions() {
     }),
 
     action({
+      name: 'story_context',
+      description: '派发前取一份按角色分层的故事上下文：权威顺序、任务、硬约束、人物与状态、最近脉络、文风；'
+        + '规划另带全书计划、卷图与人物卡，审稿/修订带章纲与正文。'
+        + ' 只读；返回每段的保护级别、预算轨迹与白名单摘要，供主编拼子代理 prompt。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+          chapter: { type: 'integer', description: '章号；作品级规划可省略。' },
+          role: {
+            type: 'string',
+            enum: ['writer', 'planner', 'reviewer', 'reviser'],
+            description: '派给谁：写手、规划、审稿或修订。',
+          },
+          instruction: { type: 'string', description: '作者本轮要求，会并入任务段。' },
+          mode: {
+            type: 'string',
+            enum: ['patch', 'polish', 'rewrite', 'deslop'],
+            description: '仅修订使用，缺省 patch。',
+          },
+          budget: { type: 'integer', description: '上下文字符预算，缺省 8000。' },
+        },
+        required: ['work', 'role'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const role = args.role
+        const chapter = args.chapter
+        const instruction = typeof args.instruction === 'string' ? args.instruction : ''
+        const mode = typeof args.mode === 'string' ? args.mode : 'patch'
+
+        // The action reads the chapter, its plan and its latest review itself;
+        // the caller never pastes a body or a list.
+        let body = ''
+        let task = ''
+        if (role === 'reviewer' || role === 'reviser') {
+          const read = await readChapter(root, { work: args.work, chapter })
+          body = read.content
+          const manifest = await readManifest(root, args.work)
+          const entry = manifest.chapters.find(item => item.number === chapter)
+          const review = entry === undefined ? undefined : await latestReview(root, manifest, entry)
+          const open = review === undefined ? [] : parseReview(review.text).filter(item => !item.done)
+          if (role === 'reviser' && open.length === 0) {
+            throw new StoryError('review-required', `第 ${chapter} 章没有未处理的审稿条目：先 story_review，再修订`)
+          }
+          task = role === 'reviewer'
+            ? [`审第 ${chapter} 章。`, ...open.map(item => `- ${item.id}：${item.problem}`)].join('\n')
+            : [`按条目修订第 ${chapter} 章，模式：${mode}。`, ...open.map(item => `- ${item.id}：${item.problem}`)].join('\n')
+        } else if (role === 'writer') {
+          task = `写第 ${chapter} 章正文。`
+        } else if (role === 'planner') {
+          task = chapter === undefined
+            ? '为这部作品出全书计划：主线、卷划分、结局方向。'
+            : `为第 ${chapter} 章出章纲：五项齐全且互相咬合。`
+        }
+
+        const context = await assembleRoleContext({
+          root,
+          work: args.work,
+          ...(chapter === undefined ? {} : { chapter }),
+          role,
+          ...(role === 'planner' ? { scope: chapter === undefined ? 'work' : 'chapter' } : {}),
+          task,
+          instruction,
+          ...(role === 'reviser' ? { mode } : {}),
+          ...(body === '' ? {} : { body }),
+          ...(Number.isInteger(args.budget) ? { budget: args.budget } : {}),
+        })
+        return {
+          ok: true,
+          workId: args.work,
+          role,
+          ...(chapter === undefined ? {} : { chapter }),
+          contextSections: context.sections.filter(item => item.content !== '').map(item => ({
+            name: item.name,
+            title: item.title,
+            source: item.source ?? '',
+            content: item.content,
+            protection: item.protection,
+            chars: item.content.length,
+          })),
+          trace: context.trace,
+          whitelist: context.whitelist,
+        }
+      },
+    }),
+
+    action({
       name: 'story_write',
       mutates: true,
       description: '把一章正文落盘并更新进度清单。已存在正文时默认拒绝；要改稿传 rewrite: true，会生成新版本而不覆盖旧版。',
@@ -607,10 +759,17 @@ function rawDefinitions() {
       },
       async execute(args, exec) {
         const root = workspaceOf(exec)
+        const whitelist = await deriveWhitelist(root, { work: args.work, chapter: args.chapter })
+        const consistency = checkConsistency({ body: args.body, whitelist })
+        if (consistency.unknownNames.length > 0) {
+          throw new StoryError('consistency-violation',
+            `正文出现上下文里没有的人名：${consistency.unknownNames.join('、')}。改写后再落盘`)
+        }
         const result = await writeChapter(root, args)
         return {
           ok: true, workId: args.work, artifact: result.artifact, words: result.words,
           ...(result.cleaned > 0 ? { cleaned: result.cleaned } : {}),
+          ...(consistency.warnings.length === 0 ? {} : { warnings: consistency.warnings }),
         }
       },
     }),
@@ -678,8 +837,17 @@ function rawDefinitions() {
       },
       async execute(args, exec) {
         const root = workspaceOf(exec)
+        const whitelist = await deriveWhitelist(root, { work: args.work, chapter: args.chapter })
+        const consistency = checkConsistency({ body: args.body, whitelist })
+        if (consistency.unknownNames.length > 0) {
+          throw new StoryError('consistency-violation',
+            `修订稿出现上下文里没有的人名：${consistency.unknownNames.join('、')}。改写后再提交`)
+        }
         const result = await reviseChapter(root, args)
-        return { ok: true, workId: args.work, artifact: result.artifact, resolved: result.resolved }
+        return {
+          ok: true, workId: args.work, artifact: result.artifact, resolved: result.resolved,
+          ...(consistency.warnings.length === 0 ? {} : { warnings: consistency.warnings }),
+        }
       },
     }),
 

@@ -9,6 +9,7 @@
 
 import { join } from 'node:path'
 import { parseCharacters } from './bible.js'
+import { deriveWhitelist, summariseWhitelist } from './facts.js'
 import {
   StoryError, chapterNumber, chapterStem, foldEvents, formOf, readManifest, readOptional, unitOf, workDirectory,
 } from './storage.js'
@@ -17,7 +18,7 @@ import {
 export const DEFAULT_CONTEXT_BUDGET = 8000
 
 /** Section order used when trimming: earlier compressible sections go first. */
-const TRIM_ORDER = ['recent', 'state', 'style']
+const TRIM_ORDER = ['recent', 'state', 'characters', 'style']
 
 /** Fixed authority order per role. */
 const AUTHORITY = {
@@ -183,7 +184,7 @@ export async function assembleRoleContext(input) {
       volumeTitles = '（卷图无法解析）'
     }
   }
-  const planSection = role === 'planner'
+  const planSection = role === 'planner' || role === 'reviewer' || role === 'reviser'
     ? section('plan', '全书计划与卷图', [
       planText === undefined ? '（还没有全书计划）' : planText.trim(),
       volumeTitles === '' ? '' : `卷图：\n${volumeTitles}`,
@@ -196,6 +197,9 @@ export async function assembleRoleContext(input) {
 
   // 7. body — protected when the role judges prose rather than writes it
   const body = String(input.body ?? '').trim()
+  if ((role === 'reviewer' || role === 'reviser') && body === '') {
+    throw new StoryError('chapter-not-written', `第 ${number} 章还没有正文：先写正文，再审稿或修订`)
+  }
   const bodySection = body === '' ? undefined
     : section('body', '待处理的正文', `---正文开始---\n${body}\n---正文结束---`, 'protected', 'chapters/')
 
@@ -261,17 +265,6 @@ export async function assembleRoleContext(input) {
 
   // Fact whitelist: names from the character file, places mentioned by the intent,
   // and every number that appears in the context actually sent.
-  const source = `${text}\n${intent}\n${planText ?? ''}\n${volumeTitles}`
-  const placePattern = /[\u4e00-\u9fa5]{2}(?:滩|城|镇|村|堡|州|府|县|关|口|山|河)/gu
-  const places = new Set((source.match(placePattern) ?? []).filter(place => !/[0-9零一二三四五六七八九十百千万两]/u.test(place[0])))
-  const numbers = new Set([
-    ...(source.match(/[0-9]+(?:\.[0-9]+)?/gu) ?? []),
-    ...(source.match(/[零一二三四五六七八九十百千万两]+/gu) ?? []),
-  ])
-  const whitelist = {
-    names: characters.map(item => item?.name).filter(name => typeof name === 'string' && name !== ''),
-    places: [...places].slice(0, 100),
-    numbers: [...numbers].slice(0, 300),
-  }
-  return { sections: segments, text, trace, whitelist, taskText }
+  const whitelist = await deriveWhitelist(root, { work: manifest.workId, ...(number === undefined ? {} : { chapter: number }) })
+  return { sections: segments, text, trace, whitelist: summariseWhitelist(whitelist), taskText }
 }

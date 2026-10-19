@@ -25,6 +25,7 @@
     "bible.js",
     "volumes.js",
     "critique.js",
+    "facts.js",
     "context.js",
     "consistency.js",
     "stage.js",

@@ -149,7 +149,8 @@ storycraft/
   cordis.patch.yml             # 入口行 + 一条预设声明（故事工坊，技能行 mode: all）
   index.js                     # Host 半边：只读路由
   storage.js                   # 作品存储：原子写、版本、审稿、状态、进度
-  context.js                   # 角色上下文拼装：七项分段、保护级别、预算裁剪、轨迹、白名单
+  facts.js                     # 白名单唯一派生入口：只读已落盘资料，正文与任务不参与
+  context.js                   # 角色上下文拼装：七项分段、保护级别、预算裁剪、轨迹、白名单摘要
   consistency.js               # 输出一致性：自造人名拒收，地名与尺寸告警
   tools.js                     # 动作（注册在预设作用域）
   skills.js                    # 按模式提供技能目录
@@ -163,7 +164,8 @@ storycraft/
 - `node storycraft/tests/presets.test.mjs`：工作模式只有一个预设、组合与 DSH 标准预设逐行一致、委派与守卫配置。
 - `node storycraft/tests/storage.test.mjs`：作品存储的原子性、版本、审稿、状态与失败路径。
 - `node storycraft/tests/tools.test.mjs`：动作注册、schema 形状、端到端行为与拒绝条件。
-- `node storycraft/tests/context.test.mjs`：角色上下文的分段、保护级别、预算裁剪、轨迹与白名单。
+- `node storycraft/tests/context.test.mjs`：角色上下文的分段、保护级别、预算裁剪、轨迹与白名单摘要。
+- `node storycraft/tests/facts.test.mjs`：白名单来源、中文数字归一与摘要边界。
 - `node storycraft/tests/consistency.test.mjs`：人名拒收、地名与尺寸告警、误报回归。
 - `node storycraft/tests/bible.test.mjs`：真值校验、摘要截断、写前上下文顺序/预算/确定性、旧作品导入。
 - `node storycraft/tests/stage.test.mjs`：阶段推进、五种拒绝、reopen 回退与旧定稿作废、`story_next` 判定。
