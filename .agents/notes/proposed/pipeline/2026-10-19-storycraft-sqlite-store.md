@@ -75,11 +75,11 @@ state/events.jsonl
 ```
 
 - 文件顺序固定、换行固定、zip 内 mtime 固定为同一时间，两次导出逐字节一致；
-- 目标缺省为 `<工作区>/.storycraft/exports/<work>-<timestamp>/`（在 #17 的保护根内，无当前作品的会话读不到）；作者传外部目标时由作者负责。
+- 目标缺省为 `<工作区>/.storycraft/exports/<work>-<timestamp>/`（在 #17 的保护根内，模型与工具不可读；作者用系统文件管理器打开）；作者传外部目标时由作者负责。
 
 ### 备份与完整性
 
-- `story_backup(destination?)` 使用 SQLite `backup()` API（不复制 WAL 状态），返回 `integrity_check` 结果；缺省目标 `<工作区>/.storycraft/backups/works-<timestamp>.db`；
+- `story_backup(destination?)` 使用 SQLite `backup()` API（不复制 WAL 状态），返回 `integrity_check` 结果；缺省目标 `<工作区>/.storycraft/backups/works-<timestamp>.db`（模型不可读，作者用系统文件管理器取）；
 - 错误码：`sqlite-unavailable`、`db-corrupt`、`schema-version-mismatch`、`backup-failed`；
 - schema 版本不符拒绝打开；损坏时提示从备份恢复（导出无法替代库内修复）。
 
