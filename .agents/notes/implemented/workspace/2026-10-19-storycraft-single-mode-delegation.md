@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：单一工作模式与子代理强制
-status: proposed
+status: implemented
 created: 2026-10-19
 updated: 2026-10-19
+verification: 交付于 6bb6a32：单一预设 + 官方 subagent + delegationDepth 守卫；presets/tools 断言与 preset spec 覆盖。
 ---
 
 # Agent Note：故事工坊：单一工作模式与子代理强制
@@ -15,7 +16,7 @@ DSH 0.2.1 移除了 `dsh-tool-subagent` 的 `persona` 与 `toolFilter`：子代�
 
 产品行为与验收由工作项 #11 拥有，不在这里。
 
-## 提案
+## 决定
 
 ### 组合是模式，角色是任务
 
@@ -65,7 +66,7 @@ DSH 0.2.1 移除了 `dsh-tool-subagent` 的 `persona` 与 `toolFilter`：子代�
 - 继承标准基线后，故事工坊会话拥有 goal、plan-mode、workflow、jobs 等标准工具面。
 - 守卫是运行时策略，不改变工具 schema；拒绝理由进入对话记录。
 
-## 验收条件
+## 验证
 
 产品行为与验收由 #11 拥有；本节只记这份设计怎么被验证。
 
@@ -74,7 +75,7 @@ DSH 0.2.1 移除了 `dsh-tool-subagent` 的 `persona` 与 `toolFilter`：子代�
 - 标准基线在 DSH checkout 存在时由 `tests/presets.test.mjs` 做整行比对；checkout 缺失时由运行时 spec 兜底。
 - 模型驱动的真实派发（子代理返回文本、主编落盘、作品目录不变）不在这份设计的自动化验证内，留待带模型的端到端验收。
 
-## 风险
+## 后果
 
 - 标准基线随 DSH 升级变化，需要一致性测试拦截漂移；
 - 守卫依赖 `delegationDepth`；外部后端不共享该元数据，故事工坊只支持 spawn；

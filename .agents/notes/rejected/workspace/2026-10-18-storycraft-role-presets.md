@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：角色化——主编编排与工作子代理
-status: proposed
+status: rejected
 created: 2026-10-18
 updated: 2026-10-18
+reason: 被单一工作模式取代：角色改为任务提示 + 技能，派发走官方 subagent 并由 delegationDepth 守卫强制只返回文本
 ---
 
 # Agent Note：故事工坊：角色化——主编编排与工作子代理
@@ -14,6 +15,8 @@ updated: 2026-10-18
 技能也按形态而不是按角色组织：写作方法挂在主预设上，审稿人只有一段 persona，没有判断标准。
 
 产品行为与验收由提案工作项拥有，不在这里。
+
+> 2026-10-19：本提案的「每角色一个预设、角色持有动作」已被单一工作模式取代；现行设计见 `implemented/pipeline/2026-10-18-storycraft-role-agents.md` 与 `implemented/workspace/2026-10-19-storycraft-single-mode-delegation.md`。以下保留原始提案，作为历史依据。
 
 ## 提案
 
