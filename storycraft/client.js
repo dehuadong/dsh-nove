@@ -218,6 +218,9 @@ window.__ModuleLoader__.load({
         }
         return `把作品 ${workId} 第 ${chapter} 章按「${label}」再修一遍（story_revise 的 mode 传 ${mode}，不需要新的审稿条目），落盘为新版本。`
       },
+      planApproved(workId, chapter) {
+        return `作品 ${workId} 第 ${chapter} 章的章纲已在面板确认，继续写正文。`
+      },
       settings(workId, range, planApproval) {
         const policy = planApproval === 'off'
           ? '章纲确认设为不需要（planApproval 传 off），之后写正文前不必逐章确认。'
@@ -740,7 +743,14 @@ window.__ModuleLoader__.load({
                 onClick: async () => {
                   try {
                     await face.approveChapterPlan(root, sessionId, workId, chapter.number)
-                    onNotice?.({ kind: 'ok', text: '章纲已确认，可以写正文了' })
+                    // Confirming is a step in the conversation, not just a page state:
+                    // put the follow-up instruction where the author can send it.
+                    if (canSend === true) {
+                      compose(INSTRUCTIONS.planApproved(workId, chapter.number))
+                      onNotice?.({ kind: 'ok', text: '章纲已确认，已把「继续写正文」放进输入框' })
+                    } else {
+                      onNotice?.({ kind: 'ok', text: '章纲已确认；当前会话不能发送，请手动继续' })
+                    }
                     onApproved?.()
                   } catch (error) {
                     onNotice?.({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
