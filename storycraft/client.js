@@ -743,11 +743,13 @@ window.__ModuleLoader__.load({
                 onClick: async () => {
                   try {
                     await face.approveChapterPlan(root, sessionId, workId, chapter.number)
-                    // Confirming is a step in the conversation, not just a page state:
-                    // put the follow-up instruction where the author can send it.
+                    // This node is a hand-off, not a draft: confirming should make the
+                    // conversation continue by itself instead of leaving a draft behind.
                     if (canSend === true) {
-                      compose(INSTRUCTIONS.planApproved(workId, chapter.number))
-                      onNotice?.({ kind: 'ok', text: '章纲已确认，已把「继续写正文」放进输入框' })
+                      const failure = await face.send(INSTRUCTIONS.planApproved(workId, chapter.number))
+                      onNotice?.(failure === undefined
+                        ? { kind: 'ok', text: '章纲已确认，已发送「继续写正文」' }
+                        : { kind: 'error', text: `章纲已确认，但续写指令没发出去：${failure}` })
                     } else {
                       onNotice?.({ kind: 'ok', text: '章纲已确认；当前会话不能发送，请手动继续' })
                     }
