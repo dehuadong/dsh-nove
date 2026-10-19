@@ -23,6 +23,7 @@
     "tools.js",
     "db.js",
     "storage.js",
+    "store-db.js",
     "bible.js",
     "volumes.js",
     "critique.js",
