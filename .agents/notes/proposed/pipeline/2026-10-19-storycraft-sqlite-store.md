@@ -42,15 +42,16 @@ updated: 2026-10-19
 
 ### 检索表（本项只建与同步，不排序）
 
-- `search_docs(work_id, doc_id, kind, source, chapter, body, tokens)`；
-- `search_fts`：FTS5 external-content，`tokens` 存预切分中文二元 + 一元 + 拉丁词；`search_docs` 与 `search_fts` 同步维护（正文写入时同步）；
+- `search_docs(work_id, doc_id, kind, source, chapter, body, tokens)`；`kind` 覆盖 `chapter`、`summary`、`entity`、`hook`、`volume`、`card`；
+- `search_fts`：FTS5 external-content，`tokens` 存预切分中文二元 + 一元 + 拉丁词；
+- **同步范围**：`writeChapter`/`reviseChapter`（chapter）、`writeSummary`、`foldState`（entity/hook）、`writeVolume`、人物卡写入；全部在同一事务内完成；
 - 排序、段与 trace 由 #16 决定。
 
 ### 动作兼容
 
 - 25 个 `story_*` 动作与全部宿主路由保持名称、参数与业务错误码；
 - `artifact.path` 等路径字段改为**虚拟路径**（`works/<work>/chapters/ch-0007.md`），供 UI 展示与导出定位；
-- staging 专属结果/错误码（`cleaned`、`invalid-path`、`stage-incomplete`）随暂存机制删除；`work-busy`、`plan-not-found`、`outline-required` 等业务码保留；
+- staging 专属结果/错误码（`cleaned`、`invalid-path`、`stage-incomplete`、`invalid-artifact`）随暂存机制删除；`work-busy`、`plan-not-found`、`outline-required` 等业务码保留；
 - `.current.json` 迁入 `session_current`，`works/` 目录可以完全不存在；
 - `story_export`、`story_backup` 为新增动作。
 
@@ -62,8 +63,8 @@ updated: 2026-10-19
 manifest.json         schemaVersion / title / form / tags / wordRange / planApproval /
                       outline.writtenAt|approvedAt /
                       chapters[{number,title,status,stage,currentRevision,words,planApprovedAt}]
-chapters/ch-0007.md            当前版
-chapters/ch-0007.r2.md…rN.md   历史版
+chapters/ch-0007.md            r1（旧约定：首版不加后缀）
+chapters/ch-0007.r2.md…rN.md   第 2…N 版（当前版由 manifest 的 currentRevision 指向）
 outline/ch-0007.plan.md
 bible/{intent,characters,style,plan,world}.md|json
 summaries/ch-0007.md
@@ -74,11 +75,11 @@ state/events.jsonl
 ```
 
 - 文件顺序固定、换行固定、zip 内 mtime 固定为同一时间，两次导出逐字节一致；
-- 目标缺省为 `<工作区>/exports/<work>-<timestamp>/`。
+- 目标缺省为 `<工作区>/.storycraft/exports/<work>-<timestamp>/`（在 #17 的保护根内，无当前作品的会话读不到）；作者传外部目标时由作者负责。
 
 ### 备份与完整性
 
-- `story_backup` 使用 SQLite `backup()` API（不复制 WAL 状态），返回 `integrity_check` 结果；
+- `story_backup(destination?)` 使用 SQLite `backup()` API（不复制 WAL 状态），返回 `integrity_check` 结果；缺省目标 `<工作区>/.storycraft/backups/works-<timestamp>.db`；
 - 错误码：`sqlite-unavailable`、`db-corrupt`、`schema-version-mismatch`、`backup-failed`；
 - schema 版本不符拒绝打开；损坏时提示从备份恢复（导出无法替代库内修复）。
 
@@ -108,8 +109,9 @@ state/events.jsonl
 1. schema 版本、外键级联、`work_id` 隔离、软删除由 `db.test` 覆盖；
 2. 事务回滚、`BEGIN IMMEDIATE` 冲突（`work-busy`）有测试；
 3. 25 个动作的现有契约测试迁移后仍通过（staging 专属断言删除）；
-4. 导出目录 golden 对比，两次导出逐字节一致（质量保障，不是交付门槛）；
-5. `backup()`、`integrity_check` 与四种错误码有测试；
+4. 导出目录 golden 对比（`.md`=r1、`.rN.md`=第 N 版），两次导出逐字节一致；
+5. `backup()`、`integrity_check`、缺省目标与四种错误码有测试；
+6. `search_docs`/`search_fts` 在正文、摘要、状态、卷、人物卡写入后都同步，由测试覆盖；
 6. 200 章 fixture 的加载/追加耗时满足 #18 的性能门槛。
 
 ## 风险
