@@ -19,7 +19,7 @@ try {
   store.writePlan(root, { work, chapter: 1, perspective: '周砚', goal: '摸井台', obstacle: '巡夜', cost: '暴露', turn: '第三人' })
   store.writeChapter(root, { work, chapter: 1, body: '周砚带人复摸井台，记下十六口人，井深二丈二尺。' })
   store.writeSummary(root, { work, chapter: 1, text: '周砚摸井台，发现第三人。' })
-  store.foldState(root, { work, chapter: 1, events: [{ kind: 'entity', name: '周砚', fact: '摸过井台' }] })
+  store.foldState(root, { work, chapter: 1, entities: [{ name: '周砚', fact: '摸过井台' }] })
   store.writeVolume(root, { work, id: 'v1', title: '第一卷', from: 1, to: 3, summary: '井台开局' })
 
   const byChapter = store.search(root, work, '井台', 5)

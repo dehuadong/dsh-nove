@@ -49,7 +49,7 @@ try {
   check('latest review has one open item', latest.items.length === 1 && latest.items[0].done === false)
   throws('unknown problem refused', 'problem-not-found', () => store.reviseChapter(root, { work, chapter: 1, body: '修订版', problemIds: ['Q9'] }))
   throws('identical revision refused', 'unchanged-body', () => store.reviseChapter(root, { work, chapter: 1, body: '另一版正文', problemIds: ['Q1'] }))
-  const revised = store.reviseChapter(root, { work, chapter: 1, body: '修订版正文，多一拍。', problemIds: ['Q1'] })
+  const revised = store.reviseChapter(root, { work, chapter: 1, body: '修订版正文，多一拍。', problemIds: ['Q1'], mode: 'polish' })
   check('revision r3 and item closed', revised.revision === 3 && store.latestReview(root, work, 1).items[0].done === true)
 
   store.writeSummary(root, { work, chapter: 1, text: '周砚摸井台，发现第三人。' })
@@ -58,10 +58,8 @@ try {
 
   const state = store.foldState(root, {
     work, chapter: 1,
-    events: [
-      { kind: 'entity', name: '周砚', fact: '摸过井台' },
-      { kind: 'hook', id: 'H1', text: '第三人是谁', state: 'open' },
-    ],
+    entities: [{ name: '周砚', fact: '摸过井台' }],
+    hooks: [{ id: 'H1', text: '第三人是谁', state: 'open' }],
   })
   check('events appended', state.appended === 2 && state.seq === 2)
   const events = store.readEvents(root, work, 1)
@@ -69,6 +67,13 @@ try {
 
   const volume = store.writeVolume(root, { work, id: 'v1', title: '第一卷', from: 1, to: 5, summary: '开局' })
   check('volume written', volume.volume.id === 'v1' && store.readVolumes(root, work).length === 1)
+  throws('unknown revise mode refused', 'revise-mode-violation',
+    () => store.reviseChapter(root, { work, chapter: 1, body: '再来一版正文。', mode: 'nope' }))
+  throws('patch mode needs problems', 'missing-problems',
+    () => store.reviseChapter(root, { work, chapter: 1, body: '再来一版正文。', mode: 'patch' }))
+  throws('resolving an unknown hook refused', 'hook-not-open',
+    () => store.foldState(root, { work, chapter: 1, hooks: [{ id: 'H9', text: 'x', state: 'resolved' }] }))
+  throws('empty state refused', 'empty-state', () => store.foldState(root, { work, chapter: 1 }))
   throws('volume range invalid', 'volume-invalid', () => store.writeVolume(root, { work, id: 'v2', from: 5, to: 2 }))
 } finally {
   await rm(root, { recursive: true, force: true }).catch(() => {})

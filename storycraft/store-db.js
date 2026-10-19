@@ -509,8 +509,14 @@ export function reviseChapter(root, input) {
   const number = chapterNumber(input.chapter)
   const body = String(input.body ?? '')
   if (body.trim() === '') throw new StoryError('empty-body', '正文不能为空')
+  const mode = input.mode ?? 'patch'
+  if (!['patch', 'polish', 'rewrite', 'deslop'].includes(mode)) {
+    throw new StoryError('revise-mode-violation', `未知修订模式：${mode}`)
+  }
   const problemIds = Array.isArray(input.problemIds) ? input.problemIds : []
-  if (problemIds.length === 0) throw new StoryError('missing-problems', '修订要指定至少一条问题')
+  if (mode === 'patch' && problemIds.length === 0) {
+    throw new StoryError('missing-problems', 'patch 模式要指定至少一条问题')
+  }
   const db = openStore(root)
   try {
     return transaction(db, () => {
@@ -526,6 +532,9 @@ export function reviseChapter(root, input) {
       const current = db.prepare('SELECT body FROM chapter_versions WHERE work_id = ? AND number = ? AND revision = ?')
         .get(work.work_id, number, entry.current_revision)
       if (current.body === body) throw new StoryError('unchanged-body', '修订后的正文与当前版本相同')
+      if (mode === 'patch' && Math.abs(body.length - current.body.length) > 0.2 * Math.max(1, current.body.length)) {
+        throw new StoryError('revise-mode-violation', 'patch 模式只改点到的地方（字数变化需 ≤20%）')
+      }
       let text = review.text
       for (const id of problemIds) text = text.replace(new RegExp(`^- \\[ \\] ${id} ::`, 'mu'), `- [x] ${id} ::`)
       db.prepare('UPDATE reviews SET text = ? WHERE work_id = ? AND number = ? AND round = ?').run(text, work.work_id, number, review.round)
@@ -584,16 +593,37 @@ export function foldState(root, input) {
   try {
     return transaction(db, () => {
       const work = ensureWork(db, input.work)
-      const events = Array.isArray(input.events) ? input.events : []
-      const next = (db.prepare('SELECT max(seq) AS n FROM events WHERE work_id = ?').get(work.work_id)?.n ?? 0) + 1
-      let seq = next
-      for (const event of events) {
+      const entities = Array.isArray(input.entities) ? input.entities : []
+      const hooks = Array.isArray(input.hooks) ? input.hooks : []
+      if (entities.length === 0 && hooks.length === 0) throw new StoryError('empty-state', '状态变更不能为空')
+      const prior = db.prepare('SELECT * FROM events WHERE work_id = ? ORDER BY seq').all(work.work_id)
+        .map(row => ({ seq: row.seq, chapter: row.chapter, ...JSON.parse(row.payload) }))
+      const openHooks = new Set(prior.filter(event => event.kind === 'hook' && event.state === 'open').map(event => event.id))
+      const written = []
+      for (const entity of entities) {
+        if (typeof entity?.name !== 'string' || entity.name.trim() === ''
+          || typeof entity?.fact !== 'string' || entity.fact.trim() === '') {
+          throw new StoryError('invalid-entity', '人物事实需要 name 与 fact')
+        }
+        written.push({ kind: 'entity', name: entity.name.trim(), fact: entity.fact.trim() })
+      }
+      for (const hook of hooks) {
+        if (typeof hook?.id !== 'string' || typeof hook?.text !== 'string' || hook.text.trim() === ''
+          || !['open', 'resolved'].includes(hook?.state)) {
+          throw new StoryError('invalid-hook', '伏笔需要 id、text 与状态 open/resolved')
+        }
+        if (hook.state === 'resolved' && !openHooks.has(hook.id)) throw new StoryError('hook-not-open', `伏笔未解：${hook.id}`)
+        openHooks.add(hook.id)
+        written.push({ kind: 'hook', id: hook.id, text: hook.text.trim(), state: hook.state })
+      }
+      let seq = (db.prepare('SELECT max(seq) AS n FROM events WHERE work_id = ?').get(work.work_id)?.n ?? 0) + 1
+      for (const event of written) {
         db.prepare('INSERT INTO events (work_id, seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?, ?)')
-          .run(work.work_id, seq, now(), number, String(event.kind), JSON.stringify(event))
-        syncSearchDoc(db, work.work_id, `event:${seq}`, String(event.kind), 'state/events.jsonl', number, JSON.stringify(event))
+          .run(work.work_id, seq, now(), number, event.kind, JSON.stringify(event))
+        syncSearchDoc(db, work.work_id, `event:${seq}`, event.kind, 'state/events.jsonl', number, JSON.stringify(event))
         seq += 1
       }
-      return { workId: work.work_id, chapter: number, appended: events.length, seq: seq - 1 }
+      return { workId: work.work_id, chapter: number, appended: written.length, seq: seq - 1, hooks: [...openHooks] }
     })
   } finally {
     db.close()
