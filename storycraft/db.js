@@ -249,7 +249,7 @@ function mapDatabaseError(error, message) {
  * Open one SQLite file with the store's pragmas.
  * @param {string} file - absolute database path.
  * @param {string} message - failure prefix for `db-corrupt`.
- * @param {{readOnly?: boolean}} [options] - `readOnly` opens a snapshot without WAL setup.
+ * @param {{readOnly?: boolean, busyTimeout?: number}} [options] - `readOnly` opens a snapshot without WAL setup.
  * @returns {import('node:sqlite').DatabaseSync} open handle.
  */
 export function openDatabase(file, message = '作品库无法打开', options = {}) {
@@ -258,8 +258,9 @@ export function openDatabase(file, message = '作品库无法打开', options = 
   try {
     db = new DatabaseSync(file, options.readOnly === true ? { readOnly: true } : {})
     if (options.readOnly !== true) {
+      // Set the wait before touching the journal: a diagnostic pass can ask for 0.
+      db.exec(`PRAGMA busy_timeout = ${Number.isInteger(options.busyTimeout) ? options.busyTimeout : 5000}`)
       db.exec('PRAGMA journal_mode = WAL')
-      db.exec('PRAGMA busy_timeout = 5000')
       db.exec('PRAGMA foreign_keys = ON')
     }
   } catch (error) {
@@ -285,7 +286,7 @@ function userVersion(db) {
 /**
  * Open the workspace catalog, initializing it when absent.
  * @param {string} root - workspace directory.
- * @param {{create?: boolean}} [options] - `create: false` returns undefined instead of creating.
+ * @param {{create?: boolean, busyTimeout?: number}} [options] - `create: false` returns undefined instead of creating.
  * @returns {import('node:sqlite').DatabaseSync|undefined} open handle.
  */
 export function openCatalog(root, options = {}) {
@@ -295,7 +296,7 @@ export function openCatalog(root, options = {}) {
     if (options.create === false) return undefined
     mkdirSync(dirname(file), { recursive: true })
   }
-  const db = openDatabase(file, '作品目录无法打开')
+  const db = openDatabase(file, '作品目录无法打开', options)
   try {
     const version = userVersion(db)
     if (version !== 0 && version !== CATALOG_SCHEMA_VERSION) {

@@ -240,6 +240,9 @@ export function initWork(root, input) {
       removeDatabaseFiles(workFile(root, workId))
       throw error
     }
+    // A workspace first seen before this work existed was cached as reconciled;
+    // the new catalog must be checked again on the next read.
+    reconciledRoots.delete(root)
     return { workId, path: virtualWorkPath(workId), manifest: readManifest(root, workId) }
   } finally {
     catalog.close()
@@ -255,32 +258,33 @@ export function initWork(root, input) {
  * @returns {{missing: string[], orphans: string[], trash: string[], degraded: boolean}} reconciliation report.
  */
 export function reconcileWorks(root) {
-  const catalog = openCatalog(root, { create: false })
+  const catalog = openCatalog(root, { create: false, busyTimeout: 0 })
   try {
     const rows = catalog === undefined ? [] : catalog.prepare('SELECT work_id, trashed_at, missing_at FROM works').all()
     const known = new Set(rows.map(row => row.work_id))
-    const missing = []
+    const missing = rows
+      .filter(row => row.trashed_at === null && !existsSync(workFile(root, row.work_id)))
+      .map(row => row.work_id)
     let degraded = false
     if (catalog !== undefined) {
-      try {
-        transaction(catalog, () => {
-          for (const row of rows) {
-            const file = row.trashed_at === null ? workFile(root, row.work_id) : trashFile(root, row.work_id)
-            const present = existsSync(file)
-            if (!present) {
-              if (row.missing_at === null) {
-                catalog.prepare('UPDATE works SET missing_at = ? WHERE work_id = ?').run(now(), row.work_id)
-              }
-              if (row.trashed_at === null) missing.push(row.work_id)
-            } else if (row.missing_at !== null) {
-              catalog.prepare('UPDATE works SET missing_at = NULL WHERE work_id = ?').run(row.work_id)
+      const changed = rows.filter((row) => {
+        const present = existsSync(row.trashed_at === null ? workFile(root, row.work_id) : trashFile(root, row.work_id))
+        return present ? row.missing_at !== null : row.missing_at === null
+      })
+      if (changed.length > 0) {
+        try {
+          transaction(catalog, () => {
+            for (const row of changed) {
+              const present = existsSync(row.trashed_at === null ? workFile(root, row.work_id) : trashFile(root, row.work_id))
+              catalog.prepare('UPDATE works SET missing_at = ? WHERE work_id = ?')
+                .run(present ? null : now(), row.work_id)
             }
-          }
-        })
-      } catch {
-        // Another writer holds the catalog; the next start reconciles again. The
-        // listing itself must stay readable.
-        degraded = true
+          })
+        } catch {
+          // Another writer holds the catalog; the next read retries. The listing
+          // itself must stay readable.
+          degraded = true
+        }
       }
     }
     const orphans = []
@@ -322,6 +326,9 @@ export function ensureReconciled(root) {
         + `孤儿回收站文件 ${report.trash.length}（${report.trash.join('、') || '无'}）`)
     }
   } catch (error) {
+    // Without SQLite every action reports sqlite-unavailable; do not repeat the
+    // diagnostic on every listing.
+    if (error?.code === 'sqlite-unavailable') reconciledRoots.add(root)
     console.warn(`[storycraft] 作品库对账失败：${error instanceof Error ? error.message : String(error)}`)
   }
 }
