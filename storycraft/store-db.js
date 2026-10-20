@@ -2006,24 +2006,37 @@ export function pruneProposals(root, ttlMs = PROPOSAL_TTL_MS) {
 }
 
 /**
- * Persist the whole session→work map (replaces previous rows).
+ * Persist one session's current work without touching other rows.
  * @param {string} root - workspace directory.
- * @param {Record<string, string>} entries - session id → work id.
- * @returns {{count: number}} stored count.
+ * @param {string} sessionId - session identity.
+ * @param {string} workId - work identity.
+ * @returns {{sessionId: string, workId: string}} stored pointer.
  */
-export function replaceSessionCurrent(root, entries) {
+export function setSessionCurrent(root, sessionId, workId) {
   const catalog = openCatalog(root)
   try {
-    return transaction(catalog, () => {
-      catalog.prepare('DELETE FROM session_current').run()
-      const at = now()
-      for (const [sessionId, workId] of Object.entries(entries ?? {})) {
-        if (typeof sessionId !== 'string' || typeof workId !== 'string') continue
-        catalog.prepare('INSERT INTO session_current (session_id, work_id, updated_at) VALUES (?, ?, ?)')
-          .run(sessionId, workId, at)
-      }
-      return { count: Object.keys(entries ?? {}).length }
+    transaction(catalog, () => {
+      catalog.prepare(`INSERT INTO session_current (session_id, work_id, updated_at) VALUES (?, ?, ?)
+        ON CONFLICT(session_id) DO UPDATE SET work_id = excluded.work_id, updated_at = excluded.updated_at`)
+        .run(sessionId, workId, now())
     })
+    return { sessionId, workId }
+  } finally {
+    catalog.close()
+  }
+}
+
+/**
+ * Clear one session's current work without touching other rows.
+ * @param {string} root - workspace directory.
+ * @param {string} sessionId - session identity.
+ * @returns {{removed: boolean}} whether a row was removed.
+ */
+export function clearSessionCurrent(root, sessionId) {
+  const catalog = openCatalog(root)
+  try {
+    const result = transaction(catalog, () => catalog.prepare('DELETE FROM session_current WHERE session_id = ?').run(sessionId))
+    return { removed: Number(result.changes) > 0 }
   } finally {
     catalog.close()
   }

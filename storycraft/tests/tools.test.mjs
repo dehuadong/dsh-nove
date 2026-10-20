@@ -6,7 +6,7 @@ import * as tools from '../tools.js'
 import * as s from '../storage.js'
 import { openWork } from '../db.js'
 import { readProposal } from '../proposals.js'
-import { setCurrent } from '../current.js'
+import { clearCurrent, setCurrent } from '../current.js'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -141,6 +141,11 @@ try {
   const created = await byName.get('story_init').execute({ title: '雨里的灯', proposal: proposal.proposal }, exec)
   check('story_init ok', created.ok === true && typeof created.workId === 'string', JSON.stringify(created))
   check('story_init reports a virtual work path', created.artifact.path === `works/${created.workId}`, created.artifact.path)
+  check('story_init persists the current work', (await s.readSessionCurrent(root))['test-session'] === created.workId)
+  clearCurrent('test-session')
+  const hydratedCurrent = await byName.get('story_current').execute({}, exec)
+  check('story_current hydrates the persisted pointer', hydratedCurrent.current === created.workId, JSON.stringify(hydratedCurrent))
+  setCurrent('test-session', created.workId)
   const used = await readProposal(root, proposal.proposal)
   check('the proposal records the work it became', used.usedWorkId === created.workId && typeof used.usedAt === 'string', JSON.stringify(used))
   const work = created.workId
@@ -352,6 +357,8 @@ try {
   const manifestBefore = JSON.stringify(await s.readManifest(root, work))
   const deniedWrite = await byName.get('story_write').execute({ work, chapter: 1, body, rewrite: true }, childExec)
   check('a delegated subagent cannot land a chapter', deniedWrite.ok === false && deniedWrite.error.code === 'subagent-cannot-land', JSON.stringify(deniedWrite))
+  const deniedInit = await byName.get('story_init').execute({ title: '子代理作品', proposal: 'p' }, childExec)
+  check('a delegated subagent cannot init a work', deniedInit.ok === false && deniedInit.error.code === 'subagent-cannot-land', JSON.stringify(deniedInit))
   check('a refused landing leaves the manifest unchanged',
     JSON.stringify(await s.readManifest(root, work)) === manifestBefore)
   const childWithoutWork = { agent: { ...exec.agent, id: 'child-nowork', session: { header: { cwd: root, delegationDepth: 1 } } } }
@@ -376,9 +383,16 @@ try {
   const proposalResult = await byName.get('story_propose').execute({
     title: '夜班司机', premise: '夜班司机捡到一盏不肯灭的灯。',
   }, exec)
+  const blockedInit = await byName.get('story_init').execute({ title: '夜班司机', proposal: proposalResult.proposal }, exec)
+  check('a second work is refused while another is current', blockedInit.ok === false && blockedInit.error.code === 'work-mismatch', JSON.stringify(blockedInit))
   check('proposal result declares its keys',
     ['proposal', 'title', 'form'].every(key => Object.keys(byName.get('story_propose').output.schema.properties).includes(key))
     && proposalResult.ok === true, JSON.stringify(proposalResult))
+
+  s.setSessionCurrent(root, 'persisted-refusal', work)
+  const blockedPersisted = await byName.get('story_init').execute({ title: '夜班司机', proposal: proposalResult.proposal }, { ...exec, agent: { ...exec.agent, id: 'persisted-refusal' } })
+  check('a persisted-only current work blocks another init', blockedPersisted.ok === false && blockedPersisted.error.code === 'work-mismatch', JSON.stringify(blockedPersisted))
+  check('the refused init created no work', !s.listWorks(root).some(item => item.workId === '夜班司机'))
 
   setCurrent('session-a', work)
   await byName.get('story_status').execute({ work: 'another-book' }, { ...exec, agent: { ...exec.agent, id: 'session-a' } })

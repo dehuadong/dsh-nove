@@ -103,7 +103,7 @@ summaries         章节摘要（上限 400 字）
 
 | 动作 | 做什么 | 拒绝条件 |
 | --- | --- | --- |
-| `story_init` | 建作品库、真值与检索表 | 标题为空；同 id 已存在（拒绝，不覆盖；可换标题或显式给 `workId`） |
+| `story_init` | 建作品库、真值与检索表；无当前作品时设为当前 | 标题为空；同 id 已存在；会话已有其他当前作品（`work-mismatch`，请新建会话） |
 | `story_plan` | 写章纲 | 五项（视角/目标/阻力/代价/结尾变化）缺一；已定稿 |
 | `story_write` | 写正文并更新字数与版本 | 正文为空；已有正文且未声明 `rewrite`；已定稿且未 `reopen` |
 | `story_review` | 写问题清单（轮次按章独立编号） | 正文不存在；问题清单为空；已定稿；**不改正文** |
@@ -192,7 +192,7 @@ storycraft/
   Get-ChildItem storycraft/tests -Filter *.test.mjs | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { exit 1 } }
   ```
 
-- 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑七条页面 spec——侧栏入口、页面读数、两个作者确认、指令门禁与两条预设声明。不调用模型，零额度；需要本机装有 Playwright（可用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装它的目录）。
+- 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑九条页面 spec——侧栏入口、页面读数、两个作者确认、指令门禁、预设声明与两条刷新。不调用模型，零额度；需要本机装有 Playwright（可用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装它的目录）。
 - 端到端验收、评审与证据记录在 issue `dehuadong/dsh-nove#18`。
 
 ## 改动与生效

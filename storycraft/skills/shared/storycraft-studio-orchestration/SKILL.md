@@ -21,7 +21,7 @@ whenToUse: 作者提出写作需求、需要决定下一步做什么、或要在
 - 立项要提案（`proposal-required`）；
 - 写第 1 章章纲要已确认的提纲（`outline-required`）；
 - 审稿、修订、定稿按章节阶段推进；
-- 会话只驱动一个作品，且作品由面板进入（`work-not-selected` / `work-mismatch`）。
+- 会话只驱动一个作品：通常由面板进入；新会话没有当前作品时 `story_init` 成功后设为当前，已有其他当前作品时先请作者新建会话（`work-not-selected` / `work-mismatch`）。
 
 ## 自己写还是派活
 

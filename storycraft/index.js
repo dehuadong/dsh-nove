@@ -15,9 +15,9 @@ import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
 import { approveChapterPlan, approveOutline, ensureReconciled, listTrash, listWorks, nextStep, readManifest, readChapter, readReview, readWork, status as readStatus, StoryError } from './storage.js'
 import { critique } from './critique.js'
-import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent, snapshot as snapshotCurrent } from './current.js'
+import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent } from './current.js'
 import { readVolumes } from './volumes.js'
-import { readSessionCurrent, replaceSessionCurrent } from './store-db.js'
+import { clearSessionCurrent, readSessionCurrent, setSessionCurrent } from './store-db.js'
 import { assembleBrief, readBible } from './bible.js'
 
 /** Requires the host web server; without it the browser surface has no data. */
@@ -125,14 +125,6 @@ async function readCurrentFile(root) {
   }
 }
 
-/**
- * Persist the session → work pointers of one workspace.
- * @param {string} root - workspace directory.
- * @returns {Promise<void>} resolves after the write.
- */
-async function writeCurrentFile(root) {
-  replaceSessionCurrent(root, snapshotCurrent())
-}
 
 /**
  * Whether a directory is one of the deployment's workspaces.
@@ -237,12 +229,12 @@ export function apply(ctx) {
             const root = await rootOf(ctx, new URLSearchParams({ root: String(body?.root ?? '') }))
             if (workId === '') {
               clearCurrent(sessionId)
-              await writeCurrentFile(root)
+              clearSessionCurrent(root, sessionId)
               return { current: undefined }
             }
             const manifest = await readManifest(root, workId)
             setCurrent(sessionId, manifest.workId)
-            await writeCurrentFile(root)
+            setSessionCurrent(root, sessionId, manifest.workId)
             return { current: manifest.workId }
           })
           return

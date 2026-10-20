@@ -39,7 +39,7 @@ verification: 交付于 #9：单预设、形态数据化、面板两级；当前
 - 页面进入作品时 `POST /current {sessionId, workId}`；
 - 动作的 `work` 参数可选：缺省时按 `exec.sessionId` 解析；
 - 解析不到时报 `work-not-selected`，消息给出「先在面板进入一个作品，或在调用里带上 work」；
-- `story_current` 动作只读；页面进入作品时由 `POST /current` 设置；
+- `story_current` 动作只读；页面进入作品时由 `POST /current` 设置；会话没有当前作品时，`story_init` 成功后也会设为当前；
 - 指针持久化到 `catalog.db` 的 `session_current`，页面重进或主机重启后从持久化行 hydrate；
 
 
@@ -68,5 +68,3 @@ verification: 交付于 #9：单预设、形态数据化、面板两级；当前
 - 预设别名与门禁切换期可能双写配置；一个版本内收敛；
 - 当前工作项持久化在 `session_current`；
 - 面板重排与形态包分开做，避免同时改布局与数据。
-
-

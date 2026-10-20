@@ -19,8 +19,8 @@
 import {
   StoryError, backupWork, deleteWork, exportWork, foldState, initWork, nextStep as nextStepFor,
   planApprovalPolicy,
-  readChapter, readManifest, reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter,
-  status as readStatus, updateSettings, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
+  readChapter, readManifest, readSessionCurrent, reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter, setSessionCurrent,
+  status as readStatus, updateSettings, workIdOf, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
 } from './storage.js'
 import {
   assembleBrief as assembleBriefFor, importBible as importFromDesign, readBible as readBibleEntries,
@@ -32,7 +32,7 @@ import { critique } from './critique.js'
 import { loadRoleInput } from './role-input.js'
 import { delegateRole } from './delegate.js'
 import { checkDraft } from './landing.js'
-import { getCurrent, resolveWork } from './current.js'
+import { getCurrent, hydrate as hydrateCurrent, markHydrated, resolveWork, setCurrent, shouldHydrate } from './current.js'
 import { join } from 'node:path'
 import { createProposal, markProposalUsed, readProposal } from './proposals.js'
 import { SCOPE_MESSAGES, scopeDenial } from './scope.js'
@@ -88,6 +88,33 @@ function workspaceOf(exec) {
     throw new StoryError('no-workspace', '这个会话没有工作区目录，无法定位作品根')
   }
   return cwd
+}
+
+/**
+ * Read a session's current work, hydrating the persisted row once.
+ *
+ * The pointer is memory-first because the panel updates it through `/current`.
+ * After a host restart only `session_current` remains, so the first read for a
+ * root/session loads it. A catalog failure is treated as "no pointer": this
+ * helper is also called from the total, non-throwing scope guard.
+ * @param {string} root - workspace directory.
+ * @param {string|undefined} sessionId - session identity.
+ * @returns {string|undefined} current work id.
+ */
+function sessionCurrentOf(root, sessionId) {
+  const current = getCurrent(sessionId)
+  if (current !== undefined) return current
+  if (typeof root !== 'string' || root === '' || typeof sessionId !== 'string' || sessionId === '') {
+    return undefined
+  }
+  if (!shouldHydrate(sessionId, root)) return getCurrent(sessionId)
+  markHydrated(sessionId, root)
+  try {
+    hydrateCurrent(readSessionCurrent(root))
+  } catch {
+    // A broken or locked catalog must not turn file-tool guards into failures.
+  }
+  return getCurrent(sessionId)
 }
 
 /** Turn a thrown value into the structured failure every action returns. */
@@ -644,8 +671,8 @@ function rawDefinitions(ctx) {
       name: 'story_init',
       mutates: true,
       description: '建立一部作品：作品库文件（.storycraft/works/<workId>.db）、真值五件与检索表。'
-        + ' 用户要求开始写一部新作品时先调用它。作品 id 由标题生成；同 id 已存在时拒绝，不覆盖已有作品，'
-        + ' 需要另起一部时换标题或显式给 workId。',
+        + ' 用户要求开始写一部新作品时先调用它。作品 id 由标题生成；同 id 已存在时拒绝，不覆盖已有作品。'
+        + ' 会话没有当前作品时，成功后会把新作品设为当前；已有其他当前作品时拒绝（请新建会话再立项）。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -669,6 +696,7 @@ function rawDefinitions(ctx) {
       },
       async execute(args, exec) {
         const root = workspaceOf(exec)
+        const session = sessionOf(exec)
         if (typeof args.proposal !== 'string' || args.proposal.trim() === '') {
           throw new StoryError('proposal-required',
             '立项前先和作者讨论，用 story_propose 落一份方案，并在作者明确同意后带 proposal 立项')
@@ -682,6 +710,14 @@ function rawDefinitions(ctx) {
           throw new StoryError('proposal-mismatch',
             `提案形态是 ${proposal.form}，与传入的 ${args.form} 不一致`)
         }
+        const targetId = typeof args.workId === 'string' && args.workId.trim() !== ''
+          ? workIdOf(args.workId)
+          : workIdOf(args.title)
+        const current = sessionCurrentOf(root, session)
+        if (current !== undefined && current !== targetId) {
+          throw new StoryError('work-mismatch',
+            `本会话当前作品是 ${current}，不能再立项另一部：请新建会话再立项`)
+        }
         const created = await initWork(root, {
           title: args.title,
           form: proposal.form,
@@ -690,6 +726,14 @@ function rawDefinitions(ctx) {
           ...(Array.isArray(args.tags) ? { tags: args.tags } : {}),
           ...(args.wordRange === undefined ? {} : { wordRange: args.wordRange }),
         })
+        if (session !== undefined) {
+          setCurrent(session, created.workId)
+          try {
+            setSessionCurrent(root, session, created.workId)
+          } catch (error) {
+            console.warn(`[storycraft] 当前作品指针持久化失败：${error instanceof Error ? error.message : String(error)}`)
+          }
+        }
         await markProposalUsed(root, proposal.id, created.workId).catch(() => {})
         return { ok: true, workId: created.workId, artifact: { path: created.path } }
       },
@@ -1235,7 +1279,8 @@ function rawDefinitions(ctx) {
 
     action({
       name: 'story_current',
-      description: '只读：本会话当前在做的作品。作品由面板进入时选定，模型不能自己切换；'
+      description: '只读：本会话当前在做的作品。通常由面板进入时选定；'
+        + ' 会话没有当前作品时，story_init 成功后会设为当前。其他情况模型不能自己切换；'
         + ' 返回 null 时说明还没有进入任何作品，请作者在面板里进入一部。',
       parameters: {
         type: 'object',
@@ -1243,9 +1288,9 @@ function rawDefinitions(ctx) {
         properties: {},
       },
       async execute(args, exec) {
-        const current = getCurrent(sessionOf(exec))
-        if (current === undefined) return { ok: true, current: null }
         const root = workspaceOf(exec)
+        const current = sessionCurrentOf(root, sessionOf(exec))
+        if (current === undefined) return { ok: true, current: null }
         let manifest
         try {
           manifest = readManifest(root, current)
@@ -1478,14 +1523,15 @@ function withCurrentWork(definition) {
         return failureOf(new StoryError('subagent-cannot-land', DELEGATED_DENIAL))
       }
       const session = sessionOf(exec)
-      const current = getCurrent(session)
+      const root = workspaceOf(exec)
+      const current = sessionCurrentOf(root, session)
       const explicit = typeof args?.work === 'string' && args.work.trim() !== '' ? args.work.trim() : undefined
       // One session drives one work: a call that names a different work would
       // silently write into the wrong book, so it is refused and the author
       // switches in the panel instead.
       // Without an active work the session may not reach into the works tree at
-      // all: discussion happens before any book is entered, and the panel is the
-      // only way to point a session at one.
+      // all: discussion happens before any book is entered, and only the panel
+      // (or a successful story_init in an empty session) points it at one.
       if (explicit !== undefined && current === undefined) {
         throw new StoryError('work-not-selected',
           '本会话还没有进入任何作品：先在面板进入一个作品，再操作它；讨论阶段不读历史作品')
@@ -1554,7 +1600,7 @@ function scopeDenialOf(ctx, exec) {
   const rootCwd = root?.header?.cwd
   const cwd = workingDirectoryOf(ctx, session)
   if (typeof rootCwd !== 'string' || rootCwd === '' || cwd === undefined) return SCOPE_MESSAGES.discussion
-  const currentWork = getCurrent(root?.header?.id ?? session.header?.id)
+  const currentWork = sessionCurrentOf(rootCwd, root?.header?.id ?? session.header?.id)
   return scopeDenial({
     tool: exec.name,
     arguments: exec.arguments ?? {},

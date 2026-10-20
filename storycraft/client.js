@@ -454,6 +454,33 @@ window.__ModuleLoader__.load({
       return typeof preset === 'string' && preset.startsWith('storycraft')
     }
 
+    /** Poll while the page is visible, plus immediate refresh on focus/reveal. */
+    function useVisiblePolling(intervalMs, refresh) {
+      useEffect(() => {
+        let cancelled = false
+        let timer
+        const schedule = () => {
+          if (cancelled) return
+          timer = setTimeout(async () => {
+            if (document.visibilityState === 'visible') await refresh()
+            schedule()
+          }, intervalMs)
+        }
+        const refreshNow = () => {
+          if (document.visibilityState === 'visible') void refresh()
+        }
+        document.addEventListener('visibilitychange', refreshNow)
+        window.addEventListener('focus', refreshNow)
+        schedule()
+        return () => {
+          cancelled = true
+          clearTimeout(timer)
+          document.removeEventListener('visibilitychange', refreshNow)
+          window.removeEventListener('focus', refreshNow)
+        }
+      }, [intervalMs, refresh])
+    }
+
     /** The forms a project may have, in the order the rail shows them. */
     const FORMS = [
       { id: 'longform', label: '长篇' },
@@ -826,6 +853,8 @@ window.__ModuleLoader__.load({
       const [settingsForm, setSettingsForm] = useState(undefined)
       const [next, setNext] = useState(undefined)
       const [reviseMode, setReviseMode] = useState('patch')
+      const [refreshError, setRefreshError] = useState(undefined)
+      const refreshInFlight = useRef(false)
 
       const load = useCallback(async () => {
         try {
@@ -844,17 +873,32 @@ window.__ModuleLoader__.load({
         }
       }, [face, root, workId])
 
+      const refreshDetail = useCallback(async () => {
+        if (refreshInFlight.current) return
+        refreshInFlight.current = true
+        try {
+          const [payload, listed, step] = await Promise.all([
+            face.work(root, workId),
+            face.volumes(root, workId).catch(() => ({ volumes: [] })),
+            face.next(root, workId).catch(() => ({ next: undefined })),
+          ])
+          setDetail({ status: 'ready', ...payload })
+          setVolumes(listed.volumes ?? [])
+          setNext(step.next)
+          setRefreshError(undefined)
+        } catch (error) {
+          setRefreshError(error instanceof Error ? error.message : String(error))
+        } finally {
+          refreshInFlight.current = false
+        }
+      }, [face, root, workId])
+
       useEffect(() => { void load() }, [load])
       useEffect(() => { setBriefChapter(selected ?? 1) }, [selected])
 
-      // The page is a view of files on disk: a slow poll keeps it honest after
-      // an instruction has been carried out in the conversation.
-      useEffect(() => {
-        const timer = setInterval(() => {
-          if (document.visibilityState === 'visible') void load()
-        }, 15000)
-        return () => clearInterval(timer)
-      }, [load])
+      // A silent poll keeps the detail honest without replaying the loading
+      // state, resetting the chapter selection, or writing the current pointer.
+      useVisiblePolling(15000, refreshDetail)
 
       const loadBible = async () => {
         setBible({ status: 'loading' })
@@ -890,6 +934,9 @@ window.__ModuleLoader__.load({
       }
 
       return h('div', null,
+        refreshError !== undefined
+          ? h('p', { className: 'sc-notice sc-notice-info' }, `刷新失败：${refreshError}`)
+          : null,
         h('div', { className: 'sc-detail-head' },
           h('div', null,
             h('button', {
@@ -1389,6 +1436,8 @@ window.__ModuleLoader__.load({
       const [trashNote, setTrashNote] = useState(undefined)
       const [selected, setSelected] = useState(undefined)
       const [notice, setNotice] = useState(undefined)
+      const [refreshError, setRefreshError] = useState(undefined)
+      const refreshInFlight = useRef(false)
       const compose = useCallback((text) => {
         // Writing the real composer bypasses the workbench's own gate, so the
         // gate runs first: only a long-form session may receive an action.
@@ -1454,7 +1503,34 @@ window.__ModuleLoader__.load({
         }
       }, [face])
 
+      const refreshWorks = useCallback(async () => {
+        if (face === undefined || face === null || refreshInFlight.current) return
+        const context = face.context()
+        if (context.root === undefined) return
+        refreshInFlight.current = true
+        try {
+          let pointer
+          if (context.sessionId !== undefined) {
+            try {
+              pointer = await face.getCurrent(context.root, context.sessionId)
+            } catch {
+              pointer = null
+            }
+          }
+          const payload = await face.listWorks(context.root)
+          setWorks(payload.works ?? [])
+          if (pointer !== null) setCurrentId(pointer?.current ?? undefined)
+          setRefreshError(undefined)
+        } catch (cause) {
+          setRefreshError(cause instanceof Error ? cause.message : String(cause))
+        } finally {
+          refreshInFlight.current = false
+        }
+      }, [face])
+
       useEffect(() => { void load() }, [load])
+
+      useVisiblePolling(10000, refreshWorks)
 
 
       useEffect(() => {
@@ -1559,6 +1635,9 @@ window.__ModuleLoader__.load({
               : null,
             status === 'error' ? h('p', { className: 'sc-notice sc-notice-error' }, error) : null,
             status === 'loading' ? h('p', { className: 'sc-muted' }, '读取作品列表…') : null,
+            refreshError !== undefined
+              ? h('p', { className: 'sc-notice sc-notice-info' }, `刷新失败：${refreshError}`)
+              : null,
             status === 'ready' && worksList.length === 0
               ? h(EmptyState, {
                 face,
@@ -1566,7 +1645,7 @@ window.__ModuleLoader__.load({
                 root,
                 form: typeFilter,
                 canSend: sessionId !== undefined && isStudio(sessionPreset),
-                onCreated: failure => setNotice(failure === undefined ? { kind: 'ok', text: '立项指令已投递，等在会话里看到作品目录后刷新。' } : { kind: 'error', text: failure }),
+                onCreated: failure => setNotice(failure === undefined ? { kind: 'ok', text: '立项指令已投递；作品建成后会自动出现在列表。' } : { kind: 'error', text: failure }),
               })
               : null,
             status === 'ready' && worksList.length > 0 && selected !== undefined
@@ -1641,4 +1720,3 @@ window.__ModuleLoader__.load({
     }
   },
 })
-

@@ -2,12 +2,20 @@
  * The work a session is currently looking at.
  *
  * The workbench records it when the author enters a project, so actions can omit
- * `work` and still land on the right work. State is per session and lives in
- * memory only: a stale pointer would be worse than asking the author to re-enter.
+ * `work` and still land on the right work. The map is the in-memory cache for
+ * `catalog.db`'s `session_current`: the host hydrates it after a restart; the
+ * panel and a successful `story_init` write through the same single-row store.
  */
 
 /** sessionId → workId. */
 const current = new Map()
+const hydrated = new Map()
+
+/** Whether a session already attempted the persisted pointer read. */
+export function shouldHydrate(sessionId, root) { const roots = hydrated.get(sessionId); return typeof sessionId === 'string' && sessionId !== '' && typeof root === 'string' && root !== '' && !(roots?.has(root) ?? false) }
+
+/** Mark a session's hydrate attempt so a missing row is not reread per call. */
+export function markHydrated(sessionId, root) { if (typeof sessionId !== 'string' || sessionId === '' || typeof root !== 'string' || root === '') return; const roots = hydrated.get(sessionId) ?? new Set(); roots.add(root); hydrated.set(sessionId, roots) }
 
 /**
  * Point a session at a work.
@@ -18,6 +26,7 @@ const current = new Map()
 export function setCurrent(sessionId, workId) {
   if (typeof sessionId !== 'string' || sessionId === '') return
   current.set(sessionId, String(workId))
+  hydrated.delete(sessionId)
 }
 
 /**
@@ -35,19 +44,12 @@ export function getCurrent(sessionId) {
  * @returns {void}
  */
 export function clearCurrent(sessionId) {
-  if (typeof sessionId === 'string') current.delete(sessionId)
+  if (typeof sessionId === 'string') { current.delete(sessionId); hydrated.delete(sessionId) }
 }
 
-/**
- * Snapshot the whole pointer map, for persistence.
- * @returns {Record<string, string>} sessionId → workId.
- */
-export function snapshot() {
-  return Object.fromEntries(current.entries())
-}
 
 /**
- * Load pointers from a snapshot, keeping newer in-memory entries.
+ * Load persisted pointers, keeping newer in-memory entries.
  * @param {Record<string, string>} entries - persisted map.
  * @returns {void}
  */

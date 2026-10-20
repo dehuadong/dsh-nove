@@ -148,4 +148,31 @@ test.describe('故事工坊工作台', () => {
     await nextChapter.evaluate(node => node.click())
     await expect(page.getByText(/不是「故事工坊」模式/)).toBeVisible({ timeout: 10_000 })
   })
+
+  test('新建作品后列表自动刷新', async ({ page }) => {
+    const store = await import('../storage.js')
+    const title = `刷新探针${Date.now()}`
+    await openWorkbench(page)
+    store.initWork(runtime.fixtureWorkspace, { title })
+    await expect(page.getByRole('button', { name: new RegExp(title) })).toBeVisible({ timeout: 15_000 })
+  })
+
+  test('详情在 focus 后刷新且不重复写当前指针', async ({ page }) => {
+    const store = await import('../storage.js')
+    const title = `焦点探针${Date.now()}`
+    const created = store.initWork(runtime.fixtureWorkspace, { title })
+    let pointerPosts = 0
+    page.on('request', request => {
+      if (request.method() === 'POST' && request.url().includes('/api/dsh-storycraft/current')) pointerPosts += 1
+    })
+    await openWorkbench(page)
+    await page.getByRole('button', { name: new RegExp(title) }).evaluate(node => node.click())
+    await expect(page.getByRole('heading', { name: title })).toBeVisible()
+    await page.waitForTimeout(500)
+    const before = pointerPosts
+    store.writeOutline(runtime.fixtureWorkspace, { work: created.workId, mainline: '一条主线' })
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+    await expect(page.getByRole('button', { name: '确认全书计划', exact: true })).toBeVisible({ timeout: 5_000 })
+    expect(pointerPosts).toBe(before)
+  })
 })

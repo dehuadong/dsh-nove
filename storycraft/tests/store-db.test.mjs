@@ -138,11 +138,15 @@ try {
   await rejects('rename onto an existing id refused', 'work-exists', async () => store.renameWork(root, { work: '另一本', workId: '改名作品' }))
 
   // Session current pointers live in the catalog.
-  store.replaceSessionCurrent(root, { 'session-a': '另一本', 'session-b': '改名作品' })
+  store.setSessionCurrent(root, 'session-a', '另一本')
+  store.setSessionCurrent(root, 'session-b', '改名作品')
   const pointers = store.readSessionCurrent(root)
   check('session pointers persisted', pointers['session-a'] === '另一本' && pointers['session-b'] === '改名作品')
-  store.replaceSessionCurrent(root, { 'session-a': '另一本' })
-  check('session pointers can be replaced', Object.keys(store.readSessionCurrent(root)).length === 1)
+  store.setSessionCurrent(root, 'session-a', '改名作品')
+  check('one pointer updates without dropping another', Object.keys(store.readSessionCurrent(root)).length === 2)
+  store.setSessionCurrent(root, 'session-a', '另一本')
+  store.clearSessionCurrent(root, 'session-b')
+  check('one pointer can be cleared without dropping another', Object.keys(store.readSessionCurrent(root)).length === 1)
 
   // Proposals live in the catalog, not in files.
   await rejects('proposal needs a premise', 'proposal-invalid',
@@ -171,4 +175,3 @@ try {
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`)
 process.exitCode = failures === 0 ? 0 : 1
-
