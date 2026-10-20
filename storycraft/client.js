@@ -800,7 +800,10 @@ window.__ModuleLoader__.load({
                 onClick: async () => {
                   try {
                     await face.approveChapterPlan(root, sessionId, workId, chapter.number)
-                    onNotice?.({ kind: 'ok', text: '章纲已确认；请点「写第 1 章（一次做完）」补充信息后发送' })
+                    const failure = await face.send(`第 ${chapter.number} 章章纲已确认。请调 story_next，按返回的下一步继续；不要再次询问确认。`)
+                    onNotice?.(failure === undefined
+                      ? { kind: 'ok', text: '章纲已确认，已通知会话继续。' }
+                      : { kind: 'error', text: `章纲已确认，但通知会话失败：${failure}` })
                     onApproved?.()
                   } catch (error) {
                     onNotice?.({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
@@ -980,7 +983,10 @@ window.__ModuleLoader__.load({
                 onClick: async () => {
                   try {
                     await face.approveOutline(root, sessionId, manifest.workId)
-                    onNotice({ kind: 'ok', text: '全书计划已确认；请点「写第 1 章」补充信息后发送' })
+                    const failure = await face.send('全书计划已确认。请调 story_next，按返回的下一步继续；不要再次询问确认，也不要跳过作者闸门。')
+                    onNotice(failure === undefined
+                      ? { kind: 'ok', text: '全书计划已确认，已通知会话继续。' }
+                      : { kind: 'error', text: `全书计划已确认，但通知会话失败：${failure}` })
                     void load()
                   } catch (error) {
                     onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
@@ -1730,3 +1736,4 @@ window.__ModuleLoader__.load({
     }
   },
 })
+
