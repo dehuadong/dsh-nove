@@ -83,7 +83,7 @@ story_delegate
 - 只允许 `delegationDepthOf(exec) > 0` 的子代理调用；父代理调用返回 `submit-parent-denied`；
 - `delegationId` 是 bearer token；work/chapter/role 从 SubmissionStore entry 读取，**不接受 payload 覆盖**；
 - 工具不经过 `withCurrentWork`（子会话没有当前作品），也不声明 `mutates`（它不写作品库）；
-- 不写作品库，不返回正文，只返回 `{ ok: true, submitted: true, bytes, words? }`；使用独立 `SUBMIT_OUTPUT` schema（含 ok/submitted/bytes/words），不复用共享 `OUTPUT`，否则 registry 会按 `additionalProperties:false` 拒绝；
+- 使用独立 `SUBMIT_OUTPUT` schema，不复用共享 `OUTPUT`；成功形如 `{ok:true,submitted:true,bytes,words?}`，失败形如 `{ok:false,error:{code,message},retryable,actual?,limit?,min?,max?}`；schema 必须同时声明成功/失败字段，否则 DSH 会把失败 envelope 判为 `INVALID_TOOL_OUTPUT`，子代理拿不到重试数据；
 - 单次提交：entry 已 `consumed` 时返回 `submit-already-consumed`；
 - `payload` 最大 64 KiB；超长 `submit-too-large`；
 - payload schema：
@@ -105,13 +105,15 @@ story_delegate
   - `polish` 改动 ≤ 40%；
   - `rewrite` 不限制比例；
   - `deslop` 必须减少腔调命中；
-- 校验失败返回 `submit-word-range` / `submit-mode-violation`（带实际值、限制、`retryable:true`），**不消费 entry、不落盘**；
+- 校验失败返回 `submit-word-range` / `submit-mode-violation`（带实际值、限制、`retryable:true`），**不消费 entry、不落盘**；失败用返回 envelope（不是抛异常），以确保 `retryable/actual/limit` 留在工具结果里；
 - 每次 `story_submit` 调用（含 schema/超长/字数/mode 校验失败）都计一次提交尝试；最多 3 次；第 3 次失败返回 `submit-attempts-exhausted` 给子代理；
 - 成功才 `consumed=true`；父代理只读取 accepted 结果；父代理最终只看到 `delegation-no-submission`（含 attempts=3），不把子代理的 exhausted 当成父级错误码；
 
 这直接修掉 #19 的 8 字 rewrite：8 字低于 min，返回 `submit-word-range`，不再成功。
 
 Entry 额外保存 `mode`、`wordRange`、`attempts`；校验读取当前正文用只读 `readChapter`，不写库。
+
+校验规则必须从 `reviseChapter` 的 20%/40%/deslop 逻辑抽成共享纯函数（例如 `revisionChecks`），`story_submit` 与 `reviseChapter` 共用；否则两处比例判断会漂移。
 
 ### 3. SubmissionStore
 
@@ -128,6 +130,7 @@ Entry 额外保存 `mode`、`wordRange`、`attempts`；校验读取当前正文�
 - 没有提交 → `delegation-no-submission`；不做最终文本兜底；
 - 父代理仍负责 `writeChapter` / `writeReview` / `reviseChapter`；字数/mode 不在父代理重复校验，避免 accepted 后二次拒绝；
 - 落盘失败只重试落盘或报错，**不重新提交、不回退手动正文**；
+- 主编/父代理**不重试** `delegation-word-range` / `revise-mode-violation`：这些错误在子代理的 `story_submit` 内消化；父代理只在 attempts 用尽后报 `delegation-no-submission`；
 - 回执保持紧凑：artifact ID、revision、words、warnings、problems 计数、`submissionAttempts`，不含正文；
 - reviewer 的 `REVIEW_SCHEMA`/`outputSchema` 不再传给子代理，避免 `structured_output` 在提交前截断。
 
@@ -146,7 +149,7 @@ Entry 额外保存 `mode`、`wordRange`、`attempts`；校验读取当前正文�
 - `skills/review/storycraft-review`：items 字段与父代理映射一致；委派时提交，手动时仍返回 JSON；
 - `skills/revise/storycraft-revise-craft`：委派时提交 body，手动时仍返回首尾标记；mode/resolved 由父代理处理；
 - `storycraft-studio-orchestration` 的角色输出契约；
-- `cordis.patch.yml` persona 区分委派/手动：委派只调用 `story_submit` 不落盘；手动 subagent 仍按文本契约返回；
+- `cordis.patch.yml` persona 区分委派/手动：委派只调用 `story_submit` 不落盘；手动 subagent 仍按文本契约返回；删除主编侧 `patch→polish→rewrite` / `delegation-word-range` 重试阶梯，避免父代理重新派发；
 - README 动作数从 29 改为 30，`tests/tools.test.mjs` 的 action 列表与数量同步。
 
 ### 7. 失败与清理
@@ -184,11 +187,14 @@ Entry 额外保存 `mode`、`wordRange`、`attempts`；校验读取当前正文�
 1. 子代理只通过 `story_submit` 交结果，**最终回答**不含正文；每次调用计一次，最多 3 次尝试；
 2. 父代理不解析最终文本，只从 SubmissionStore 取结构化结果；
 3. 错误/过期 delegationId、payload schema 不符、超长、重复提交、字数越界、mode 超幅、3 次上限被拒绝；entry 绑定关系有测试；
-4. 父会话回执不含正文；
+4. 父会话回执不含正文，含 `submissionAttempts`/`lastMode`/`wordRange`；
 5. 子代理仍不能直接落盘；writer/reviser 的 min/max 在提交时硬校验，8 字 rewrite 不再成功；手动路径行为保持现状（没有新增字数校验）；
 6. SubmissionStore 单次消费、TTL、失败清理有测试；
 7. 单元测试与 E2E 全过；`story_submit` 注册为第 30 个动作；
-8. 真实单章链路中父会话无正文，子代理**最终回答**无正文；工具调用参数展示不算失败。
+8. 真实单章链路中父会话无正文，子代理**最终回答**无正文；工具调用参数展示不算失败；
+9. `SUBMIT_OUTPUT` 同时接受成功/失败 envelope，失败结果不会被 DSH 判为 `INVALID_TOOL_OUTPUT`；
+10. `revisionChecks` 共享函数有测试，`story_submit` 与 `reviseChapter` 的比例判断不会漂移；
+11. 主编/父代理不重试 `delegation-word-range`/`revise-mode-violation`，attempts 用尽只报 `delegation-no-submission`。
 
 ## 风险
 
@@ -196,6 +202,10 @@ Entry 额外保存 `mode`、`wordRange`、`attempts`；校验读取当前正文�
 - 子代理可能忘记调用 `story_submit`；用 `delegation-no-submission` 失败测试约束，不静默回退；
 - 内存 SubmissionStore 在宿主崩溃时丢失；父代理必须报失败，不自动重跑整章；
 - 角色 payload schema 会随审稿/修订能力变化；变更需同步 #22 与 parity matrix。
+
+
+
+
 
 
 
