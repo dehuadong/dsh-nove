@@ -116,7 +116,7 @@ story_propose / story_init
 
 | 节点 | 现象 | 根因 | 修法 | 状态 | owner | 验证 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `story_init` | 模型读 `works/<id>/bible/characters.json` | `artifact.path` 是虚拟路径，schema 描述成“相对工作区文件” | 明确 virtual；禁止 read/grep；指向 `story_bible` | 已修（`845a4c0`） | `tools.js` / `scope.js` | 检查工具描述；真实首章不再报路径 |
+| `story_init` | 模型读 `works/<id>/bible/characters.json` | `artifact.path` 是路径 affordance | #22 改为 artifactId/revisionId；本项只保留临时提示 | 迁移中（#22） | #22 / `tools.js` | #22 的无 path 回归 |
 | `grep` | 扫描 `works/` 被守卫拦住 | 默认扫描作品库 | 提示限定项目/作品；人设禁止 | 已修（`845a4c0`） | `scope.js` / 人设 | 节点测试 |
 | `story_next` | 计划确认后仍 `missing:['outline']` | `last === undefined` 分支写死 missing | 已确认后 `missing:[]` | 已修（`533bad1`） | `store-db.js` | 单元测试 |
 | `story_status` | 看不到计划是否确认 | 只返回章节/审稿 | 返回 `outline.writtenAt/approvedAt` | 已修（`76c072d`） | `store-db.js` / `tools.js` | 单元测试 |
@@ -133,7 +133,7 @@ story_propose / story_init
 - `533bad1`：确认全书计划后 `story_next` 不再误报 `outline`；
 - `76c072d`：`story_status` 返回 `outline.writtenAt/approvedAt`；
 - `b75d44c`：确认全书计划/章纲不自动发送，动作按钮填入输入框；
-- `845a4c0`：明确 `artifact.path` 是虚拟路径，禁止 `read/grep` 作品库。
+- `845a4c0`：虚拟路径临时提示（#22 接管为 artifactId 契约）。
 
 上述提交的回归仍需并入 #21 的最终验证；未完成的行为以本 Note 提案为准。
 ## 提案
@@ -169,7 +169,7 @@ story_propose / story_init
 - 清稿不再返回 `empty-review`；“审稿未覆盖当前版本”的既有错误是 `review-required`；reviewer 输出格式/解析问题由 `delegation-output-invalid` 处理。旧 `empty-review` 错误码可保留兼容，但不再用于清稿或正常审稿。
 ### 3. 节点修复
 
-- `story_init`/artifact schema 明确虚拟路径；
+- `story_init`/artifact schema 的路径项由 #22 接管；
 - 禁止 read/grep 作品库的人设与技能说明；
 - `story_next` 的 `missing` 只表示真实缺失；
 - `story_status` 返回 outline；
@@ -212,3 +212,4 @@ story_propose / story_init
 - 不做 StateValidator，状态矛盾仍可能漏；单列后续工作。
 - 参考目标还有 forecast/同人/番外等能力，本项不覆盖，需在能力矩阵标非范围。
 - 真实单章测量仍需新会话与干净作品；旧会话历史会污染测量。
+
