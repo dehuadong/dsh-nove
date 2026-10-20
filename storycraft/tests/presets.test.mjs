@@ -101,12 +101,13 @@ if (standard === undefined) {
   }
   const normalize = body => withoutNestedRow(withoutNestedRow(body, 'tool-subagent'), 'tool-subagent-fork')
   const mismatched = standardBlocks
-    .filter(row => row.id !== 'persona')
+    .filter(row => row.id !== 'persona' && row.id !== 'tool-ask-user')
     .filter(row => {
       const own = patchBlocks.find(candidate => candidate.id === row.id)
       return own === undefined || normalize(own.body) !== normalize(row.body)
     })
     .map(row => row.id)
+  check('storycraft disables ask_user_question', patchBlocks.find(row => row.id === 'tool-ask-user')?.body.includes('disabled: true'))
   check('every inherited row keeps the standard config', mismatched.length === 0, mismatched.join(','))
 }
 

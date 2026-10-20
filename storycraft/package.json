@@ -32,6 +32,8 @@
     "context.js",
     "landing.js",
     "role-input.js",
+    "revision.js",
+    "submission.js",
     "delegate.js",
     "scope.js",
     "consistency.js",

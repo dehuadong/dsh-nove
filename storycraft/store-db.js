@@ -21,7 +21,7 @@ import {
   StoryError, WORK_FORMS, chapterNumber, chapterStem, contentVersion, countWords, foldEvents, formOf, now,
   parseReview, planApprovalPolicy, stageOf, unitOf, workIdOf,
 } from './domain.js'
-import { critique } from './critique.js'
+import { assertRevisionMode } from './revision.js'
 
 /** How long an unused proposal is kept before the next proposal write prunes it. */
 export const PROPOSAL_TTL_MS = 30 * 24 * 60 * 60 * 1000
@@ -1235,22 +1235,7 @@ export function reviseChapter(root, input) {
       if (missing.length > 0) throw new StoryError('problem-not-found', `问题不存在或已处理：${missing.join('、')}`)
       const current = currentVersion(db, entry)
       if (current.body === body) throw new StoryError('unchanged-body', '修订后的正文与当前版本相同')
-      const oldWords = countWords(current.body)
-      const newWords = countWords(body)
-      const delta = oldWords === 0 ? 1 : Math.abs(newWords - oldWords) / oldWords
-      if (mode === 'patch' && delta > 0.2) {
-        throw new StoryError('revise-mode-violation', `局部修补的字数变化 ${(delta * 100).toFixed(0)}% 超过 20%：改用 polish 或 rewrite`)
-      }
-      if (mode === 'polish' && delta > 0.4) {
-        throw new StoryError('revise-mode-violation', `润色的字数变化 ${(delta * 100).toFixed(0)}% 超过 40%：改用 rewrite`)
-      }
-      if (mode === 'deslop') {
-        const before = critique(current.body).aiPhrases.count
-        const after = critique(body).aiPhrases.count
-        if (before > 0 && after >= before) {
-          throw new StoryError('revise-mode-violation', `去 AI 味修订没有减少命中的腔调词（${before} → ${after}）`)
-        }
-      }
+      assertRevisionMode({ mode, chapter: number, oldBody: current.body, body })
       let text = review.text
       for (const id of problemIds) text = text.replace(new RegExp(`^- \\[ \\] ${id} ::`, 'mu'), `- [x] ${id} ::`)
       db.prepare('UPDATE reviews SET text = ? WHERE number = ? AND round = ?').run(text, number, review.round)

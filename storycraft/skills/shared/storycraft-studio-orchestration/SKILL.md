@@ -41,7 +41,7 @@ whenToUse: 作者提出写作需求、需要决定下一步做什么、或要在
 
 1. 先调 `story_next`；
 2. 返回 `delegate.role` 时，调 `story_delegate(work, chapter, role, instruction?, mode?)`。它会在宿主侧预检、装配上下文、启动角色子代理并把结果落盘；
-3. 回执是紧凑的，不含正文或上下文；不要要求子代理把正文贴回主会话，也不要再调 `story_context` 取同一份正文；`revise-mode-violation` 从失败 mode 逐级重试（patch→polish→rewrite、polish→rewrite；deslop 不自动换），`delegation-word-range` 时 writer 先判断章纲容量（够则带差额重试，不够则改章纲并请作者重新确认），reviser 超 max 时 patch/polish/rewrite 只用 rewrite 重试一次，deslop 不自动改 mode、交给作者决定；低于 min 只警告；仍失败才手动。
+3. 回执是紧凑的，不含正文或上下文；不要要求子代理把正文贴回主会话，也不要再调 `story_context` 取同一份正文；字数/mode 校验在 `story_submit` 内，子代理最多重试 3 次，主编不重试、不换 mode、不手动搬运正文；失败只报 `delegation-no-submission`。
 
 `delegate` 只在阶段可执行时出现：缺全书计划/章纲确认时先请作者在面板确认；`story_revise` 只缺提交修订（`missing:['revision']`）时用下面的手动路径。
 
@@ -59,9 +59,9 @@ delegate 不可用（`delegation-unavailable`）、作者要求你直接做，�
 
 | 角色 | 首选 | 手动兜底 | 技能 | 输出契约 |
 | --- | --- | --- | --- | --- |
-| 写手 | `story_delegate(role:'writer')` | `story_context` + `subagent` | `storycraft-write-craft` | `<<<TITLE … TITLE>>>` + `<<<CHAPTER … CHAPTER>>>` |
-| 审稿 | `story_delegate(role:'reviewer')` | `story_context` + `subagent` | `storycraft-review` | JSON `{items:[{problem,where,impact,severity,fix,mode}]}`，最多 8 条 |
-| 修订 | `story_delegate(role:'reviser', mode)` | `story_context` + `subagent` | `storycraft-revise-craft` | 修订后的整章正文（同一对首尾标记） |
+| 写手 | `story_delegate(role:'writer')` | `story_context` + `subagent` | `storycraft-write-craft` | 委派：`story_submit {title,body}`；手动：`<<<TITLE … TITLE>>>` + `<<<CHAPTER … CHAPTER>>>` |
+| 审稿 | `story_delegate(role:'reviewer')` | `story_context` + `subagent` | `storycraft-review` | 委派：`story_submit {items}`；手动：同一 JSON，最多 8 条 |
+| 修订 | `story_delegate(role:'reviser', mode)` | `story_context` + `subagent` | `storycraft-revise-craft` | 委派：`story_submit {body}`；手动：整章正文（同一对首尾标记） |
 | 规划 | — | `story_context` + `subagent` | `storycraft-plan-craft` | 章纲 JSON（五项）或全书计划 JSON（三段） |
 
 任务段一律由宿主或 `story_context` 生成，作者要求写进 `instruction`，不要在任务里另写一套上下文。
@@ -70,7 +70,7 @@ delegate 不可用（`delegation-unavailable`）、作者要求你直接做，�
 
 ## 验收与回退
 
-- 子代理输出不合契约 → 重派一次（可收紧任务里的禁令）；
+- 委派子代理提交不合契约 → 子代理在 `story_submit` 内修正，最多 3 次；主编不重派、不手动搬运正文；
 - 再失败 → 报告 blocker，不要自动代写整章；只有作者明确要求时才手动完成；
 - 落盘失败 → 动作会报错，按错误里的「先做什么」处理，不猜测、不直接写文件。
 

@@ -1,12 +1,12 @@
 # 故事工坊（dsh-storycraft）
 
-DSH 里的长篇创作编排：二十九个动作把立项、章纲、正文、审稿、修订、定稿归档与导出备份落到**一作品一库**的 SQLite 存储，一个**工作台**以只读方式看作品与章节，并按键把固定指令投给当前会话。故事工坊是**一个工作模式**（一个 Agent 预设），以标准预设为基线再挂自己的动作、技能与人设。
+DSH 里的长篇创作编排：三十个动作把立项、章纲、正文、审稿、修订、定稿归档与导出备份落到**一作品一库**的 SQLite 存储，一个**工作台**以只读方式看作品与章节，并按键把固定指令投给当前会话。故事工坊是**一个工作模式**（一个 Agent 预设），以标准预设为基线再挂自己的动作、技能与人设。
 
 ## 现状
 
 | 工作模式 | 人设 | 技能 | 动作 | 工作台 |
 | --- | --- | --- | --- | --- |
-| 故事工坊 `storycraft` | 有（主编 / 子代理两用） | 有（三套技能：长篇 / 短篇 / 剧本） | **有**：`story_init` `story_plan` `story_write` `story_review` `story_revise` `story_state` `story_status` `story_next` `story_delegate`，以及真值四件 `story_bible` `story_bible_write` `story_bible_import` `story_summarize`、只读 `story_read` 与写前上下文 `story_brief`；常备能力 `story_export` `story_backup` | 有 |
+| 故事工坊 `storycraft` | 有（主编 / 子代理两用） | 有（三套技能：长篇 / 短篇 / 剧本） | **有**：`story_init` `story_plan` `story_write` `story_review` `story_revise` `story_state` `story_status` `story_next` `story_delegate` `story_submit`，以及真值四件 `story_bible` `story_bible_write` `story_bible_import` `story_summarize`、只读 `story_read` 与写前上下文 `story_brief`；常备能力 `story_export` `story_backup` | 有 |
 
 动作按预设作用域注册：只有「故事工坊」会话能看到 `story_*`，其他模式与其他会话的工具面不变。形态（长篇 / 短篇 / 剧本）是作品数据（`catalog.db` 的 `works.form`），不是预设；同一会话里可以分别打开三种形态的作品。
 
@@ -16,7 +16,7 @@ DSH 里的长篇创作编排：二十九个动作把立项、章纲、正文、�
 
 - `story_delegate` 在宿主侧预检、装配上下文、启动子代理、校验并落库；主编只收紧凑回执，正文不进入主会话；
 - 手动兜底仍用官方 `subagent`：省略 `agentPreset`，子代理加入故事工坊当前组合；角色由任务提示与对应技能（`storycraft-write-craft`、`storycraft-review`、`storycraft-revise-craft`、`storycraft-plan-craft`）决定；
-- 子代理只返回文本。预设作用域的守卫拒绝它调用 `write`、`edit`、`pwsh`、`bash`，写动作（`story_write`、`story_review`、`story_revise`、`story_delegate` 等）在入口返回 `subagent-cannot-land`；落库一律由宿主/主编完成；
+- 委派子代理通过 `story_submit` 提交结构化结果；预设作用域的守卫拒绝它调用 `write`、`edit`、`pwsh`、`bash` 与写动作（`story_write`、`story_review`、`story_revise`、`story_delegate` 等），落库一律由宿主/主编完成；
 - 委派深度固定为 1，子代理不能再派发。
 
 ## 立项与提纲
@@ -110,7 +110,8 @@ summaries         章节摘要（上限 400 字）
 | `story_revise` | 生成新版本正文并把条目改为已处理 | 没有审稿清单；未指定条目；条目不存在；正文与当前版本相同；模式与改动幅度不符 |
 | `story_state` | 追加人物事实与伏笔事件，返回新增/已用/已解/未解计数 | 作品或章不存在；伏笔状态非法；「已用」指向未埋的伏笔；未修订完成或未清稿 |
 | `story_status` | 只读汇总进度、阶段、版本、未处理问题、未解伏笔 | 作品不存在 |
-| `story_delegate` | 宿主侧跑一个角色（writer/reviewer/reviser）：预检、装配上下文、校验、落库，返回紧凑回执 | 预检/阶段错误按原码返回；服务缺失 `delegation-unavailable`；writer/reviser 字数超界 `delegation-word-range` |
+| `story_delegate` | 宿主侧跑一个角色：预检、装配上下文、启动子代理、消费 `story_submit`、落库，返回紧凑回执 | 预检/阶段错误按原码返回；服务缺失 `delegation-unavailable`；无合格提交 `delegation-no-submission` |
+| `story_submit` | 仅子代理调用：提交结构化角色结果，宿主校验字数/mode，失败可重提 | 父代理/非委派 `submit-parent-denied`；超 3 次 `submit-attempts-exhausted` |
 | `story_read` | 只读：按 `artifactId`/`revisionId` 读取当前章可读内容；越界返回 `artifact-not-readable` | 作品不存在；旧章/旧审稿版本 |
 | `story_next` | 只读：下一步动作、章号、原因、缺什么；可委派时带 `delegate.role` | 作品不存在 |
 | `story_export` / `story_backup` | 见「作品操作与导出」 | 作品不存在 |

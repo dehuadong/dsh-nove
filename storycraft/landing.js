@@ -51,7 +51,8 @@ export function checkWordRange(input) {
         `第 ${chapter} 章修订稿 ${words} 字，超过上限 ${range.max} 字：${action}`)
     }
     if (words < range.min) {
-      return { warnings: [`第 ${chapter} 章修订稿 ${words} 字，低于建议下限 ${range.min} 字`] }
+      throw new StoryError('delegation-word-range',
+        `第 ${chapter} 章修订稿 ${words} 字，低于下限 ${range.min} 字：必须完整成章后再提交`)
     }
     return { warnings: [] }
   }

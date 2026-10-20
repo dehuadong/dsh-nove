@@ -62,7 +62,7 @@ test.describe('故事工坊工作模式', () => {
     }
     const normalize = body => withoutNestedRow(withoutNestedRow(body, 'tool-subagent'), 'tool-subagent-fork')
     const mismatched = standard
-      .filter(row => row.id !== 'persona')
+      .filter(row => row.id !== 'persona' && row.id !== 'tool-ask-user')
       .filter(row => {
         const own = storycraft.find(candidate => candidate.id === row.id)
         return own === undefined || normalize(own.body) !== normalize(row.body)
@@ -74,6 +74,8 @@ test.describe('故事工坊工作模式', () => {
     expect(storycraftText).toContain('provider: spawn')
     expect(storycraftText).toContain('toolName: subagent')
     expect(storycraftText).toContain('maxDepth: 1')
+    expect(storycraftText).toContain('id: tool-ask-user')
+    expect(storycraftText).toContain('disabled: true')
     expect(storycraftText).not.toContain('tool-subagent-fork')
     expect(storycraftText).not.toContain('agentPreset:')
   })

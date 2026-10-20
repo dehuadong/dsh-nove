@@ -13,7 +13,8 @@ import {
   StoryError, chapterNumber, latestReview, readManifest, readPlan, reviseChapter, stageOf, writeChapter, writeReview,
 } from './storage.js'
 import { loadRoleInput } from './role-input.js'
-import { checkDraft, checkWordRange } from './landing.js'
+import { checkDraft } from './landing.js'
+import { closeSubmission, consumeSubmission, openSubmission } from './submission.js'
 
 /** One child run's budget; the timer is cleared before landing. */
 const DELEGATE_TIMEOUT_MS = 600000
@@ -36,32 +37,6 @@ const ROLE_META = {
   reviser: { label: '修订', skill: 'storycraft-revise-craft' },
 }
 
-/** JSON schema for the reviewer's structured result. */
-const REVIEW_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    items: {
-      type: 'array',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          where: { type: 'string' },
-          problem: { type: 'string' },
-          impact: { type: 'string' },
-          severity: { type: 'string', enum: ['blocker', 'major', 'minor'] },
-          fix: { type: 'string' },
-          mode: { type: 'string', enum: ['patch', 'polish', 'rewrite', 'deslop'] },
-        },
-        required: ['where', 'problem', 'severity', 'fix'],
-      },
-    },
-  },
-  required: ['items'],
-}
-
-/** Virtual path/read helpers keep errors consistent with the manual actions. */
 function chapterEntryOf(manifest, number) {
   return manifest.chapters.find(item => item.number === number)
 }
@@ -119,7 +94,7 @@ function contextText(context) {
 }
 
 /** Build the child prompt for one role. */
-function promptFor({ input, manifest, context }) {
+function promptFor({ input, manifest, context, delegationId }) {
   const meta = ROLE_META[input.role]
   const lines = [
     `你是长篇小说《${manifest.title}》（${manifest.workId}）的${meta.label}子代理，负责第 ${input.chapter} 章。`,
@@ -132,87 +107,27 @@ function promptFor({ input, manifest, context }) {
     contextText(context),
     '',
     '## 输出契约',
+    `必须调用 story_submit，delegationId 是 ${delegationId}。`,
   ]
   if (input.role === 'writer') {
-    lines.push('只输出标题与整章正文，使用首尾标记：')
-    lines.push('<<<TITLE 本章标题 TITLE>>>')
-    lines.push('<<<CHAPTER 整章正文 CHAPTER>>>')
-    lines.push('不要写解释、不要省略、不要调用任何动作。')
+    lines.push('payload 格式：{"title":"本章标题","body":"整章正文"}。')
+    lines.push('不要省略正文，不要把正文作为最终回答；提交成功后最终只回「已提交」。')
   } else if (input.role === 'reviser') {
-    lines.push('只输出修订后的整章正文，使用首尾标记：')
-    lines.push('<<<CHAPTER 修订后的整章正文 CHAPTER>>>')
+    lines.push('payload 格式：{"body":"修订后的整章正文"}。')
     const modeRule = input.mode === 'rewrite'
       ? '可以重组段落与场景，但必须保留章纲事实、人物动机与章末落点；'
       : input.mode === 'deslop'
         ? '只处理腔调词与套话，不改情节与段落结构；'
         : '只改本次任务点名的条目，未点名段落保持原样；'
-    lines.push(`修订模式：${input.mode}。${modeRule}不要调用任何动作。`)
+    lines.push(`修订模式：${input.mode}。${modeRule}`)
+    lines.push('提交成功后最终只回「已提交」；不要手动调用落盘动作。')
   } else {
-    lines.push('只输出一个 JSON 对象，不要写解释：')
-    lines.push('{"items":[{"where":"正文里的具体位置","problem":"问题","impact":"读者影响","severity":"blocker|major|minor","fix":"怎么修","mode":"patch|polish|rewrite|deslop"}]}')
-    lines.push('没有问题时输出 {"items":[]}。不要改正文、不要调用任何动作。')
+    lines.push('payload 格式：{"items":[{"where":"正文里的具体位置","problem":"问题","impact":"读者影响","severity":"blocker|major|minor","fix":"怎么修","mode":"patch|polish|rewrite|deslop"}]}。')
+    lines.push('没有问题时 payload 为 {"items":[]}；提交成功后最终只回「已提交」。')
   }
+  lines.push('story_submit 返回 ok:false 时，按 error.retryable 修正 payload 后重提，最多 3 次；不要把工具错误当成最终失败。')
   return lines.join('\n')
 }
-
-/** Extract the first text result from a child's output blocks. */
-function outputText(result) {
-  return (result.output ?? [])
-    .filter(block => block?.type === 'text')
-    .map(block => block.text)
-    .join('\n')
-    .trim()
-}
-
-/** Parse a JSON object from structured output or fenced/plain text. */
-function reviewItems(result) {
-  let value = result.structured
-  if (value === undefined) {
-    const text = outputText(result)
-    const start = text.indexOf('{')
-    const end = text.lastIndexOf('}')
-    if (start === -1 || end <= start) {
-      throw new StoryError('delegation-output-invalid', '审稿子代理没有返回可解析的 JSON')
-    }
-    try {
-      value = JSON.parse(text.slice(start, end + 1))
-    } catch {
-      throw new StoryError('delegation-output-invalid', '审稿子代理返回的 JSON 不合法')
-    }
-  }
-  if (value === null || typeof value !== 'object' || !Array.isArray(value.items)) {
-    throw new StoryError('delegation-output-invalid', '审稿子代理的输出缺少 items 数组')
-  }
-  return value.items.map((item, index) => {
-    const where = String(item?.where ?? '').trim()
-    const problem = String(item?.problem ?? '').trim()
-    const fix = String(item?.fix ?? '').trim()
-    if (where === '' || problem === '') {
-      throw new StoryError('delegation-output-invalid', `审稿第 ${index + 1} 条缺少 where 或 problem`)
-    }
-    return {
-      location: where,
-      problem,
-      suggestion: fix === '' ? '未给出建议' : fix,
-    }
-  })
-}
-
-/** Parse the writer/reviser marker contract. */
-function bodyOf(result, { requireTitle }) {
-  const text = outputText(result)
-  const chapter = /<<<CHAPTER\s*([\s\S]*?)\s*CHAPTER>>>/u.exec(text)?.[1]?.trim()
-  if (chapter === undefined || chapter === '') {
-    throw new StoryError('delegation-output-invalid', '子代理输出缺少 <<<CHAPTER ... CHAPTER>>> 正文')
-  }
-  const title = /<<<TITLE\s*([\s\S]*?)\s*TITLE>>>/u.exec(text)?.[1]?.trim()
-  if (requireTitle && (title === undefined || title === '')) {
-    throw new StoryError('delegation-output-invalid', '写手输出缺少 <<<TITLE ... TITLE>>> 标题')
-  }
-  return { title, body: chapter }
-}
-
-/** Abort promise that rejects with the delegation error code. */
 function abortPromise(signal, message) {
   return new Promise((_, reject) => {
     if (signal.aborted) {
@@ -292,7 +207,14 @@ export async function delegateRole(root, input, host) {
     ...(typeof input.instruction === 'string' ? { instruction: input.instruction } : {}),
     ...(role === 'reviser' ? { mode } : {}),
   })
-  const prompt = promptFor({ input: { role, chapter, mode }, manifest: loaded.manifest, context: loaded.context })
+  const opened = openSubmission({
+    role,
+    workId: work,
+    chapter,
+    ...(role === 'reviser' ? { mode } : {}),
+    ...(loaded.manifest.wordRange === undefined ? {} : { wordRange: loaded.manifest.wordRange }),
+  })
+  const prompt = promptFor({ input: { role, chapter, mode }, manifest: loaded.manifest, context: loaded.context, delegationId: opened.delegationId })
 
   const timeoutMs = Number.isFinite(host.timeoutMs) ? host.timeoutMs : DELEGATE_TIMEOUT_MS
   const timeout = new AbortController()
@@ -309,7 +231,6 @@ export async function delegateRole(root, input, host) {
           parent: host.agent,
           cwd: root,
           prompt: [{ type: 'text', text: prompt }],
-          ...(role === 'reviewer' ? { outputSchema: REVIEW_SCHEMA } : {}),
         },
         signal,
         delivery: 'caller',
@@ -339,10 +260,18 @@ export async function delegateRole(root, input, host) {
         `子代理未正常完成（${String(result?.stopReason ?? 'unknown')}）${result?.diagnostic === undefined ? '' : `：${result.diagnostic}`}`)
     }
 
+    const submission = consumeSubmission(opened.delegationId)
+    const attempts = submission?.attempts ?? 0
+    if (submission?.consumed !== true || submission.payload === undefined) {
+      throw new StoryError('delegation-no-submission',
+        `子代理没有提交通过校验的角色结果（尝试 ${attempts} 次）`)
+    }
+    const payload = submission.payload
+    assertActive(signal)
+
     if (role === 'writer') {
-      const { title, body } = bodyOf(result, { requireTitle: true })
+      const { title, body } = payload
       const { warnings } = await checkDraft(root, { work, chapter, body })
-      const range = checkWordRange({ role: 'writer', body, chapter, wordRange: loaded.manifest.wordRange })
       assertActive(signal)
       const written = writeChapter(root, {
         work, chapter, title, body,
@@ -357,21 +286,20 @@ export async function delegateRole(root, input, host) {
         revision: written.revision,
         artifact: { workId: work, artifactId: `chapter:${chapter}`, revisionId: `r${written.revision}`, kind: 'chapter' },
         words: written.words,
-        ...(warnings.length + range.warnings.length === 0 ? {} : { warnings: receiptWarnings([...warnings, ...range.warnings]) }),
+        submissionAttempts: attempts,
+        ...(loaded.manifest.wordRange === undefined ? {} : { wordRange: loaded.manifest.wordRange }),
+        ...(warnings.length === 0 ? {} : { warnings: receiptWarnings(warnings) }),
       })
     }
 
     if (role === 'reviewer') {
-      const problems = reviewItems(result)
-      assertActive(signal)
-      const written = writeReview(root, {
-        work, chapter,
-        problems: problems.map(item => ({
-          location: item.location,
-          problem: item.problem,
-          suggestion: item.suggestion,
-        })),
-      })
+      const problems = payload.items.map(item => ({
+        location: item.where,
+        problem: item.problem,
+        suggestion: item.fix,
+      }))
+      const written = writeReview(root, { work, chapter, problems })
+      const latest = latestReview(root, work, chapter)
       return fitReceipt({
         ok: true,
         workId: work,
@@ -379,14 +307,14 @@ export async function delegateRole(root, input, host) {
         role,
         stage: landedStage(root, work, chapter),
         reviewRound: written.round,
-        artifact: { workId: work, artifactId: `review:${chapter}:r${latestReview(root, work, chapter).revision}:${written.round}`, revisionId: hashText(latestReview(root, work, chapter).text), kind: 'review' },
+        artifact: { workId: work, artifactId: `review:${chapter}:r${latest.revision}:${written.round}`, revisionId: hashText(latest.text), kind: 'review' },
         problems: { total: written.problems.length, open: written.problems.length },
+        submissionAttempts: attempts,
       })
     }
 
-    const { body } = bodyOf(result, { requireTitle: false })
+    const { body } = payload
     const { warnings } = await checkDraft(root, { work, chapter, body })
-    const range = checkWordRange({ role: 'reviser', mode, body, chapter, wordRange: loaded.manifest.wordRange })
     assertActive(signal)
     const open = latestReview(root, work, chapter).items.filter(item => !item.done).map(item => item.id)
     const revised = reviseChapter(root, {
@@ -402,10 +330,14 @@ export async function delegateRole(root, input, host) {
       artifact: { workId: work, artifactId: `chapter:${chapter}`, revisionId: `r${revised.revision}`, kind: 'chapter' },
       words: revised.words,
       resolved: revised.resolved,
-      ...(warnings.length + range.warnings.length === 0 ? {} : { warnings: receiptWarnings([...warnings, ...range.warnings]) }),
+      submissionAttempts: attempts,
+      lastMode: mode,
+      ...(loaded.manifest.wordRange === undefined ? {} : { wordRange: loaded.manifest.wordRange }),
+      ...(warnings.length === 0 ? {} : { warnings: receiptWarnings(warnings) }),
     })
   } finally {
     clearTimeout(timer)
+    closeSubmission(opened.delegationId)
     if (activation !== undefined) {
       try {
         await activation.dispose()

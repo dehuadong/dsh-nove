@@ -58,6 +58,9 @@ whenToUse: 被派去写一章正文、或需要把提纲扩成可读的场景时
 先给标题，再给正文：
 
 ```
+> 委派子代理：调用 `story_submit`，payload 为 `{"title":"本章标题","body":"整章正文"}`。
+> 手动 subagent：使用下面的首尾标记。
+
 <<<TITLE 本章标题 TITLE>>>
 <<<CHAPTER
 正文……

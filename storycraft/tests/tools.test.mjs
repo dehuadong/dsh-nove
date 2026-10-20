@@ -8,6 +8,7 @@ import { openWork } from '../db.js'
 import { readProposal } from '../proposals.js'
 import { clearCurrent, setCurrent } from '../current.js'
 import { checkDraft } from '../landing.js'
+import { submitPayload } from '../submission.js'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -32,11 +33,11 @@ const ctx = {
 tools.apply(ctx, { mode: 'longform' })
 
 const names = registered.map(definition => definition.name).sort()
-check('registers twenty-nine actions', names.length === 29, names.join(','))
+check('registers thirty actions', names.length === 30, names.join(','))
 check('action names', names.join(',') === [
   'story_backup', 'story_bible', 'story_bible_import', 'story_bible_write', 'story_brief', 'story_context',
   'story_critique', 'story_current', 'story_delegate', 'story_delete', 'story_export', 'story_init', 'story_next', 'story_outline',
-  'story_plan', 'story_propose', 'story_read', 'story_rename', 'story_reopen', 'story_restore', 'story_review', 'story_revise',
+  'story_plan', 'story_propose', 'story_read', 'story_rename', 'story_reopen', 'story_restore', 'story_review', 'story_revise', 'story_submit',
   'story_settings', 'story_state', 'story_status', 'story_summarize', 'story_volume', 'story_volumes', 'story_write',
 ].sort().join(','), names.join(','))
 check('the delegation and scope guards are registered', guards.length === 2, String(guards.length))
@@ -443,12 +444,19 @@ try {
   // A revision that invents a speaker is refused at landing, like a write.
   await s.approveChapterPlan(root, { work, chapter: 2 })
   services.subagents = {
-    startActivation() {
+    startActivation(spec) {
+      const id = /delegationId 是 ([0-9a-f-]+)/u.exec(spec.request.prompt[0].text)?.[1]
       return {
-        result: Promise.resolve({
-          output: [{ type: 'text', text: `<<<TITLE 第二章 TITLE>>>\n<<<CHAPTER ${'第二章正文。'.repeat(40)} CHAPTER>>>` }],
-          stopReason: 'completed',
-        }),
+        result: (async () => {
+          const submitted = await submitPayload({
+            delegationId: id,
+            depth: 1,
+            root: spec.request.cwd,
+            payload: { title: '第二章', body: '第二章正文。'.repeat(40) },
+          })
+          if (submitted.ok !== true) throw new Error(JSON.stringify(submitted))
+          return { stopReason: 'completed' }
+        })(),
         dispose: async () => {},
       }
     },

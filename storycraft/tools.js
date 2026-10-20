@@ -33,6 +33,7 @@ import { readVolumes, writeVolume } from './volumes.js'
 import { critique } from './critique.js'
 import { loadRoleInput } from './role-input.js'
 import { delegateRole } from './delegate.js'
+import { submitPayload } from './submission.js'
 import { checkDraft } from './landing.js'
 import { getCurrent, hydrate as hydrateCurrent, markHydrated, resolveWork, setCurrent, shouldHydrate } from './current.js'
 import { join } from 'node:path'
@@ -738,6 +739,33 @@ const NEXT_OUTPUT = {
   render: OUTPUT.render,
 }
 
+/** Output contract for one delegated role submission. */
+const SUBMIT_OUTPUT = {
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      ok: { type: 'boolean' },
+      submitted: { type: 'boolean' },
+      bytes: { type: 'integer' },
+      words: { type: 'integer' },
+      error: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          code: { type: 'string' },
+          message: { type: 'string' },
+        },
+        required: ['code', 'message'],
+      },
+      retryable: { type: 'boolean' },
+      min: { type: 'integer' },
+      max: { type: 'integer' },
+    },
+    required: ['ok'],
+  },
+  render: OUTPUT.render,
+}
 /** Compact receipt of one host-side role delegation. */
 const DELEGATE_OUTPUT = {
   schema: {
@@ -752,6 +780,14 @@ const DELEGATE_OUTPUT = {
       revision: { type: 'integer' },
       words: OUTPUT_PROPERTIES.words,
       reviewRound: { type: 'integer' },
+      submissionAttempts: { type: 'integer' },
+      lastMode: { type: 'string', enum: ['patch', 'polish', 'rewrite', 'deslop'] },
+      wordRange: {
+        type: 'object',
+        additionalProperties: false,
+        properties: { min: { type: 'integer' }, max: { type: 'integer' } },
+        required: ['min', 'max'],
+      },
       artifact: OUTPUT_PROPERTIES.artifact,
       problems: {
         type: 'object',
@@ -1662,10 +1698,33 @@ function rawDefinitions(ctx) {
     }),
 
     action({
+      name: 'story_submit',
+      description: '只允许被 story_delegate 派发的子代理调用：把角色结果提交给宿主校验。校验失败可修正后重提；成功后父代理才会落盘。不要把正文当最终回答返回。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          delegationId: { type: 'string', description: 'story_delegate 注入的一次性身份。' },
+          payload: { type: 'object', additionalProperties: true, description: '角色结构化结果。' },
+        },
+        required: ['delegationId', 'payload'],
+      },
+      output: SUBMIT_OUTPUT,
+      async execute(args, exec) {
+        return submitPayload({
+          delegationId: args.delegationId,
+          payload: args.payload,
+          depth: delegationDepthOf(exec),
+          root: workspaceOf(exec),
+        })
+      },
+    }),
+
+    action({
       name: 'story_delegate',
       mutates: true,
       description: '宿主侧委派一个角色完成单步：writer 写首版正文、reviewer 审稿并落清单、reviser 按未处理条目修订。'
-        + ' 主编只收回执（版本/字数/审稿计数/警告），不接触正文与上下文；失败时走 story_context + subagent 手动路径。',
+        + ' 主编只收回执（版本/字数/审稿计数/警告），不接触正文与上下文；子代理通过 story_submit 提交，失败返回 delegation-no-submission。',
       parameters: {
         type: 'object',
         additionalProperties: false,

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { delegateRole } from '../delegate.js'
 import { checkWordRange } from '../landing.js'
+import { submitPayload } from '../submission.js'
 import * as s from '../storage.js'
 import { writeBible } from '../bible.js'
 
@@ -24,7 +25,24 @@ async function rejects(name, code, fn) {
   }
 }
 
-/** A subagents service that returns queued results and records the specs. */
+/** Convert legacy test fixtures into the structured payload the child submits. */
+function payloadOf(value) {
+  if (value.payload !== undefined) return value.payload
+  if (value.structured?.items !== undefined) return { items: value.structured.items }
+  const text = (value.output ?? []).filter(block => block?.type === 'text').map(block => block.text).join('\n')
+  const chapter = /<<<CHAPTER\s*([\s\S]*?)\s*CHAPTER>>>/u.exec(text)?.[1]?.trim()
+  if (chapter !== undefined) {
+    return { title: /<<<TITLE\s*([\s\S]*?)\s*TITLE>>>/u.exec(text)?.[1]?.trim() ?? '测试章', body: chapter }
+  }
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start !== -1 && end > start) {
+    try { return JSON.parse(text.slice(start, end + 1)) } catch {}
+  }
+  return undefined
+}
+
+/** A subagents service that submits queued fixtures through the real seam. */
 function fakeService(results) {
   const specs = []
   return {
@@ -35,7 +53,13 @@ function fakeService(results) {
       if (result === undefined) throw new Error('no fake result queued')
       if (result.error !== undefined) throw result.error
       return {
-        result: Promise.resolve(result.value),
+        result: (async () => {
+          const id = /delegationId 是 ([0-9a-f-]+)/u.exec(spec.request.prompt[0].text)?.[1]
+          const payload = payloadOf(result.value)
+          if (payload === undefined) return { ...result.value }
+          const submitted = await submitPayload({ delegationId: id, depth: 1, root: spec.request.cwd, payload })
+          return { ...result.value, stopReason: 'completed', submitted }
+        })(),
         dispose: async () => {},
       }
     },
@@ -71,8 +95,12 @@ try {
 } catch (error) {
   check('reviser over max is refused', error.code === 'delegation-word-range', String(error.code))
 }
-const shortRevision = checkWordRange({ role: 'reviser', body: '字'.repeat(5), chapter: 1, wordRange: range })
-check('reviser below min only warns', shortRevision.warnings.length === 1 && shortRevision.warnings[0].includes('低于'), JSON.stringify(shortRevision))
+try {
+  checkWordRange({ role: 'reviser', body: '字'.repeat(5), chapter: 1, wordRange: range })
+  check('reviser below min is refused', false, 'no error')
+} catch (error) {
+  check('reviser below min is refused', error.code === 'delegation-word-range', String(error.code))
+}
 check('in-range writer passes', checkWordRange({ role: 'writer', body: '字'.repeat(15), chapter: 1, wordRange: range }).warnings.length === 0)
 const root = await mkdtemp(join(tmpdir(), 'storycraft-delegate-'))
 try {
@@ -108,7 +136,7 @@ try {
   check('reviewer delegates and lands one round', reviewer.ok === true && reviewer.reviewRound === 1 && reviewer.problems.total === 1, JSON.stringify(reviewer))
   const review = s.readReview(root, work, 1)
   check('review maps where/problem/fix', review.items[0].location === '结尾' && review.items[0].problem === '太快' && review.items[0].suggestion === '补一拍', JSON.stringify(review.items))
-  check('reviewer child requested structured output', reviewService.specs[0].request.outputSchema !== undefined)
+  check('reviewer prompt carries story_submit', reviewService.specs[0].request.prompt[0].text.includes('story_submit'))
   const afterReview = s.nextStep(root, work)
   check('nextStep advertises reviser delegation', afterReview.action === 'story_revise' && afterReview.delegate?.role === 'reviser', JSON.stringify(afterReview))
 
@@ -144,7 +172,7 @@ try {
 
   // Output contract failures do not land anything.
   const brokenService = fakeService([completed({ output: [{ type: 'text', text: '没有标记' }] })])
-  await rejects('invalid output before writing is refused', 'delegation-output-invalid',
+  await rejects('invalid output before writing is refused', 'delegation-no-submission',
     () => delegateRole(root, { work, chapter: 2, role: 'writer' }, { service: brokenService, agent, signal }))
   check('failed writer did not create a body', s.readManifest(root, work).chapters.find(c => c.number === 2).currentRevision === 0)
 
@@ -160,7 +188,7 @@ try {
   const shortWriterService = fakeService([completed({
     output: [{ type: 'text', text: '<<<TITLE 短稿 TITLE>>>\n<<<CHAPTER 太短。CHAPTER>>>' }],
   })])
-  await rejects('writer below the word range is refused', 'delegation-word-range',
+  await rejects('writer below the word range is refused', 'delegation-no-submission',
     () => delegateRole(root, { work: rangeWork.workId, chapter: 1, role: 'writer' }, { service: shortWriterService, agent, signal }))
   check('the refused short writer did not land', s.readManifest(root, rangeWork.workId).chapters.find(c => c.number === 1).currentRevision === 0)
 
@@ -175,19 +203,19 @@ try {
   const overMaxService = fakeService([completed({
     output: [{ type: 'text', text: `<<<CHAPTER ${'字'.repeat(100)} CHAPTER>>>` }],
   })])
-  await rejects('reviser over max is refused', 'delegation-word-range',
+  await rejects('reviser over max is refused', 'delegation-no-submission',
     () => delegateRole(root, { work: rangeWork.workId, chapter: 1, role: 'reviser', mode: 'rewrite' }, { service: overMaxService, agent, signal }))
 
   const patchService = fakeService([completed({
     output: [{ type: 'text', text: `<<<CHAPTER ${'字'.repeat(70)} CHAPTER>>>` }],
   })])
-  await rejects('a patch over 20% is refused', 'revise-mode-violation',
+  await rejects('a patch over 20% is refused', 'delegation-no-submission',
     () => delegateRole(root, { work: rangeWork.workId, chapter: 1, role: 'reviser', mode: 'patch' }, { service: patchService, agent, signal }))
 
   const polishService = fakeService([completed({
     output: [{ type: 'text', text: `<<<CHAPTER ${'字'.repeat(75)} CHAPTER>>>` }],
   })])
-  await rejects('a polish over 40% is refused', 'revise-mode-violation',
+  await rejects('a polish over 40% is refused', 'delegation-no-submission',
     () => delegateRole(root, { work: rangeWork.workId, chapter: 1, role: 'reviser', mode: 'polish' }, { service: polishService, agent, signal }))
 
   const rewriteService = fakeService([completed({
