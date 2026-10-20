@@ -2,8 +2,8 @@
 title: 故事工坊：单预设、形态数据化与会话当前工作项
 status: implemented
 created: 2026-10-18
-updated: 2026-10-19
-verification: 交付于 #9：单预设、形态数据化、面板两级、当前作品持久化；presets/skills/e2e 覆盖。
+updated: 2026-10-20
+verification: 交付于 #9：单预设、形态数据化、面板两级；当前作品持久化由 #18 落地并记录于 implemented/pipeline/2026-10-19-storycraft-sqlite-store.md；presets/skills/e2e 覆盖。
 ---
 
 # Agent Note：故事工坊：单预设、形态数据化与会话当前工作项
@@ -39,8 +39,9 @@ verification: 交付于 #9：单预设、形态数据化、面板两级、当前
 - 页面进入作品时 `POST /current {sessionId, workId}`；
 - 动作的 `work` 参数可选：缺省时按 `exec.sessionId` 解析；
 - 解析不到时报 `work-not-selected`，消息给出「先在面板进入一个作品，或在调用里带上 work」；
-- `story_current` 动作可读、可写（用户口头指定时用）；
-- 只在内存，不落盘；页面重进时重新 POST。
+- `story_current` 动作只读；页面进入作品时由 `POST /current` 设置；
+- 指针持久化到 `catalog.db` 的 `session_current`，页面重进或主机重启后从持久化行 hydrate；
+
 
 ### 面板两级
 
@@ -50,7 +51,7 @@ verification: 交付于 #9：单预设、形态数据化、面板两级、当前
 ## 备选方案
 
 - **按形态保留三个预设**：重复配置、不能混形态；否决。
-- **当前工作项持久化到 profile**：多一处真相、要处理清理；内存 + 页面重进已够。
+- **当前工作项持久化到 profile**：与 `catalog.db` 的 `session_current` 重复；否决。
 - **当前工作项写进作品 manifest**：那是作品数据，不该记“哪个会话在看它”；否决。
 
 ## 验证
@@ -65,5 +66,7 @@ verification: 交付于 #9：单预设、形态数据化、面板两级、当前
 ## 后果
 
 - 预设别名与门禁切换期可能双写配置；一个版本内收敛；
-- 当前工作项内存态在重启后丢失，需要页面重进；
+- 当前工作项持久化在 `session_current`；
 - 面板重排与形态包分开做，避免同时改布局与数据。
+
+
