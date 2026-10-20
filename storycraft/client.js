@@ -937,13 +937,13 @@ window.__ModuleLoader__.load({
               type: 'button',
               className: 'sc-btn sc-btn-primary',
               title: '写下一章：章纲 → 取上下文 → 正文 → 质检 → 审稿 → 按清单修订，停在修订，之后可润色/去 AI 味再定稿',
-              onClick: () => { void send(INSTRUCTIONS.flowToRevision(manifest.workId, next === undefined ? nextNumber : next.chapter)) },
+              onClick: () => compose(INSTRUCTIONS.flowToRevision(manifest.workId, next === undefined ? nextNumber : next.chapter)),
             }, `写第 ${next === undefined ? nextNumber : next.chapter} ${unitOf(manifest.form)}（写到修订）`),
             h('button', {
               type: 'button',
               className: 'sc-btn',
               title: '写下一章并一次做完：章纲 → 正文 → 质检 → 审稿 → 修订 → 定稿 → 摘要',
-              onClick: () => { void send(INSTRUCTIONS.flowFull(manifest.workId, next === undefined ? nextNumber : next.chapter)) },
+              onClick: () => compose(INSTRUCTIONS.flowFull(manifest.workId, next === undefined ? nextNumber : next.chapter)),
             }, `写第 ${next === undefined ? nextNumber : next.chapter} ${unitOf(manifest.form)}（一次做完）`),
             manifest.outline?.writtenAt !== undefined && manifest.outline?.approvedAt === undefined
               ? h('button', {
