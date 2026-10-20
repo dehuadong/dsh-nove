@@ -103,6 +103,8 @@ try {
   s.foldState(root, { work, chapter: 1, entities: [{ name: '甲', facts: ['回到屋里'] }], hooks: [] })
   check('the delegated chapter settles', s.readManifest(root, work).chapters[0].stage === 'settled')
   check('the next step moves to the next chapter plan', s.nextStep(root, work).action === 'story_plan')
+  await rejects('a settled chapter is refused', 'chapter-settled',
+    () => delegateRole(root, { work, chapter: 1, role: 'reviewer' }, { service: fakeService([]), agent, signal }))
 
   s.writePlan(root, { work, chapter: 2, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   s.approveChapterPlan(root, { work, chapter: 2 })
@@ -180,6 +182,7 @@ try {
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`)
 process.exitCode = failures === 0 ? 0 : 1
+
 
 
 
