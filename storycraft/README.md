@@ -1,21 +1,22 @@
 # 故事工坊（dsh-storycraft）
 
-DSH 里的长篇创作编排：二十七个动作把立项、章纲、正文、审稿、修订、定稿归档与导出备份落到**一作品一库**的 SQLite 存储，一个**工作台**以只读方式看作品与章节，并按键把固定指令投给当前会话。故事工坊是**一个工作模式**（一个 Agent 预设），以标准预设为基线再挂自己的动作、技能与人设。
+DSH 里的长篇创作编排：二十八个动作把立项、章纲、正文、审稿、修订、定稿归档与导出备份落到**一作品一库**的 SQLite 存储，一个**工作台**以只读方式看作品与章节，并按键把固定指令投给当前会话。故事工坊是**一个工作模式**（一个 Agent 预设），以标准预设为基线再挂自己的动作、技能与人设。
 
 ## 现状
 
 | 工作模式 | 人设 | 技能 | 动作 | 工作台 |
 | --- | --- | --- | --- | --- |
-| 故事工坊 `storycraft` | 有（主编 / 子代理两用） | 有（三套技能：长篇 / 短篇 / 剧本） | **有**：`story_init` `story_plan` `story_write` `story_review` `story_revise` `story_state` `story_status` `story_next`，以及真值四件 `story_bible` `story_bible_write` `story_bible_import` `story_summarize` 与写前上下文 `story_brief`；常备能力 `story_export` `story_backup` | 有 |
+| 故事工坊 `storycraft` | 有（主编 / 子代理两用） | 有（三套技能：长篇 / 短篇 / 剧本） | **有**：`story_init` `story_plan` `story_write` `story_review` `story_revise` `story_state` `story_status` `story_next` `story_delegate`，以及真值四件 `story_bible` `story_bible_write` `story_bible_import` `story_summarize` 与写前上下文 `story_brief`；常备能力 `story_export` `story_backup` | 有 |
 
 动作按预设作用域注册：只有「故事工坊」会话能看到 `story_*`，其他模式与其他会话的工具面不变。形态（长篇 / 短篇 / 剧本）是作品数据（`catalog.db` 的 `works.form`），不是预设；同一会话里可以分别打开三种形态的作品。
 
 ## 角色与委派
 
-写手、审稿、修订、规划**不是预设**，而是主编通过官方 `subagent` 工具派发的子代理：
+写手、审稿、修订、规划**不是预设**，而是子代理；写手/审稿/修订默认由宿主动作 `story_delegate` 通过官方 `subagents` 服务启动，规划仍用手动 `subagent`：
 
-- 派发省略 `agentPreset`，子代理加入故事工坊当前组合，继承同一套工具、技能与人设；角色由任务提示与对应技能（`storycraft-write-craft`、`storycraft-review`、`storycraft-revise-craft`、`storycraft-plan-craft`）决定；
-- 子代理只返回文本。预设作用域的守卫拒绝它调用 `write`、`edit`、`pwsh`、`bash`，写动作（`story_write`、`story_review`、`story_revise` 等）在入口返回 `subagent-cannot-land`；落库一律由主编完成；
+- `story_delegate` 在宿主侧预检、装配上下文、启动子代理、校验并落库；主编只收紧凑回执，正文不进入主会话；
+- 手动兜底仍用官方 `subagent`：省略 `agentPreset`，子代理加入故事工坊当前组合；角色由任务提示与对应技能（`storycraft-write-craft`、`storycraft-review`、`storycraft-revise-craft`、`storycraft-plan-craft`）决定；
+- 子代理只返回文本。预设作用域的守卫拒绝它调用 `write`、`edit`、`pwsh`、`bash`，写动作（`story_write`、`story_review`、`story_revise`、`story_delegate` 等）在入口返回 `subagent-cannot-land`；落库一律由宿主/主编完成；
 - 委派深度固定为 1，子代理不能再派发。
 
 ## 立项与提纲
@@ -96,7 +97,7 @@ summaries         章节摘要（上限 400 字）
 - 已定稿章改章纲要先带 `reopen: true` 重写正文回退（`chapter-settled`）；
 - `reopen` 会在事件表里追加一条 `reopen`，该章旧的定稿不再计入状态折叠。
 
-`story_next` 是只读查询：告诉模型下一步该调哪个动作、为什么、缺什么。
+`story_next` 是只读查询：告诉模型下一步该调哪个动作、为什么、缺什么；可委派时返回 `delegate.role`（writer/reviewer/reviser），主编据此调用 `story_delegate`，`action` 保留给手动路径。
 
 ## 动作
 
@@ -109,7 +110,8 @@ summaries         章节摘要（上限 400 字）
 | `story_revise` | 生成新版本正文并把条目改为已处理 | 没有审稿清单；未指定条目；条目不存在；正文与当前版本相同；模式与改动幅度不符 |
 | `story_state` | 追加人物事实与伏笔事件，返回新增/已用/已解/未解计数 | 作品或章不存在；伏笔状态非法；「已用」指向未埋的伏笔；未修订完成 |
 | `story_status` | 只读汇总进度、阶段、版本、未处理问题、未解伏笔 | 作品不存在 |
-| `story_next` | 只读：下一步动作、章号、原因、缺什么 | 作品不存在 |
+| `story_delegate` | 宿主侧跑一个角色（writer/reviewer/reviser）：预检、装配上下文、校验、落库，返回紧凑回执 | 预检/阶段错误按原码返回；服务缺失 `delegation-unavailable` |
+| `story_next` | 只读：下一步动作、章号、原因、缺什么；可委派时带 `delegate.role` | 作品不存在 |
 | `story_export` / `story_backup` | 见「作品操作与导出」 | 作品不存在 |
 
 字数口径只有一套：`domain.countWords`（CJK 字符 + 拉丁词，不含标点）；`story_critique` 的 `words` 用同一函数，标点数量单独放在 `chars`。
@@ -168,6 +170,9 @@ storycraft/
   domain.js                    # 共享词汇：错误码、id、阶段、审稿文本、事件折叠
   facts.js                     # 白名单唯一派生入口：只读已落库资料，正文与任务不参与
   context.js                   # 角色上下文拼装：七项分段、保护级别、预算裁剪、轨迹、白名单摘要
+  role-input.js                # story_context 与 story_delegate 共用的角色输入读取
+  landing.js                   # 落库前白名单校验（checkDraft），consistency.js 保持纯比较
+  delegate.js                  # 宿主侧角色委派：预检、子代理、输出校验、落库、回执
   consistency.js               # 输出一致性：自造人名拒收，地名与尺寸告警
   bible.js                     # 真值、摘要与写前上下文
   proposals.js                 # 提案：讨论与立项之间的桥
@@ -192,7 +197,4 @@ storycraft/
 
 ## 改动与生效
 
-包以 `link:` 装入 profile，改 `client.js` 后刷新窗口即可；改 `cordis.patch.yml` 或 Host 半边（`index.js`、`tools.js`、`db.js`、`store-db.js`）需要重启应用，或让 `plugin_manager` 把 bundle 关→开重载补丁。停用用 `set_bundle enabled:false`，卸载用 `remove_bundle`。
-
-
-
+包以 `link:` 装入 profile，改 `client.js` 后刷新窗口即可；改 `cordis.patch.yml` 或 Host 半边（`index.js`、`tools.js`、`delegate.js`、`db.js`、`store-db.js`）需要重启应用，或让 `plugin_manager` 把 bundle 关→开重载补丁。停用用 `set_bundle enabled:false`，卸载用 `remove_bundle`。

@@ -6,7 +6,7 @@
   "description": "故事工坊：长篇创作的动作集与编排工作台（作品、章节、真值、审稿、状态）。",
   "meta": {
     "title": "故事工坊",
-    "description": "为长篇创作提供七个落盘动作与一个只读编排工作台；人设、技能与脚本跟随预设。"
+    "description": "为长篇创作提供动作集与一个只读编排工作台；人设、技能与脚本跟随预设。"
   },
   "icon": "./icon.svg",
   "exports": {
@@ -30,6 +30,9 @@
     "critique.js",
     "facts.js",
     "context.js",
+    "landing.js",
+    "role-input.js",
+    "delegate.js",
     "scope.js",
     "consistency.js",
     "current.js",

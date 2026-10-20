@@ -32,14 +32,14 @@ whenToUse: 用户要求写长篇的下一章、续写、改章节，或要求检
    - `story_current` 返回 `null` 时说明会话还没有进入任何作品：**不要自己找、不要列目录、不要切书**，请作者在面板里进入那部作品。
    - 模型不能切换当前作品；也不要用 `story_current` 去「看看有哪些作品」。
 
-0. **先问下一步**：调 `story_next`，它给出该做的动作、章号、原因与缺什么。顺序固定为：章纲 → 正文 → 审稿 → 修订 → 定稿 → 摘要 → 下一章章纲。动作被拒时，错误消息里的「先做什么」就是下一步。
+0. **先问下一步**：调 `story_next`，它给出该做的动作、章号、原因、缺什么，以及可委派时的 `delegate.role`。顺序固定为：章纲 → 正文 → 审稿 → 修订 → 定稿 → 摘要 → 下一章章纲。写正文/审稿/修订优先按 `delegate.role` 调 `story_delegate`；没有 delegate 时才用手动动作。动作被拒时，错误消息里的「先做什么」就是下一步。
 
 1. **定章纲**：视角人物、本章目标、阻力、代价、结尾变化，五项齐全后用 `story_plan` 落盘。用户没给章纲时，先给章纲、用 `story_plan` 落草稿，再请用户在面板「章纲」里点「确认章纲」；确认前写正文会被 `plan-not-approved` 拒绝。
-2. **取上下文**：调 `story_brief`，按返回的分段写，不要引用被裁掉的段。
-3. **写成稿**：二到四个场景，场景之间有时空或因果推进；正文用 `story_write` 落盘。首版 `ch-<四位序号>.md`，修订生成 `r2`、`r3` 新版本。
+2. **取上下文**：交给 `story_delegate` 时由宿主装配；自己写前预览用 `story_brief`，按返回的分段写，不要引用被裁掉的段。
+3. **写成稿**：二到四个场景，场景之间有时空或因果推进；有 `delegate.role: writer` 时用 `story_delegate` 落盘，否则用 `story_write`。首版 `ch-<四位序号>.md`，修订生成 `r2`、`r3` 新版本。
 4. **质检**：用 `story_critique` 看可复现指标（字数是否在该作品范围内、平均句长、重复句、AI 腔命中、对话占比）。它只打分，不改正文。
-5. **审稿**：把质检发现与自己的问题写成清单交给 `story_review`（只落盘清单，不动正文）。
-6. **修订**：用 `story_revise` 按条目标记为已处理并生成新版本。选模式：
+5. **审稿**：有 `delegate.role: reviewer` 时用 `story_delegate`；否则把质检发现与自己的问题写成清单交给 `story_review`（只落盘清单，不动正文）。
+6. **修订**：有 `delegate.role: reviser` 时用 `story_delegate`；否则用 `story_revise`。按条目标记为已处理并生成新版本。选模式：
    - `patch`（默认）只改点到的地方，字数变化 ≤ 20%；
    - `polish` 顺语气与节奏，≤ 40%；
    - `rewrite` 重写，不限幅度；
@@ -70,7 +70,7 @@ whenToUse: 用户要求写长篇的下一章、续写、改章节，或要求检
 
 - 正文、章纲、审稿清单、摘要、状态、卷一律由动作落盘，不要用文件工具直接写作品库（`.storycraft/`）：动作负责版本、进度与事务，直写会让进度与库不一致。
 - 只读动作：`story_next`、`story_context`、`story_brief`、`story_bible`、`story_critique`、`story_status`、`story_volumes`。
-- 派发给子代理前用 `story_context(work, chapter, role)` 取该角色的分层上下文；自己写前预览仍可用 `story_brief`。
+- 写正文/审稿/修订优先用 `story_delegate`；delegate 不可用或需要手动控制时，才用 `story_context(work, chapter, role)` + `subagent`。自己写前预览仍可用 `story_brief`。
 - 章节末尾不写“作者的话”，不写总结段落。
 
 ## 写作纪律

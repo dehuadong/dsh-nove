@@ -31,10 +31,10 @@ const ctx = {
 tools.apply(ctx, { mode: 'longform' })
 
 const names = registered.map(definition => definition.name).sort()
-check('registers twenty-seven actions', names.length === 27, names.join(','))
+check('registers twenty-eight actions', names.length === 28, names.join(','))
 check('action names', names.join(',') === [
   'story_backup', 'story_bible', 'story_bible_import', 'story_bible_write', 'story_brief', 'story_context',
-  'story_critique', 'story_current', 'story_delete', 'story_export', 'story_init', 'story_next', 'story_outline',
+  'story_critique', 'story_current', 'story_delegate', 'story_delete', 'story_export', 'story_init', 'story_next', 'story_outline',
   'story_plan', 'story_propose', 'story_rename', 'story_reopen', 'story_restore', 'story_review', 'story_revise',
   'story_settings', 'story_state', 'story_status', 'story_summarize', 'story_volume', 'story_volumes', 'story_write',
 ].sort().join(','), names.join(','))
@@ -178,6 +178,7 @@ try {
   const waiting = await byName.get('story_next').execute({ work }, exec)
   check('story_next asks for the panel confirmation', waiting.ok === true
     && waiting.missing.includes('plan-approval') && /确认/.test(waiting.reason), JSON.stringify(waiting))
+  check('no delegate is offered while the author gate is missing', waiting.delegate === undefined, JSON.stringify(waiting))
 
   const earlyGate = await byName.get('story_context').execute({ work, chapter: 1, role: 'writer' }, exec)
   check('writer context is refused before the author confirms', earlyGate.ok === false
@@ -218,6 +219,9 @@ try {
   check('character cards written', cards.ok === true, JSON.stringify(cards))
   const style = await byName.get('story_bible_write').execute({ work, file: 'style', content: '# 文风\n短句。' }, exec)
   check('style written', style.ok === true, JSON.stringify(style))
+  const afterBodyNext = await byName.get('story_next').execute({ work }, exec)
+  check('story_next offers reviewer delegation after the body',
+    afterBodyNext.action === 'story_review' && afterBodyNext.delegate?.role === 'reviewer', JSON.stringify(afterBodyNext))
   const noChapter = await byName.get('story_context').execute({ work, role: 'writer' }, exec)
   check('a chapter role without a chapter number is refused', noChapter.ok === false
     && noChapter.error.code === 'chapter-required', JSON.stringify(noChapter))
@@ -237,7 +241,8 @@ try {
     context.ok === true && context.whitelist.sample.names.length <= 5 && context.whitelist.sample.numbers.length <= 5, JSON.stringify(context.whitelist.sample))
 
   const plannerAhead = await byName.get('story_context').execute({ work, chapter: 2, role: 'planner' }, exec)
-  check('planning an unlisted chapter works', plannerAhead.ok === true && plannerAhead.sections.some(item => item.name === 'plan'), JSON.stringify(plannerAhead).slice(0, 200))
+  check('planning an unlisted chapter works', plannerAhead.ok === true && plannerAhead.chapter === 2
+    && plannerAhead.sections.some(item => item.name === 'plan'), JSON.stringify(plannerAhead).slice(0, 200))
 
 
   const reviewNoBody = await byName.get('story_context').execute({ work, chapter: 1, role: 'reviser' }, exec)
@@ -262,6 +267,9 @@ try {
     work, chapter: 1, problems: [{ location: '结尾', problem: '钩子虚', suggestion: '落到合同上' }],
   }, exec)
   check('story_review ok', review.ok === true && review.problems[0].id === 'Q1', JSON.stringify(review))
+  const afterReviewNext = await byName.get('story_next').execute({ work }, exec)
+  check('story_next offers reviser delegation after the review',
+    afterReviewNext.action === 'story_revise' && afterReviewNext.delegate?.role === 'reviser', JSON.stringify(afterReviewNext))
 
   const reviewerContext = await byName.get('story_context').execute({ work, chapter: 1, role: 'reviewer' }, exec)
   const reviewerTask = reviewerContext.sections?.find(section => section.name === 'task')?.content ?? ''
@@ -286,6 +294,8 @@ try {
     work, chapter: 1, body: `${body}（改）`, problemIds: ['Q1'],
   }, exec)
   check('story_revise ok', revise.ok === true && revise.resolved[0] === 'Q1', JSON.stringify(revise))
+  const afterReviseNext = await byName.get('story_next').execute({ work }, exec)
+  check('story_next does not offer a delegate for summary/state', afterReviseNext.delegate === undefined, JSON.stringify(afterReviseNext))
 
 
 
@@ -328,6 +338,10 @@ try {
 
   const currentProps = Object.keys(byName.get('story_current').output.schema.properties ?? {})
   check('story_current declares its output keys', ['workId', 'current'].every(key => currentProps.includes(key)), currentProps.join(','))
+  const nextProps = Object.keys(byName.get('story_next').output.schema.properties ?? {})
+  check('story_next declares the delegate hint', nextProps.includes('delegate'), nextProps.join(','))
+  const delegateProps = Object.keys(byName.get('story_delegate').output.schema.properties ?? {})
+  check('story_delegate declares its compact receipt', ['role', 'stage', 'revision', 'problems'].every(key => delegateProps.includes(key)), delegateProps.join(','))
   const statusProps = Object.keys(byName.get('story_status').output.schema.properties.status.properties ?? {})
   check('story_status declares the fields it returns', ['form', 'wordRange', 'chapters', 'hooks'].every(key => statusProps.includes(key)), statusProps.join(','))
 
@@ -406,8 +420,20 @@ try {
 
   // A revision that invents a speaker is refused at landing, like a write.
   await s.approveChapterPlan(root, { work, chapter: 2 })
-  const secondWrite = await byName.get('story_write').execute({ work, chapter: 2, body: '第二章正文。'.repeat(40) }, exec)
-  check('second chapter written', secondWrite.ok === true, JSON.stringify(secondWrite))
+  services.subagents = {
+    startActivation() {
+      return {
+        result: Promise.resolve({
+          output: [{ type: 'text', text: `<<<TITLE 第二章 TITLE>>>\n<<<CHAPTER ${'第二章正文。'.repeat(40)} CHAPTER>>>` }],
+          stopReason: 'completed',
+        }),
+        dispose: async () => {},
+      }
+    },
+  }
+  const secondWrite = await byName.get('story_delegate').execute({ work, chapter: 2, role: 'writer' }, exec)
+  check('second chapter delegated and written', secondWrite.ok === true && secondWrite.role === 'writer', JSON.stringify(secondWrite))
+  check('delegated write receipt carries no body', !JSON.stringify(secondWrite).includes('第二章正文'), JSON.stringify(secondWrite))
   const secondReview = await byName.get('story_review').execute({
     work, chapter: 2, problems: [{ location: '开头', problem: '进得太慢' }],
   }, exec)
@@ -437,6 +463,11 @@ try {
   const blockedNext = await byName.get('story_next').execute({ work }, exec)
   check('story_next agrees with the gate', blockedNext.ok === true
     && blockedNext.action === 'story_outline', JSON.stringify(blockedNext))
+
+  delete services.subagents
+  const noDelegation = await byName.get('story_delegate').execute({ work, chapter: 1, role: 'writer' }, exec)
+  check('story_delegate without the service reports delegation-unavailable',
+    noDelegation.ok === false && noDelegation.error.code === 'delegation-unavailable', JSON.stringify(noDelegation))
 
   // Export and backup are ordinary actions on the selected work.
   const exported = await byName.get('story_export').execute({ work }, exec)

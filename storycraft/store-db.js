@@ -510,6 +510,28 @@ export function status(root, work) {
 }
 
 /**
+ * The delegate hint for one next-step result.
+ *
+ * It appears only when `story_delegate`'s preflight would pass: author gates
+ * stay manual, and a `story_revise` that only lacks a submitted revision has no
+ * open items for the reviser to work from.
+ * @param {{action: string, missing?: string[]}} step - next step.
+ * @param {object|undefined} last - last chapter entry.
+ * @param {object|undefined} candidate - latest review row.
+ * @returns {{role: 'writer'|'reviewer'|'reviser'}|undefined} delegate hint.
+ */
+function delegateOf(step, last, candidate) {
+  const role = { story_write: 'writer', story_review: 'reviewer', story_revise: 'reviser' }[step.action]
+  if (role === undefined) return undefined
+  const missing = Array.isArray(step.missing) ? step.missing : []
+  if (missing.includes('outline') || missing.includes('plan-approval') || missing.includes('revision')) return undefined
+  if (role === 'reviser' && (last === undefined || candidate === undefined || candidate.revision !== last.currentRevision)) {
+    return undefined
+  }
+  return { role }
+}
+
+/**
  * The next step of one work, derived from the stage machine. Read-only.
  * @param {string} root - workspace directory.
  * @param {string} work - work identity.
@@ -525,6 +547,7 @@ export function nextStep(root, work) {
     const last = chapters.length === 0 ? undefined : chapters[chapters.length - 1]
     const chapter = last === undefined ? 1 : last.number
     const outline = manifest.outline
+    let candidate
     const step = (() => {
       if (last === undefined && outline?.approvedAt === undefined) {
         const reason = outline === undefined || outline.writtenAt === undefined
@@ -585,7 +608,7 @@ export function nextStep(root, work) {
       if (stage === 'written') {
         return { chapter: last.number, stage, action: 'story_review', reason: `第 ${last.number} 章已有正文，先审稿`, missing: ['review'] }
       }
-      const candidate = latestReviewRow(db, last.number)
+      candidate = latestReviewRow(db, last.number)
       if (!reviewCovers(candidate, last, true)) {
         return { chapter: last.number, stage, action: 'story_review', reason: `第 ${last.number} 章已有正文，先审稿`, missing: ['review'] }
       }
@@ -608,7 +631,14 @@ export function nextStep(root, work) {
       }
       return { chapter: last.number, stage, action: 'story_state', reason: `第 ${last.number} 章已修订，定稿`, missing: [] }
     })()
-    return { workId: manifest.workId, ...step, form: formOf(manifest), unit: unitOf(formOf(manifest)) }
+    const delegate = delegateOf(step, last, candidate)
+    return {
+      workId: manifest.workId,
+      ...step,
+      form: formOf(manifest),
+      unit: unitOf(formOf(manifest)),
+      ...(delegate === undefined ? {} : { delegate }),
+    }
   } finally {
     db.close()
   }

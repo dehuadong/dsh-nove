@@ -17,9 +17,9 @@
  */
 
 import {
-  StoryError, backupWork, deleteWork, exportWork, foldState, initWork, latestReview, nextStep as nextStepFor,
+  StoryError, backupWork, deleteWork, exportWork, foldState, initWork, nextStep as nextStepFor,
   planApprovalPolicy,
-  parseReview, readChapter, readManifest, reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter,
+  readChapter, readManifest, reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter,
   status as readStatus, updateSettings, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
 } from './storage.js'
 import {
@@ -29,9 +29,9 @@ import {
 } from './bible.js'
 import { readVolumes, writeVolume } from './volumes.js'
 import { critique } from './critique.js'
-import { assembleRoleContext } from './context.js'
-import { checkConsistency } from './consistency.js'
-import { deriveWhitelist, summariseWhitelist } from './facts.js'
+import { loadRoleInput } from './role-input.js'
+import { delegateRole } from './delegate.js'
+import { checkDraft } from './landing.js'
 import { getCurrent, resolveWork } from './current.js'
 import { join } from 'node:path'
 import { createProposal, markProposalUsed, readProposal } from './proposals.js'
@@ -517,6 +517,63 @@ const OUTPUT = {
 }
 
 /**
+ * `story_next` adds one optional hint without changing the shared schema every
+ * other action advertises.
+ */
+const NEXT_OUTPUT = {
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      ...OUTPUT_PROPERTIES,
+      delegate: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          role: { type: 'string', enum: ['writer', 'reviewer', 'reviser'] },
+        },
+        required: ['role'],
+      },
+    },
+    required: ['ok'],
+  },
+  render: OUTPUT.render,
+}
+
+/** Compact receipt of one host-side role delegation. */
+const DELEGATE_OUTPUT = {
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      ok: OUTPUT_PROPERTIES.ok,
+      workId: OUTPUT_PROPERTIES.workId,
+      chapter: OUTPUT_PROPERTIES.chapter,
+      role: { type: 'string', enum: ['writer', 'reviewer', 'reviser'] },
+      stage: OUTPUT_PROPERTIES.stage,
+      revision: { type: 'integer' },
+      words: OUTPUT_PROPERTIES.words,
+      reviewRound: { type: 'integer' },
+      problems: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          total: { type: 'integer' },
+          open: { type: 'integer' },
+        },
+        required: ['total', 'open'],
+      },
+      resolved: OUTPUT_PROPERTIES.resolved,
+      warnings: OUTPUT_PROPERTIES.warnings,
+      missing: OUTPUT_PROPERTIES.missing,
+      error: OUTPUT_PROPERTIES.error,
+    },
+    required: ['ok'],
+  },
+  render: OUTPUT.render,
+}
+
+/**
  * Output contract for `story_context`. It cannot reuse the brief's section shape:
  * those sections require `bytes` and have no protection level.
  */
@@ -556,22 +613,6 @@ const CONTEXT_OUTPUT = {
 }
 
 /**
- * Refuse a chapter body that invents people, warns about unknown places or sizes.
- * @param {string} root - workspace directory.
- * @param {{work: string, chapter: number, body: string}} draft - the body about to land.
- * @returns {Promise<{warnings: string[]}>} warnings that do not block.
- */
-async function checkDraft(root, draft) {
-  const whitelist = await deriveWhitelist(root, { work: draft.work, chapter: draft.chapter })
-  const consistency = checkConsistency({ body: draft.body, whitelist })
-  if (consistency.unknownNames.length > 0) {
-    throw new StoryError('consistency-violation',
-      `正文出现上下文里没有的人名：${consistency.unknownNames.join('、')}。改写后再落盘`)
-  }
-  return { warnings: consistency.warnings }
-}
-
-/**
  * One action definition.
  * @param {object} spec - name, description, parameters, execute.
  * @returns {object} a registry-ready ToolDefinition.
@@ -597,7 +638,7 @@ function action(spec) {
 }
 
 /** The long-form action set. */
-function rawDefinitions() {
+function rawDefinitions(ctx) {
   return [
     action({
       name: 'story_init',
@@ -777,60 +818,14 @@ function rawDefinitions() {
       output: CONTEXT_OUTPUT,
       async execute(args, exec) {
         const root = workspaceOf(exec)
-        const role = args.role
-        const chapter = args.chapter
-        if (role !== 'planner' && chapter === undefined) {
-          throw new StoryError('chapter-required', `${role} 必须给出章号：只有作品级规划可以省略 chapter`)
-        }
-        const instruction = typeof args.instruction === 'string' ? args.instruction : ''
-        const mode = typeof args.mode === 'string' ? args.mode : 'patch'
-
-        // The action reads the chapter, its plan and its latest review itself;
-        // the caller never pastes a body or a list.
-        let body = ''
-        let review
-        if (role === 'reviewer' || role === 'reviser') {
-          const manifest = await readManifest(root, args.work)
-          const entry = manifest.chapters.find(item => item.number === chapter)
-          if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${chapter} 章：先写章纲再派活`)
-          try {
-            body = (await readChapter(root, { work: args.work, chapter })).content
-          } catch (error) {
-            if (error?.code === 'body-not-found') {
-              throw new StoryError('chapter-not-written', `第 ${chapter} 章还没有正文：先写正文，再审稿或修订`)
-            }
-            throw error
-          }
-          const latest = await latestReview(root, manifest, entry)
-          const open = latest === undefined ? [] : parseReview(latest.text).filter(item => !item.done)
-          if (role === 'reviser' && open.length === 0) {
-            throw new StoryError('review-required', `第 ${chapter} 章没有未处理的审稿条目：先 story_review，再修订`)
-          }
-          review = {
-            round: latest?.round,
-            revision: latest?.revision,
-            open: open.map(item => ({ id: item.id, problem: item.problem })),
-          }
-        }
-
-        const context = await assembleRoleContext({
-          root,
-          work: args.work,
-          ...(chapter === undefined ? {} : { chapter }),
-          role,
-          ...(role === 'planner' ? { scope: chapter === undefined ? 'work' : 'chapter' } : {}),
-          ...(role === 'planner' ? { task: chapter === undefined
-            ? '为这部作品出全书计划：主线、卷划分、结局方向。'
-            : `为第 ${chapter} 章出章纲：五项齐全且互相咬合。` } : {}),
-          instruction,
-          ...(role === 'reviser' ? { mode } : {}),
-          ...(body === '' ? {} : { body }),
-          ...(review === undefined ? {} : { review }),
-        })
+        const loaded = await loadRoleInput(root, args)
+        const context = loaded.context
+        const chapter = args.chapter === undefined ? undefined : (loaded.entry?.number ?? Number(args.chapter))
+        const review = loaded.review
         return {
           ok: true,
           workId: args.work,
-          role,
+          role: args.role,
           ...(chapter === undefined ? {} : { chapter }),
           sections: context.sections
             .filter(item => item.content !== '')
@@ -1332,8 +1327,42 @@ function rawDefinitions() {
     }),
 
     action({
+      name: 'story_delegate',
+      mutates: true,
+      description: '宿主侧委派一个角色完成单步：writer 写首版正文、reviewer 审稿并落清单、reviser 按未处理条目修订。'
+        + ' 主编只收回执（版本/字数/审稿计数/警告），不接触正文与上下文；失败时走 story_context + subagent 手动路径。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+          chapter: { type: 'integer', description: '章号。' },
+          role: { type: 'string', enum: ['writer', 'reviewer', 'reviser'], description: '本次要跑的角色。' },
+          instruction: { type: 'string', description: '作者本轮要求，会并入子代理任务。' },
+          mode: {
+            type: 'string',
+            enum: ['patch', 'polish', 'rewrite', 'deslop'],
+            description: '仅 reviser 使用；缺省 patch。',
+          },
+        },
+        required: ['work', 'chapter', 'role'],
+      },
+      output: DELEGATE_OUTPUT,
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const service = typeof ctx?.get === 'function' ? ctx.get('subagents') : undefined
+        return delegateRole(root, args, {
+          service,
+          agent: exec.agent,
+          signal: exec.signal,
+        })
+      },
+    }),
+
+    action({
       name: 'story_next',
       description: '查询这部作品下一步该做什么：动作名、章号、原因、缺什么（章纲/审稿/条目 id）。'
+        + ' 返回 delegate 时优先用 story_delegate（writer/reviewer/reviser）；没有 delegate 时按 action 走手动路径。'
         + ' 每写完一步先调它，不要凭记忆猜下一步；它只读，不改任何文件。',
       parameters: {
         type: 'object',
@@ -1343,6 +1372,7 @@ function rawDefinitions() {
         },
         required: ['work'],
       },
+      output: NEXT_OUTPUT,
       async execute(args, exec) {
         const root = workspaceOf(exec)
         const next = await nextStepFor(root, args.work)
@@ -1415,8 +1445,8 @@ function rawDefinitions() {
  * The registered action list: `work` is optional and resolved per session.
  * @returns {object[]} action definitions.
  */
-function definitions() {
-  return rawDefinitions().map(withCurrentWork)
+function definitions(ctx) {
+  return rawDefinitions(ctx).map(withCurrentWork)
 }
 
 /**
@@ -1550,10 +1580,9 @@ export function apply(ctx) {
   const disposers = [
     ctx.tools.guard(denyDelegatedWrites),
     ctx.tools.guard(denyOutOfScope),
-    ...definitions().map(definition => ctx.tools.register(definition)),
+    ...definitions(ctx).map(definition => ctx.tools.register(definition)),
   ]
   ctx.effect(() => () => {
     for (const dispose of disposers) dispose()
   }, 'storycraft-tools: work actions')
 }
-
