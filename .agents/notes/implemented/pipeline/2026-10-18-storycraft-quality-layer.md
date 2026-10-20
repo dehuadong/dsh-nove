@@ -20,7 +20,7 @@ verification: critique.test.mjs 23 项（指标确定性、字数边界与范围
 
 `manifest.json` 增加 `wordRange: { min, max }`，由 `story_init` 的可选参数写入（建档时与作者商量）。写入走既有的 manifest 提交路径，不改版本号。
 
-`story_brief` 的 `wordPolicy` 段：有 `wordRange` 时写「单章 X–Y 字」；没有时写「未设定（按作者习惯）」。`story_delegate` 的 writer 硬校验 `[min,max]`、reviser 只硬校验 `max`（低于 min 警告）；超界返回 `delegation-word-range`；手动 `story_write` / `story_revise` 仍不硬判定。这是对“指标只观察”的部分替代，见 `proposed/pipeline/2026-10-20-storycraft-host-delegation.md`。
+`story_brief` 的 `wordPolicy` 段：有 `wordRange` 时写「单章 X–Y 字」；没有时写「未设定（按作者习惯）」。`story_delegate` 的 writer 硬校验 `[min,max]`、reviser 只硬校验 `max`（低于 min 警告）；超界返回 `delegation-word-range`；手动 `story_write` / `story_revise` 仍不硬判定。一致性检查只出 warning，不阻断正文。这是对“指标只观察”的部分替代，见 `proposed/pipeline/2026-10-20-storycraft-host-delegation.md`。
 
 ### 质检（纯函数）
 

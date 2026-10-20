@@ -1,7 +1,7 @@
 /**
  * Output consistency checks against the fact whitelist.
  *
- * Names block a write; places and measurements only warn. The heuristics are
+ * Names, places and measurements only warn; nothing here blocks a write. The heuristics are
  * conservative: a false positive would reject good prose, so each candidate is
  * first checked against the known names and Chinese numerals are normalised
  * before comparison.

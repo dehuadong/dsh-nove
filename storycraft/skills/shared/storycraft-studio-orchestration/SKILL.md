@@ -53,7 +53,7 @@ delegate 不可用（`delegation-unavailable`）、作者要求你直接做，�
 2. 输入：先调 `story_context`（作品、章号、角色、作者要求），把返回的 `sections` 按顺序拼进任务；**不要**用 `story_brief` 派发，也不要整库打开；
 3. 输出契约：清单 JSON 还是整章正文（带首尾标记），并点名要读的技能（`storycraft-write-craft` / `storycraft-review` / `storycraft-revise-craft`）。
 
-子代理**不落盘**：它继承同一套工具，但 `write`、`edit`、外壳与 `story_*` 写动作会被守卫拒绝。不要让它试；它返回文本后，你用动作落盘。`story_write` / `story_revise` 会做一致性校验：自造人名会被拒收，地名与尺寸进 `warnings`。
+子代理**不落盘**：它继承同一套工具，但 `write`、`edit`、外壳与 `story_*` 写动作会被守卫拒绝。不要让它试；它返回文本后，你用动作落盘。`story_write` / `story_revise` 会做一致性校验：未登记人名、地名与尺寸都进 `warnings`，不阻断正文；看到 warning 再决定是否补人物卡。
 
 ## 四类派发模板
 
@@ -71,7 +71,7 @@ delegate 不可用（`delegation-unavailable`）、作者要求你直接做，�
 ## 验收与回退
 
 - 子代理输出不合契约 → 重派一次（可收紧任务里的禁令）；
-- 再失败 → 自己完成，并在汇报里说明「这次是主编代写」；
+- 再失败 → 报告 blocker，不要自动代写整章；只有作者明确要求时才手动完成；
 - 落盘失败 → 动作会报错，按错误里的「先做什么」处理，不猜测、不直接写文件。
 
 ## 汇报

@@ -30,8 +30,8 @@ verification: 6bb6a32 单一预设与守卫；#12 角色输入；#14 章纲闸�
 - 主编用官方 `subagent`（spawn，`maxDepth: 1`）派发，子代理继承父方组合，不选 `agentPreset`；
 - 子代理**不落盘**由运行时强制：预设作用域 `ctx.tools.guard` 对 `delegationDepth > 0` 拒绝 `write`、`edit`、`pwsh`、`bash`；故事工坊写动作在公共入口断言 `delegationDepth === 0`，返回 `subagent-cannot-land`；
 - 子代理的输入由只读动作 `story_context` 交付：分段、保护级别、轨迹与白名单摘要（见 #12 的设计）；
-- 收回文本后由主编校验并落盘：写/改动作做一致性检查（自造说话人拒收，地名与尺寸告警）；
-- 派发失败重派一次；再失败由主编完成并标注「主编代写」。
+- 收回文本后由主编校验并落盘：写/改动作做一致性检查（未登记人名、地名与尺寸只 warning，不阻断）；
+- 派发失败重派一次；再失败报告 blocker，不自动代写整章；只有作者明确要求时才手动完成。
 - 2026-10-20 后续：写手/审稿/修订默认改由宿主动作 `story_delegate` 启动官方 `subagents` 子代理，输入由宿主装配、预检也在宿主侧；手动 `subagent` + `story_context` 保留为兜底。部分替代见 `proposed/pipeline/2026-10-20-storycraft-host-delegation.md`。
 
 ### 角色不持有动作

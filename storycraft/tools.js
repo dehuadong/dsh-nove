@@ -937,7 +937,7 @@ function rawDefinitions(ctx) {
       name: 'story_review',
       mutates: true,
       description: '把审稿发现落盘成问题清单。只写清单，绝不修改正文；每条含位置、问题、建议。'
-        + ' 正文不存在时会被拒绝。',
+        + ' 空数组合法，表示清稿审稿；正文不存在时会被拒绝。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -946,7 +946,7 @@ function rawDefinitions(ctx) {
           chapter: { type: 'integer', description: '章号。' },
           problems: {
             type: 'array',
-            description: '审稿发现，至少一条。',
+            description: '审稿发现；空数组合法，表示清稿审稿。',
             items: {
               type: 'object',
               additionalProperties: false,

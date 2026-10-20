@@ -169,6 +169,25 @@ try {
   check('rename returns the new id', recatalogued.workId === '另一改')
   check('rename follows session pointers', store.readSessionCurrent(root)['session-a'] === '另一改')
   check('rename follows used proposals', store.readProposal(root, id).usedWorkId === '另一改')
+  // A clean review can settle without a fake revision.
+  const clean = store.initWork(root, { title: '清稿测试' }).workId
+  store.writeOutline(root, { work: clean, mainline: '一条主线' })
+  store.approveOutline(root, { work: clean })
+  store.writePlan(root, { work: clean, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+  store.approveChapterPlan(root, { work: clean, chapter: 1 })
+  store.writeChapter(root, { work: clean, chapter: 1, title: '清稿章', body: '正文。'.repeat(50) })
+  store.writeReview(root, { work: clean, chapter: 1, problems: [] })
+  const cleanNext = store.nextStep(root, clean)
+  check('a clean review goes to summary without revise', cleanNext.action === 'story_summarize', JSON.stringify(cleanNext))
+  store.writeChapter(root, { work: clean, chapter: 1, title: '清稿章', body: '正文改。'.repeat(50), rewrite: true })
+  await rejects('a stale clean review cannot settle', 'review-required',
+    () => store.foldState(root, { work: clean, chapter: 1, entities: [{ name: '甲', facts: ['活着'] }], hooks: [] }))
+  store.writeReview(root, { work: clean, chapter: 1, problems: [] })
+  store.writeSummary(root, { work: clean, chapter: 1, text: '摘要' })
+  const cleanSettle = store.nextStep(root, clean)
+  check('a clean review then goes to state', cleanSettle.action === 'story_state', JSON.stringify(cleanSettle))
+  const settled = store.foldState(root, { work: clean, chapter: 1, entities: [{ name: '甲', facts: ['活着'] }], hooks: [] })
+  check('a clean review can settle', settled.ok === undefined ? true : settled.ok !== false, JSON.stringify(settled))
 } finally {
   await rm(root, { recursive: true, force: true }).catch(() => {})
 }

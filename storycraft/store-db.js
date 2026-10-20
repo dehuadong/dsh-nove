@@ -99,6 +99,11 @@ function reviewCovers(review, chapter, allowPrevious = false) {
   return review.revision === current || (allowPrevious && review.revision === current - 1)
 }
 
+/** A clean review records zero problems and authorizes the clean settlement path. */
+function isCleanReview(review) {
+  return typeof review?.text === 'string' && review.text.includes('- 清稿：无问题')
+}
+
 /** Touch the meta row's activity stamp. */
 function touchMeta(db, at = now()) {
   db.prepare('UPDATE meta SET updated_at = ? WHERE id = 1').run(at)
@@ -618,6 +623,9 @@ export function nextStep(root, work) {
       if (!reviewCovers(candidate, last, true)) {
         return { chapter: last.number, stage, action: 'story_review', reason: `第 ${last.number} 章已有正文，先审稿`, missing: ['review'] }
       }
+      if (isCleanReview(candidate) && candidate.revision !== last.currentRevision) {
+        return { chapter: last.number, stage, action: 'story_review', reason: `第 ${last.number} 章的清稿审稿针对旧版本 r${candidate.revision}：先重新审稿`, missing: ['review'] }
+      }
       const open = parseReview(candidate.text).filter(item => !item.done)
       if (open.length > 0) {
         return {
@@ -625,17 +633,20 @@ export function nextStep(root, work) {
           reason: `第 ${last.number} 章还有 ${open.length} 条未处理审稿`, missing: open.map(item => item.id),
         }
       }
-      if (stage !== 'revised') {
+      if (!isCleanReview(candidate) && stage !== 'revised') {
         return { chapter: last.number, stage, action: 'story_revise', reason: `第 ${last.number} 章审稿条目已处理完，但还没提交修订`, missing: ['revision'] }
       }
       const summary = summaryOf(last.number)
       if (summary === undefined || summary.trim() === '') {
         return {
           chapter: last.number, stage, action: 'story_summarize',
-          reason: `第 ${last.number} 章已修订：先写摘要，再定稿`, missing: ['summary'],
+          reason: isCleanReview(candidate)
+            ? `第 ${last.number} 章清稿审稿无问题：先写摘要，再定稿`
+            : `第 ${last.number} 章已修订：先写摘要，再定稿`,
+          missing: ['summary'],
         }
       }
-      return { chapter: last.number, stage, action: 'story_state', reason: `第 ${last.number} 章已修订，定稿`, missing: [] }
+      return { chapter: last.number, stage, action: 'story_state', reason: isCleanReview(candidate) ? `第 ${last.number} 章清稿审稿无问题，定稿` : `第 ${last.number} 章已修订，定稿`, missing: [] }
     })()
     const delegate = delegateOf(step, last, candidate)
     return {
@@ -1091,7 +1102,6 @@ export function readChapter(root, input) {
 export function writeReview(root, input) {
   const number = chapterNumber(input.chapter)
   const problems = Array.isArray(input.problems) ? input.problems : []
-  if (problems.length === 0) throw new StoryError('empty-review', '问题清单为空：审稿至少要给出一条问题')
   const workId = String(input.work)
   const db = openWork(root, workId)
   try {
@@ -1101,6 +1111,7 @@ export function writeReview(root, input) {
       if (stageOf(entry) === 'settled') throw new StoryError('chapter-settled', `第 ${number} 章已定稿：改审稿要先带 reopen`)
       const round = (db.prepare('SELECT max(round) AS n FROM reviews WHERE number = ?').get(number)?.n ?? 0) + 1
       const lines = [`# 第 ${number} 章 审稿（第 ${round} 轮）`, '', `- 正文版本：${entry.current_revision}`, '']
+      if (problems.length === 0) lines.push('- 清稿：无问题')
       const recorded = problems.map((problem, index) => {
         const id = `Q${index + 1}`
         const location = String(problem?.location ?? '').trim() || '未标注'
@@ -1169,10 +1180,11 @@ export function readReview(root, work, chapter) {
     if (chapterRow(db, number) === undefined) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
     const row = latestReviewRow(db, number)
     const rounds = db.prepare('SELECT count(*) AS n FROM reviews WHERE number = ?').get(number).n
-    if (row === undefined) return { path: '', round: 0, items: [], rounds }
+    if (row === undefined) return { path: '', round: 0, revision: 0, items: [], rounds }
     return {
       path: virtualPath(work, `reviews/${chapterStem(number)}.r${row.round}.md`),
       round: row.round,
+      revision: row.revision,
       rounds,
       items: String(row.text).split(/\r?\n/).flatMap((line) => {
         const match = /^- \[( |x)\] (Q\d+) :: (.*?) :: (.*?) :: (.*)$/u.exec(line)
@@ -1379,7 +1391,10 @@ export function foldState(root, input) {
           `第 ${number} 章还有 ${open.length} 条未处理审稿：${open.map(item => item.id).join('、')}；先修订再定稿`)
       }
       if (!covers) throw new StoryError('review-required', `第 ${number} 章的审稿针对旧版本 r${review.revision}：先重新审稿`)
-      if (stageOf(entry) !== 'revised') {
+      if (isCleanReview(review) && review.revision !== entry.current_revision) {
+        throw new StoryError('review-required', `第 ${number} 章的清稿审稿针对旧版本 r${review.revision}：先重新审稿`)
+      }
+      if (stageOf(entry) !== 'revised' && !isCleanReview(review)) {
         throw new StoryError('review-required',
           `第 ${number} 章还没走完修订（当前阶段：${stageOf(entry)}）：先 story_revise 提交改动，再定稿`)
       }

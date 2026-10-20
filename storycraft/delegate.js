@@ -356,9 +356,6 @@ export async function delegateRole(root, input, host) {
 
     if (role === 'reviewer') {
       const problems = reviewItems(result)
-      if (problems.length === 0) {
-        throw new StoryError('empty-review', '问题清单为空：审稿至少要给出一条问题')
-      }
       assertActive(signal)
       const written = writeReview(root, {
         work, chapter,

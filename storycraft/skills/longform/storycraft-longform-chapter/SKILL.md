@@ -1,6 +1,6 @@
 ---
 name: storycraft-longform-chapter
-description: 长篇小说单章写作方法：从章纲到成稿、质检、审稿、修订、定稿与摘要的完整流程，适用于连载长篇的下一章、重写或补写。
+description: 长篇小说单章写作方法：从章纲到成稿、质检、审稿、修订/清稿、摘要与定稿的完整流程，适用于连载长篇的下一章、重写或补写。
 whenToUse: 用户要求写长篇的下一章、续写、改章节，或要求检查章节是否偏离大纲与人物设定时。
 ---
 
@@ -32,21 +32,21 @@ whenToUse: 用户要求写长篇的下一章、续写、改章节，或要求检
    - `story_current` 返回 `null` 时说明会话还没有进入任何作品：**不要自己找、不要列目录、不要切书**，请作者在面板里进入那部作品。
    - 模型不能任意切换当前作品；也不要用 `story_current` 去「看看有哪些作品」。
 
-0. **先问下一步**：调 `story_next`，它给出该做的动作、章号、原因、缺什么，以及可委派时的 `delegate.role`。顺序固定为：章纲 → 正文 → 审稿 → 修订 → 定稿 → 摘要 → 下一章章纲。写正文/审稿/修订优先按 `delegate.role` 调 `story_delegate`；没有 delegate 时才用手动动作。动作被拒时，错误消息里的「先做什么」就是下一步。
+0. **先问下一步**：调 `story_next`，它给出该做的动作、章号、原因、缺什么，以及可委派时的 `delegate.role`。顺序固定为：章纲 → 正文 → 审稿 → 修订/清稿 → 摘要 → 定稿 → 下一章章纲。写正文/审稿/修订优先按 `delegate.role` 调 `story_delegate`；没有 delegate 时才用手动动作。动作被拒时，错误消息里的「先做什么」就是下一步。
 
 1. **定章纲**：视角人物、本章目标、阻力、代价、结尾变化，五项齐全后用 `story_plan` 落盘。用户没给章纲时，先给章纲、用 `story_plan` 落草稿，再请用户在面板「章纲」里点「确认章纲」；确认前写正文会被 `plan-not-approved` 拒绝。
 2. **取上下文**：交给 `story_delegate` 时由宿主装配；自己写前预览用 `story_brief`，按返回的分段写，不要引用被裁掉的段。
 3. **写成稿**：二到四个场景，场景之间有时空或因果推进；有 `delegate.role: writer` 时用 `story_delegate` 落盘，否则用 `story_write`。首版 `ch-<四位序号>.md`，修订生成 `r2`、`r3` 新版本。
 4. **质检**：用 `story_critique` 看可复现指标（字数是否在该作品范围内、平均句长、重复句、AI 腔命中、对话占比）。它只打分，不改正文。
 5. **审稿**：有 `delegate.role: reviewer` 时用 `story_delegate`；否则把质检发现与自己的问题写成清单交给 `story_review`（只落盘清单，不动正文）。
-6. **修订**：有 `delegate.role: reviser` 时用 `story_delegate`；否则用 `story_revise`。按条目标记为已处理并生成新版本。选模式：
+6. **修订**：有 `delegate.role: reviser` 时用 `story_delegate`；否则用 `story_revise`。按条目标记为已处理并生成新版本；审稿清单为空（清稿）时跳过修订，直接写摘要。选模式：
    - `patch`（默认）只改点到的地方，字数变化 ≤ 20%；
    - `polish` 顺语气与节奏，≤ 40%；
    - `rewrite` 重写，不限幅度；
    - `deslop` 专治腔调词，必须减少命中（原文零命中时可用）。
    模式与幅度不符会被拒绝：`revise-mode-violation` 从失败 mode 逐级重试（patch→polish→rewrite、polish→rewrite；deslop 不自动换）；`delegation-word-range` 时 writer 先判断章纲容量（够则带差额重试，不够则改章纲并请作者确认），reviser 超 max 时 patch/polish/rewrite 只用 rewrite 重试一次、deslop 交给作者决定，低于 min 只警告；仍失败才手动。
-7. **定稿**：`story_next` 说可以定稿、且阶段是「已修订」时，用 `story_state` 写本章的人物事实与伏笔变化（只写变化，不重抄设定）。
-8. **摘要**：定稿后用 `story_summarize` 给本章写摘要（上限 400 字，只写事实与状态变化）。下一章的滚动窗口靠它。
+7. **摘要**：修订完成或清稿审稿后，用 `story_summarize` 给本章写摘要（上限 400 字，只写事实与状态变化）。下一章的滚动窗口靠它。
+8. **定稿**：`story_next` 说可以定稿、且阶段是「已修订」或清稿审稿时，用 `story_state` 写本章的人物事实与伏笔变化（只写变化，不重抄设定）。
 
 ## 卷
 

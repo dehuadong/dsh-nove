@@ -166,7 +166,7 @@ story_propose / story_init
 - 清稿不是自动通过：作者仍可要求再审或改写；
 - 阶段机必须同步：清稿审稿把章留在 `reviewed` 并记录“零问题”标志；`foldState`/`story_state` 接受 `reviewed + 零问题`，不能继续要求 `revised`；`story_next` 直接进入摘要/定稿；
 - 不把清稿伪装成一次 `revise`，也不虚增版本。
-- 清稿不再返回 `empty-review`；“审稿未覆盖当前版本”的既有错误是 `review-required`，不是 `empty-review`；`empty-review` 只保留给 reviewer 输出格式/空内容的真实错误。
+- 清稿不再返回 `empty-review`；“审稿未覆盖当前版本”的既有错误是 `review-required`；reviewer 输出格式/解析问题由 `delegation-output-invalid` 处理。旧 `empty-review` 错误码可保留兼容，但不再用于清稿或正常审稿。
 ### 3. 节点修复
 
 - `story_init`/artifact schema 明确虚拟路径；

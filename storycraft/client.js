@@ -643,7 +643,7 @@ window.__ModuleLoader__.load({
         let cancelled = false
         setReview({ status: 'loading' })
         face.review(root, workId, chapter.number).then(
-          (payload) => { if (!cancelled) setReview({ status: 'ready', items: payload.items, round: payload.round }) },
+          (payload) => { if (!cancelled) setReview({ status: 'ready', items: payload.items, round: payload.round, revision: payload.revision }) },
           (error) => { if (!cancelled) setReview({ status: 'error', error: error instanceof Error ? error.message : String(error) }) },
         )
         return () => { cancelled = true }
@@ -813,7 +813,7 @@ window.__ModuleLoader__.load({
           review.status === 'loading' ? h('p', { className: 'sc-muted' }, '读取中…') : null,
           review.status === 'error' ? h('p', { className: 'sc-notice sc-notice-info' }, review.error) : null,
           review.status === 'ready' && review.items.length === 0
-            ? h('p', { className: 'sc-muted' }, '这一章还没有审稿记录。')
+            ? h('p', { className: 'sc-muted' }, review.revision === chapter.revision && chapter.reviewRound > 0 ? '本章为清稿审稿：没有未处理问题。' : '这一章还没有针对当前版本的审稿记录。')
             : null,
           review.status === 'ready'
             ? review.items.map(item => h('div', { className: 'sc-item', key: item.id },

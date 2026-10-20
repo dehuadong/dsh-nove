@@ -7,6 +7,7 @@ import * as s from '../storage.js'
 import { openWork } from '../db.js'
 import { readProposal } from '../proposals.js'
 import { clearCurrent, setCurrent } from '../current.js'
+import { checkDraft } from '../landing.js'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -263,13 +264,11 @@ try {
   const reviewNoBody = await byName.get('story_context').execute({ work, chapter: 1, role: 'reviser' }, exec)
   check('revision without a review is refused', reviewNoBody.ok === false && reviewNoBody.error.code === 'review-required', JSON.stringify(reviewNoBody))
 
-  // Consistency runs at the landing action: an invented speaker blocks the write.
+  // Consistency is advisory at landing: an unlisted speaker warns, but does not block.
   const invented = `周三说：“走。”`.repeat(30)
-  const manifestBeforeConsistency = JSON.stringify(await s.readManifest(root, work))
-  const rejected = await byName.get('story_write').execute({ work, chapter: 1, body: invented, rewrite: true }, exec)
-  check('an invented speaker is refused at landing', rejected.ok === false && rejected.error.code === 'consistency-violation', JSON.stringify(rejected))
-  check('a refused consistency check leaves the work untouched',
-    JSON.stringify(await s.readManifest(root, work)) === manifestBeforeConsistency)
+  const inventedCheck = await checkDraft(root, { work, chapter: 1, body: invented })
+  check('an unlisted speaker warns without blocking',
+    inventedCheck.warnings.some(text => text.includes('周三')), JSON.stringify(inventedCheck))
 
   const sameText = await byName.get('story_critique').execute({ work, chapter: 1 }, exec)
   check('critique and write report the same word count', sameText.ok === true
@@ -463,11 +462,11 @@ try {
   }, exec)
   check('second review written', secondReview.ok === true, JSON.stringify(secondReview))
   const inventedRevise = `周三说：“改。”`.repeat(30)
-  const refusedRevise = await byName.get('story_revise').execute({
-    work, chapter: 2, body: inventedRevise, problemIds: ['Q1'],
+  const warnedRevise = await byName.get('story_revise').execute({
+    work, chapter: 2, body: inventedRevise, problemIds: ['Q1'], mode: 'rewrite',
   }, exec)
-  check('a revision that invents a speaker is refused', refusedRevise.ok === false
-    && refusedRevise.error.code === 'consistency-violation', JSON.stringify(refusedRevise))
+  check('a revision with an unlisted speaker warns but still lands',
+    warnedRevise.ok === true && warnedRevise.warnings.some(text => text.includes('周三')), JSON.stringify(warnedRevise))
 
   // Removing the plan makes the dispatch action refuse before any work starts.
   const removePlan = openWork(root, work)
@@ -487,6 +486,24 @@ try {
   const blockedNext = await byName.get('story_next').execute({ work }, exec)
   check('story_next agrees with the gate', blockedNext.ok === true
     && blockedNext.action === 'story_outline', JSON.stringify(blockedNext))
+
+  // Action-level consistency is advisory and clean review is a real round.
+  const warnWork = s.initWork(root, { title: '告警测试' }).workId
+  s.writeOutline(root, { work: warnWork, mainline: '一条主线' })
+  s.approveOutline(root, { work: warnWork })
+  s.writePlan(root, { work: warnWork, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+  s.approveChapterPlan(root, { work: warnWork, chapter: 1 })
+  setCurrent('test-session', warnWork)
+  const warnWrite = await byName.get('story_write').execute({
+    work: warnWork, chapter: 1, body: '住户说：“走。”'.repeat(20),
+  }, exec)
+  check('story_write warns on an unlisted name without blocking',
+    warnWrite.ok === true && warnWrite.warnings?.some(text => text.includes('住户')), JSON.stringify(warnWrite))
+  const cleanReview = await byName.get('story_review').execute({ work: warnWork, chapter: 1, problems: [] }, exec)
+  check('story_review records a clean round', cleanReview.ok === true && cleanReview.problems.length === 0, JSON.stringify(cleanReview))
+  const cleanNext = await byName.get('story_next').execute({ work: warnWork }, exec)
+  check('story_next routes a clean review to summary', cleanNext.ok === true && cleanNext.action === 'story_summarize', JSON.stringify(cleanNext))
+  setCurrent('test-session', work)
 
   delete services.subagents
   const noDelegation = await byName.get('story_delegate').execute({ work, chapter: 1, role: 'writer' }, exec)

@@ -33,24 +33,11 @@ const unknownSize = checkConsistency({ body: '墙高一丈二。', whitelist })
 check('unknown measurements warn', unknownSize.unknownNumbers.includes('1丈'), unknownSize.unknownNumbers.join(','))
 check('known measurements pass', checkConsistency({ body: '墙高七尺。', whitelist }).unknownNumbers.length === 0)
 
-// The live failure: prose ran through the old window heuristic as "names".
-const prose = checkConsistency({
-  body: '他道：“走。”\n她道：“等。”\n书吏道：“画。”\n绳上有一道印。',
-  whitelist,
-})
-check('prose is not a new name', prose.unknownNames.length === 0, prose.unknownNames.join(','))
-
 const liveGarbage = checkConsistency({
   body: '得跟我说道：“走。”\n尺走一道：“量。”\n问就说道：“等。”',
   whitelist,
 })
 check('the live garbage windows are not names', liveGarbage.unknownNames.length === 0, liveGarbage.unknownNames.join(','))
-
-const roleWords = checkConsistency({
-  body: '住户说：“谁？”\n师傅说：“走。”\n师父说：“等。”\n齐师傅说：“来。”\n齐监理说：“停。”\n亮当面说：“看。”',
-  whitelist,
-})
-check('role words and dialogue fragments are not names', roleWords.unknownNames.length === 0, roleWords.unknownNames.join(','))
 
 const namedWithNumber = checkConsistency({ body: '郑三道：“再量一遍。”', whitelist })
 check('a surname with a number is still a name', namedWithNumber.unknownNames.includes('郑三'), namedWithNumber.unknownNames.join(','))

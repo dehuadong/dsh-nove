@@ -12,7 +12,7 @@ import { checkConsistency } from './consistency.js'
 /**
  * Validate a draft against the work's landed whitelist.
  *
- * Names block a write; places and measurements only warn, so a false positive
+ * Names, places and measurements only warn, so a false positive
  * cannot reject good prose.
  * @param {string} root - workspace directory.
  * @param {{work: string, chapter: number, body: string}} draft - the body about to land.
@@ -21,11 +21,11 @@ import { checkConsistency } from './consistency.js'
 export async function checkDraft(root, draft) {
   const whitelist = await deriveWhitelist(root, { work: draft.work, chapter: draft.chapter })
   const consistency = checkConsistency({ body: draft.body, whitelist })
+  const warnings = [...consistency.warnings]
   if (consistency.unknownNames.length > 0) {
-    throw new StoryError('consistency-violation',
-      `正文出现上下文里没有的人名：${consistency.unknownNames.join('、')}。改写后再落盘`)
+    warnings.push(`正文出现未登记人名：${consistency.unknownNames.join('、')}；确认是否补人物卡（不阻断落盘）`)
   }
-  return { warnings: consistency.warnings }
+  return { warnings }
 }
 
 /**

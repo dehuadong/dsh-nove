@@ -214,11 +214,12 @@ try {
     () => delegateRole(root, { work, chapter: 3, role: 'writer' }, { service: pendingService, agent, signal, timeoutMs: 20 }))
   check('cancellation/timeout never led', s.readManifest(root, work).chapters.find(c => c.number === 3).currentRevision === 0)
 
-  // Empty review and gate errors are explicit.
+  // Empty review is a valid clean pass.
   s.writeChapter(root, { work, chapter: 3, title: '第三章', body: '第三章正文。'.repeat(20) })
   const emptyReviewService = fakeService([completed({ structured: { items: [] }, output: [] })])
-  await rejects('empty review is refused', 'empty-review',
-    () => delegateRole(root, { work, chapter: 3, role: 'reviewer' }, { service: emptyReviewService, agent, signal }))
+  const cleanReview = await delegateRole(root, { work, chapter: 3, role: 'reviewer' }, { service: emptyReviewService, agent, signal })
+  check('empty review is recorded as a clean pass',
+    cleanReview.ok === true && cleanReview.problems?.total === 0, JSON.stringify(cleanReview))
 
   s.writePlan(root, { work, chapter: 4, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   await rejects('unapproved plan is refused before the child', 'plan-not-approved',

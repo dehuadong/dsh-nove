@@ -145,7 +145,7 @@ story_delegate(
 - `delegation-failed`：启动失败、取消、超时、`stopReason !== 'completed'`；
 - `delegation-output-invalid`：缺少首尾标记、正文为空、审稿 JSON 不合契约；不做自动重试；
 - `delegation-word-range`：writer 超 min/max 或 reviser 超 max；不落库。错误消息给出实际字数、范围，不替主编决定 `story_plan` 还是重试。writer 先读章纲/`story_brief` 判断容量：足够则带差额/目标重试，不足则调整章纲并由作者重新确认后重试一次；reviser 超 max 时 `patch`/`polish`/`rewrite` 只用 `rewrite` 重试一次，`deslop` 不自动改 mode；低于 min 只警告；
-- 现有业务错误码（`plan-not-approved`、`chapter-not-written`、`chapter-exists`、`chapter-settled`、`review-required`、`revise-mode-violation`、`empty-review`、`bible-missing` 等）原样透传；`bible-missing` 可能来自角色上下文缺人物卡，行为与手动路径一致；
+- 现有业务错误码（`plan-not-approved`、`chapter-not-written`、`chapter-exists`、`chapter-settled`、`review-required`、`revise-mode-violation`、`empty-review`（兼容保留，不再用于清稿）、`bible-missing` 等）原样透传；`bible-missing` 可能来自角色上下文缺人物卡，行为与手动路径一致；
 - reviser 的 `revise-mode-violation` 从失败时的 mode 起逐级重试：`patch → polish → rewrite`、`polish → rewrite`；`rewrite` 已是终点；`deslop` 不自动改 mode，返回错误由作者决定是否换模式或手动；宿主不自动切模式；
 - 失败时现有手动路径仍可用：主编可调 `story_context` + 官方 `subagent` + `story_write`，或直接调用底层动作；`story_delegate` 不自动回退，以免再次把正文带回主上下文。
 

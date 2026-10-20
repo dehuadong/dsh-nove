@@ -3,7 +3,7 @@ title: 故事工坊：角色输入契约（单一模式版）
 status: implemented
 created: 2026-10-19
 updated: 2026-10-20
-verification: 实跑 story_context 四角色与第 7 章 story_write(rewrite)；14 套断言与 5 条页面 spec 全过；2026-10-20 角色词/对话片段回归通过
+verification: 实跑 story_context 四角色与第 7 章 story_write(rewrite)；14 套断言与 5 条页面 spec 全过；2026-10-20 未登记人名/地名/尺寸 warning 测试通过
 ---
 
 # Agent Note：故事工坊：角色输入契约（单一模式版）
@@ -42,10 +42,10 @@ verification: 实跑 story_context 四角色与第 7 章 story_write(rewrite)；
 
 子代理不能写，写发生在主编或宿主动作：`story_delegate` 是例外，由宿主侧动作落盘，主编辑只收紧凑回执；手动路径仍按本节。
 
-- `story_write`：落盘前比对白名单。未知说话人 → `consistency-violation`；地名、尺寸/数量 → `warnings`，仍落盘；
+- `story_write`：落盘前比对白名单。未知说话人 → `warnings`，仍落盘；地名、尺寸/数量也进 `warnings`；名字检查不阻断正文；
 - `story_revise`：对新版本正文做同样检查；
 - 白名单由 `facts.js` 只从**已落盘资料**派生：人物卡、意图、计划、卷图、章纲，以及既往章节正文与摘要里的说话人；本章正文与作者指令不参与；
-- 误报防线：说话人需跟说话标点，剔除代词、虚词与角色名词；地名排除含虚词/量词/数字的片段；尺寸按「数字 + 单位」归一后比对。角色词（`住户`、`师傅`、`师父`、`监理` 等）与对话片段停用词（`当面`、`开口`、`低声` 等）在 `extractSpeakerNames` 中跳过。
+- 误报防线：说话人需跟说话标点，剔除明显代词/虚词窗口；未登记人名只进 `warnings`，不阻断正文。角色词/对白片段由作者和审稿判断，不再用全局词表硬过滤；地名、尺寸仍按「数字 + 单位」归一后比对。
 
 ### 入口校验的属主
 
@@ -53,7 +53,7 @@ verification: 实跑 story_context 四角色与第 7 章 story_write(rewrite)；
 
 ### 派发模板
 
-编排技能为四个角色各写一段模板：调 `story_context` → 按段序拼 prompt → 派 `subagent` → 收回文本 → 校验 → 主编落盘；失败重派一次，再失败主编代写并标注。
+编排技能为四个角色各写一段模板：调 `story_context` → 按段序拼 prompt → 派 `subagent` → 收回文本 → 校验 → 主编落盘；失败重派一次，再失败报告 blocker，不自动代写。
 
 ## 备选方案
 
@@ -73,5 +73,5 @@ verification: 实跑 story_context 四角色与第 7 章 story_write(rewrite)；
 
 - 实跑：`story_context` 对 writer（6 段）/ reviewer（7 段）/ reviser（7 段）/ planner（含计划与人物卡）各返回契约内的段，带 `trace.sections` 与白名单 `counts`；
 - 入口：实跑 `chapter-not-found`；动作测试覆盖 `plan-not-found`、`bible-missing`、`chapter-not-written`、`chapter-required`、`review-required`；
-- 落盘：第 7 章 `story_write(rewrite)` 实跑通过、名单为空；离线覆盖自造说话人拒收、地名/尺寸告警、修订稿拒收；
-- 回归：14 套断言与 5 条页面 spec 全过；2026-10-20 角色词/对话片段回归通过。
+- 落盘：第 7 章 `story_write(rewrite)` 实跑通过；离线覆盖未登记人名 warning、地名/尺寸告警、修订稿 warning；
+- 回归：14 套断言与 5 条页面 spec 全过；2026-10-20 未登记人名/地名/尺寸 warning 测试通过。
