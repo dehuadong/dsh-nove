@@ -2,7 +2,7 @@
 > **范围**：本文件所在的工作区；`{工作区}` 指本文件所在目录，`{项目}` 指当前作品目录。
 > **职责**：这里只规定授权、项目定位、文件安全与交付。小说和短剧的创作方法由各自技能规定；单部作品的口径与进度由项目文件规定。
 
-> inkos-master项目是参考复刻对象，不得修改、引用其文件、也不要在新项目中标注引用至inkos-master项目。新项目代码和内容及解释不得关联、保持独立性。
+> inkos-master项目是参考复刻对象。不得在我们的项目代码直接引用其源文件或标注说来自inkos、新项目代码和内容及解释不得关联、保持独立性。不要误解成不参考功能，自己可以随便造。
 
 ## 工程工作流 
 
@@ -68,7 +68,7 @@ DeepSeek Harness 包工作区：packages文档地址 `E:\dsh-nove\deepseek-harne
 - 源码以 `deepseek-harness/`（指向 DSH checkout 的符号链接）为准；安装版在 `app.asar` 内，shell 读不到。两处版本不一致时，以实际运行版本的 README 与 Config schema 为准。
 - 实时契约用 `cordis_inspect_list` / `cordis_inspect_query` 读 Service、Event、Config、Tool、Slots；不要猜插件名、字段或默认值。
 - 安装或修改插件与预设走 `plugin_manager`（`install_bundle`、`set_bundle`），不手改 profile 文件。
-- 外部参考工程只作设计参考，先核对其声明的 DSH 版本；旧版本字段在当前版本会加载失败，不照抄。
+- 外部参考工程只作功能性参考，先核对其声明的 DSH 版本；
 
 ## 文档与约定
 
