@@ -10,6 +10,8 @@ updated: 2026-10-20
 > 2026-10-20 部分替代：`proposed/pipeline/2026-10-20-storycraft-production-parity.md` 把全局角色词/对白词硬判定与“自造人名阻断”改为 warning-only；本 Note 的一致性硬判定段落仅保留历史依据，验收归 #21。
 >
 > 2026-10-20 传输段部分替代：`proposed/pipeline/2026-10-20-storycraft-role-submission.md` 把“子代理最终文本作为角色结果”改为 `story_submit` + SubmissionStore；DSH subagent、宿主侧编排与 `subagent-cannot-land` 保留。
+>
+> 2026-10-20 reviser 校验再修正：委派 reviser 的 min/max、mode 与 3 次提交校验并入 #23 的 `story_submit`。本 Note 正文里的“低于 min 只警告”“主编 patch→polish→rewrite / 超 max 重试”由 #23 取代；委派失败由子代理在提交工具内自我修正，主编不重试、不手动搬运正文。
 
 ## 问题
 
@@ -29,7 +31,7 @@ updated: 2026-10-20
 - `implemented/pipeline/2026-10-18-storycraft-role-agents.md` 与 `implemented/pipeline/2026-10-19-storycraft-role-input-contracts.md`：两份记录都曾以“绕开官方工具面与深度策略”否决私有派发动作。`story_delegate` 确实由宿主动作发起、不经过模型可见的 `subagent` 工具，这是对工具面的部分反转。保留的是：官方 `subagents` 服务、深度限制、模型选择、标准子会话记录、“子代理只返回文本，宿主侧动作负责落盘”。
 - 成本证据只有一条：`rejected/workspace/2026-10-18-storycraft-role-presets.md` 的风险行“全文回传的 token 成本高于单代理”。该记录否决的是角色预设，不是这个风险；它仍是既有记录里的一条成本判断，且没有量化；`single-mode-delegation` 与 fork 记录另有成本判断，不重复引用。本次测量补上了量化，因此重新打开该取舍。
 - `implemented/pipeline/2026-10-19-storycraft-role-input-contracts.md` 规定输入由只读动作交付、派发一律走 `story_context`、前置校验只在 `story_context`。本设计**部分改变**该决定：`story_delegate` 由宿主直接装配 writer/reviewer/reviser 输入并做宿主侧预检，不再走 `story_context`；手动派发仍沿用原契约。交付时更新该记录。
-- `implemented/pipeline/2026-10-18-storycraft-quality-layer.md` 决定字数只作审稿提示、不做硬判定。本设计**部分改变**该决定：`story_delegate` 的 writer 硬校验 `[min,max]`，reviser 只硬校验 `max`（低于 min 只警告）；手动 `story_write` / `story_revise` 保持不硬判定。作者要写短章仍可走手动路径。交付时更新该记录。
+- `implemented/pipeline/2026-10-18-storycraft-quality-layer.md` 决定字数只作审稿提示、不做硬判定。本设计**部分改变**该决定：`story_delegate` 的 writer/reviser 硬校验 `[min,max]`；手动 `story_write` / `story_revise` 不新增校验。委派 reviser 的校验由 #23 的 `story_submit` 执行。交付时更新该记录。
 
 ## 提案
 
@@ -66,9 +68,9 @@ writer 与 reviser 的正文在 `landing.js` 的 `checkWordRange` 中、`checkDr
 - 未设范围 → 不校验；
 - writer：字数不在 `[min, max]` → 返回 `delegation-word-range`，不落库；
 - reviser：只对 `字数 > max` 硬拒绝 `delegation-word-range`；低于 `min` 只写入 `warnings`，不阻断；
-- writer 超界：先判断章纲容量——章纲各项足够、只是执行偏短 → 直接重试 writer 并给出差额/目标；章纲本身撑不住 → `story_plan` 调整章纲，**作者在面板重新确认章纲**，再重试一次 writer；偏长时重试 writer 并明确收紧目标，不自动改范围；动作不代签；
-- reviser 超过 max：`patch`/`polish`/`rewrite` 只重试 `rewrite` 并明确目标字数；`deslop` 不自动改 mode，交给作者决定；最多一次；字数检查先于 `reviseChapter`，同时超范围和超 mode 幅度时以字数错误为准；
-- reviser 低于 min：只警告，不重试、不阻断；
+- writer 超界：由 #23 的 `story_submit` 在提交时硬拒绝，子代理带差额/目标修正后重提；章纲本身撑不住时，主编再改章纲并请作者重新确认；不自动改范围；动作不代签；
+- reviser 超过 max：由 #23 的 `story_submit` 在提交时硬拒绝，子代理在最多 3 次提交内修正；`deslop` 不自动改 mode；字数与 mode 校验都在提交时完成；
+- reviser 低于 min：由 #23 的 `story_submit` 硬拒绝，子代理可在 3 次内修正；主编不重试；
 - 手动 `story_write` / `story_revise` 仍不硬判定，保持“字数只作审稿提示”；
 
 ### 动作契约
@@ -134,7 +136,7 @@ story_delegate(
 7. 落盘：
    - writer：`checkDraft` 白名单校验；未登记人名按 #21 只 warning 不阻断（本 Note 原“自造人名阻断”已被替代），地名/尺寸告警 → `countWords` 对照作品字数范围（超界返回 `delegation-word-range`）→ `writeChapter({ requirePlanApproval })`；
    - reviewer：把 `where` 映射为 `location`、`problem` 映射为 `problem`、`fix` 映射为 `suggestion` 后调 `writeReview`；`impact`、`severity`、`mode` 不落库（现有审稿表只存位置/问题/建议），也不进回执。`items` 为空时按 #21 的清稿审稿契约落一轮“无问题”审稿，不再返回 `empty-review`；
-   - reviser：`checkDraft` → `countWords` 对照作品 max（超过返回 `delegation-word-range`；低于 min 只警告）→ `reviseChapter({ problemIds: 全部未处理条目, mode })`；
+   - reviser：`checkDraft` → #23 的 `story_submit` 对照 min/max 与 mode（失败不落盘，子代理最多 3 次）→ `reviseChapter({ problemIds: 全部未处理条目, mode })`；
 8. 读取落库后的章节/审稿/状态，返回紧凑回执。
 
 ### 子代理与权限
@@ -146,9 +148,9 @@ story_delegate(
 - `delegation-unavailable`：没有 `subagents` 服务或 `spawn` provider；
 - `delegation-failed`：启动失败、取消、超时、`stopReason !== 'completed'`；
 - `delegation-output-invalid`：缺少首尾标记、正文为空、审稿 JSON 不合契约；不做自动重试；
-- `delegation-word-range`：writer 超 min/max 或 reviser 超 max；不落库。错误消息给出实际字数、范围，不替主编决定 `story_plan` 还是重试。writer 先读章纲/`story_brief` 判断容量：足够则带差额/目标重试，不足则调整章纲并由作者重新确认后重试一次；reviser 超 max 时 `patch`/`polish`/`rewrite` 只用 `rewrite` 重试一次，`deslop` 不自动改 mode；低于 min 只警告；
+- `delegation-word-range`：writer/reviser 超 min/max；不落库。错误消息给出实际字数、范围。校验失败由 #23 的 `story_submit` 回给子代理，子代理在最多 3 次提交内自我修正；主编不重试、不换 mode、不手动搬运正文；
 - 现有业务错误码（`plan-not-approved`、`chapter-not-written`、`chapter-exists`、`chapter-settled`、`review-required`、`revise-mode-violation`、`empty-review`（兼容保留，不再用于清稿）、`bible-missing` 等）原样透传；`bible-missing` 可能来自角色上下文缺人物卡，行为与手动路径一致；
-- reviser 的 `revise-mode-violation` 从失败时的 mode 起逐级重试：`patch → polish → rewrite`、`polish → rewrite`；`rewrite` 已是终点；`deslop` 不自动改 mode，返回错误由作者决定是否换模式或手动；宿主不自动切模式；
+- reviser 的 `revise-mode-violation` 由 #23 的 `story_submit` 回给子代理；子代理在最多 3 次提交内修正；主编不重试、不自动换 mode；
 - 失败时现有手动路径仍可用：主编可调 `story_context` + 官方 `subagent` + `story_write`，或直接调用底层动作；`story_delegate` 不自动回退，以免再次把正文带回主上下文。
 
 ### 生命周期、取消与超时
@@ -174,7 +176,7 @@ story_delegate(
 
 实现时同步更新：
 
-- 人设（`cordis.patch.yml`）：writer/reviewer/reviser 阶段优先调用 `story_delegate`；手动 `story_context` + `subagent` 只作兜底；writer 字数不足先诊断章纲（足够则带差额重试，不足则改章纲并由作者重新确认）；reviser 遇 `revise-mode-violation` 从失败 mode 逐级重试（patch→polish→rewrite、polish→rewrite；deslop 不自动换），遇超过 max 的 `delegation-word-range` 只用 `rewrite` 重试一次；低于 min 只警告；仍失败才手动；
+- 人设（`cordis.patch.yml`）：writer/reviewer/reviser 阶段优先调用 `story_delegate`；手动 `story_context` + `subagent` 只作兜底；委派字数/mode 校验由 #23 的 `story_submit` 处理，子代理最多 3 次提交；主编不重试、不换 mode、不手动搬运正文；
 - `storycraft-studio-orchestration` 与 `storycraft-longform-chapter`：派发/流程说明改为 `story_delegate`，保留手动回退，并写入 reviser/字数重试规则；`storycraft-write-craft` 与长度预算参考说明“章纲撑不住时先改章纲，不靠注水”；
 - `implemented/pipeline/2026-10-18-storycraft-role-agents.md` 与 `implemented/pipeline/2026-10-19-storycraft-role-input-contracts.md`：交付时补 partial replacement 链接，说明 delegate 由宿主装配/预检，手动路径仍保留原契约；
 - `facts.js`：修正 `extractSpeakerNames` 的角色词与对话片段误报，`consistency` 测试覆盖；同步 `implemented/pipeline/2026-10-19-storycraft-role-input-contracts.md` 的误报防线；`implemented/pipeline/2026-10-18-storycraft-quality-layer.md` 记录 delegate 路径的字数硬校验；
@@ -196,9 +198,9 @@ story_delegate(
 - 假 `subagents` 服务返回 writer/reviewer/reviser 输出，断言落库版本、审稿轮次、条目关单与回执字段；
 - 断言回执不含 `body` / `sections` / `prompt`，序列化 ≤1,500 字符；
 - 预检错误、服务缺失、取消/超时、输出不合约、reviewer 空条目；
-- writer 超 min/max、reviser 超 max 返回 `delegation-word-range` 且不落库；reviser 低于 min 只警告；
+- writer/reviser 超 min/max 由 #23 的 `story_submit` 拒绝且不落库；
 - `extractSpeakerNames` 对角色词与对话片段不判人名；
-- 脚本化主编流程复现一次 `revise-mode-violation`，从失败 mode 逐级重试成功（含失败于 polish、再 rewrite）；并覆盖 `deslop` 失败不改 mode、writer/reviser 的 `delegation-word-range` 恢复分支；
+- 脚本化流程复现一次 `submit-mode-violation`/`submit-word-range`，子代理在同一运行内修正并成功；覆盖 3 次上限与 `deslop` 不改 mode；
 - 真实模型在全新单章 fixture 跑完，clean delegate 路径主会话工具参数+结果 ≤4,000；允许一次恢复 episode（writer 或 reviser），episode 内 `story_brief`/`story_plan`/作者确认/全部重试合计 ≤10,000（容纳 story_brief 的 8,192 字节上限），单独记录；超过一次 episode 或手动正文回退判失败；窗口前预加载技能，窗口内 `skill` 不计。
 
 ## 备选方案
@@ -220,7 +222,7 @@ story_delegate(
 5. 不新增持久化结构，现有动作与页面接口不受影响；
 6. 有可复现的假服务测试覆盖成功、失败、取消与输出不合约；
 7. `extractSpeakerNames` 回归测试覆盖 `住户`、`师傅`、`师父`、`齐师傅`、`齐监理`、`亮当面` 不判人名；
-8. writer 超 min/max、reviser 超 max 返回 `delegation-word-range` 且不落库；reviser 低于 min 只警告；writer 的“章纲足够则重试、不足则改章纲并由作者重新确认”与 reviser 的“超 max 只用 rewrite”写入人设/技能，并有脚本化恢复测试；
+8. writer/reviser 超 min/max 由 `story_submit` 拒绝且不落库；失败由子代理在同一运行内修正，最多 3 次；主编不重试、不换 mode；
 9. 全新单章 fixture 的 clean delegate 路径（到修订完成）主会话工具参数+结果 ≤4,000；允许一次恢复 episode，episode 内 `story_brief`/`story_plan`/作者确认/全部重试合计 ≤10,000，单独记录，不并入 clean 值；超过一次 episode 或发生手动正文回退判失败。
 
 ## 风险
@@ -228,12 +230,15 @@ story_delegate(
 - 宿主 `subagents` 服务是可选能力，不同组合可能缺失；必须保留手动兜底；
 - 子代理调用是长任务，工具超时、用户取消与子代理取消需要一起处理；
 - 子代理输出是自然语言或结构化 JSON，解析与校验必须严格，否则坏稿会落库；
-- `mode` 的幅度限制（如 `patch` 超过 20%）只能在拿到修订稿后判断，会返回现有 `revise-mode-violation`；主编从失败 mode 逐级重试（patch→polish→rewrite、polish→rewrite；deslop 不自动换），仍失败才手动；
+- `mode` 的幅度限制（如 `patch` 超过 20%）在 #23 的 `story_submit` 内判断并回给子代理；子代理最多 3 次提交修正，主编不重试、不换 mode；
 - 一致性角色词硬判定已由 #21 以 warning 替代；不再补词，也不再因误报阻断正文；
 - reviser 重试由主编按规则发起，属于模型行为；若真实旅程未触发模式失败，retry ladder 只由脚本化测试覆盖，不宣称真实旅程已验证；若未执行而直接手动回退，验收测量判失败；
 - 主上下文下降不等于总 token 下降：子代理自身仍消耗上下文；本设计只消除主会话的重复搬运；
 - 宿主侧启动子代理涉及父 Agent 身份、权限与子会话生命周期，需要在实现阶段用真实运行时验证；
 - 子代理会话仍会出现在会话目录，作者可能看到；不影响作品库隔离。
+
+
+
 
 
 

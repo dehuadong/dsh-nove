@@ -78,7 +78,7 @@ updated: 2026-10-20
 ### 3. 委派与手动路径分开
 
 - 委派 reviser：低于 min 硬拒绝；
-- 手动 `story_revise`：保持现有低于 min 只 warning；
+- 手动 `story_revise`：不新增校验（现状没有 checkWordRange，不能写“只 warning”）；
 - 委派 clean 路径不得用 `subagent` + `story_write`/`story_revise` 手动搬运正文；发生即记录 `manual-body-fallback`，真实测量判失败。
 
 ### 4. 角色契约同步
@@ -101,7 +101,7 @@ updated: 2026-10-20
 2. 8 字 rewrite 回归测试被拒绝，不再成功；
 3. 失败不消费 entry，子代理最多 3 次提交尝试；超过返回 `submit-attempts-exhausted`；
 4. patch/polish 超幅返回 `submit-mode-violation`，不落盘；
-5. 手动 `story_revise` 仍允许低于 min（只 warning）；
+5. 手动 `story_revise` 行为保持现状（没有新增字数校验）；
 6. 真实单章重跑无手动正文回退；主会话工具参数+结果 ≤4,000；
 7. 回执含提交次数/最后 mode/字数范围，不含正文；
 8. 单元测试与 E2E 全过，新增 8 字、3 次上限、mode 比例、无手动回退测试。
@@ -112,6 +112,7 @@ updated: 2026-10-20
 - 低于 min 硬拒绝可能拒绝作者故意写的短章；仅限委派 reviser，手动路径不变；
 - 主编仍可能违反流程手动回退；只能通过测量判失败，不静默通过；
 - 本项的 in-tool 校验/重试依赖 #23 的 `story_submit`；实施顺序必须是 **#23 先提供通道，再在本通道加 #19 的 min/max 与 3 次校验**。若把校验直接并入 #23，#19 退化为验证项，避免重复实现。
+
 
 
 

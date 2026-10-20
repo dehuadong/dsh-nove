@@ -200,8 +200,9 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
 
 - 内容哈希 revision 会让每次 upsert 都产生新 ID；需要固定显示/日志策略，避免 UI 抖动；
 - 旧会话历史仍含路径，可能继续诱导；需要新会话验证；
-- `story_read` 是第 29 个动作，需同步动作数、README、测试；
+- `story_read` 是第 29 个动作；#23 的 `story_submit` 是第 30 个，需同步动作数、README、测试；
 - 不引入 artifact 编辑/分支系统，复杂编辑仍由现有动作承担。
+
 
 
 
