@@ -90,9 +90,9 @@
 
 ### 测试执行与对拍
 
-- 开发测试由代理执行，不交给用户手工跑：项目 CI 命令是 `node storycraft/scripts/ci.mjs`（21 个单元契约文件 + Playwright E2E）；没有 Playwright 时按 `e2e/run.mjs` 的提示安装或用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装目录。
+- 开发测试由代理执行，不交给用户手工跑：项目 CI 命令是 `node storycraft/scripts/ci.mjs`（全部单元契约文件，当前 22 个 + Playwright E2E）；没有 Playwright 时按 `e2e/run.mjs` 的提示安装或用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装目录。
 - 参考工程的 CI 是 `.github/workflows/ci.yml` 里的 `pnpm install --frozen-lockfile && pnpm build && pnpm test`；对拍时先读参考的 CI、技能、角色资源和测试，再决定我们的实现，不凭印象造替代方案。差异必须写清原因、约束和为什么不能完全照做，必要时先取得用户许可。
-- #19/#21 的教训是：整章正文与装配上下文多次穿过主会话，单靠节点单测和“让用户实测”发现不了 token、路径、角色输入的问题。验证必须覆盖主会话路径、工具回执与 token 预算；不能只用“21 个测试通过”代替。
+- #19/#21 的教训是：整章正文与装配上下文多次穿过主会话，单靠节点单测和“让用户实测”发现不了 token、路径、角色输入的问题。验证必须覆盖主会话路径、工具回执与 token 预算；不能只用“单元测试通过”代替。
 - 用户只在最后做一次真实使用验收；需要新会话做真实链路时，用户提供 `sessionID`，代理自己在该会话跑，不要求用户写测试小说、补 fixture 或手工跑开发测试。
 - `story_read` / artifact ID / 阶段上下文是 #22 的契约；真实链路验收要检查模型没有拿到 `works/` 路径、没有跨章读取、没有把上下文重复灌回主会话。
 
@@ -127,9 +127,3 @@ DeepSeek Harness 包工作区：packages文档地址 `E:\dsh-nove\deepseek-harne
 - 分诊角色到标签字符串的映射：[docs/agents/triage-labels.md](docs/agents/triage-labels.md)。
 - 领域文档：单上下文，根目录 `GLOSSARY.md`；读取规则见 [docs/agents/domain.md](docs/agents/domain.md)。
 - 长期技术提案与决定的记录范围、生命周期和格式：`.agents/notes/`；管理与检查见 [.agents/notes/README.md](.agents/notes/README.md)，本地阅读与维护指引见 [.agents/notes/AGENTS.md](.agents/notes/AGENTS.md)。
-
-
-
-
-
-

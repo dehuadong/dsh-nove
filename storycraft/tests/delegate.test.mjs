@@ -87,7 +87,7 @@ try {
   checkWordRange({ role: 'reviser', mode: 'deslop', body: '字'.repeat(25), chapter: 1, wordRange: range })
   check('deslop over max asks the author', false, 'no error')
 } catch (error) {
-  check('deslop over max asks the author', error.code === 'delegation-word-range' && error.message.includes('deslop 不自动改 mode'), String(error.message))
+  check('deslop over max asks the author', error.code === 'delegation-word-range' && error.message.includes('deslop 仍超限'), String(error.message))
 }
 try {
   checkWordRange({ role: 'reviser', body: '字'.repeat(25), chapter: 1, wordRange: range })
@@ -125,6 +125,7 @@ try {
   check('writer receipt carries no body', !('body' in writer) && !('sections' in writer), JSON.stringify(writer))
   check('writer receipt stays compact', JSON.stringify(writer).length <= 1500, String(JSON.stringify(writer).length))
   check('writer child prompt does not reach the receipt', !JSON.stringify(writer).includes('甲推开门'), JSON.stringify(writer))
+  check('writer receipt reports submission attempts', writer.submissionAttempts === 1, JSON.stringify(writer))
   check('writer body landed', s.readChapter(root, { work, chapter: 1 }).content.includes('甲推开门'))
 
   // Reviewer: structured result maps where/problem/fix into the stored review.
@@ -147,6 +148,7 @@ try {
   const reviser = await delegateRole(root, { work, chapter: 1, role: 'reviser', mode: 'rewrite' }, { service: reviserService, agent, signal })
   check('reviser delegates and lands r2', reviser.ok === true && reviser.revision === 2 && reviser.stage === 'revised', JSON.stringify(reviser))
   check('reviser resolves open items', Array.isArray(reviser.resolved) && reviser.resolved.includes('Q1'), JSON.stringify(reviser.resolved))
+  check('reviser receipt carries mode and attempts', reviser.lastMode === 'rewrite' && reviser.submissionAttempts === 1, JSON.stringify(reviser))
   check('reviser receipt stays compact', JSON.stringify(reviser).length <= 1500)
 
 

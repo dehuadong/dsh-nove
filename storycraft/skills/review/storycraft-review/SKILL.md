@@ -54,7 +54,7 @@ whenToUse: 被派去审一章、需要给出问题清单、或作者要求诊断
 > 委派子代理：调用 `story_submit`，payload 为 `{"items":[...]}`。
 > 手动 subagent：只输出下面的 JSON，不要解释。
 
-只输出 JSON，不要解释、不要 markdown 代码块之外的文字：
+委派子代理：调用 `story_submit`，payload 为 `{"items":[...]}`；手动 subagent：只输出 JSON，不要解释、不要 markdown 代码块之外的文字：
 
 ```json
 {"items":[{"problem":"一句问题","where":"正文里的具体位置","impact":"读者会怎样","severity":"blocker|major|minor","fix":"怎么修","mode":"patch|polish|rewrite|deslop"}]}

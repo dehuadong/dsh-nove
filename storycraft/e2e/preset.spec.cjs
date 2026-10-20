@@ -49,7 +49,7 @@ test.describe('故事工坊工作模式', () => {
 
     expect(storycraft.map(row => row.id).slice(-2)).toEqual(['storycraft-skills', 'storycraft-tools'])
 
-    // Persona text is the only intentional row difference. Inside the
+    // Persona text and disabled ask-user are intentional row differences. Inside the
     // delegation group the `tool-subagent` config changes and the fork row is
     // dropped; every other child row and the group's isolate map must match.
     const withoutNestedRow = (body, id) => {

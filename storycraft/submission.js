@@ -60,6 +60,8 @@ function failure(code, message, extra = {}) {
     ...(extra.words === undefined ? {} : { words: extra.words }),
     ...(extra.min === undefined ? {} : { min: extra.min }),
     ...(extra.max === undefined ? {} : { max: extra.max }),
+    ...(extra.actual === undefined ? {} : { actual: extra.actual }),
+    ...(extra.limit === undefined ? {} : { limit: extra.limit }),
   }
 }
 
@@ -142,6 +144,8 @@ export async function submitPayload(input) {
           ? failure('submit-attempts-exhausted', `提交尝试超过 ${MAX_ATTEMPTS} 次；最后一次：${error.message}`)
           : failure('submit-word-range', error.message, {
             retryable: true,
+            actual: `${words} 字`,
+            limit: `${entry.wordRange?.min ?? 0}–${entry.wordRange?.max ?? '∞'} 字`,
             words,
             ...(entry.wordRange?.min === undefined ? {} : { min: entry.wordRange.min }),
             ...(entry.wordRange?.max === undefined ? {} : { max: entry.wordRange.max }),
@@ -160,7 +164,7 @@ export async function submitPayload(input) {
       if (error instanceof StoryError && error.code === 'revise-mode-violation') {
         return entry.attempts >= MAX_ATTEMPTS
           ? failure('submit-attempts-exhausted', `提交尝试超过 ${MAX_ATTEMPTS} 次；最后一次：${error.message}`)
-          : failure('submit-mode-violation', error.message, { retryable: true })
+          : failure('submit-mode-violation', error.message, { retryable: true, actual: entry.mode, limit: 'patch≤20% / polish≤40% / rewrite 不限 / deslop 必须减少' })
       }
       if (error instanceof StoryError) {
         return failure('submit-invalid', error.message, { retryable: true })
@@ -183,7 +187,9 @@ export async function submitPayload(input) {
 export function consumeSubmission(delegationId) {
   const entry = purge(String(delegationId), submissions.get(String(delegationId)))
   if (entry === undefined) return undefined
-  return { payload: entry.payload, attempts: entry.attempts, bytes: entry.bytes, consumed: entry.consumed === true }
+  const result = { payload: entry.payload, attempts: entry.attempts, bytes: entry.bytes, consumed: entry.consumed === true }
+  if (entry.consumed === true) submissions.delete(String(delegationId))
+  return result
 }
 
 /** Remove one delegation entry in every outcome. */

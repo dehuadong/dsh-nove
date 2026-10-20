@@ -32,8 +32,8 @@ export async function checkDraft(root, draft) {
  * Check one delegated body against the work's word range.
  *
  * The manual write path keeps word count advisory; only host-side delegation
- * blocks out-of-range drafts. Writer checks both ends; reviser only rejects an
- * over-long revision and warns when a legitimate trim falls below min.
+ * blocks out-of-range drafts. Both writer and reviser check min and max; the
+ * delegated reviser cannot change the mode bound in its submission entry.
  * @param {{role: 'writer'|'reviser', mode?: string, body: string, chapter: number, wordRange?: {min: number, max: number}}} input - range input.
  * @returns {{warnings: string[]}} non-blocking warnings.
  */
@@ -45,8 +45,8 @@ export function checkWordRange(input) {
   if (input.role === 'reviser') {
     if (words > range.max) {
       const action = input.mode === 'deslop'
-        ? 'deslop 不自动改 mode：交给作者决定 rewrite 或手动'
-        : '改用 rewrite 并收紧目标'
+        ? 'deslop 仍超限：修正到范围内，不要改 mode'
+        : '修正到范围内，不要改 mode'
       throw new StoryError('delegation-word-range',
         `第 ${chapter} 章修订稿 ${words} 字，超过上限 ${range.max} 字：${action}`)
     }

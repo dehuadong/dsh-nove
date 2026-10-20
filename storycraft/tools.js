@@ -759,6 +759,8 @@ const SUBMIT_OUTPUT = {
         required: ['code', 'message'],
       },
       retryable: { type: 'boolean' },
+      actual: { type: 'string' },
+      limit: { type: 'string' },
       min: { type: 'integer' },
       max: { type: 'integer' },
     },

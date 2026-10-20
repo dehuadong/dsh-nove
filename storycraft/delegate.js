@@ -255,13 +255,16 @@ export async function delegateRole(root, input, host) {
     } finally {
       clearTimeout(timer)
     }
+    const submission = consumeSubmission(opened.delegationId)
+    const attempts = submission?.attempts ?? 0
     if (result?.stopReason !== 'completed') {
+      if (submission?.consumed !== true && attempts >= 3) {
+        throw new StoryError('delegation-no-submission',
+          `子代理提交尝试用尽（${attempts} 次），未正常完成（${String(result?.stopReason ?? 'unknown')}）`)
+      }
       throw new StoryError('delegation-failed',
         `子代理未正常完成（${String(result?.stopReason ?? 'unknown')}）${result?.diagnostic === undefined ? '' : `：${result.diagnostic}`}`)
     }
-
-    const submission = consumeSubmission(opened.delegationId)
-    const attempts = submission?.attempts ?? 0
     if (submission?.consumed !== true || submission.payload === undefined) {
       throw new StoryError('delegation-no-submission',
         `子代理没有提交通过校验的角色结果（尝试 ${attempts} 次）`)

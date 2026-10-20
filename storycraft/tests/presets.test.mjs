@@ -88,7 +88,7 @@ if (standard === undefined) {
     patchBlocks.map(row => row.id).join(',') === expectedOrder.join(','),
     `expected ${expectedOrder.join(',')}; got ${patchBlocks.map(row => row.id).join(',')}`)
 
-  // persona text is the only intentional row-level difference. Inside the
+  // persona text and disabled ask-user are intentional row-level differences. Inside the
   // delegation group the child `tool-subagent` config changes and the fork row
   // is dropped; the rest of that group must still match.
   const withoutNestedRow = (body, id) => {

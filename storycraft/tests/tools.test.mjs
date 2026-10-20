@@ -45,6 +45,9 @@ check('every action declares output schema', registered.every(definition => defi
 check('every action declares execute', registered.every(definition => typeof definition.execute === 'function'))
 
 const byName = new Map(registered.map(definition => [definition.name, definition]))
+const submitAction = byName.get('story_submit')
+check('submit output accepts retry envelope fields',
+  ['actual', 'limit', 'retryable', 'error'].every(key => submitAction.output.schema.properties[key] !== undefined))
 const scopeGuard = guards[1]
 const scopeRoot = resolve('repo')
 const discussionCopy = '讨论阶段不读历史作品：请先在面板进入一部作品，或给 path 限定到项目目录。'
@@ -132,6 +135,9 @@ check('missing workspace returns structured error', noWorkspace.ok === false && 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-tools-'))
 try {
   const exec = { agent: { id: 'test-session', session: { header: { cwd: root } } } }
+  const deniedSubmit = await byName.get('story_submit').execute({ delegationId: 'missing', payload: {} }, exec)
+  check('story_submit rejects a parent call', deniedSubmit.ok === false
+    && deniedSubmit.error.code === 'submit-parent-denied', JSON.stringify(deniedSubmit))
   const withoutProposal = await byName.get('story_init').execute({ title: '雨里的灯' }, exec)
   check('init without a proposal is refused', withoutProposal.ok === false && withoutProposal.error.code === 'proposal-required', JSON.stringify(withoutProposal))
   const proposal = await byName.get('story_propose').execute({
