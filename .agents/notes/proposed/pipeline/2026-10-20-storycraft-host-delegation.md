@@ -63,7 +63,7 @@ writer 与 reviser 的正文在 `landing.js` 的 `checkWordRange` 中、`checkDr
 - writer：字数不在 `[min, max]` → 返回 `delegation-word-range`，不落库；
 - reviser：只对 `字数 > max` 硬拒绝 `delegation-word-range`；低于 `min` 只写入 `warnings`，不阻断；
 - writer 超界：先判断章纲容量——章纲各项足够、只是执行偏短 → 直接重试 writer 并给出差额/目标；章纲本身撑不住 → `story_plan` 调整章纲，**作者在面板重新确认章纲**，再重试一次 writer；偏长时重试 writer 并明确收紧目标，不自动改范围；动作不代签；
-- reviser 超过 max：只重试 `rewrite` 并明确目标字数；`patch`/`polish` 不做无效重试；最多一次；字数检查先于 `reviseChapter`，同时超范围和超 mode 幅度时以字数错误为准；
+- reviser 超过 max：`patch`/`polish`/`rewrite` 只重试 `rewrite` 并明确目标字数；`deslop` 不自动改 mode，交给作者决定；最多一次；字数检查先于 `reviseChapter`，同时超范围和超 mode 幅度时以字数错误为准；
 - reviser 低于 min：只警告，不重试、不阻断；
 - 手动 `story_write` / `story_revise` 仍不硬判定，保持“字数只作审稿提示”；
 
@@ -89,12 +89,10 @@ story_delegate(
   reviewRound?, problems?: { total, open },
   resolved?: string[],
   warnings?: string[],
-  summary?: string,           // reviser only; <=300 chars
-  state?: { entities, hooks } // reviser only; compact JSON, <=900 chars
 }
 ```
 
-单次回执序列化上限 2,000 字符（summary ≤300 字、state ≤900 字符）；不含 `next`，主编按需调 `story_next`。`warnings` 最多 5 条、每条 120 字符，超出截断并标记。reviser 的 summary/state 由主编传给 `story_summarize`/`story_state`，不回到正文。
+单次回执序列化上限 1,500 字符；不含 `next`，主编按需调 `story_next`。`warnings` 最多 5 条、每条 120 字符，超出截断并标记。
 
 ### 导向：story_next 的 delegate 字段
 
@@ -127,7 +125,7 @@ story_delegate(
 5. 等待 `activation.result`，读取 `stopReason`、`output` 中的 text blocks 与 `structured`；失败、取消、超时或 `stopReason !== 'completed'` 时不落库，`dispose()` 后返回 `delegation-failed`；
 6. 输出校验：
    - writer：按 `storycraft-write-craft` 的 TITLE/CHAPTER 输出契约解析，正文非空、首尾完整；
-   - reviser：解析 CHAPTER，以及 `SUMMARY`（≤300 字）与 `STATE`（entities/hooks 的紧凑 JSON）；最终回执带 `summary`/`state`，主编用现有 `story_summarize`/`story_state` 落库，不再读正文；
+   - reviser：按 `storycraft-revise-craft` 的 CHAPTER 输出契约解析；
    - reviewer：优先用 `request.outputSchema` 约束 `storycraft-review` 的 items 契约，读取 `structured`；provider 不支持结构化输出时回退解析 text JSON；
 7. 落盘：
    - writer：`checkDraft` 白名单校验（自造人名阻断，地名/尺寸只告警）→ `countWords` 对照作品字数范围（超界返回 `delegation-word-range`）→ `writeChapter({ requirePlanApproval })`；
@@ -173,7 +171,7 @@ story_delegate(
 实现时同步更新：
 
 - 人设（`cordis.patch.yml`）：writer/reviewer/reviser 阶段优先调用 `story_delegate`；手动 `story_context` + `subagent` 只作兜底；writer 字数不足先诊断章纲（足够则带差额重试，不足则改章纲并由作者重新确认）；reviser 遇 `revise-mode-violation` 从失败 mode 逐级重试（patch→polish→rewrite、polish→rewrite；deslop 不自动换），遇超过 max 的 `delegation-word-range` 只用 `rewrite` 重试一次；低于 min 只警告；仍失败才手动；
-- `storycraft-studio-orchestration` 与 `storycraft-longform-chapter`：派发/流程说明改为 `story_delegate`，保留手动回退，并写入 reviser/字数重试规则；`storycraft-write-craft` 与长度预算参考说明“章纲撑不住时先改章纲，不靠注水”；`storycraft-revise-craft` 增加 SUMMARY/STATE 输出契约；
+- `storycraft-studio-orchestration` 与 `storycraft-longform-chapter`：派发/流程说明改为 `story_delegate`，保留手动回退，并写入 reviser/字数重试规则；`storycraft-write-craft` 与长度预算参考说明“章纲撑不住时先改章纲，不靠注水”；
 - `implemented/pipeline/2026-10-18-storycraft-role-agents.md` 与 `implemented/pipeline/2026-10-19-storycraft-role-input-contracts.md`：交付时补 partial replacement 链接，说明 delegate 由宿主装配/预检，手动路径仍保留原契约；
 - `facts.js`：修正 `extractSpeakerNames` 的角色词与对话片段误报，`consistency` 测试覆盖；同步 `implemented/pipeline/2026-10-19-storycraft-role-input-contracts.md` 的误报防线；`implemented/pipeline/2026-10-18-storycraft-quality-layer.md` 记录 delegate 路径的字数硬校验；
 - `client.js` 的固定指令文案（`flowFull`、`flowToRevision`、`nextChapter`、`step`、`review`、`revise`、`planApproved`）：优先按 `story_next.delegate` 调 `story_delegate`；没有 `delegate` 时才回到对应 primitive。面板布局与按钮不改变；
@@ -197,7 +195,7 @@ story_delegate(
 - writer 超 min/max、reviser 超 max 返回 `delegation-word-range` 且不落库；reviser 低于 min 只警告；
 - `extractSpeakerNames` 对角色词与对话片段不判人名；
 - 脚本化主编流程复现一次 `revise-mode-violation`，从失败 mode 逐级重试成功（含失败于 polish、再 rewrite）；并覆盖 `deslop` 失败不改 mode、writer/reviser 的 `delegation-word-range` 恢复分支；
-- 真实模型在全新单章 fixture 跑完，clean delegate 路径主会话工具参数+结果 ≤4,000；允许一次恢复 episode（writer 或 reviser），episode 内 `story_brief`/`story_plan`/作者确认/全部重试合计 ≤3,000，单独记录；超过一次 episode 或手动正文回退判失败；窗口前预加载技能，窗口内 `skill` 不计。
+- 真实模型在全新单章 fixture 跑完，clean delegate 路径主会话工具参数+结果 ≤4,000；允许一次恢复 episode（writer 或 reviser），episode 内 `story_brief`/`story_plan`/作者确认/全部重试合计 ≤10,000（容纳 story_brief 的 8,192 字节上限），单独记录；超过一次 episode 或手动正文回退判失败；窗口前预加载技能，窗口内 `skill` 不计。
 
 ## 备选方案
 
@@ -211,15 +209,15 @@ story_delegate(
 
 本设计证明：
 
-1. writer/reviewer/reviser 三条路径都能由宿主启动子代理并落盘，主编只收紧凑回执；writer 字数在作品范围内；reviser 在 patch/polish/rewrite 中至少一次成功，不触发手动回退，并在最终修订回执中返回 summary/state；
-2. 回执不含正文/上下文/prompt；reviser 回执可含紧凑 summary/state（≤2,000 序列化）；
+1. writer/reviewer/reviser 三条路径都能由宿主启动子代理并落盘，主编只收紧凑回执；writer 字数在作品范围内；reviser 在 patch/polish/rewrite 中至少一次成功，不触发手动回退；
+2. 回执不含正文/上下文/prompt；
 3. 预检、现有阶段闸门与业务错误码在宿主侧保持；
 4. `subagents` 不可用或子代理失败时不会产生部分落库，手动路径仍可用；
 5. 不新增持久化结构，现有动作与页面接口不受影响；
 6. 有可复现的假服务测试覆盖成功、失败、取消与输出不合约；
 7. `extractSpeakerNames` 回归测试覆盖 `住户`、`师傅`、`师父`、`齐师傅`、`齐监理`、`亮当面` 不判人名；
 8. writer 超 min/max、reviser 超 max 返回 `delegation-word-range` 且不落库；reviser 低于 min 只警告；writer 的“章纲足够则重试、不足则改章纲并由作者重新确认”与 reviser 的“超 max 只用 rewrite”写入人设/技能，并有脚本化恢复测试；
-9. 全新单章 fixture 的 clean delegate 路径主会话工具参数+结果 ≤4,000；允许一次恢复 episode（writer 字数恢复或 reviser 模式/字数 ladder），该 episode 的 `story_brief`/`story_plan`/作者确认/全部重试合计 ≤3,000，单独记录，不并入 clean 值；超过一次 episode 或发生手动正文回退判失败；窗口前预加载技能，窗口内 `skill` 不计。
+9. 全新单章 fixture 的 clean delegate 路径（到修订完成）主会话工具参数+结果 ≤4,000；允许一次恢复 episode，episode 内 `story_brief`/`story_plan`/作者确认/全部重试合计 ≤10,000，单独记录，不并入 clean 值；超过一次 episode 或发生手动正文回退判失败。
 
 ## 风险
 
@@ -232,5 +230,3 @@ story_delegate(
 - 主上下文下降不等于总 token 下降：子代理自身仍消耗上下文；本设计只消除主会话的重复搬运；
 - 宿主侧启动子代理涉及父 Agent 身份、权限与子会话生命周期，需要在实现阶段用真实运行时验证；
 - 子代理会话仍会出现在会话目录，作者可能看到；不影响作品库隔离。
-
-
