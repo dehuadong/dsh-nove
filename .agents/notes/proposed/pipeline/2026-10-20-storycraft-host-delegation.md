@@ -7,6 +7,8 @@ updated: 2026-10-20
 
 # Agent Note：故事工坊：宿主侧章节生产委派（主上下文不搬运正文）
 
+> 2026-10-20 部分替代：`proposed/pipeline/2026-10-20-storycraft-production-parity.md` 把全局角色词/对白词硬判定与“自造人名阻断”改为 warning-only；本 Note 的一致性硬判定段落仅保留历史依据，验收归 #21。
+
 ## 问题
 
 当前整章生产由主编编排：写手子代理把整章正文返回主编，主编再把它作为 `story_write` 的 `body` 传入；审稿/修订前，主编先调 `story_context` 取回含正文的 sections，再拼进子代理 prompt；修订稿又返回主编，再传给 `story_revise`。
@@ -35,7 +37,7 @@ updated: 2026-10-20
 
 角色限定为 `writer`、`reviewer`、`reviser`。章纲与全书计划仍由主编调用 `story_plan` / `story_outline`，不经过本动作；已有正文的 `rewrite` 与已定稿章的 `reopen` 也仍走现有动作。
 
-无问题审稿沿用现有契约：`reviewer` 返回空 items 时 `writeReview` 报 `empty-review`，不写审稿，也无法进入修订/定稿；这是 #18 之前就存在的阶段机限制，本项不修复。验证 fixture 必须含至少一个真实问题，clean chapter 的完成路径不在本项范围。
+无问题审稿在本项原按 `empty-review` 处理；**#21 已部分替代该限制**：允许清稿审稿，`story_next` 不再强制修订，阶段机与 `foldState` 需同步。验证 fixture 仍可含问题，但 clean chapter 的完成路径归 #21。
 
 保留现有 27 个动作为底层原语：`story_write`、`story_review`、`story_revise` 仍是唯一落盘实现，`story_delegate` 只是宿主侧调用这些函数的编排层。不做整章全自动管线，阶段仍由 `story_next` 与主编判断。
 
@@ -47,13 +49,13 @@ updated: 2026-10-20
 - `亮当面` 是“亮 + 当面”被“字 + 说/道”规则切出的片段；
 - `齐师傅`、`齐监理` 通过增加角色词可覆盖；`亮当面` 需要把 `当面` 等对话副词加入停用片段。
 
-本项先修 `facts.js` 的 `extractSpeakerNames`：
+本项原方案先修 `facts.js` 的 `extractSpeakerNames`（下表是历史记录；#21 已改为 warning-only，不再把词表当硬判定）：
 
 - 扩充 `ROLE_NOUNS`：`住户`、`保安`、`邻居`、`师傅`、`师父`、`监理`、`值班`、`路人`、`过路人`、`门里的人`；
 - 增加对话片段停用词：`当面`、`开口`、`低声`、`轻声`、`沉声`、`半晌`、`顿了顿`；
 - 加回归测试：上述片段在 `X说/问/道` 语境中不得判成人名；真实人名仍能识别。
 
-不修这一层，正常正文会被误判，delegate 的 writer/reviser 无法可靠落盘。
+原硬阻断已由 #21 替代；现在未登记人名只 warning，不阻断 writer/reviser。
 
 ### writer / reviser 字数校验
 
@@ -128,8 +130,8 @@ story_delegate(
    - reviser：按 `storycraft-revise-craft` 的 CHAPTER 输出契约解析；
    - reviewer：优先用 `request.outputSchema` 约束 `storycraft-review` 的 items 契约，读取 `structured`；provider 不支持结构化输出时回退解析 text JSON；
 7. 落盘：
-   - writer：`checkDraft` 白名单校验（自造人名阻断，地名/尺寸只告警）→ `countWords` 对照作品字数范围（超界返回 `delegation-word-range`）→ `writeChapter({ requirePlanApproval })`；
-   - reviewer：把 `where` 映射为 `location`、`problem` 映射为 `problem`、`fix` 映射为 `suggestion` 后调 `writeReview`；`impact`、`severity`、`mode` 不落库（现有审稿表只存位置/问题/建议），也不进回执。`items` 为空时按现有契约返回 `empty-review`，不写审稿；
+   - writer：`checkDraft` 白名单校验；未登记人名按 #21 只 warning 不阻断（本 Note 原“自造人名阻断”已被替代），地名/尺寸告警 → `countWords` 对照作品字数范围（超界返回 `delegation-word-range`）→ `writeChapter({ requirePlanApproval })`；
+   - reviewer：把 `where` 映射为 `location`、`problem` 映射为 `problem`、`fix` 映射为 `suggestion` 后调 `writeReview`；`impact`、`severity`、`mode` 不落库（现有审稿表只存位置/问题/建议），也不进回执。`items` 为空时按 #21 的清稿审稿契约落一轮“无问题”审稿，不再返回 `empty-review`；
    - reviser：`checkDraft` → `countWords` 对照作品 max（超过返回 `delegation-word-range`；低于 min 只警告）→ `reviseChapter({ problemIds: 全部未处理条目, mode })`；
 8. 读取落库后的章节/审稿/状态，返回紧凑回执。
 
