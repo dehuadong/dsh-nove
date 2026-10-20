@@ -779,16 +779,7 @@ window.__ModuleLoader__.load({
                 onClick: async () => {
                   try {
                     await face.approveChapterPlan(root, sessionId, workId, chapter.number)
-                    // This node is a hand-off, not a draft: confirming should make the
-                    // conversation continue by itself instead of leaving a draft behind.
-                    if (canSend === true) {
-                      const failure = await face.send(INSTRUCTIONS.planApproved(workId, chapter.number))
-                      onNotice?.(failure === undefined
-                        ? { kind: 'ok', text: '章纲已确认，已发送「继续写正文」' }
-                        : { kind: 'error', text: `章纲已确认，但续写指令没发出去：${failure}` })
-                    } else {
-                      onNotice?.({ kind: 'ok', text: '章纲已确认；当前会话不能发送，请手动继续' })
-                    }
+                    onNotice?.({ kind: 'ok', text: '章纲已确认；请点「写第 1 章（一次做完）」补充信息后发送' })
                     onApproved?.()
                   } catch (error) {
                     onNotice?.({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
@@ -968,10 +959,7 @@ window.__ModuleLoader__.load({
                 onClick: async () => {
                   try {
                     await face.approveOutline(root, sessionId, manifest.workId)
-                    const failure = canSend === true ? await face.send(INSTRUCTIONS.outlineApproved(manifest.workId)) : undefined
-                    onNotice(failure === undefined
-                      ? { kind: 'ok', text: '全书计划已确认，已发送「按下一步继续」' }
-                      : { kind: 'error', text: `计划已确认，但续写指令没发出去：${failure}` })
+                    onNotice({ kind: 'ok', text: '全书计划已确认；请点「写第 1 章」补充信息后发送' })
                     void load()
                   } catch (error) {
                     onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
