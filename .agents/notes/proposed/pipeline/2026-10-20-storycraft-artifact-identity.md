@@ -73,7 +73,7 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
 | 导出 | `export:<workId>` | 当前导出（覆盖式，无历史） | `export` |
 | 备份 | `backup:<workId>:<timestamp>` | 生成时间戳 | `backup` |
 
-- plan / summary / bible / outline 是原地 upsert，**不能用固定 `r1`**，用当前内容哈希；本项不保留这些对象的历史，旧 revisionId 在 `story_read` 返回 `revision-not-found`，不伪造历史；
+- plan / summary / bible / outline / volume 是原地 upsert，**不能用固定 `r1`**，用当前内容哈希；本项不保留这些对象的历史，旧 revisionId 在 `story_read` 返回 `revision-not-found`，不伪造历史；
 - review 的 ID 包含被审正文版本和轮次；审稿条目勾选会改变内容哈希，旧哈希不可再读；
 - chapter 的 revision 用现有真实版本号；
 - state 用 event seq，不能写“seq 或 r1”。
@@ -113,7 +113,7 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
 - 读取权限不是“同作品即可”：
   - 写正文时只读当前章 `plan:<n>`、`bible:*`、`outline`，不读其他章正文；
   - 审稿/修订只读当前章 `chapter:<n>` 与 `review:<n>:...`；
-  - 摘要/定稿只读当前章；
+  - 摘要/定稿只读当前章与 `state`/`summary:<n>`；
   - 前情通过 `story_brief` 摘要，不通过 `story_read` 读旧章全文；
   - 越界返回 `artifact-not-readable` / `chapter-not-current`，不返回内容。
 - 不提供“按路径读作品”的模型入口。
@@ -146,14 +146,15 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
   - `workId`、`artifactId`、`revisionId`、`kind`；
 - `story_bible.files` 删除 path；
 - `story_brief` / `story_context` 的 `sections[].source` 与 `trace.sections[].source` 改为 `sourceIds: string[]`；
-  - artifact：`outline`、`plan:<n>`、`chapter:<n>`、`review:<n>:...`、`summary:<n>`、`state`、`bible:<file>`；
+  - artifact：`outline`、`plan:<n>`、`chapter:<n>`、`review:<n>:...`、`summary:<n>`、`state`、`bible:<file>`、`volume:<id>`；
   - 非 artifact：`context:<section>`（装配段）、`skill:<name>`（技能文本）、`manifest`（作品元数据）；
   - 不出现任何文件路径或路径拼接；
 - `story_export` / `story_backup` 的模型回执只含 `exportId` / `backupId`；作者目录由 UI 路由返回，不进入工具输出；
 - `story_reopen` / `story_delete` / `story_restore` 不返回 trash/file path；
 - `story_bible_import` 不返回 from/to/skipped 路径；`skipped` 使用 `bible:<file>` ID，`files[].file` 使用 `world|characters|style|plan|intent` 归一键，不返回 `bible/*.md`；
+- `story_bible_import` 不导入 `plan`/`outline`（旧 design 大纲只作为 `outline` 的候选，必须走 `story_outline` + 作者确认），导入报告标 `outline-import-blocked`；
 - `story_init` 不返回 artifact path；
-- `story_outline` 是全书计划唯一写入入口，返回 `outline`；`story_bible_write(file="plan")` 不再独立写 plan，改为拒绝并指向 `story_outline`，避免绕过作者确认；`bible:plan` 只是 `outline` 的只读别名，不是第二个写入口；
+- `story_outline` 是全书计划唯一写入入口，返回 `outline`；`story_bible_write(file="plan")` 不再独立写 plan，改为拒绝并指向 `story_outline`，避免绕过作者确认；`bible:plan` 只是 `outline` 的只读别名，不是第二个写入口；`story_bible_import` 也不写 plan/outline。
 - `story_delegate` 回执增加 artifact ID/revision；原本没有 path，不改变 1,500 字符预算。
 
 ### 5. 删除提示词补丁
@@ -198,6 +199,8 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
 - 旧会话历史仍含路径，可能继续诱导；需要新会话验证；
 - `story_read` 是第 29 个动作，需同步动作数、README、测试；
 - 不引入 artifact 编辑/分支系统，复杂编辑仍由现有动作承担。
+
+
 
 
 
