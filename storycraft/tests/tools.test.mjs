@@ -263,6 +263,17 @@ try {
   }, exec)
   check('story_review ok', review.ok === true && review.problems[0].id === 'Q1', JSON.stringify(review))
 
+  const reviewerContext = await byName.get('story_context').execute({ work, chapter: 1, role: 'reviewer' }, exec)
+  const reviewerTask = reviewerContext.sections?.find(section => section.name === 'task')?.content ?? ''
+  check('reviewer context carries the review item text',
+    reviewerContext.ok === true && reviewerTask.includes('Q1') && reviewerTask.includes('钩子虚') && !reviewerTask.includes('undefined'),
+    reviewerTask.slice(0, 200))
+  const reviserContext = await byName.get('story_context').execute({ work, chapter: 1, role: 'reviser', mode: 'patch' }, exec)
+  const reviserTask = reviserContext.sections?.find(section => section.name === 'task')?.content ?? ''
+  check('reviser context carries the review item text',
+    reviserContext.ok === true && reviserTask.includes('Q1') && reviserTask.includes('钩子虚') && !reviserTask.includes('undefined'),
+    reviserTask.slice(0, 200))
+
   const noIds = await byName.get('story_revise').execute({ work, chapter: 1, body: `${body}（再改）` }, exec)
   check('revise without ids refused', noIds.ok === false && noIds.error.code === 'missing-problems', JSON.stringify(noIds))
 
