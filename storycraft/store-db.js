@@ -18,13 +18,10 @@ import {
   trashDir, trashFile, workFile, worksDir, backupsDir,
 } from './db.js'
 import {
-  StoryError, WORK_FORMS, chapterNumber, chapterStem, countWords, foldEvents, formOf, now,
+  StoryError, WORK_FORMS, chapterNumber, chapterStem, contentVersion, countWords, foldEvents, formOf, now,
   parseReview, planApprovalPolicy, stageOf, unitOf, workIdOf,
 } from './domain.js'
 import { critique } from './critique.js'
-
-/** Catalog schema version recorded on every work row. */
-export { WORK_SCHEMA_VERSION as SCHEMA_VERSION } from './db.js'
 
 /** How long an unused proposal is kept before the next proposal write prunes it. */
 export const PROPOSAL_TTL_MS = 30 * 24 * 60 * 60 * 1000
@@ -42,7 +39,7 @@ export function virtualWorkPath(workId) {
 }
 
 /** Virtual path of one artifact inside a work. */
-function virtualPath(workId, relative) {
+export function virtualPath(workId, relative) {
   return `works/${workId}/${String(relative).replaceAll('\\', '/')}`
 }
 
@@ -87,6 +84,19 @@ function latestReviewRow(db, number) {
 function currentVersion(db, chapter) {
   return db.prepare('SELECT * FROM chapter_versions WHERE number = ? AND revision = ?')
     .get(chapter.number, chapter.current_revision)
+}
+
+/**
+ * Whether a review still describes a chapter's current revision.
+ * @param {{revision: number}|undefined} review - newest review.
+ * @param {{currentRevision?: number, current_revision?: number}} chapter - chapter entry or row.
+ * @param {boolean} [allowPrevious] - accept the revision just replaced.
+ * @returns {boolean} true when the review covers the chapter.
+ */
+function reviewCovers(review, chapter, allowPrevious = false) {
+  const current = chapter.currentRevision ?? chapter.current_revision
+  if (review === undefined || current === undefined) return false
+  return review.revision === current || (allowPrevious && review.revision === current - 1)
 }
 
 /** Touch the meta row's activity stamp. */
@@ -216,7 +226,7 @@ export function initWork(root, input) {
         transaction(db, () => {
           for (const [name, content] of Object.entries(DEFAULT_BIBLE)) {
             db.prepare('INSERT INTO bible (name, content, version, updated_at) VALUES (?, ?, ?, ?)')
-              .run(name, content, randomUUID(), at)
+              .run(name, content, contentVersion(content), at)
           }
         })
       } finally {
@@ -246,29 +256,30 @@ export function initWork(root, input) {
  */
 export function reconcileWorks(root) {
   const catalog = openCatalog(root, { create: false })
-  if (catalog === undefined) return { missing: [], orphans: [], trash: [] }
   try {
-    const rows = catalog.prepare('SELECT work_id, trashed_at, missing_at FROM works').all()
+    const rows = catalog === undefined ? [] : catalog.prepare('SELECT work_id, trashed_at, missing_at FROM works').all()
     const known = new Set(rows.map(row => row.work_id))
     const missing = []
-    try {
-      transaction(catalog, () => {
-        for (const row of rows) {
-          const file = row.trashed_at === null ? workFile(root, row.work_id) : trashFile(root, row.work_id)
-          const present = existsSync(file)
-          if (!present) {
-            if (row.missing_at === null) {
-              catalog.prepare('UPDATE works SET missing_at = ? WHERE work_id = ?').run(now(), row.work_id)
+    if (catalog !== undefined) {
+      try {
+        transaction(catalog, () => {
+          for (const row of rows) {
+            const file = row.trashed_at === null ? workFile(root, row.work_id) : trashFile(root, row.work_id)
+            const present = existsSync(file)
+            if (!present) {
+              if (row.missing_at === null) {
+                catalog.prepare('UPDATE works SET missing_at = ? WHERE work_id = ?').run(now(), row.work_id)
+              }
+              if (row.trashed_at === null) missing.push(row.work_id)
+            } else if (row.missing_at !== null) {
+              catalog.prepare('UPDATE works SET missing_at = NULL WHERE work_id = ?').run(row.work_id)
             }
-            if (row.trashed_at === null) missing.push(row.work_id)
-          } else if (row.missing_at !== null) {
-            catalog.prepare('UPDATE works SET missing_at = NULL WHERE work_id = ?').run(row.work_id)
           }
-        }
-      })
-    } catch {
-      // Another writer holds the catalog; the next read reconciles again. The
-      // listing itself must stay readable.
+        })
+      } catch {
+        // Another writer holds the catalog; the next start reconciles again. The
+        // listing itself must stay readable.
+      }
     }
     const orphans = []
     if (existsSync(worksDir(root))) {
@@ -277,12 +288,38 @@ export function reconcileWorks(root) {
         if (!known.has(name.slice(0, -3))) orphans.push(name)
       }
     }
+    const trashedIds = new Set(rows.filter(row => row.trashed_at !== null).map(row => row.work_id))
     const trash = existsSync(trashDir(root))
-      ? readdirSync(trashDir(root)).filter(name => name.endsWith('.db'))
+      ? readdirSync(trashDir(root))
+        .filter(name => name.endsWith('.db') && !trashedIds.has(name.slice(0, -3)))
       : []
     return { missing, orphans, trash }
   } finally {
-    catalog.close()
+    catalog?.close()
+  }
+}
+
+/** Workspaces already reconciled in this process. */
+const reconciledRoots = new Set()
+
+/**
+ * Reconcile one workspace once per process, at first touch, and record the
+ * diagnostics. A listing must stay readable when reconciliation cannot run.
+ * @param {string} root - workspace directory.
+ */
+export function ensureReconciled(root) {
+  if (reconciledRoots.has(root)) return
+  reconciledRoots.add(root)
+  try {
+    const report = reconcileWorks(root)
+    if (report.missing.length > 0 || report.orphans.length > 0 || report.trash.length > 0) {
+      console.warn(`[storycraft] 作品库对账（${root}）：`
+        + `缺失 ${report.missing.length}（${report.missing.join('、') || '无'}）；`
+        + `孤儿作品文件 ${report.orphans.length}（${report.orphans.join('、') || '无'}）；`
+        + `孤儿回收站文件 ${report.trash.length}（${report.trash.join('、') || '无'}）`)
+    }
+  } catch (error) {
+    console.warn(`[storycraft] 作品库对账失败：${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -292,7 +329,7 @@ export function reconcileWorks(root) {
  * @returns {Array<object>} work summaries.
  */
 export function listWorks(root) {
-  reconcileWorks(root)
+  ensureReconciled(root)
   const catalog = openCatalog(root, { create: false })
   if (catalog === undefined) return []
   try {
@@ -302,7 +339,10 @@ export function listWorks(root) {
       let db
       try {
         db = openWork(root, row.work_id)
-      } catch {
+      } catch (error) {
+        // A corrupt or newer-schema work stays diagnosable instead of vanishing
+        // silently; the list itself keeps showing the healthy works.
+        console.warn(`[storycraft] 跳过无法打开的作品 ${row.work_id}：${error?.code ?? error?.message ?? error}`)
         continue
       }
       try {
@@ -340,7 +380,7 @@ export function listWorks(root) {
  * @returns {Array<{workId: string, title: string, trashedAt: string, path: string}>} trash entries.
  */
 export function listTrash(root) {
-  reconcileWorks(root)
+  ensureReconciled(root)
   const catalog = openCatalog(root, { create: false })
   if (catalog === undefined) return []
   try {
@@ -536,9 +576,7 @@ export function nextStep(root, work) {
         return { chapter: last.number, stage, action: 'story_review', reason: `第 ${last.number} 章已有正文，先审稿`, missing: ['review'] }
       }
       const candidate = latestReviewRow(db, last.number)
-      const cover = candidate !== undefined && (
-        candidate.revision === last.currentRevision || candidate.revision === last.currentRevision - 1)
-      if (!cover) {
+      if (!reviewCovers(candidate, last, true)) {
         return { chapter: last.number, stage, action: 'story_review', reason: `第 ${last.number} 章已有正文，先审稿`, missing: ['review'] }
       }
       const open = parseReview(candidate.text).filter(item => !item.done)
@@ -700,8 +738,12 @@ export function renameWork(root, input) {
       }
       moved.close()
       try {
-        transaction(catalog, () => catalog.prepare('UPDATE works SET work_id = ?, title = ?, updated_at = ? WHERE work_id = ?')
-          .run(nextId, title, at, oldId))
+        transaction(catalog, () => {
+          catalog.prepare('UPDATE works SET work_id = ?, title = ?, updated_at = ? WHERE work_id = ?')
+            .run(nextId, title, at, oldId)
+          catalog.prepare('UPDATE session_current SET work_id = ? WHERE work_id = ?').run(nextId, oldId)
+          catalog.prepare('UPDATE proposals SET used_work_id = ? WHERE used_work_id = ?').run(nextId, oldId)
+        })
       } catch (error) {
         const back = openWork(root, nextId)
         try {
@@ -764,8 +806,17 @@ export function deleteWork(root, input) {
       db.close()
     }
     mkdirSync(trashDir(root), { recursive: true })
-    removeDatabaseFiles(trashFile(root, workId))
-    moveDatabaseFiles(from, trashFile(root, workId))
+    const target = trashFile(root, workId)
+    if (existsSync(target)) {
+      // A trash file without a catalog row belongs to manual recovery; never
+      // erase it to make room for this deletion.
+      let aside = join(trashDir(root), `${workId}-${Date.now()}.db`)
+      while (existsSync(aside)) aside = join(trashDir(root), `${workId}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}.db`)
+      moveDatabaseFiles(target, aside)
+    } else {
+      removeDatabaseFiles(target)
+    }
+    moveDatabaseFiles(from, target)
     try {
       transaction(catalog, () => catalog.prepare('UPDATE works SET trashed_at = ?, missing_at = NULL WHERE work_id = ?')
         .run(now(), workId))
@@ -1118,9 +1169,9 @@ export function reviseChapter(root, input) {
       if (review === undefined) throw new StoryError('review-required', `第 ${number} 章还没有审稿：先 story_review`)
       // A patch answers the exact revision it read; broader modes may land on
       // the revision the review already saw.
-      const covers = review.revision === entry.current_revision
-        || (mode !== 'patch' && review.revision === entry.current_revision - 1)
-      if (!covers) throw new StoryError('review-required', `第 ${number} 章的审稿针对旧版本 r${review.revision}：先重新审稿`)
+      if (!reviewCovers(review, entry, mode !== 'patch')) {
+        throw new StoryError('review-required', `第 ${number} 章的审稿针对旧版本 r${review.revision}：先重新审稿`)
+      }
       const open = parseReview(review.text).filter(item => !item.done).map(item => item.id)
       const missing = problemIds.filter(id => !open.includes(id))
       if (missing.length > 0) throw new StoryError('problem-not-found', `问题不存在或已处理：${missing.join('、')}`)
@@ -1275,7 +1326,7 @@ export function foldState(root, input) {
       }
       const review = latestReviewRow(db, number)
       if (review === undefined) throw new StoryError('review-required', `第 ${number} 章还没有审稿清单：先审稿与修订，再定稿`)
-      const covers = review.revision === entry.current_revision || review.revision === entry.current_revision - 1
+      const covers = reviewCovers(review, entry, true)
       const open = parseReview(review.text).filter(item => !item.done)
       if (open.length > 0) {
         throw new StoryError('review-required',
@@ -1420,7 +1471,7 @@ export function writeBible(root, input) {
   const db = openWork(root, workId)
   try {
     return transaction(db, () => {
-      const version = randomUUID()
+      const version = contentVersion(content)
       const at = now()
       db.prepare(`INSERT INTO bible (name, content, version, updated_at) VALUES (?, ?, ?, ?)
         ON CONFLICT(name) DO UPDATE SET content = excluded.content, version = excluded.version, updated_at = excluded.updated_at`)
@@ -1461,6 +1512,41 @@ export function readBibleEntries(root, work) {
   } finally {
     db.close()
   }
+}
+
+/**
+ * Read one work's truth entries as a name → content map.
+ * @param {string} root - workspace directory.
+ * @param {string} work - work identity.
+ * @returns {Map<string, string>} truth content.
+ */
+export function readBibleMap(root, work) {
+  return new Map(readBibleEntries(root, work).map(row => [row.name, row.content]))
+}
+
+/**
+ * Read one work's events as the JSONL text the folding helpers consume.
+ * @param {string} root - workspace directory.
+ * @param {string} work - work identity.
+ * @returns {string} event log text.
+ */
+export function readEventsText(root, work) {
+  const db = openWork(root, work)
+  try {
+    return eventsText(db)
+  } finally {
+    db.close()
+  }
+}
+
+/**
+ * Fold one work's event log into entities and hooks.
+ * @param {string} root - workspace directory.
+ * @param {string} work - work identity.
+ * @returns {{entities: object[], hooks: object[]}} folded state.
+ */
+export function readFoldedState(root, work) {
+  return foldEvents(readEventsText(root, work))
 }
 
 /**
@@ -1567,18 +1653,6 @@ function syncSearchDoc(db, docId, kind, source, chapter, body) {
     .run(docId, kind, source, chapter, body, tokens)
   const row = db.prepare('SELECT rowid FROM search_docs WHERE doc_id = ?').get(docId)
   db.prepare('INSERT INTO search_fts (rowid, tokens) VALUES (?, ?)').run(row.rowid, tokens)
-}
-
-/** Rebuild the FTS index from `search_docs` (used after a schema-level import). */
-export function rebuildSearchIndex(root, work) {
-  const db = openWork(root, work)
-  try {
-    transaction(db, () => {
-      db.exec("INSERT INTO search_fts(search_fts) VALUES('rebuild')")
-    })
-  } finally {
-    db.close()
-  }
 }
 
 /**
@@ -1688,7 +1762,7 @@ export function exportWork(root, work, destination) {
       put('state/events.jsonl', `${db.prepare('SELECT * FROM events ORDER BY seq').all()
         .map(event => JSON.stringify({ seq: event.seq, at: event.at, chapter: event.chapter, kind: event.kind, ...JSON.parse(event.payload) }))
         .join('\n')}\n`)
-      for (const proposal of catalog.prepare('SELECT * FROM proposals ORDER BY created_at').all()) {
+      for (const proposal of catalog.prepare('SELECT * FROM proposals WHERE used_work_id = ? ORDER BY created_at').all(row.work_id)) {
         put(join('proposals', `${proposal.id}.json`), `${JSON.stringify({
           id: proposal.id,
           title: proposal.title,
@@ -1763,18 +1837,21 @@ export function createProposal(root, input) {
     return transaction(catalog, () => {
       const title = String(input.title ?? '').trim()
       if (title === '') throw new StoryError('proposal-invalid', '提案需要作品标题')
+      const form = input.form === undefined ? 'longform' : String(input.form)
+      if (!WORK_FORMS.includes(form)) throw new StoryError('proposal-invalid', `提案形态不合法：${form}`)
+      const premise = String(input.premise ?? '').trim()
+      if (premise === '') throw new StoryError('proposal-invalid', '提案需要一句话前提或核心冲突')
       const exists = catalog.prepare('SELECT 1 FROM works WHERE title = ? AND trashed_at IS NULL').get(title)
       if (exists !== undefined) throw new StoryError('work-exists', `作品已存在：${title}`)
-      const cutoff = new Date(Date.now() - PROPOSAL_TTL_MS).toISOString()
-      catalog.prepare('DELETE FROM proposals WHERE used_at IS NULL AND created_at < ?').run(cutoff)
+      pruneProposalRows(catalog, PROPOSAL_TTL_MS)
       const id = `p-${randomUUID().slice(0, 8)}`
       const at = now()
       catalog.prepare(`INSERT INTO proposals (id, title, form, premise, characters, conflict, notes, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
-        id, title, String(input.form ?? 'longform'), String(input.premise ?? ''),
+        id, title, form, premise,
         input.characters ?? null, input.conflict ?? null, input.notes ?? null, at,
       )
-      return { id, title, form: input.form ?? 'longform', premise: input.premise ?? '', createdAt: at }
+      return { id, title, form, premise, createdAt: at }
     })
   } finally {
     catalog.close()
@@ -1862,6 +1939,17 @@ export function deleteProposal(root, id) {
 }
 
 /**
+ * Delete unused proposals older than a TTL (caller owns the transaction).
+ * @param {object} catalog - open catalog.
+ * @param {number} ttlMs - age threshold.
+ * @returns {number} rows removed.
+ */
+function pruneProposalRows(catalog, ttlMs) {
+  const cutoff = new Date(Date.now() - ttlMs).toISOString()
+  return catalog.prepare('DELETE FROM proposals WHERE used_at IS NULL AND created_at < ?').run(cutoff).changes
+}
+
+/**
  * Prune unused proposals older than the TTL.
  * @param {string} root - workspace directory.
  * @param {number} ttlMs - age threshold.
@@ -1871,11 +1959,7 @@ export function pruneProposals(root, ttlMs = PROPOSAL_TTL_MS) {
   const catalog = openCatalog(root, { create: false })
   if (catalog === undefined) return { removed: 0 }
   try {
-    return transaction(catalog, () => {
-      const cutoff = new Date(Date.now() - ttlMs).toISOString()
-      const result = catalog.prepare('DELETE FROM proposals WHERE used_at IS NULL AND created_at < ?').run(cutoff)
-      return { removed: result.changes }
-    })
+    return transaction(catalog, () => ({ removed: pruneProposalRows(catalog, ttlMs) }))
   } finally {
     catalog.close()
   }

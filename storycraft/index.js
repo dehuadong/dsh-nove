@@ -13,7 +13,7 @@
 
 import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
-import { approveChapterPlan, approveOutline, listTrash, listWorks, nextStep, readManifest, readChapter, readReview, readWork, StoryError } from './storage.js'
+import { approveChapterPlan, approveOutline, ensureReconciled, listTrash, listWorks, nextStep, readManifest, readChapter, readReview, readWork, StoryError } from './storage.js'
 import { critique } from './critique.js'
 import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent, snapshot as snapshotCurrent } from './current.js'
 import { readVolumes } from './volumes.js'
@@ -199,6 +199,16 @@ function chapterOf(query) {
  * @param {object} ctx - host plugin context (service: webServer).
  */
 export function apply(ctx) {
+  // Reconcile the catalog against the files at startup, for every workspace the
+  // host already knows. A workspace registered later is reconciled on first use.
+  try {
+    const registry = ctx.get('workspaceRegistry')
+    for (const workspace of registry?.list?.() ?? []) {
+      if (typeof workspace?.path === 'string') ensureReconciled(workspace.path)
+    }
+  } catch {
+    // Reconciliation is diagnostic; it never blocks the host surfaces.
+  }
   const disposers = [
     ctx.webServer.register({
       kind: 'exact',

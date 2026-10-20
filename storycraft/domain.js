@@ -5,6 +5,8 @@
  * and the read-only workbench can all depend on them without a cycle.
  */
 
+import { createHash } from 'node:crypto'
+
 /** Failure carrying a stable code for the actions' structured results. */
 export class StoryError extends Error {
   /**
@@ -72,6 +74,17 @@ export function slugify(title) {
 const RESERVED_IDS = new Set(['works', 'trash', 'catalog', 'exports', 'backups'])
 
 /**
+ * Whether a value is already a canonical work identity (file stem / URL segment).
+ * @param {unknown} value - candidate identity.
+ * @returns {boolean} true for letters/numbers with inner hyphens and no reserved name.
+ */
+export function isWorkId(value) {
+  return typeof value === 'string'
+    && /^[\p{Letter}\p{Number}][\p{Letter}\p{Number}-]*$/u.test(value)
+    && !RESERVED_IDS.has(value)
+}
+
+/**
  * Normalise and validate a work identity.
  *
  * An identity is both a file stem and a URL-safe segment, so it may only hold
@@ -82,10 +95,15 @@ const RESERVED_IDS = new Set(['works', 'trash', 'catalog', 'exports', 'backups']
  */
 export function workIdOf(value) {
   const id = slugify(value)
-  if (!/^[\p{Letter}\p{Number}][\p{Letter}\p{Number}-]*$/u.test(id) || RESERVED_IDS.has(id)) {
+  if (!isWorkId(id)) {
     throw new StoryError('invalid-work-id', `作品 id 不合法：${String(value)}`)
   }
   return id
+}
+
+/** A file's content version: first 12 hex digits of its SHA-256. */
+export function contentVersion(text) {
+  return createHash('sha256').update(String(text), 'utf8').digest('hex').slice(0, 12)
 }
 
 /** Zero-padded chapter file stem: 1 → `ch-0001`. */
@@ -146,20 +164,6 @@ export function parseReview(text) {
     if (match !== null) items.push({ id: match[2], done: match[1] === 'x', line: index })
   }
   return items
-}
-
-/**
- * Parse one review text into full items (location, problem, suggestion).
- * @param {string} text - review markdown.
- * @returns {Array<{id: string, done: boolean, location: string, problem: string, suggestion: string}>} items.
- */
-export function parseReviewItems(text) {
-  return String(text).split(/\r?\n/).flatMap((line) => {
-    const match = /^- \[( |x)\] (Q\d+) :: (.*?) :: (.*?) :: (.*)$/u.exec(line)
-    return match === null
-      ? []
-      : [{ id: match[2], done: match[1] === 'x', location: match[3], problem: match[4], suggestion: match[5] }]
-  })
 }
 
 /**

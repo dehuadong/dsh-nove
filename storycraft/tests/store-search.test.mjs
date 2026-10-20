@@ -62,10 +62,10 @@ try {
   check('search survives rename', afterRename.some(hit => hit.kind === 'chapter'))
   const second = store.exportWork(root, renamed.workId, join(root, '.storycraft', 'exports', 'two'))
   const again = JSON.parse(await readFile(join(second.directory, 'manifest.json'), 'utf8'))
-  check('two exports share manifest content', JSON.stringify(again) === JSON.stringify(manifest))
+  check('two manifest copies match', JSON.stringify(again) === JSON.stringify(manifest))
   const firstTime = (await stat(join(first.directory, 'manifest.json'))).mtimeMs
   const secondTime = (await stat(join(second.directory, 'manifest.json'))).mtimeMs
-  check('export mtimes are normalized', firstTime === secondTime, `${firstTime} vs ${secondTime}`)
+  check('manifest mtimes are normalized', firstTime === secondTime, `${firstTime} vs ${secondTime}`)
 
   const backup = await store.backupWork(root, renamed.workId, join(root, '.storycraft', 'backups', 'b.db'))
   check('backup integrity ok', backup.integrity === 'ok', backup.integrity)

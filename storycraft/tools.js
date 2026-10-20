@@ -599,7 +599,7 @@ function rawDefinitions() {
     action({
       name: 'story_init',
       mutates: true,
-      description: '建立一部作品：作品库文件（.storycraft/works/<workId>.db）、进度清单、真值五件与检索表。'
+      description: '建立一部作品：作品库文件（.storycraft/works/<workId>.db）、真值五件与检索表。'
         + ' 用户要求开始写一部新作品时先调用它。作品 id 由标题生成；同 id 已存在时拒绝，不覆盖已有作品，'
         + ' 需要另起一部时换标题或显式给 workId。',
       parameters: {
@@ -719,7 +719,7 @@ function rawDefinitions() {
     action({
       name: 'story_plan',
       mutates: true,
-      description: '写一章的章纲并落盘。五项必须齐全：视角、目标、阻力、代价、结尾变化；缺项会被拒绝。'
+      description: '写一章的章纲。五项必须齐全：视角、目标、阻力、代价、结尾变化；缺项会被拒绝。'
         + ' 动笔前先出章纲，改章纲也用这个动作覆盖同一章的章纲。',
       parameters: {
         type: 'object',

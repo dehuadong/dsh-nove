@@ -7,13 +7,12 @@
  * always assemble the same brief byte for byte.
  */
 
-import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { readFile } from 'node:fs/promises'
-import { StoryError, chapterNumber, chapterStem, foldEvents } from './domain.js'
+import { StoryError, chapterNumber, chapterStem, contentVersion } from './domain.js'
 import {
-  listSummaries, readBibleEntries, readBibleEntry, readChapter as readChapterRow, readEvents,
-  readManifest, readPlan, readSummary as readSummaryRow, readVolumes,
+  listSummaries, readBibleEntry, readBibleMap, readChapter as readChapterRow, readFoldedState,
+  readManifest, readPlan, readSummary as readSummaryRow, readVolumes, virtualPath,
   writeBible as writeBibleRow, writeSummary as writeSummaryRow,
 } from './store-db.js'
 
@@ -43,13 +42,10 @@ export const WORD_POLICY = '单章 3000–5000 字；每章结尾留悬念钩子
 
 /** Virtual path of one truth file. */
 function biblePath(workId, name) {
-  return `works/${workId}/${BIBLE_FILES[name].file}`
+  return virtualPath(workId, BIBLE_FILES[name].file)
 }
 
-/** A file's content version: first 12 hex digits of its SHA-256. */
-export function contentVersion(text) {
-  return createHash('sha256').update(text, 'utf8').digest('hex').slice(0, 12)
-}
+export { contentVersion }
 
 /** `true` when the file carries nothing but headings. */
 export function isDraft(text) {
@@ -124,7 +120,7 @@ export async function readBible(root, workId, only) {
   if (names.some(name => BIBLE_FILES[name] === undefined)) {
     throw new StoryError('bible-invalid', `未知的真值文件：${String(only)}`)
   }
-  const rows = new Map(readBibleEntries(root, manifest.workId).map(row => [row.name, row.content]))
+  const rows = readBibleMap(root, manifest.workId)
   const files = []
   const missing = []
   for (const name of names) {
@@ -230,7 +226,7 @@ export async function summaryIndex(root, workId) {
   const manifest = readManifest(root, workId)
   const chapters = listSummaries(root, manifest.workId).map(row => ({
     number: row.number,
-    path: `works/${manifest.workId}/summaries/${chapterStem(row.number)}.md`,
+    path: virtualPath(manifest.workId, `summaries/${chapterStem(row.number)}.md`),
     words: [...String(row.text).trim()].length,
   }))
   return { chapters }
@@ -269,7 +265,7 @@ export async function writeSummary(root, workId, chapter, text) {
   const content = `${truncated ? chars.slice(0, SUMMARY_MAX_CHARS).join('') : body}\n`
   writeSummaryRow(root, { work: manifest.workId, chapter: number, text: content })
   return {
-    path: `works/${manifest.workId}/summaries/${chapterStem(number)}.md`,
+    path: virtualPath(manifest.workId, `summaries/${chapterStem(number)}.md`),
     truncated,
     words: [...body].length,
   }
@@ -294,7 +290,7 @@ export async function assembleBrief(root, workId, chapter) {
 
   const missing = []
   const raw = {}
-  for (const row of readBibleEntries(root, work)) raw[row.name] = row.content
+  for (const [name, content] of readBibleMap(root, work)) raw[name] = content
   for (const name of Object.keys(BIBLE_FILES)) if (raw[name] === undefined) missing.push(name)
   if (missing.length > 0) {
     throw new StoryError('bible-missing', `真值文件缺失：${missing.join('、')}（可用 story_bible_write 补建）`)
@@ -313,7 +309,7 @@ export async function assembleBrief(root, workId, chapter) {
     .map(record => `- ${record.name}（${record.role}）：想要 ${record.want}；害怕 ${record.fear}；底线 ${record.limit}；口吻 ${record.voice}`)
     .join('\n')
 
-  const folded = foldEvents(readEvents(root, work).map(event => JSON.stringify(event)).join('\n'))
+  const folded = readFoldedState(root, work)
   const hooks = folded.hooks.filter(hook => hook.state !== 'resolved')
   const hookText = hooks
     .map(hook => `- ${hook.text}（${hook.state}，第 ${hook.openedChapter} 章埋）`)
@@ -321,9 +317,9 @@ export async function assembleBrief(root, workId, chapter) {
 
   const sections = [
     section('intent', '作者意图与当前焦点', raw.intent, biblePath(work, 'intent')),
-    section('plan', '本章章纲', planText, `works/${work}/outline/${chapterStem(number)}.plan.md`, { absent: plan === undefined }),
+    section('plan', '本章章纲', planText, virtualPath(work, `outline/${chapterStem(number)}.plan.md`), { absent: plan === undefined }),
     section('characters', '本章涉及人物', characterText, biblePath(work, 'characters'), { fallback: matched.length === 0 }),
-    section('hooks', '未解伏笔', hookText, `works/${work}/state/events.jsonl`, { absent: hooks.length === 0 }),
+    section('hooks', '未解伏笔', hookText, virtualPath(work, 'state/events.jsonl'), { absent: hooks.length === 0 }),
     await volumeSummarySection(root, manifest, number),
     await recentSummariesSection(root, manifest, number),
     await previousSection(root, manifest, number),
@@ -332,7 +328,7 @@ export async function assembleBrief(root, workId, chapter) {
       manifest.wordRange === undefined
         ? '字数未设定（按作者习惯）；每章结尾留悬念钩子。'
         : `单章 ${manifest.wordRange.min}–${manifest.wordRange.max} 字；每章结尾留悬念钩子。`,
-      `works/${work}/manifest`),
+      virtualPath(work, 'manifest')),
   ]
 
   const budget = { limit: BRIEF_BUDGET_BYTES, used: 0, overBudget: false }
@@ -386,7 +382,7 @@ async function volumeSummarySection(root, manifest, number) {
   const volume = volumes.find(item => number >= item.from && number <= item.to)
   if (volume === undefined) return section('volumeSummary', '本卷摘要', '', '', { absent: true })
   const summary = typeof volume.summary === 'string' ? volume.summary.trim() : ''
-  return section('volumeSummary', `本卷摘要（${volume.title}）`, summary, `works/${manifest.workId}/volumes`, { absent: summary === '' })
+  return section('volumeSummary', `本卷摘要（${volume.title}）`, summary, virtualPath(manifest.workId, 'volumes'), { absent: summary === '' })
 }
 
 /**
@@ -408,7 +404,7 @@ async function recentSummariesSection(root, manifest, number) {
     if (text === undefined || text.trim() === '') continue
     lines.push(`第 ${chapter} 章：${text.trim()}`)
   }
-  return section('recentSummaries', `最近 ${lines.length} 章摘要`, lines.join('\n'), `works/${manifest.workId}/summaries/`, {
+  return section('recentSummaries', `最近 ${lines.length} 章摘要`, lines.join('\n'), virtualPath(manifest.workId, 'summaries/'), {
     absent: lines.length === 0,
   })
 }
@@ -426,7 +422,7 @@ async function previousSection(root, manifest, number) {
   const previous = number - 1
   const summary = readSummaryRow(root, manifest.workId, previous)
   if (summary !== undefined && summary.trim() !== '') {
-    return section('previous', '上一章结尾', summary.trim(), `works/${manifest.workId}/summaries/${chapterStem(previous)}.md`)
+    return section('previous', '上一章结尾', summary.trim(), virtualPath(manifest.workId, `summaries/${chapterStem(previous)}.md`))
   }
   let body
   try {
@@ -442,5 +438,5 @@ async function previousSection(root, manifest, number) {
     if (byteLength(next) > PREV_TAIL_BYTES) break
     tail = next
   }
-  return section('previous', '上一章结尾', tail.trim(), `works/${manifest.workId}/chapters/${chapterStem(previous)}.md`, { bodyFallback: true })
+  return section('previous', '上一章结尾', tail.trim(), virtualPath(manifest.workId, `chapters/${chapterStem(previous)}.md`), { bodyFallback: true })
 }

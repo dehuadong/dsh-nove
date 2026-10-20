@@ -1,8 +1,8 @@
 // Work lifecycle: rename, trash, restore and reconciliation against the files.
-import { copyFile, mkdtemp, rm, stat } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { trashFile, workFile } from '../db.js'
+import { trashDir, trashFile, workFile } from '../db.js'
 import * as s from '../storage.js'
 
 let failures = 0
@@ -94,6 +94,17 @@ try {
   await copyFile(workFile(root, 'gamma'), workFile(root, disappearing))
   s.reconcileWorks(root)
   check('recovered work returns to the list', (await s.listWorks(root)).some(item => item.workId === disappearing))
+
+  // Deleting onto a pre-existing orphan trash file preserves it instead of
+  // erasing the only copy.
+  const collision = (await s.initWork(root, { title: '碰撞' })).workId
+  await mkdir(trashDir(root), { recursive: true })
+  await writeFile(trashFile(root, collision), 'orphan')
+  await s.deleteWork(root, { work: collision })
+  const aside = (await readdir(trashDir(root))).filter(name => name.startsWith(`${collision}-`))
+  check('delete preserves the displaced trash file', aside.length === 1, aside.join(','))
+  check('the preserved file keeps its content', (await readFile(join(trashDir(root), aside[0]), 'utf8')) === 'orphan')
+  check('the new work file is in the trash', (await stat(trashFile(root, collision))).size > 0)
 
   // Initializing an id that is sitting in the trash is refused, not shadowed.
   await s.deleteWork(root, { work: 'gamma' })

@@ -145,16 +145,26 @@ try {
   check('session pointers can be replaced', Object.keys(store.readSessionCurrent(root)).length === 1)
 
   // Proposals live in the catalog, not in files.
+  await rejects('proposal needs a premise', 'proposal-invalid',
+    async () => store.createProposal(root, { title: '空提案', form: 'longform', premise: '  ' }))
+  await rejects('proposal form is validated', 'proposal-invalid',
+    async () => store.createProposal(root, { title: '怪形态', form: 'novella', premise: '一句话' }))
   const proposal = store.createProposal(root, { title: '新想法', form: 'short', premise: '一句话' })
   const id = proposal.id
   check('proposal stored', store.readProposal(root, id).title === '新想法')
   const catalogWithProposal = openCatalog(root, { create: false })
   check('proposal is in the catalog', catalogWithProposal.prepare('SELECT count(*) AS n FROM proposals').get().n === 1)
   catalogWithProposal.close()
-  store.markProposalUsed(root, id, '新想法')
+  store.markProposalUsed(root, id, '另一本')
   check('proposal marked used', typeof store.readProposal(root, id).usedAt === 'string')
   check('prune keeps fresh proposals', store.pruneProposals(root, 1000).removed === 0)
   check('listProposals reads the catalog', store.listProposals(root)[0].id === id)
+
+  // Renaming the identity follows the catalog references too.
+  const recatalogued = store.renameWork(root, { work: '另一本', workId: '另一改' })
+  check('rename returns the new id', recatalogued.workId === '另一改')
+  check('rename follows session pointers', store.readSessionCurrent(root)['session-a'] === '另一改')
+  check('rename follows used proposals', store.readProposal(root, id).usedWorkId === '另一改')
 } finally {
   await rm(root, { recursive: true, force: true }).catch(() => {})
 }

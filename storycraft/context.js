@@ -12,11 +12,11 @@
 
 import { deriveWhitelist, readCards, summariseWhitelist } from './facts.js'
 import {
-  StoryError, chapterNumber, chapterStem, foldEvents, formOf, planApprovalPolicy, unitOf,
+  StoryError, chapterNumber, chapterStem, formOf, planApprovalPolicy, unitOf,
 } from './domain.js'
 import {
-  readBibleEntries, readChapter as readChapterRow, readEvents, readManifest, readPlan,
-  readVolumes, readSummary as readSummaryRow,
+  readBibleMap, readChapter as readChapterRow, readFoldedState, readManifest, readPlan,
+  readVolumes, readSummary as readSummaryRow, virtualPath,
 } from './store-db.js'
 
 /** Default budget for one role context, in characters. */
@@ -63,11 +63,6 @@ const STANDARDS = {
       '未点名的段落保持原样；不得借修订引入新人名、地名与尺寸。',
     ].join('\n'),
   },
-}
-
-/** Virtual path of one artifact inside a work. */
-function workPath(workId, relative) {
-  return `works/${workId}/${relative}`
 }
 
 /** One section record. */
@@ -125,7 +120,7 @@ export async function assembleRoleContext(input) {
     throw new StoryError('chapter-not-written', `第 ${number} 章还没有正文：先写正文，再审稿或修订`)
   }
 
-  const bible = new Map(readBibleEntries(root, work).map(row => [row.name, row.content]))
+  const bible = readBibleMap(root, work)
   const intent = bible.get('intent') ?? ''
   const planText = bible.get('plan') ?? ''
   const volumes = readVolumes(root, work)
@@ -173,10 +168,10 @@ export async function assembleRoleContext(input) {
     ...(intent.trim() === '' ? [] : ['本书口径（摘自意图文件）：', intent.trim().slice(0, 600)]),
   ].filter(line => line !== '')
   const constraints = section('constraints', '硬约束', constraintLines.join('\n'), 'protected',
-    `works/${work}/manifest + works/${work}/bible/characters.json + works/${work}/bible/intent.md`)
+    `${virtualPath(work, 'manifest')} + ${virtualPath(work, 'bible/characters.json')} + ${virtualPath(work, 'bible/intent.md')}`)
 
   // 4. state — compressible
-  const folded = foldEvents(readEvents(root, work).map(event => JSON.stringify(event)).join('\n'))
+  const folded = readFoldedState(root, work)
   const openHooks = folded.hooks.filter(hook => hook.state !== 'resolved')
   const stateLines = [
     ...(folded.entities.length === 0 ? [] : [
@@ -188,7 +183,7 @@ export async function assembleRoleContext(input) {
       ...openHooks.slice(0, 8).map(hook => `- ${hook.text}（${hook.state}，第 ${hook.openedChapter} 章）`),
     ]),
   ]
-  const state = section('state', '人物与状态', stateLines.join('\n'), 'compressible', `works/${work}/state/events.jsonl`)
+  const state = section('state', '人物与状态', stateLines.join('\n'), 'compressible', virtualPath(work, 'state/events.jsonl'))
 
   // 5. recent — compressible
   const summaries = []
@@ -206,32 +201,32 @@ export async function assembleRoleContext(input) {
     }
     if (previousBody !== undefined) summaries.push(`上一章结尾：…${previousBody.trim().slice(-400)}`)
   }
-  const recent = section('recent', '最近脉络', summaries.join('\n'), 'compressible', `works/${work}/summaries/ + 上一章结尾`)
+  const recent = section('recent', '最近脉络', summaries.join('\n'), 'compressible', `${virtualPath(work, 'summaries/')} + 上一章结尾`)
 
   // 6. style — compressible
-  const style = section('style', '文风要点', bible.get('style') ?? '', 'compressible', `works/${work}/bible/style.md`)
+  const style = section('style', '文风要点', bible.get('style') ?? '', 'compressible', virtualPath(work, 'bible/style.md'))
 
   // planner-only: book plan, volume map and character cards
   const planSection = role === 'planner'
     ? section('plan', '全书计划与卷图', [
       planText === '' ? '（还没有全书计划）' : planText.trim(),
       volumeTitles === '' ? '' : `卷图：\n${volumeTitles}`,
-    ].filter(line => line !== '').join('\n'), 'protected', `works/${work}/bible/plan.md + works/${work}/volumes`)
+    ].filter(line => line !== '').join('\n'), 'protected', `${virtualPath(work, 'bible/plan.md')} + ${virtualPath(work, 'volumes')}`)
     : undefined
   const characterBrief = role === 'planner'
     ? section('characters', '人物卡（节选）', characters.slice(0, 6).map(item => [
       `- ${item.name}：${item.role}`,
       ...(item.limit === undefined ? [] : [`  边界：${item.limit}`]),
       ...(item.voice === undefined ? [] : [`  语气：${item.voice}`]),
-    ].join('\n')).join('\n'), 'compressible', `works/${work}/bible/characters.json`)
+    ].join('\n')).join('\n'), 'compressible', virtualPath(work, 'bible/characters.json'))
     : undefined
 
   // writer/reviewer/reviser: the chapter plan; reviewer/reviser also get the body
   const chapterPlanSection = role === 'writer' ? undefined
-    : needsPlan ? section('plan', '本章章纲', chapterPlan ?? '', 'protected', `works/${work}/outline/${chapterStem(number)}.plan.md`) : undefined
+    : needsPlan ? section('plan', '本章章纲', chapterPlan ?? '', 'protected', virtualPath(work, `outline/${chapterStem(number)}.plan.md`)) : undefined
   const bodySection = body === ''
     ? undefined
-    : section('body', '待处理的正文', `---正文开始---\n${body}\n---正文结束---`, 'protected', `works/${work}/chapters/`)
+    : section('body', '待处理的正文', `---正文开始---\n${body}\n---正文结束---`, 'protected', virtualPath(work, 'chapters/'))
   const standard = role === 'reviewer' || role === 'reviser'
     ? section('standard', role === 'reviewer' ? '审稿标准' : '修订标准', STANDARDS[role].content, 'protected', STANDARDS[role].source)
     : undefined

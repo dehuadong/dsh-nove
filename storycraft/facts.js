@@ -11,7 +11,7 @@
 import { parseCharacters } from './bible.js'
 import { chapterNumber } from './domain.js'
 import {
-  listBodies, listSummaries, readBibleEntries, readBibleEntry, readEvents, readManifest, readPlan, readVolumes,
+  listBodies, listSummaries, readBibleEntry, readBibleMap, readEventsText, readManifest, readPlan, readVolumes,
 } from './store-db.js'
 
 /** Chinese digit values used to normalise numerals before comparison. */
@@ -128,7 +128,7 @@ export async function deriveWhitelist(root, input) {
   const manifest = readManifest(root, input.work)
   const work = manifest.workId
   const cards = await readCards(root, work)
-  const bible = new Map(readBibleEntries(root, work).map(row => [row.name, row.content]))
+  const bible = readBibleMap(root, work)
   const intent = bible.get('intent') ?? ''
   const plan = bible.get('plan') ?? ''
   const volumes = JSON.stringify(readVolumes(root, work))
@@ -140,7 +140,7 @@ export async function deriveWhitelist(root, input) {
   // secondary cast (阿六、秦老卒…), and flagging them as invented blocks real work.
   const known = cards.map(card => card.name).filter(name => typeof name === 'string' && name !== '')
   const established = new Set(known)
-  const stateText = readEvents(root, work).map(event => JSON.stringify(event)).join('\n')
+  const stateText = readEventsText(root, work)
   for (const match of stateText.matchAll(/"name"\s*:\s*"([^"]+)"/gu)) established.add(match[1])
   const current = input.chapter === undefined ? undefined : chapterNumber(input.chapter)
   const textFiles = []

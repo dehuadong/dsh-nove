@@ -1,5 +1,5 @@
 // Per-work export and backup: single-file units, fixed mtimes, integrity check.
-import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { openDatabase } from '../db.js'
@@ -12,6 +12,28 @@ function check(name, condition, detail) {
     failures += 1
     console.log(`FAIL ${name}${detail === undefined ? '' : ` — ${detail}`}`)
   }
+}
+
+/** Every file of an export, with content and mtime, sorted by relative path. */
+async function readTree(dir) {
+  const files = []
+  const walk = async (current, relative) => {
+    for (const entry of await readdir(current, { withFileTypes: true })) {
+      const next = relative === '' ? entry.name : join(relative, entry.name)
+      const file = join(current, entry.name)
+      if (entry.isDirectory()) {
+        await walk(file, next)
+        continue
+      }
+      files.push({
+        path: next.replaceAll('\\', '/'),
+        content: await readFile(file, 'utf8'),
+        mtime: (await stat(file)).mtimeMs,
+      })
+    }
+  }
+  await walk(dir, '')
+  return files.sort((left, right) => left.path.localeCompare(right.path))
 }
 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-export-'))
@@ -29,6 +51,10 @@ try {
   store.writeVolume(root, { work, id: 'v1', title: '第一卷', from: 1, to: 1, summary: '开局' })
   store.writeBible(root, { work, name: 'world', content: '# 世界观\n\n荒原。\n' })
   const proposal = store.createProposal(root, { title: '提案一', premise: '一句话' })
+  store.markProposalUsed(root, proposal.id, work)
+
+  const defaulted = store.exportWork(root, work)
+  check('default export lands under .storycraft/exports', defaulted.directory === join(root, '.storycraft', 'exports', work), defaulted.directory)
 
   const first = store.exportWork(root, work, join(root, 'out', 'one'))
   const manifest = JSON.parse(await readFile(join(first.directory, 'manifest.json'), 'utf8'))
@@ -48,12 +74,15 @@ try {
 
   // Two exports of unchanged content are byte-identical and share mtimes.
   const second = store.exportWork(root, work, join(root, 'out', 'two'))
-  check('two exports share the manifest content',
-    JSON.stringify(JSON.parse(await readFile(join(second.directory, 'manifest.json'), 'utf8'))) === JSON.stringify(manifest))
-  check('export mtimes are fixed',
-    (await stat(join(first.directory, 'manifest.json'))).mtimeMs === (await stat(join(second.directory, 'manifest.json'))).mtimeMs)
+  const firstTree = await readTree(first.directory)
+  const secondTree = await readTree(second.directory)
+  check('two exports have the same file tree', JSON.stringify(firstTree.map(file => file.path)) === JSON.stringify(secondTree.map(file => file.path)))
+  check('two exports are byte-identical', JSON.stringify(firstTree) === JSON.stringify(secondTree))
+  check('export mtimes are fixed', firstTree.every((file, index) => file.mtime === secondTree[index].mtime))
 
   // A backup is one SQLite file; integrity_check runs on the copy.
+  const defaultBackup = await store.backupWork(root, work)
+  check('default backup lands under .storycraft/backups', defaultBackup.file.startsWith(join(root, '.storycraft', 'backups', `${work}-`)), defaultBackup.file)
   const backup = await store.backupWork(root, work, join(root, '.storycraft', 'backups', 'one.db'))
   check('backup integrity is ok', backup.integrity === 'ok', backup.integrity)
   check('backup is a readable work database', (await stat(backup.file)).size > 0)
@@ -63,7 +92,7 @@ try {
 
   // A backup that cannot be written reports backup-failed, not a raw fs error.
   const blocked = join(root, 'blocked')
-  await (await import('node:fs/promises')).mkdir(blocked)
+  await mkdir(blocked)
   let failedCode
   try {
     await store.backupWork(root, work, blocked)
@@ -77,6 +106,8 @@ try {
   const third = store.exportWork(root, renamed.workId, join(root, 'out', 'three'))
   check('export follows the new identity',
     JSON.stringify(JSON.parse(await readFile(join(third.directory, 'manifest.json'), 'utf8'))) === JSON.stringify(manifest))
+  check('rename keeps the exported file set', JSON.stringify((await readTree(third.directory)).map(file => file.path))
+    === JSON.stringify(firstTree.map(file => file.path)))
 } finally {
   await rm(root, { recursive: true, force: true }).catch(() => {})
 }

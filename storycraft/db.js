@@ -11,7 +11,7 @@
 
 import { existsSync, mkdirSync, renameSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { StoryError } from './domain.js'
+import { StoryError, isWorkId } from './domain.js'
 
 let DatabaseSync
 try {
@@ -207,7 +207,7 @@ export function backupsDir(root) {
  */
 export function workFile(root, workId) {
   const id = String(workId)
-  if (!/^[\p{Letter}\p{Number}][\p{Letter}\p{Number}-]*$/u.test(id)) {
+  if (!isWorkId(id)) {
     throw new StoryError('invalid-work-id', `作品 id 不合法：${id}`)
   }
   return join(worksDir(root), `${id}.db`)
@@ -215,7 +215,9 @@ export function workFile(root, workId) {
 
 /** Absolute path of one trashed work database. */
 export function trashFile(root, workId) {
-  return join(trashDir(root), `${String(workId)}.db`)
+  const id = String(workId)
+  if (!isWorkId(id)) throw new StoryError('invalid-work-id', `作品 id 不合法：${id}`)
+  return join(trashDir(root), `${id}.db`)
 }
 
 /** Whether `node:sqlite` can be loaded in this runtime. */
@@ -296,7 +298,7 @@ export function openCatalog(root, options = {}) {
   const db = openDatabase(file, '作品目录无法打开')
   try {
     const version = userVersion(db)
-    if (version > CATALOG_SCHEMA_VERSION || (version !== 0 && version !== CATALOG_SCHEMA_VERSION)) {
+    if (version !== 0 && version !== CATALOG_SCHEMA_VERSION) {
       throw new StoryError('schema-version-mismatch',
         `作品目录版本 ${version} 与支持的 ${CATALOG_SCHEMA_VERSION} 不一致：请升级插件`)
     }

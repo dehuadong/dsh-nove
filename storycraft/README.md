@@ -37,50 +37,22 @@ DSH 里的长篇创作编排：二十七个动作把立项、章纲、正文、�
 
 形态是作品数据，决定用哪套技能与页面单位；动作与门禁完全一致。没有已知形态时按长篇读取。
 
-## 作品库布局
+## 作品库
 
 工作区下只有一棵存储目录，作品内容不出工作区：
 
 ```text
 <工作区>/.storycraft/
-  catalog.db                 目录：works（标题/形态/标签/库版本/生命周期）、proposals、session_current
+  catalog.db                 目录：works、proposals、session_current
   works/<workId>.db          单部作品的全部内容
   trash/<workId>.db          软删除的作品库
   exports/<workId>/          按需导出（作者在系统文件管理器里取用）
   backups/<workId>-<ts>.db   单作品备份
 ```
 
-`catalog.db` 只存元数据，**是 title/form/tags 的权威**；作品库的 `meta` 行是导出副本，写操作同步两者。每部作品独立 `PRAGMA user_version` 并记入 `catalog.works.schema_version`，升级一部作品不影响其他作品。
+`catalog.db` 只存元数据，是 title/form/tags 的权威；作品库的 `meta` 行是导出副本。每部作品独立 `user_version`，升级一部不影响其他。表结构、连接策略、改名/删除/恢复顺序与启动对账的完整设计见 [作品入库 Note](../.agents/notes/proposed/pipeline/2026-10-19-storycraft-sqlite-store.md)。
 
-### 一个作品库
-
-```text
-meta               work_id、标题、形态、标签、章纲策略、字数范围、全书计划时间、创建/更新时间
-chapters           章号、标题、状态、阶段、当前版本、字数、章纲确认时间
-chapter_versions   每版正文（旧版不改写）
-chapter_plans      章纲：视角、目标、阻力、代价、结尾变化
-summaries          章节摘要（上限 400 字）
-reviews            每轮审稿清单：`- [ ] Q1 :: 位置 :: 问题 :: 建议`
-events             状态事件（人物事实、伏笔变化、定稿/重开，带章号）
-volumes            卷：标题、起止章、摘要
-bible              真值五件：world / characters / style / plan / intent
-search_docs/search_fts  单作品检索投影（外部内容 FTS5）
-```
-
-没有 `work_id` 列：作品身份由**文件**承载，跨库查询不可能发生。
-
-### 连接、写入与生命周期
-
-- 每次操作打开目标库：`journal_mode=WAL`、`busy_timeout=5000`、`foreign_keys=ON`；写事务用 `BEGIN IMMEDIATE`，`SQLITE_BUSY` 映射为 `work-busy`；
-- `openWork` 只打开已存在的作品库，不自动建库；未立项的 id 返回 `work-not-found`（目录由 `openCatalog` 打开）。只有 `story_init` 创建作品库文件；
-- 立项：先建作品库并初始化，再插目录行；目录写失败删除文件；
-- 改名：先 checkpoint 再移动库文件（含 `-wal`/`-shm`），更新作品库 `meta`，再更新目录；目录写失败回滚 `meta` 并把文件移回；
-- 删除：移到 `.storycraft/trash/` 后记 `trashed_at`，失败移回；
-- 恢复：确认 `works/` 无同名后移回并清 `trashed_at`，失败移回 trash；
-- 启动对账：目录有行无文件 → 标记 `missing` 并在列表跳过；有文件无行 → 忽略并记录诊断；trash 有文件无行 → 保留待人工恢复；
-- 备份用 `backup()`（或 `VACUUM INTO`），不做文件复制。
-
-动作与路由返回的 `artifact.path` 是**虚拟路径** `works/<workId>/chapters/ch-0007.md`，不对应磁盘文件；实际内容在 `.storycraft/works/<workId>.db`。
+动作与路由返回的 `artifact.path` 是**虚拟路径** `works/<workId>/chapters/ch-0007.md`，不对应磁盘文件；实际内容在 `.storycraft/works/<workId>.db`。宿主启动及首次读取一个工作区时对账目录与文件：缺失的作品在列表跳过并记入宿主诊断，孤儿文件与回收站文件保留待人工恢复。
 
 ## 真值与写前上下文
 
@@ -209,19 +181,13 @@ storycraft/
 
 ## 验证入口
 
-- `node storycraft/tests/db.test.mjs`：目录库/作品库 schema、版本校验、事务与 `work-busy`、备份与损坏库。
-- `node storycraft/tests/store-db.test.mjs`：目录元数据权威、每作品库版本、改名/回收站/恢复、启动对账、提案与会话指针。
-- `node storycraft/tests/store-chapter.test.mjs`：章纲、版本、审稿、摘要、事件与卷。
-- `node storycraft/tests/store-search.test.mjs`：单作品检索投影、导出目录与备份。
-- `node storycraft/tests/store-perf.test.mjs`：200 章 fixture 的加载与追加门槛。
-- `node storycraft/tests/storage.test.mjs`：门面行为、虚拟路径、错误码与失败路径。
-- `node storycraft/tests/tools.test.mjs`：动作注册、schema 形状、端到端行为与拒绝条件。
-- `node storycraft/tests/context.test.mjs`：角色上下文的分段、保护级别、预算裁剪、轨迹与白名单摘要。
-- `node storycraft/tests/facts.test.mjs`：白名单来源、中文数字归一与摘要边界。
-- `node storycraft/tests/consistency.test.mjs`：人名拒收、地名与尺寸告警、误报回归。
-- `node storycraft/tests/bible.test.mjs`：真值校验、摘要截断、写前上下文顺序/预算/确定性、旧作品导入。
-- `node storycraft/tests/work-ops.test.mjs`：改名（标题/id）、删除到回收站、恢复与列表过滤。
-- `node storycraft/e2e/run.mjs`：起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑七条页面 spec——侧栏入口、页面读数、两个作者确认、指令门禁与两条预设声明。不调用模型，零额度；需要本机装有 Playwright（可用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装它的目录）。
+- 单元测试在 `storycraft/tests/*.test.mjs`：每个文件自带断言，成功时以 `ALL CHECKS PASSED` 结束。全部运行：
+
+  ```powershell
+  Get-ChildItem storycraft/tests -Filter *.test.mjs | ForEach-Object { node $_.FullName }
+  ```
+
+- 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑七条页面 spec——侧栏入口、页面读数、两个作者确认、指令门禁与两条预设声明。不调用模型，零额度；需要本机装有 Playwright（可用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装它的目录）。
 - 端到端验收、评审与证据记录在 issue `dehuadong/dsh-nove#18`。
 
 ## 改动与生效
