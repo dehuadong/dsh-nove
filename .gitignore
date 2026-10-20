@@ -55,6 +55,9 @@ $RECYCLE.BIN/
 # 本地验证用的临时目录（不进版本库）
 .tmp-tests/
 
+# 故事工坊运行时作品库（SQLite 数据，不进版本库）
+/.storycraft/
+
 ### 外部检出（软链接）
 # DSH 源码的链接目录：不跟随、不进版本库
 /deepseek-harness
