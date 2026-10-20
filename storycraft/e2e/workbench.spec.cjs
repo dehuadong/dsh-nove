@@ -174,5 +174,14 @@ test.describe('故事工坊工作台', () => {
     await page.evaluate(() => window.dispatchEvent(new Event('focus')))
     await expect(page.getByRole('button', { name: '确认全书计划', exact: true })).toBeVisible({ timeout: 5_000 })
     expect(pointerPosts).toBe(before)
+
+    // A failed detail refresh keeps the old data and shows a non-blocking notice.
+    await page.route('**/api/dsh-storycraft/work?*', route => route.abort())
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+    await expect(page.getByText(/刷新失败：/)).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByRole('button', { name: '确认全书计划', exact: true })).toBeVisible()
+    await page.unroute('**/api/dsh-storycraft/work?*')
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+    await expect(page.getByText(/刷新失败：/)).toHaveCount(0, { timeout: 5_000 })
   })
 })
