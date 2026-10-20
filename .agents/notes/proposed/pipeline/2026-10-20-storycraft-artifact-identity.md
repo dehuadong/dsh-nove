@@ -124,8 +124,8 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
 | --- | --- | --- | --- |
 | 讨论/提案 | 作者想法、形态、目标读者、字数范围 | 作者对话 + `story_propose` | 任何作品库内容 |
 | 立项 | 已确认方案、标题、形态、字数范围 | `story_propose` / `story_init` | 其他作品、旧正文 |
-| 全书计划 | 作者意图、形态、字数、已有设定 | `story_brief` / `story_bible` | 正文、文件路径 |
-| 章纲 | 全书计划、卷位置、相关人物、前情摘要、本章目标 | `story_next` + `story_brief` + `story_bible`/`story_read(outline)` | 旧章全文、数据库路径 |
+| 全书计划 | 作者意图、形态、字数、已有设定 | `story_bible` / `story_read(outline)`；没有章节时不要调 `story_brief` | 正文、文件路径 |
+| 章纲 | 全书计划、卷位置、相关人物、前情摘要、本章目标 | `story_next` + `story_bible`/`story_read(outline)`；章节存在后才用 `story_brief` | 旧章全文、数据库路径 |
 | 写正文 | 本章章纲、人物卡、未解伏笔、上一章结尾、文风、字数范围 | `story_brief` 分段；delegate 时由宿主装配 | 其他章正文、作品库路径 |
 | 审稿 | 当前章正文、章纲、人物卡、审稿标准 | `story_context` + `story_read` | 其他作品、内部路径 |
 | 修订 | 当前正文版本、未处理审稿条目、mode | `story_read` + `story_review` | 全库、文件路径 |
@@ -159,14 +159,17 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
 
 ### 5. 删除提示词补丁
 
-- 删除 persona / `storycraft-studio-orchestration` / `story_init` 描述中的“不要 read/grep artifact.path”；\n- 同时删除 `story_init`、`story_export`、`story_backup`、`story_delete` 描述里的 `.storycraft/...` 文件路径暗示，改为 artifact ID/作者路由；\n- 技能中“虚拟路径/works/”说明改为“artifact ID”，不再教模型理解路径；
+- 删除 persona / `storycraft-studio-orchestration` / `story_init` 描述中的“不要 read/grep artifact.path”；
+- 同时删除 `story_init`、`story_outline`、`story_export`、`story_backup`、`story_delete`、`story_bible_import` 描述里的 `.storycraft/...`/`design/` 路径暗示，改为 artifact ID/作者路由；
+- scope guard 的错误文案不再返回 `works/<id>` 路径，只返回 `artifact-not-readable` / `work-mismatch`；
+- 技能中“虚拟路径/works/”说明改为“artifact ID”，不再教模型理解路径；
 - 保留 scope guard 作为兜底；
 - 工具 schema 不再提供 path，模型就没有可拼的路径。
 
 ## 迁移与兼容
 
 - 内部 `virtualPath` 继续服务 UI、导出、日志与旧测试；不再进入模型 schema。
-- 现有 UI 路由与面板布局保持现状；仅新增作者只读的 `/exports/<workId>` 与备份读取路由，并把 `story_bible_write(file="plan")` 改为拒绝。
+- 现有 UI 路由与面板布局保持现状；新增作者只读路由 `GET /exports?root=<root>&workId=<id>` 与 `GET /backups?root=<root>&workId=<id>`，由面板带当前 root/session 调用；`story_bible_write(file="plan")` 改为拒绝。
 - 现有 SQLite 数据不需要迁移；ID/revision 按当前内容哈希、章版本、event seq 生成。
 - 导出是覆盖式：`export:<workId>` 指向当前 `.storycraft/exports/<workId>`，不保留历史；`/exports/<workId>` 只读校验目录存在。
 - 备份文件带时间戳，`backup:<workId>:<timestamp>` 可定位；新增只读备份列表/下载路由，模型只拿 ID。
@@ -199,6 +202,8 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
 - 旧会话历史仍含路径，可能继续诱导；需要新会话验证；
 - `story_read` 是第 29 个动作，需同步动作数、README、测试；
 - 不引入 artifact 编辑/分支系统，复杂编辑仍由现有动作承担。
+
+
 
 
 
