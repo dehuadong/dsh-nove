@@ -5,14 +5,19 @@
  * each marked protected (never trimmed) or compressible (trimmed when the budget
  * is tight), plus a whitelist summary the caller validates against. The trace
  * records what was sent, what was shortened, and what was dropped.
+ *
+ * Every section source is a virtual `works/<workId>/...` path: the content lives
+ * in the work database, not in files.
  */
 
-import { join } from 'node:path'
 import { deriveWhitelist, readCards, summariseWhitelist } from './facts.js'
 import {
-  StoryError, chapterNumber, chapterStem, foldEvents, formOf, planApprovalPolicy, readManifest, readOptional, unitOf,
-  workDirectory,
-} from './storage.js'
+  StoryError, chapterNumber, chapterStem, foldEvents, formOf, planApprovalPolicy, unitOf,
+} from './domain.js'
+import {
+  readBibleEntries, readChapter as readChapterRow, readEvents, readManifest, readPlan,
+  readVolumes, readSummary as readSummaryRow,
+} from './store-db.js'
 
 /** Default budget for one role context, in characters. */
 export const DEFAULT_CONTEXT_BUDGET = 8000
@@ -60,12 +65,11 @@ const STANDARDS = {
   },
 }
 
-/**
- * Read the character entries of one work.
- * @param {string} root - workspace directory.
- * @param {string} workId - work identity.
- * @returns {Promise<object[]|undefined>} character entries, or undefined when absent.
- */
+/** Virtual path of one artifact inside a work. */
+function workPath(workId, relative) {
+  return `works/${workId}/${relative}`
+}
+
 /** One section record. */
 function section(name, title, content, protection, source) {
   return { name, title, content: String(content ?? '').trim(), protection, source }
@@ -88,9 +92,9 @@ function section(name, title, content, protection, source) {
 export async function assembleRoleContext(input) {
   const { root, role } = input
   const scope = input.scope === 'work' ? 'work' : 'chapter'
-  const manifest = await readManifest(root, input.work)
+  const manifest = readManifest(root, input.work)
+  const work = manifest.workId
   const number = scope === 'work' ? undefined : chapterNumber(input.chapter)
-  const dir = workDirectory(root, manifest.workId)
   const entry = number === undefined ? undefined : manifest.chapters.find(item => item.number === number)
   if (scope === 'chapter' && role !== 'planner' && entry === undefined) {
     throw new StoryError('chapter-not-found', `没有第 ${number} 章：先写章纲再派活`)
@@ -99,7 +103,7 @@ export async function assembleRoleContext(input) {
   const unit = unitOf(form)
   const needsPlan = role === 'writer' || role === 'reviewer' || role === 'reviser'
 
-  const chapterPlan = entry === undefined ? undefined : await readOptional(join(dir, 'outline', `${entry.id}.plan.md`))
+  const chapterPlan = entry === undefined ? undefined : readPlan(root, work, entry.number)
   if (needsPlan && chapterPlan === undefined) {
     throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲：先 story_plan，再派活`)
   }
@@ -111,7 +115,7 @@ export async function assembleRoleContext(input) {
       `第 ${number} 章章纲还没经作者确认：请在面板「章纲」里点「确认章纲」，再取写手上下文`)
   }
 
-  const characters = (await readCards(root, manifest.workId)) ?? []
+  const characters = (await readCards(root, work)) ?? []
   if (characters.length === 0 && role !== 'planner') {
     throw new StoryError('bible-missing', '人物卡缺失：先用 story_bible_write 建 bible/characters.json 再派活')
   }
@@ -121,21 +125,13 @@ export async function assembleRoleContext(input) {
     throw new StoryError('chapter-not-written', `第 ${number} 章还没有正文：先写正文，再审稿或修订`)
   }
 
-  const intent = (await readOptional(join(dir, 'bible', 'intent.md'))) ?? ''
-  const planText = (await readOptional(join(dir, 'bible', 'plan.md'))) ?? ''
-  const volumesText = (await readOptional(join(dir, 'bible', 'volumes.json'))) ?? ''
-  let volumeTitles = ''
-  if (volumesText !== '') {
-    try {
-      const parsed = JSON.parse(volumesText)
-      const volumes = Array.isArray(parsed) ? parsed : (parsed?.volumes ?? [])
-      volumeTitles = volumes
-        .map(volume => `- ${volume.title}（第 ${volume.from}–${volume.to} 章）${volume.summary === undefined ? '' : `：${volume.summary}`}`)
-        .join('\n')
-    } catch {
-      volumeTitles = '（卷图无法解析）'
-    }
-  }
+  const bible = new Map(readBibleEntries(root, work).map(row => [row.name, row.content]))
+  const intent = bible.get('intent') ?? ''
+  const planText = bible.get('plan') ?? ''
+  const volumes = readVolumes(root, work)
+  const volumeTitles = volumes
+    .map(volume => `- ${volume.title}（第 ${volume.from}–${volume.to} 章）${volume.summary === undefined || volume.summary === '' ? '' : `：${volume.summary}`}`)
+    .join('\n')
 
   // 1. authority — protected
   const authority = section('authority', '权威顺序', AUTHORITY[role] ?? AUTHORITY.writer, 'protected', 'storycraft/context.js')
@@ -176,11 +172,11 @@ export async function assembleRoleContext(input) {
     ]),
     ...(intent.trim() === '' ? [] : ['本书口径（摘自意图文件）：', intent.trim().slice(0, 600)]),
   ].filter(line => line !== '')
-  const constraints = section('constraints', '硬约束', constraintLines.join('\n'), 'protected', 'manifest + bible/characters + bible/intent')
+  const constraints = section('constraints', '硬约束', constraintLines.join('\n'), 'protected',
+    `works/${work}/manifest + works/${work}/bible/characters.json + works/${work}/bible/intent.md`)
 
   // 4. state — compressible
-  const events = (await readOptional(join(dir, 'state', 'events.jsonl'))) ?? ''
-  const folded = foldEvents(events)
+  const folded = foldEvents(readEvents(root, work).map(event => JSON.stringify(event)).join('\n'))
   const openHooks = folded.hooks.filter(hook => hook.state !== 'resolved')
   const stateLines = [
     ...(folded.entities.length === 0 ? [] : [
@@ -192,47 +188,50 @@ export async function assembleRoleContext(input) {
       ...openHooks.slice(0, 8).map(hook => `- ${hook.text}（${hook.state}，第 ${hook.openedChapter} 章）`),
     ]),
   ]
-  const state = section('state', '人物与状态', stateLines.join('\n'), 'compressible', 'state/events.jsonl')
+  const state = section('state', '人物与状态', stateLines.join('\n'), 'compressible', `works/${work}/state/events.jsonl`)
 
   // 5. recent — compressible
   const summaries = []
   const lastNumber = number ?? (manifest.chapters.length === 0 ? 1 : manifest.chapters[manifest.chapters.length - 1].number + 1)
   for (let index = Math.max(1, lastNumber - 3); index < lastNumber; index += 1) {
-    const text = await readOptional(join(dir, 'summaries', `${chapterStem(index)}.md`))
+    const text = readSummaryRow(root, work, index)
     if (text !== undefined && text.trim() !== '') summaries.push(`第 ${index} 章：${text.trim()}`)
   }
   if (lastNumber > 1) {
-    const previousBody = await readOptional(join(dir, 'chapters', `${chapterStem(lastNumber - 1)}.md`))
-      ?? await readOptional(join(dir, 'chapters', `${chapterStem(lastNumber - 1)}.r2.md`))
+    let previousBody
+    try {
+      previousBody = readChapterRow(root, { work, chapter: lastNumber - 1 }).content
+    } catch {
+      previousBody = undefined
+    }
     if (previousBody !== undefined) summaries.push(`上一章结尾：…${previousBody.trim().slice(-400)}`)
   }
-  const recent = section('recent', '最近脉络', summaries.join('\n'), 'compressible', 'summaries/ + 上一章结尾')
+  const recent = section('recent', '最近脉络', summaries.join('\n'), 'compressible', `works/${work}/summaries/ + 上一章结尾`)
 
   // 6. style — compressible
-  const styleText = await readOptional(join(dir, 'bible', 'style.md'))
-  const style = section('style', '文风要点', styleText ?? '', 'compressible', 'bible/style.md')
+  const style = section('style', '文风要点', bible.get('style') ?? '', 'compressible', `works/${work}/bible/style.md`)
 
   // planner-only: book plan, volume map and character cards
   const planSection = role === 'planner'
     ? section('plan', '全书计划与卷图', [
       planText === '' ? '（还没有全书计划）' : planText.trim(),
       volumeTitles === '' ? '' : `卷图：\n${volumeTitles}`,
-    ].filter(line => line !== '').join('\n'), 'protected', 'bible/plan.md + bible/volumes.json')
+    ].filter(line => line !== '').join('\n'), 'protected', `works/${work}/bible/plan.md + works/${work}/volumes`)
     : undefined
   const characterBrief = role === 'planner'
     ? section('characters', '人物卡（节选）', characters.slice(0, 6).map(item => [
       `- ${item.name}：${item.role}`,
       ...(item.limit === undefined ? [] : [`  边界：${item.limit}`]),
       ...(item.voice === undefined ? [] : [`  语气：${item.voice}`]),
-    ].join('\n')).join('\n'), 'compressible', 'bible/characters.json')
+    ].join('\n')).join('\n'), 'compressible', `works/${work}/bible/characters.json`)
     : undefined
 
   // writer/reviewer/reviser: the chapter plan; reviewer/reviser also get the body
   const chapterPlanSection = role === 'writer' ? undefined
-    : needsPlan ? section('plan', '本章章纲', chapterPlan ?? '', 'protected', `outline/${entry?.id}.plan.md`) : undefined
+    : needsPlan ? section('plan', '本章章纲', chapterPlan ?? '', 'protected', `works/${work}/outline/${chapterStem(number)}.plan.md`) : undefined
   const bodySection = body === ''
     ? undefined
-    : section('body', '待处理的正文', `---正文开始---\n${body}\n---正文结束---`, 'protected', 'chapters/')
+    : section('body', '待处理的正文', `---正文开始---\n${body}\n---正文结束---`, 'protected', `works/${work}/chapters/`)
   const standard = role === 'reviewer' || role === 'reviser'
     ? section('standard', role === 'reviewer' ? '审稿标准' : '修订标准', STANDARDS[role].content, 'protected', STANDARDS[role].source)
     : undefined
@@ -288,6 +287,6 @@ export async function assembleRoleContext(input) {
     .map(item => `## ${item.title}\n${item.content}`)
     .join('\n\n')
 
-  const whitelist = await deriveWhitelist(root, { work: manifest.workId, ...(number === undefined ? {} : { chapter: number }) })
+  const whitelist = await deriveWhitelist(root, { work, ...(number === undefined ? {} : { chapter: number }) })
   return { sections: segments, text, trace, whitelist: summariseWhitelist(whitelist), taskText }
 }

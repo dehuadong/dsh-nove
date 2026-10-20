@@ -2,14 +2,17 @@
  * Fact whitelist derivation — the single owner of "what names, places and
  * numbers already exist in this work".
  *
- * Only landed files are read: character cards, the intent/plan/volume files and
- * the chapter plan. The chapter body and the author's instruction never take
- * part, so a draft cannot whitelist its own inventions.
+ * Only landed content is read: character cards, the intent/plan/volume entries,
+ * the chapter plan, chapter bodies and summaries. The chapter body being written
+ * and the author's instruction never take part, so a draft cannot whitelist its
+ * own inventions.
  */
 
-import { join } from 'node:path'
 import { parseCharacters } from './bible.js'
-import { chapterNumber, chapterStem, readManifest, readOptional, workDirectory } from './storage.js'
+import { chapterNumber } from './domain.js'
+import {
+  listBodies, listSummaries, readBibleEntries, readBibleEntry, readEvents, readManifest, readPlan, readVolumes,
+} from './store-db.js'
 
 /** Chinese digit values used to normalise numerals before comparison. */
 const DIGITS = { 零: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 }
@@ -105,54 +108,47 @@ export function extractSpeakerNames(text, known = []) {
 }
 
 /**
- * Read the character cards of one work, tolerating a missing file.
+ * Read the character cards of one work, tolerating a missing entry.
  * @param {string} root - workspace directory.
  * @param {string} workId - work identity.
  * @returns {Promise<object[]>} card records.
  */
 export async function readCards(root, workId) {
-  const text = await readOptional(join(workDirectory(root, workId), 'bible', 'characters.json'))
-  return text === undefined ? [] : parseCharacters(text)
+  const content = readBibleEntry(root, workId, 'characters')?.content
+  return content === undefined ? [] : parseCharacters(content)
 }
 
 /**
- * Derive the whitelist from landed files only.
+ * Derive the whitelist from landed content only.
  * @param {string} root - workspace directory.
  * @param {{work: string, chapter?: number}} input - derivation input.
  * @returns {Promise<{names: string[], places: string[], numbers: string[]}>} whitelist.
  */
 export async function deriveWhitelist(root, input) {
-  const manifest = await readManifest(root, input.work)
-  const dir = workDirectory(root, manifest.workId)
-  const cards = await readCards(root, manifest.workId)
-  const intent = (await readOptional(join(dir, 'bible', 'intent.md'))) ?? ''
-  const plan = (await readOptional(join(dir, 'bible', 'plan.md'))) ?? ''
-  const volumes = (await readOptional(join(dir, 'bible', 'volumes.json'))) ?? ''
+  const manifest = readManifest(root, input.work)
+  const work = manifest.workId
+  const cards = await readCards(root, work)
+  const bible = new Map(readBibleEntries(root, work).map(row => [row.name, row.content]))
+  const intent = bible.get('intent') ?? ''
+  const plan = bible.get('plan') ?? ''
+  const volumes = JSON.stringify(readVolumes(root, work))
   let chapterPlan = ''
   if (input.chapter !== undefined) {
-    const number = chapterNumber(input.chapter)
-    const entry = manifest.chapters.find(item => item.number === number)
-    if (entry !== undefined) {
-      chapterPlan = (await readOptional(join(dir, 'outline', `${entry.id}.plan.md`))) ?? ''
-    }
+    chapterPlan = readPlan(root, work, chapterNumber(input.chapter)) ?? ''
   }
   // Names already used in landed prose are established: cards alone miss the
   // secondary cast (阿六、秦老卒…), and flagging them as invented blocks real work.
   const known = cards.map(card => card.name).filter(name => typeof name === 'string' && name !== '')
   const established = new Set(known)
-  const stateText = (await readOptional(join(dir, 'state', 'events.jsonl'))) ?? ''
+  const stateText = readEvents(root, work).map(event => JSON.stringify(event)).join('\n')
   for (const match of stateText.matchAll(/"name"\s*:\s*"([^"]+)"/gu)) established.add(match[1])
+  const current = input.chapter === undefined ? undefined : chapterNumber(input.chapter)
   const textFiles = []
-  for (const entry of manifest.chapters) {
-    const files = [`${entry.id}.md`, ...Array.from({ length: Math.max(0, (entry.currentRevision ?? 1) - 1) }, (_, index) => `${entry.id}.r${index + 2}.md`)]
-    for (const file of files) {
-      if (input.chapter !== undefined && chapterNumber(input.chapter) === entry.number) continue
-      const text = await readOptional(join(dir, 'chapters', file))
-      if (text !== undefined) textFiles.push(text)
-    }
-    const summary = await readOptional(join(dir, 'summaries', `${entry.id}.md`))
-    if (summary !== undefined) textFiles.push(summary)
+  for (const version of listBodies(root, work)) {
+    if (current !== undefined && version.number === current) continue
+    textFiles.push(version.body)
   }
+  for (const summary of listSummaries(root, work)) textFiles.push(summary.text)
   for (const text of textFiles) {
     for (const name of extractSpeakerNames(text, [...established])) established.add(name)
   }
@@ -180,7 +176,7 @@ export async function deriveWhitelist(root, input) {
  * Summarise a whitelist for tool output: counts and a few samples, never the
  * whole list (it must not read as an allow-list).
  * @param {{names: string[], places: string[], numbers: string[]}} whitelist - derived whitelist.
- * @returns {{names: number, places: number, numbers: number, sample: {names: string[], places: string[]}}} summary.
+ * @returns {{names: number, places: number, numbers: number, sample: {names: string[], places: string[], numbers: string[]}}} summary.
  */
 export function summariseWhitelist(whitelist) {
   return {

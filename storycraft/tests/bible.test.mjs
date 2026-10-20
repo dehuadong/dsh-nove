@@ -1,9 +1,10 @@
 // Truth files, summaries, and the pre-write brief.
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../storage.js'
 import * as b from '../bible.js'
+import { openWork } from '../db.js'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -21,17 +22,17 @@ async function rejects(name, code, fn) {
     check(name, error?.code === code, `got ${error?.code ?? error?.message}`)
   }
 }
+const exists = path => stat(path).then(() => true).catch(() => false)
 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-bible-'))
 try {
-  // A fresh work ships the five truth files.
+  // A fresh work ships the five truth entries inside its database.
   await s.initWork(root, { title: '潮汐记事' })
   const work = '潮汐记事'
-  for (const file of ['world.md', 'characters.json', 'style.md', 'plan.md', 'intent.md']) {
-    check(`init creates bible/${file}`, (await stat(join(root, 'works', work, 'bible', file))).isFile())
-  }
   const initial = await b.readBible(root, work)
-  check('readBible returns five draft files', initial.files.length === 5 && initial.files.every(file => file.draft === false || file.draft === true))
+  check('init creates five truth entries', initial.files.length === 5, initial.files.map(file => file.name).join(','))
+  check('truth paths are virtual', initial.files.every(file => file.path.startsWith(`works/${work}/bible/`)), initial.files[0].path)
+  check('truth content is not a file on disk', await exists(join(root, 'works', work, 'bible', 'world.md')) === false)
 
   // Character-sheet validation, and no clobber on failure.
   await rejects('characters must be an array', 'bible-invalid', () => b.writeBible(root, work, 'characters', '{"name":"x"}'))
@@ -74,7 +75,7 @@ try {
   const names = brief.sections.map(section => section.name)
   check('brief order', names.join(',') === 'intent,plan,characters,hooks,volumeSummary,recentSummaries,previous,style,wordPolicy', names.join(','))
   const previous = brief.sections.find(section => section.name === 'previous')
-  check('previous uses the summary', previous.source === 'summaries/ch-0001.md' && previous.absent === false, previous.source)
+  check('previous uses the summary', previous.source === `works/${work}/summaries/ch-0001.md` && previous.absent === false, previous.source)
   check('characters matched or fallback', brief.sections.find(section => section.name === 'characters').content.includes('林澈'))
 
   const again = await b.assembleBrief(root, work, 2)
@@ -91,11 +92,13 @@ try {
   check('budget reports usage', trimmed.budget.used <= trimmed.budget.limit || trimmed.budget.overBudget === true, JSON.stringify(trimmed.budget))
 
   // Missing truth is an error, not an invented section.
-  await rm(join(root, 'works', work, 'bible', 'style.md'))
+  const dropStyle = openWork(root, work)
+  dropStyle.prepare("DELETE FROM bible WHERE name = 'style'").run()
+  dropStyle.close()
   await rejects('missing truth refuses a brief', 'bible-missing', () => b.assembleBrief(root, work, 1))
   await rejects('unknown chapter refused', 'chapter-not-found', () => b.assembleBrief(root, work, 9))
 
-  // Import from an older work's design/ folder.
+  // Import from an older file work's design/ folder.
   const older = await s.initWork(root, { title: '旧作' })
   const olderDir = join(root, 'works', older.workId)
   await mkdir(join(olderDir, 'design'), { recursive: true })
@@ -106,9 +109,9 @@ try {
   check('import copies world and plan', report.imported.length === 2, JSON.stringify(report.imported))
   check('import extracts names', report.names.join(',') === '沈彻,齐大山', report.names.join(','))
   check('import reports pending', report.pending.some(item => item.includes('characters')))
-  const imported = await readFile(join(olderDir, 'bible', 'world.md'), 'utf8')
+  const imported = (await b.readBible(root, older.workId, 'world')).files[0].content
   check('imported content landed', imported.includes('旧稿的世界'))
-  check('import never fabricates characters', (await readFile(join(olderDir, 'bible', 'characters.json'), 'utf8')).trim() === '[]')
+  check('import never fabricates characters', (await b.readBible(root, older.workId, 'characters')).files[0].content.trim() === '[]')
 
   // Review round 1 additions.
   await rejects('world refuses pending markers', 'bible-invalid', () => b.writeBible(root, work, 'world', '# 世界观\n\n待定：主角身世\n'))
@@ -116,18 +119,18 @@ try {
   check('intent may be empty', typeof intent.version === 'string')
 
   const partial = await b.readBible(root, work)
-  check('read-all reports missing instead of throwing', Array.isArray(partial.missing) && partial.missing.length >= 0, JSON.stringify(partial.missing))
+  check('read-all reports missing instead of throwing', Array.isArray(partial.missing) && partial.missing.includes('style'), JSON.stringify(partial.missing))
 
-  const index = JSON.parse(await readFile(join(root, 'works', work, 'summaries', 'index.json'), 'utf8'))
+  const index = await b.summaryIndex(root, work)
   check('summary index lists the chapter', index.chapters.length === 1 && index.chapters[0].number === 1, JSON.stringify(index))
 
-  // Plan order, not file order.
+  // Plan order, not insertion order.
   await b.writeBible(root, work, 'characters', JSON.stringify([
     { name: '乙', role: 'r', want: 'w', fear: 'f', limit: 'l', voice: 'v' },
     { name: '甲', role: 'r', want: 'w', fear: 'f', limit: 'l', voice: 'v' },
   ]))
   await s.writePlan(root, { work, chapter: 3, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
-  await s.writeChapter(root, { work, chapter: 3, title: '三', body }).catch(() => {})
+  await s.writeChapter(root, { work, chapter: 3, title: '三', body })
   await b.writeBible(root, work, 'style', '# 文风基准\n\n短句。\n')
   const ordered = await b.assembleBrief(root, work, 2)
   const characters = ordered.sections.find(section => section.name === 'characters')
@@ -139,11 +142,11 @@ try {
   const fallback = await b.assembleBrief(root, work, 4)
   check('fallback section is marked', fallback.sections.find(section => section.name === 'characters').fallback === true)
 
-  // Import must not overwrite a truth file that already holds content.
+  // Import must not overwrite a truth entry that already holds content.
   await b.writeBible(root, older.workId, 'world', '# 世界观\n\n作者已经改过的版本。\n')
   const second = await b.importBible(root, older.workId)
   check('import skips existing content', second.skipped.length === 2 && second.skipped.some(item => item.includes('world.md')), JSON.stringify(second.skipped))
-  check('import keeps author content', (await readFile(join(olderDir, 'bible', 'world.md'), 'utf8')).includes('作者已经改过'))
+  check('import keeps author content', (await b.readBible(root, older.workId, 'world')).files[0].content.includes('作者已经改过'))
 
   // Previous chapter falls back to the body tail when no summary exists.
   const noSummary = await b.assembleBrief(root, work, 3)
@@ -155,3 +158,4 @@ try {
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`)
 process.exitCode = failures === 0 ? 0 : 1
+

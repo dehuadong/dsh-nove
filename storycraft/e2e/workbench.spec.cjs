@@ -131,7 +131,7 @@ test.describe('故事工坊工作台', () => {
     const approve = page.getByRole('button', { name: '确认章纲', exact: true })
     await expect(approve).toBeVisible()
     await approve.evaluate(node => node.click())
-    await expect(page.getByText('章纲已确认')).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText('章纲已确认', { exact: true })).toBeVisible({ timeout: 10_000 })
     await expect(page.getByRole('button', { name: '确认章纲', exact: true })).toHaveCount(0)
   })
 

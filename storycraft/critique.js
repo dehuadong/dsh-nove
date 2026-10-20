@@ -44,7 +44,7 @@ function normalizeSentence(sentence) {
  * @param {{min?: number, max?: number}|undefined} wordRange - the work's own range, if any.
  * @returns {object} metrics.
  */
-import { countWords } from './storage.js'
+import { countWords } from './domain.js'
 
 export function critique(text, wordRange) {
   const body = String(text ?? '')

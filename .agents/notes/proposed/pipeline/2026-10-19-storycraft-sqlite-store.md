@@ -69,7 +69,7 @@ updated: 2026-10-20
 
 ### 连接、锁与错误码
 
-- 每次操作打开目标库，`journal_mode=WAL`、`busy_timeout=5000`、`foreign_keys=ON`；`openStore` 只打开已存在作品库、不自动建库，未立项 id 返回 `work-not-found`；
+- 每次操作打开目标库，`journal_mode=WAL`、`busy_timeout=5000`、`foreign_keys=ON`；`openStore`（实现命名 `openWork`，目录用 `openCatalog`）只打开已存在作品库、不自动建库，未立项 id 返回 `work-not-found`；
 - 写事务 `BEGIN IMMEDIATE`；`SQLITE_BUSY` → `work-busy`；
 - 错误码：`sqlite-unavailable`、`db-corrupt`、`schema-version-mismatch`、`backup-failed`、`work-not-found`、`work-exists`；
 - 启动探测 `node:sqlite`；缺失时所有动作返回 `sqlite-unavailable`，无文件回退。

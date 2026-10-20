@@ -1,9 +1,10 @@
 // Role context assembly: protection levels, trimming order, trace and whitelist.
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../storage.js'
 import * as b from '../bible.js'
+import { openWork } from '../db.js'
 import { assembleRoleContext } from '../context.js'
 
 let failures = 0
@@ -24,13 +25,15 @@ try {
   await s.writePlan(root, { work, chapter: 2, perspective: '周观', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   await s.writeChapter(root, { work, chapter: 1, body: '正文。'.repeat(200) })
   await b.writeSummary(root, work, 1, '第一章摘要'.repeat(50))
-  const dir = join(root, 'works', work)
   await b.writeBible(root, work, 'characters', JSON.stringify([
     { name: '周观', role: '主视角', want: '把墙立起来', fear: '塌方', limit: '不拿人命换速度', voice: '短句' },
     { name: '韩松', role: '总工', want: '验证做法', fear: '算错', limit: '没有数据不签', voice: '反问' },
   ]))
-  await writeFile(join(dir, 'bible', 'style.md'), '# 文风\n短句，少形容。', 'utf8')
-  await writeFile(join(dir, 'state', 'events.jsonl'), `${JSON.stringify({ seq: 1, at: new Date().toISOString(), chapter: 1, kind: 'hook', text: '一处未解', state: 'opened' })}\n`, 'utf8')
+  await b.writeBible(root, work, 'style', '# 文风\n短句，少形容。')
+  const events = openWork(root, work)
+  events.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
+    .run(1, new Date().toISOString(), 1, 'hook', JSON.stringify({ kind: 'hook', text: '一处未解', state: 'opened' }))
+  events.close()
 
   const unapprovedContext = await assembleRoleContext({
     root, work, chapter: 2, role: 'writer', task: '写第 2 章正文。',
@@ -48,6 +51,7 @@ try {
   check('whitelist summary lists sample names', out.whitelist.counts.names === 2 && out.whitelist.sample.names.join(',') === '周观,韩松', JSON.stringify(out.whitelist))
   check('whitelist summary counts numbers', typeof out.whitelist.counts.numbers === 'number', JSON.stringify(out.whitelist))
   check('recent uses summaries', out.text.includes('第一章摘要'), out.text.slice(0, 300))
+  check('trace sources are virtual work paths', out.trace.sections.every(item => item.source === undefined || !item.source.startsWith('outline/')), JSON.stringify(out.trace.sections.map(item => item.source)))
 
   // A tight budget drops compressible sections before protected ones.
   const tight = await assembleRoleContext({ root, work, chapter: 2, role: 'writer', task: '写第 2 章正文。', budget: 150 })
@@ -56,19 +60,17 @@ try {
   check('protected sections survive the budget', tight.text.includes('权威顺序') && tight.text.includes('本章任务'))
   check('trace records the budget', tight.trace.budget === 150)
 
-  // Reviewer path: body is protected and present.
-  // Work-scoped planning has no chapter entry; it still carries state and recent context.
   // A planner sees the book plan, the volume map and the character cards.
   const planner = await assembleRoleContext({ root, work, chapter: 2, role: 'planner', task: '为第 2 章出章纲' })
   check('planner gets the book plan', planner.text.includes('一条主线'), planner.text.slice(0, 200))
   check('planner gets character cards', planner.text.includes('韩松') && planner.text.includes('语气'), planner.text.slice(0, 400))
   check('planner whitelist comes from the context', planner.whitelist.counts.names === 2, JSON.stringify(planner.whitelist))
 
-  // Planning chapter 3 has no manifest entry yet; that must still work.
+  // Planning chapter 3 has no chapter entry yet; that must still work.
   const plannedAhead = await assembleRoleContext({
     root, work, chapter: 3, role: 'planner', task: '为第 3 章出章纲',
   })
-  check('planning a chapter without a manifest entry works', plannedAhead.text.includes('为第 3 章出章纲'))
+  check('planning a chapter without a chapter entry works', plannedAhead.text.includes('为第 3 章出章纲'))
 
   const workScope = await assembleRoleContext({
     root, work, role: 'planner', scope: 'work', task: '出全书计划',

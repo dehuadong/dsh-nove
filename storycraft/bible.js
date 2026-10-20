@@ -1,20 +1,21 @@
 /**
  * Truth files, chapter summaries, and the pre-write brief.
  *
- * `bible/` is the single source of truth for setting and plan; `summaries/`
- * accumulates one summary per written chapter. Writing is serialized through
- * the work's single-writer lock and lands atomically; reading is pure, so the
- * same inputs always assemble the same brief byte for byte.
+ * `bible` is the single source of truth for setting and plan; `summaries`
+ * accumulates one summary per written chapter. Both live inside the work
+ * database, so writing is one transaction and reading is pure: the same inputs
+ * always assemble the same brief byte for byte.
  */
 
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
-import { mkdir, readdir } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
+import { StoryError, chapterNumber, chapterStem, foldEvents } from './domain.js'
 import {
-  StoryError, chapterNumber, chapterStem, foldEvents, readChapter, readManifest, readOptional, rootRelative,
-  commitFiles, withWorkLock, workDirectory, writeAtomic,
-} from './storage.js'
-import { readVolumes, volumeOf } from './volumes.js'
+  listSummaries, readBibleEntries, readBibleEntry, readChapter as readChapterRow, readEvents,
+  readManifest, readPlan, readSummary as readSummaryRow, readVolumes,
+  writeBible as writeBibleRow, writeSummary as writeSummaryRow,
+} from './store-db.js'
 
 /** Every truth file, with how its content is validated. */
 export const BIBLE_FILES = {
@@ -39,6 +40,11 @@ export const SUMMARY_MAX_CHARS = 400
 
 /** Word-count policy the brief hands to the model (validation belongs to a later stage). */
 export const WORD_POLICY = '单章 3000–5000 字；每章结尾留悬念钩子；61 章起分卷。'
+
+/** Virtual path of one truth file. */
+function biblePath(workId, name) {
+  return `works/${workId}/${BIBLE_FILES[name].file}`
+}
 
 /** A file's content version: first 12 hex digits of its SHA-256. */
 export function contentVersion(text) {
@@ -113,24 +119,23 @@ export function validateBibleContent(name, content) {
  * @returns {Promise<{files: object[], missing: string[]}>} files with content and version.
  */
 export async function readBible(root, workId, only) {
-  const manifest = await readManifest(root, workId)
+  const manifest = readManifest(root, workId)
   const names = only === undefined ? Object.keys(BIBLE_FILES) : [only]
   if (names.some(name => BIBLE_FILES[name] === undefined)) {
     throw new StoryError('bible-invalid', `未知的真值文件：${String(only)}`)
   }
-  const dir = workDirectory(root, manifest.workId)
+  const rows = new Map(readBibleEntries(root, manifest.workId).map(row => [row.name, row.content]))
   const files = []
   const missing = []
   for (const name of names) {
-    const spec = BIBLE_FILES[name]
-    const content = await readOptional(join(dir, spec.file))
+    const content = rows.get(name)
     if (content === undefined) {
       missing.push(name)
       continue
     }
     files.push({
       name,
-      path: rootRelative(root, join(dir, spec.file)),
+      path: biblePath(manifest.workId, name),
       version: contentVersion(content),
       content,
       draft: isDraft(content),
@@ -152,108 +157,82 @@ export async function readBible(root, workId, only) {
  */
 export async function writeBible(root, workId, name, content) {
   validateBibleContent(name, content)
-  return withWorkLock(root, workId, async () => {
-    const manifest = await readManifest(root, workId)
-    const spec = BIBLE_FILES[name]
-    const workDir = workDirectory(root, manifest.workId)
-    const file = join(workDir, spec.file)
-    await mkdir(join(workDir, 'bible'), { recursive: true })
-    await commitFiles(root, manifest.workId, 'bible', { [spec.file]: content })
-    return { name, path: rootRelative(root, file), version: contentVersion(content) }
-  })
+  const manifest = readManifest(root, workId)
+  writeBibleRow(root, { work: manifest.workId, name, content })
+  return { name, path: biblePath(manifest.workId, name), version: contentVersion(content) }
 }
 
 /**
- * Import what can be imported from an older work's `design/` folder.
+ * Import what can be imported from an older file work's `design/` folder.
  *
- * Only content whose structure is already known is copied; a character sheet is
- * never fabricated — the names found in `design/cast.md` are reported so the
- * model can ask the author for the missing fields.
+ * Old file works are not migrated, so this is the one read path that still
+ * looks at `<workspace>/works/<workId>/`: it copies known structure into the new
+ * work database and never fabricates a character sheet.
  * @param {string} root - workspace directory.
  * @param {string} workId - work identity.
- * @returns {Promise<{imported: object[], pending: string[], names: string[]}>} import report.
+ * @returns {Promise<{imported: object[], pending: string[], names: string[], skipped: string[]}>} import report.
  */
 export async function importBible(root, workId) {
-  return withWorkLock(root, workId, async () => {
-    const manifest = await readManifest(root, workId)
-    const dir = workDirectory(root, manifest.workId)
-    const design = join(dir, 'design')
-    const world = await readOptional(join(design, 'world.md'))
-    const outline = await readOptional(join(design, 'outline.md'))
-    const cast = await readOptional(join(design, 'cast.md'))
-    if (world === undefined && outline === undefined && cast === undefined) {
-      throw new StoryError('nothing-to-import', '没有可收编的 design/ 内容')
+  const manifest = readManifest(root, workId)
+  const design = join(root, 'works', manifest.workId, 'design')
+  const readOptional = async (file) => {
+    try {
+      return await readFile(file, 'utf8')
+    } catch (error) {
+      if (error?.code === 'ENOENT') return undefined
+      throw error
     }
-    const imported = []
-    const skipped = []
-    await mkdir(join(dir, 'bible'), { recursive: true })
-    const targets = [
-      { name: 'world', from: 'design/world.md', content: world },
-      { name: 'plan', from: 'design/outline.md', content: outline },
-    ]
-    const pendingFiles = {}
-    for (const target of targets) {
-      if (target.content === undefined) continue
-      const spec = BIBLE_FILES[target.name]
-      const existing = await readOptional(join(dir, spec.file))
-      if (existing !== undefined && !isDraft(existing)) {
-        skipped.push(`${spec.file}（已有内容，未覆盖）`)
-        continue
-      }
-      pendingFiles[spec.file] = target.content
-      imported.push({ from: target.from, to: spec.file, version: contentVersion(target.content) })
+  }
+  const world = await readOptional(join(design, 'world.md'))
+  const outline = await readOptional(join(design, 'outline.md'))
+  const cast = await readOptional(join(design, 'cast.md'))
+  if (world === undefined && outline === undefined && cast === undefined) {
+    throw new StoryError('nothing-to-import', '没有可收编的 design/ 内容')
+  }
+  const imported = []
+  const skipped = []
+  const targets = [
+    { name: 'world', from: 'design/world.md', content: world },
+    { name: 'plan', from: 'design/outline.md', content: outline },
+  ]
+  for (const target of targets) {
+    if (target.content === undefined) continue
+    const spec = BIBLE_FILES[target.name]
+    const existing = readBibleEntry(root, manifest.workId, target.name)?.content
+    if (existing !== undefined && !isDraft(existing)) {
+      skipped.push(`${spec.file}（已有内容，未覆盖）`)
+      continue
     }
-    if (Object.keys(pendingFiles).length > 0) {
-      await commitFiles(root, manifest.workId, 'import', pendingFiles)
-    }
-    const headings = (pattern) => cast === undefined
-      ? []
-      : [...cast.matchAll(pattern)]
-        .map(match => match[1].trim())
-        .filter(name => name !== '' && !/^[\d.、\s]+$/.test(name))
-    const deep = headings(/^###\s+(.+)$/gm)
-    const names = deep.length > 0 ? deep : headings(/^##\s+(.+)$/gm)
-    const pending = []
-    if (names.length > 0) pending.push('characters（已抽出人名，缺 role/want/fear/limit/voice）')
-    else pending.push('characters')
-    pending.push('style', 'intent')
-    return { imported, pending, names, skipped }
-  })
+    writeBibleRow(root, { work: manifest.workId, name: target.name, content: target.content })
+    imported.push({ from: target.from, to: spec.file, version: contentVersion(target.content) })
+  }
+  const headings = (pattern) => cast === undefined
+    ? []
+    : [...cast.matchAll(pattern)]
+      .map(match => match[1].trim())
+      .filter(name => name !== '' && !/^[\d.、\s]+$/.test(name))
+  const deep = headings(/^###\s+(.+)$/gm)
+  const names = deep.length > 0 ? deep : headings(/^##\s+(.+)$/gm)
+  const pending = []
+  if (names.length > 0) pending.push('characters（已抽出人名，缺 role/want/fear/limit/voice）')
+  else pending.push('characters')
+  pending.push('style', 'intent')
+  return { imported, pending, names, skipped }
 }
 
 /**
- * Path of one chapter's summary.
- * @param {string} root - workspace directory.
- * @param {string} workId - work identity.
- * @param {number} chapter - chapter number.
- * @returns {string} absolute path.
- */
-function summaryPath(root, workId, chapter) {
-  return join(workDirectory(root, workId), 'summaries', `${chapterStem(chapter)}.md`)
-}
-
-/**
- * Chapter summary index, rebuilt from the files on disk.
+ * Chapter summary index, rebuilt from the work database.
  * @param {string} root - workspace directory.
  * @param {string} workId - work identity.
  * @returns {Promise<{chapters: object[]}>} index payload.
  */
 export async function summaryIndex(root, workId) {
-  const dir = join(workDirectory(root, workId), 'summaries')
-  let names
-  try {
-    names = await readdir(dir)
-  } catch {
-    return { chapters: [] }
-  }
-  const chapters = []
-  for (const name of names) {
-    const match = /^ch-(\d{4})\.md$/.exec(name)
-    if (match === null) continue
-    const text = (await readOptional(join(dir, name))) ?? ''
-    chapters.push({ number: Number(match[1]), path: `summaries/${name}`, words: [...text.trim()].length })
-  }
-  chapters.sort((left, right) => left.number - right.number)
+  const manifest = readManifest(root, workId)
+  const chapters = listSummaries(root, manifest.workId).map(row => ({
+    number: row.number,
+    path: `works/${manifest.workId}/summaries/${chapterStem(row.number)}.md`,
+    words: [...String(row.text).trim()].length,
+  }))
   return { chapters }
 }
 
@@ -265,7 +244,7 @@ export async function summaryIndex(root, workId) {
  * @returns {Promise<string|undefined>} summary text.
  */
 export async function readSummary(root, workId, chapter) {
-  return await readOptional(summaryPath(root, workId, chapter))
+  return readSummaryRow(root, workId, chapter)
 }
 
 /**
@@ -280,38 +259,26 @@ export async function writeSummary(root, workId, chapter, text) {
   const number = chapterNumber(chapter)
   const body = String(text ?? '').trim()
   if (body === '') throw new StoryError('empty-summary', '摘要不能为空')
-  return withWorkLock(root, workId, async () => {
-    const manifest = await readManifest(root, workId)
-    const entry = manifest.chapters.find(item => item.number === number)
-    if (entry === undefined || entry.currentRevision === 0) {
-      throw new StoryError('body-not-found', `第 ${number} 章还没有正文，不能写摘要`)
-    }
-    const chars = [...body]
-    const truncated = chars.length > SUMMARY_MAX_CHARS
-    const content = `${truncated ? chars.slice(0, SUMMARY_MAX_CHARS).join('') : body}\n`
-    const file = summaryPath(root, manifest.workId, number)
-    const dir = join(workDirectory(root, manifest.workId), 'summaries')
-    await mkdir(dir, { recursive: true })
-    // The index commits with the summary in one staged pass. It is derived data:
-    // readers resolve summaries by chapter file, so a crash between the two
-    // renames costs an index refresh, not a wrong summary.
-    const previousIndex = await summaryIndex(root, manifest.workId)
-    const chapters = previousIndex.chapters
-      .filter(entry => entry.number !== number)
-      .concat({ number, path: `summaries/${chapterStem(number)}.md`, words: [...content.trim()].length })
-      .sort((left, right) => left.number - right.number)
-    await commitFiles(root, manifest.workId, 'summary', {
-      [`summaries/${chapterStem(number)}.md`]: content,
-      'summaries/index.json': `${JSON.stringify({ chapters }, null, 2)}\n`,
-    })
-    return { path: rootRelative(root, file), truncated, words: [...body].length }
-  })
+  const manifest = readManifest(root, workId)
+  const entry = manifest.chapters.find(item => item.number === number)
+  if (entry === undefined || entry.currentRevision === 0) {
+    throw new StoryError('body-not-found', `第 ${number} 章还没有正文，不能写摘要`)
+  }
+  const chars = [...body]
+  const truncated = chars.length > SUMMARY_MAX_CHARS
+  const content = `${truncated ? chars.slice(0, SUMMARY_MAX_CHARS).join('') : body}\n`
+  writeSummaryRow(root, { work: manifest.workId, chapter: number, text: content })
+  return {
+    path: `works/${manifest.workId}/summaries/${chapterStem(number)}.md`,
+    truncated,
+    words: [...body].length,
+  }
 }
 
 /**
  * Assemble the pre-write brief for one chapter.
  *
- * Pure: every input is read from disk, sections are ordered by
+ * Pure: every input is read from the work database, sections are ordered by
  * {@link BRIEF_SECTION_ORDER}, and identical inputs produce identical bytes.
  * @param {string} root - workspace directory.
  * @param {string} workId - work identity.
@@ -320,23 +287,20 @@ export async function writeSummary(root, workId, chapter, text) {
  */
 export async function assembleBrief(root, workId, chapter) {
   const number = chapterNumber(chapter)
-  const manifest = await readManifest(root, workId)
+  const manifest = readManifest(root, workId)
   const entry = manifest.chapters.find(item => item.number === number)
   if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
-  const dir = workDirectory(root, manifest.workId)
+  const work = manifest.workId
 
   const missing = []
   const raw = {}
-  for (const [name, spec] of Object.entries(BIBLE_FILES)) {
-    const content = await readOptional(join(dir, spec.file))
-    if (content === undefined) missing.push(name)
-    else raw[name] = content
-  }
+  for (const row of readBibleEntries(root, work)) raw[row.name] = row.content
+  for (const name of Object.keys(BIBLE_FILES)) if (raw[name] === undefined) missing.push(name)
   if (missing.length > 0) {
     throw new StoryError('bible-missing', `真值文件缺失：${missing.join('、')}（可用 story_bible_write 补建）`)
   }
 
-  const plan = await readOptional(join(dir, 'outline', `${entry.id}.plan.md`))
+  const plan = readPlan(root, work, number)
   if (plan === undefined) missing.push('outline')
 
   const characters = parseCharacters(raw.characters)
@@ -349,26 +313,26 @@ export async function assembleBrief(root, workId, chapter) {
     .map(record => `- ${record.name}（${record.role}）：想要 ${record.want}；害怕 ${record.fear}；底线 ${record.limit}；口吻 ${record.voice}`)
     .join('\n')
 
-  const events = (await readOptional(join(dir, 'state', 'events.jsonl'))) ?? ''
-  const hooks = foldEvents(events).hooks.filter(hook => hook.state !== 'resolved')
+  const folded = foldEvents(readEvents(root, work).map(event => JSON.stringify(event)).join('\n'))
+  const hooks = folded.hooks.filter(hook => hook.state !== 'resolved')
   const hookText = hooks
     .map(hook => `- ${hook.text}（${hook.state}，第 ${hook.openedChapter} 章埋）`)
     .join('\n')
 
   const sections = [
-    section('intent', '作者意图与当前焦点', raw.intent, 'bible/intent.md'),
-    section('plan', '本章章纲', planText, `outline/${entry.id}.plan.md`, { absent: plan === undefined }),
-    section('characters', '本章涉及人物', characterText, 'bible/characters.json', { fallback: matched.length === 0 }),
-    section('hooks', '未解伏笔', hookText, 'state/events.jsonl', { absent: hooks.length === 0 }),
+    section('intent', '作者意图与当前焦点', raw.intent, biblePath(work, 'intent')),
+    section('plan', '本章章纲', planText, `works/${work}/outline/${chapterStem(number)}.plan.md`, { absent: plan === undefined }),
+    section('characters', '本章涉及人物', characterText, biblePath(work, 'characters'), { fallback: matched.length === 0 }),
+    section('hooks', '未解伏笔', hookText, `works/${work}/state/events.jsonl`, { absent: hooks.length === 0 }),
     await volumeSummarySection(root, manifest, number),
     await recentSummariesSection(root, manifest, number),
     await previousSection(root, manifest, number),
-    section('style', '文风要点', raw.style, 'bible/style.md'),
+    section('style', '文风要点', raw.style, biblePath(work, 'style')),
     section('wordPolicy', '字数口径',
       manifest.wordRange === undefined
         ? '字数未设定（按作者习惯）；每章结尾留悬念钩子。'
         : `单章 ${manifest.wordRange.min}–${manifest.wordRange.max} 字；每章结尾留悬念钩子。`,
-      'manifest.json'),
+      `works/${work}/manifest`),
   ]
 
   const budget = { limit: BRIEF_BUDGET_BYTES, used: 0, overBudget: false }
@@ -418,11 +382,11 @@ export const RECENT_SUMMARY_WINDOW = 5
  * @returns {Promise<object>} section record.
  */
 async function volumeSummarySection(root, manifest, number) {
-  const volumes = await readVolumes(root, manifest.workId).catch(() => [])
-  const volume = volumeOf(volumes, number)
+  const volumes = readVolumes(root, manifest.workId)
+  const volume = volumes.find(item => number >= item.from && number <= item.to)
   if (volume === undefined) return section('volumeSummary', '本卷摘要', '', '', { absent: true })
   const summary = typeof volume.summary === 'string' ? volume.summary.trim() : ''
-  return section('volumeSummary', `本卷摘要（${volume.title}）`, summary, 'bible/volumes.json', { absent: summary === '' })
+  return section('volumeSummary', `本卷摘要（${volume.title}）`, summary, `works/${manifest.workId}/volumes`, { absent: summary === '' })
 }
 
 /**
@@ -437,13 +401,14 @@ async function volumeSummarySection(root, manifest, number) {
  */
 async function recentSummariesSection(root, manifest, number) {
   const first = Math.max(1, number - RECENT_SUMMARY_WINDOW)
+  const rows = new Map(listSummaries(root, manifest.workId).map(row => [row.number, row.text]))
   const lines = []
   for (let chapter = first; chapter < number; chapter += 1) {
-    const text = await readSummary(root, manifest.workId, chapter)
+    const text = rows.get(chapter)
     if (text === undefined || text.trim() === '') continue
     lines.push(`第 ${chapter} 章：${text.trim()}`)
   }
-  return section('recentSummaries', `最近 ${lines.length} 章摘要`, lines.join('\n'), 'summaries/', {
+  return section('recentSummaries', `最近 ${lines.length} 章摘要`, lines.join('\n'), `works/${manifest.workId}/summaries/`, {
     absent: lines.length === 0,
   })
 }
@@ -459,13 +424,13 @@ async function recentSummariesSection(root, manifest, number) {
 async function previousSection(root, manifest, number) {
   if (number === 1) return section('previous', '上一章结尾', '', '', { absent: true })
   const previous = number - 1
-  const summary = await readSummary(root, manifest.workId, previous)
+  const summary = readSummaryRow(root, manifest.workId, previous)
   if (summary !== undefined && summary.trim() !== '') {
-    return section('previous', '上一章结尾', summary.trim(), `summaries/${chapterStem(previous)}.md`)
+    return section('previous', '上一章结尾', summary.trim(), `works/${manifest.workId}/summaries/${chapterStem(previous)}.md`)
   }
   let body
   try {
-    body = (await readChapter(root, { work: manifest.workId, chapter: previous })).content
+    body = readChapterRow(root, { work: manifest.workId, chapter: previous }).content
   } catch {
     body = undefined
   }
@@ -477,5 +442,5 @@ async function previousSection(root, manifest, number) {
     if (byteLength(next) > PREV_TAIL_BYTES) break
     tail = next
   }
-  return section('previous', '上一章结尾', tail.trim(), `chapters/${chapterStem(previous)}.md`, { bodyFallback: true })
+  return section('previous', '上一章结尾', tail.trim(), `works/${manifest.workId}/chapters/${chapterStem(previous)}.md`, { bodyFallback: true })
 }

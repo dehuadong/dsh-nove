@@ -5,9 +5,9 @@
  * that preset's scope: only sessions composed from this mode see `story_*`.
  * The same scope owns the delegation guard: subagents spawned into this
  * composition may read, but their file writes and landing actions are refused.
- * Each action turns model input into artifacts under `<workspace>/works/<work>/`
- * and returns the artifact paths with their revisions; a failure never leaves a
- * partial chapter behind (see `storage.js`).
+ * Each action turns model input into rows inside the current work database and
+ * returns virtual `works/<workId>/...` artifact paths with their revisions; a
+ * failure never leaves a partial chapter behind (see `storage.js`).
  *
  * Schemas are written in the tool registry's supported JSON Schema subset
  * (type / oneOf / properties / required / additionalProperties / items / enum /
@@ -17,7 +17,7 @@
  */
 
 import {
-  StoryError, deleteWork, foldState, initWork, latestReview, listWorks, nextStep as nextStepFor,
+  StoryError, backupWork, deleteWork, exportWork, foldState, initWork, latestReview, nextStep as nextStepFor,
   planApprovalPolicy,
   parseReview, readChapter, readManifest, reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter,
   status as readStatus, updateSettings, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
@@ -304,7 +304,26 @@ const OUTPUT_PROPERTIES = {
   skipped: { type: 'array', description: 'Files the import left untouched because they already hold content.', items: { type: 'string' } },
   names: { type: 'array', description: 'Character names found in the old cast file.', items: { type: 'string' } },
   truncated: { type: 'boolean' },
-  cleaned: { type: 'integer', description: 'Stale staging directories removed by this action.' },
+  exported: {
+    type: 'object',
+    additionalProperties: false,
+    description: '导出的目录与文件数；作者在系统文件管理器里取用。',
+    properties: {
+      directory: { type: 'string' },
+      files: { type: 'integer' },
+    },
+    required: ['directory', 'files'],
+  },
+  backup: {
+    type: 'object',
+    additionalProperties: false,
+    description: '单作品备份文件与完整性检查结果。',
+    properties: {
+      file: { type: 'string' },
+      integrity: { type: 'string' },
+    },
+    required: ['file', 'integrity'],
+  },
   form: {
     type: 'string',
     enum: ['longform', 'short', 'script'],
@@ -580,7 +599,7 @@ function rawDefinitions() {
     action({
       name: 'story_init',
       mutates: true,
-      description: '建立一部作品的骨架：作品目录、进度清单、章纲/正文/审稿/状态四个子目录。'
+      description: '建立一部作品：作品库文件（.storycraft/works/<workId>.db）、进度清单、真值五件与检索表。'
         + ' 用户要求开始写一部新作品时先调用它。作品 id 由标题生成；同 id 已存在时拒绝，不覆盖已有作品，'
         + ' 需要另起一部时换标题或显式给 workId。',
       parameters: {
@@ -701,7 +720,7 @@ function rawDefinitions() {
       name: 'story_plan',
       mutates: true,
       description: '写一章的章纲并落盘。五项必须齐全：视角、目标、阻力、代价、结尾变化；缺项会被拒绝。'
-        + ' 动笔前先出章纲，改章纲也用这个动作覆盖同一章的章纲文件。',
+        + ' 动笔前先出章纲，改章纲也用这个动作覆盖同一章的章纲。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -831,7 +850,7 @@ function rawDefinitions() {
     action({
       name: 'story_write',
       mutates: true,
-      description: '把一章正文落盘并更新进度清单。已存在正文时默认拒绝；要改稿传 rewrite: true，会生成新版本而不覆盖旧版。',
+      description: '把一章正文落库并更新进度。已存在正文时默认拒绝；要改稿传 rewrite: true，会生成新版本而不覆盖旧版。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -852,7 +871,6 @@ function rawDefinitions() {
         const result = await writeChapter(root, { ...args, requirePlanApproval: policy === 'required' })
         return {
           ok: true, workId: args.work, artifact: result.artifact, words: result.words,
-          ...(result.cleaned > 0 ? { cleaned: result.cleaned } : {}),
           ...(warnings.length === 0 ? {} : { warnings }),
         }
       },
@@ -933,7 +951,7 @@ function rawDefinitions() {
     action({
       name: 'story_state',
       mutates: true,
-      description: '把本章产生的人物事实与伏笔变化定稿进作品状态，并刷新伏笔视图。'
+      description: '把本章产生的人物事实与伏笔变化定稿进作品状态，并返回折叠后的计数。'
         + ' 只写变化，不重抄全部设定；「已用」必须指向一条未解伏笔。',
       parameters: {
         type: 'object',
@@ -985,7 +1003,7 @@ function rawDefinitions() {
     action({
       name: 'story_bible',
       description: '读取作品真值（世界观、人物档案、文风、写作计划、作者意图）。'
-        + ' 动笔前需要确认设定、或要查某个人物的口吻与底线时先读它；文件缺失会指出缺哪几份。',
+        + ' 动笔前需要确认设定、或要查某个人物的口吻与底线时先读它；真值缺失会指出缺哪几份。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -1006,7 +1024,7 @@ function rawDefinitions() {
       name: 'story_bible_write',
       mutates: true,
       description: '写一份真值文件并返回内容版本。人物档案必须是六字段齐全的 JSON 数组；'
-        + ' 结构不合法会被拒绝且文件不变。作者确认设定或补齐人物后再调用。',
+        + ' 结构不合法会被拒绝且原内容不变。作者确认设定或补齐人物后再调用。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -1027,7 +1045,7 @@ function rawDefinitions() {
     action({
       name: 'story_bible_import',
       mutates: true,
-      description: '把旧作品 design/ 下的世界观与大纲收编进真值目录，并列出仍需作者补的项。'
+      description: '把旧文件作品 design/ 下的世界观与大纲收编进真值，并列出仍需作者补的项。'
         + ' 只收编结构已知的内容，不替作者编人物档案。',
       parameters: {
         type: 'object',
@@ -1113,8 +1131,8 @@ function rawDefinitions() {
     action({
       name: 'story_rename',
       mutates: true,
-      description: '改作品的标题或作品 id（目录会一起改）。id 必须是新的、不与他人冲突；'
-        + ' 只改标题时目录不动。',
+      description: '改作品的标题或作品 id（库文件会一起改）。id 必须是新的、不与他人冲突；'
+        + ' 只改标题时库文件不动。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -1139,8 +1157,8 @@ function rawDefinitions() {
     action({
       name: 'story_delete',
       mutates: true,
-      description: '把作品移进回收站（works/.trash），不再出现在列表里；可用 story_restore 恢复。'
-        + ' 不会真的删除文件。',
+      description: '把作品移进回收站（.storycraft/trash/），不再出现在列表里；可用 story_restore 恢复。'
+        + ' 不会真的删除作品库文件。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -1159,7 +1177,7 @@ function rawDefinitions() {
     action({
       name: 'story_restore',
       mutates: true,
-      description: '把回收站里最近一次删除的同名作品恢复回 works/。目标名已被占用时拒绝。',
+      description: '把回收站里最近一次删除的同名作品恢复回作品列表。目标名已被占用时拒绝。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -1230,7 +1248,12 @@ function rawDefinitions() {
         const current = getCurrent(sessionOf(exec))
         if (current === undefined) return { ok: true, current: null }
         const root = workspaceOf(exec)
-        const manifest = await readManifest(root, current).catch(() => undefined)
+        let manifest
+        try {
+          manifest = readManifest(root, current)
+        } catch {
+          manifest = undefined
+        }
         return { ok: true, workId: current, ...(manifest === undefined ? {} : { title: manifest.title }), current }
       },
     }),
@@ -1340,6 +1363,46 @@ function rawDefinitions() {
         const root = workspaceOf(exec)
         const summary = await readStatus(root, args.work)
         return { ok: true, workId: summary.workId, status: summary }
+      },
+    }),
+
+    action({
+      name: 'story_export',
+      mutates: true,
+      description: '把一部作品导出成可读目录（.storycraft/exports/<workId>/）：manifest、各版正文、章纲、摘要、'
+        + '各轮审稿、真值、卷、事件与提案。导出是给作者在系统文件管理器里取用的，模型不要直接读库文件。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+        },
+        required: ['work'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const exported = exportWork(root, args.work)
+        return { ok: true, workId: args.work, exported }
+      },
+    }),
+
+    action({
+      name: 'story_backup',
+      mutates: true,
+      description: '把一部作品的库备份成单个文件（.storycraft/backups/<workId>-<时间戳>.db），并返回完整性检查结果。'
+        + ' 备份是常备能力；库排障或迁移前先做一份。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+        },
+        required: ['work'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const backup = await backupWork(root, args.work)
+        return { ok: true, workId: args.work, backup }
       },
     }),
   ]
@@ -1490,3 +1553,4 @@ export function apply(ctx) {
     for (const dispose of disposers) dispose()
   }, 'storycraft-tools: work actions')
 }
+

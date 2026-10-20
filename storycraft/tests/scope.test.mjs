@@ -35,8 +35,9 @@ const cases = [
   ['parent traversal from docs into current work allowed', { tool: 'read', arguments: { file_path: `../works/${current}/chapters/ch-0001.md` }, cwd: docsCwd, currentWork: current }, undefined],
   ['project file allowed', { tool: 'read', arguments: { file_path: 'AGENTS.md' } }, undefined],
   ['project file allowed with work', { tool: 'read', arguments: { file_path: 'storycraft/tools.js' }, currentWork: current }, undefined],
-  ['db file always denied', { tool: 'read', arguments: { file_path: '.storycraft/works.db' }, currentWork: current }, database],
-  ['db wal denied', { tool: 'read', arguments: { file_path: '.storycraft/works.db-wal' } }, database],
+  ['db file always denied', { tool: 'read', arguments: { file_path: '.storycraft/catalog.db' }, currentWork: current }, database],
+  ['work db file denied', { tool: 'read', arguments: { file_path: '.storycraft/works/大朔营造.db' }, currentWork: current }, database],
+  ['db wal denied', { tool: 'read', arguments: { file_path: '.storycraft/catalog.db-wal' } }, database],
   ['read_image db denied', { tool: 'read_image', arguments: { file_path: join(dbRoot, 'works.db-shm') } }, database],
   ['edit other work denied', { tool: 'edit', arguments: { file_path: `works/${other}/chapters/ch-0001.md` }, currentWork: current }, otherWork],
   ['write current work allowed', { tool: 'write', arguments: { file_path: `works/${current}/chapters/ch-0008.md` }, currentWork: current }, undefined],
@@ -55,13 +56,13 @@ const cases = [
   ['pwsh relative works denied', { tool: 'pwsh', arguments: { command: 'dir .\\works' }, currentWork: current }, otherWork],
   ['pwsh set-location works denied', { tool: 'pwsh', arguments: { command: 'Set-Location works; Get-Content x.md' }, currentWork: current }, otherWork],
   ['pwsh ./works other denied', { tool: 'bash', arguments: { command: `cat ./works/${other}/chapters/ch-0001.md` }, currentWork: current }, otherWork],
-  ['pwsh database denied', { tool: 'pwsh', arguments: { command: 'sqlite3 .storycraft/works.db' } }, database],
+  ['pwsh database denied', { tool: 'pwsh', arguments: { command: 'sqlite3 .storycraft/catalog.db' } }, database],
   ['pwsh workspace word allowed', { tool: 'pwsh', arguments: { command: 'node packages/workspace/bin.js' }, currentWork: current }, undefined],
   ['working_directory project allowed', { tool: 'working_directory', arguments: { cd: 'docs' } }, undefined],
   ['working_directory works denied', { tool: 'working_directory', arguments: { cd: 'works' } }, cdDenied],
   ['working_directory db denied', { tool: 'working_directory', arguments: { cd: '.storycraft' } }, cdDenied],
   ['project path with works segment allowed', { tool: 'pwsh', arguments: { command: 'node docs/works/x.mjs' }, currentWork: current }, undefined],
-  ['quoted storycraft path denied', { tool: 'pwsh', arguments: { command: "Join-Path '.storycraft' 'works.db'" } }, database],
+  ['quoted storycraft path denied', { tool: 'pwsh', arguments: { command: "Join-Path '.storycraft' 'catalog.db'" } }, database],
   ['shell works without current work is discussion', { tool: 'bash', arguments: { command: `cat works/${current}/chapters/ch-0001.md` } }, discussion],
   ['glob at workspace root denied', { tool: 'glob', arguments: { pattern: '**/*.md', path: '.' } }, search],
   ['glob above workspace denied', { tool: 'glob', arguments: { pattern: '**/*.md', path: '..' } }, search],
@@ -74,7 +75,7 @@ const cases = [
 
 if (process.platform === 'win32') {
   cases.push(['case-insensitive works denied', { tool: 'read', arguments: { file_path: `Works/${other}/chapters/ch-0001.md` }, currentWork: current }, otherWork])
-  cases.push(['case-insensitive db denied', { tool: 'read', arguments: { file_path: '.StoryCraft/works.db' } }, database])
+  cases.push(['case-insensitive db denied', { tool: 'read', arguments: { file_path: '.StoryCraft/catalog.db' } }, database])
   cases.push(['absolute windows works denied', { tool: 'pwsh', arguments: { command: `Get-Content ${worksRoot}\\${other}\\chapters\\ch-0001.md` }, currentWork: current }, otherWork])
   cases.push(['case-insensitive shell works denied', { tool: 'pwsh', arguments: { command: `Get-ChildItem WORKS/${other}` }, currentWork: current }, otherWork])
 }
@@ -86,3 +87,4 @@ for (const [name, input, expected] of cases) {
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`)
 process.exitCode = failures === 0 ? 0 : 1
+

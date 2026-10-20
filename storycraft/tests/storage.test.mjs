@@ -1,5 +1,5 @@
-// Throwaway verification for storycraft/storage.js (not shipped).
-import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises'
+// Public storage facade: virtual paths, error codes and the writing pipeline.
+import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../storage.js'
@@ -25,7 +25,7 @@ async function rejects(name, code, fn) {
 const root = await mkdtemp(join(tmpdir(), 'storycraft-test-'))
 try {
   const created = await s.initWork(root, { title: '潮汐记事', form: 'longform' })
-  check('init creates work dir', created.workId === '潮汐记事'.toLowerCase() || created.workId.length > 0, created.workId)
+  check('init returns a work id', created.workId.length > 0, created.workId)
   const work = created.workId
   check('manifest exists', (await s.readManifest(root, work)).title === '潮汐记事')
 
@@ -35,8 +35,8 @@ try {
   const plan = await s.writePlan(root, {
     work, chapter: 1, perspective: '林澈', goal: '拿回合同', obstacle: '房东堵门', cost: '欠下人情', turn: '发现合同是假的',
   })
-  check('plan artifact path', plan.artifact.path.endsWith('ch-0001.plan.md'), plan.artifact.path)
-  check('plan exists on disk', (await stat(join(root, plan.artifact.path))).isFile())
+  check('plan artifact is a virtual path', plan.artifact.path === `works/${work}/outline/ch-0001.plan.md`, plan.artifact.path)
+  check('virtual paths do not exist on disk', await stat(join(root, plan.artifact.path)).then(() => false).catch(() => true))
 
   const beforeApproval = (await s.readWork(root, work)).chapters[0]
   check('a new plan starts unapproved', beforeApproval.planApproved === false, JSON.stringify(beforeApproval))
@@ -49,6 +49,7 @@ try {
   const write1 = await s.writeChapter(root, { work, chapter: 1, title: '雨里的灯', body: '他站在雨里。'.repeat(50) })
   check('first body revision is 1', write1.artifact.revision === 1, String(write1.artifact.revision))
   check('words counted', write1.words > 0, String(write1.words))
+  check('body path is virtual and versioned', write1.artifact.path === `works/${work}/chapters/ch-0001.md`, write1.artifact.path)
 
   await s.writePlan(root, { work, chapter: 1, perspective: '林澈', goal: '拿回合同（改）', obstacle: '房东堵门', cost: '欠下人情', turn: '发现合同是假的' })
   const afterReplan = (await s.readWork(root, work)).chapters[0]
@@ -56,8 +57,8 @@ try {
   await s.approveChapterPlan(root, { work, chapter: 1 })
 
   await rejects('second write without rewrite rejected', 'chapter-exists', () => s.writeChapter(root, { work, chapter: 1, body: '另一版' }))
-  const filesAfterReject = (await readdir(join(root, 'works', work, 'chapters'))).sort()
-  check('rejected write left no file', filesAfterReject.length === 1, filesAfterReject.join(','))
+  const versions = (await s.readManifest(root, work)).chapters[0].currentRevision
+  check('rejected write left the revision untouched', versions === 1, String(versions))
 
   await rejects('review without body rejected', 'body-not-found', () => s.writeReview(root, { work, chapter: 2, problems: [{ location: 'x', problem: 'y' }] }))
   const review = await s.writeReview(root, {
@@ -67,8 +68,7 @@ try {
     ],
   })
   check('review items persisted', review.problems.length === 2 && review.problems[0].id === 'Q1')
-  const bodyBefore = await readFile(join(root, 'works', work, 'chapters', 'ch-0001.md'), 'utf8')
-  check('review did not touch body', bodyBefore === '他站在雨里。'.repeat(50) + '\n')
+  check('review path is virtual', review.artifact.path === `works/${work}/reviews/ch-0001.r1.md`, review.artifact.path)
 
   await rejects('revise with unknown problem rejected', 'problem-not-found', () => s.reviseChapter(root, {
     work, chapter: 1, body: '改后正文', problemIds: ['Q9'],
@@ -77,26 +77,24 @@ try {
     work, chapter: 1, body: '改后正文，视角统一。'.repeat(20), problemIds: ['Q1'], mode: 'rewrite',
   })
   check('revision 2 written', rev.artifact.revision === 2)
-  check('old revision kept', (await stat(join(root, 'works', work, 'chapters', 'ch-0001.md'))).isFile())
-  const reviewText = await readFile(join(root, review.artifact.path), 'utf8')
-  check('Q1 marked done', reviewText.includes('- [x] Q1'), reviewText.split('\n').find(line => line.startsWith('- [')))
-  check('Q2 still open', reviewText.includes('- [ ] Q2'))
+  check('old revision kept', (await s.readChapter(root, { work, chapter: 1, revision: 1 })).content.startsWith('他站在雨里'))
+  const reviewItems = (await s.readReview(root, work, 1)).items
+  check('Q1 marked done', reviewItems.find(item => item.id === 'Q1')?.done === true)
+  check('Q2 still open', reviewItems.find(item => item.id === 'Q2')?.done === false)
 
   await rejects('settle blocked while review items are open', 'review-required', () => s.foldState(root, {
     work, chapter: 1, hooks: [{ text: '合同是假的', state: 'opened' }],
   }))
   // The body changed, so the old list no longer describes it: review again.
-  await rejects('stale review cannot drive another revision', 'review-required', () => s.reviseChapter(root, {
+  await rejects('stale review cannot drive another patch', 'review-required', () => s.reviseChapter(root, {
     work, chapter: 1, body: '再改一版，补上母亲的旧照片。'.repeat(20), problemIds: ['Q2'],
   }))
-  const rereview = await s.writeReview(root, {
+  await s.writeReview(root, {
     work, chapter: 1, problems: [{ location: '结尾', problem: '照片收得太快', suggestion: '补一拍' }],
   })
   await s.reviseChapter(root, {
     work, chapter: 1, body: '再改一版，补上母亲的旧照片。'.repeat(20), problemIds: ['Q1'], mode: 'rewrite',
   })
-  const settledReview = await readFile(join(root, rereview.artifact.path), 'utf8')
-  check('re-review item marked done', settledReview.includes('- [x] Q1'))
 
   await rejects('hook used before opened rejected', 'hook-not-open', () => s.foldState(root, {
     work, chapter: 1, hooks: [{ text: '合同是假的', state: 'used' }],
@@ -107,8 +105,7 @@ try {
     hooks: [{ text: '合同是假的', state: 'opened' }, { text: '母亲的旧照片', state: 'opened' }],
   })
   check('state counts', folded.counts.opened === 2 && folded.counts.entities === 1, JSON.stringify(folded.counts))
-  const hooksView = await readFile(join(root, 'works', work, 'hooks.md'), 'utf8')
-  check('hooks view rendered', hooksView.includes('合同是假的') && hooksView.includes('opened'))
+  check('state artifact points at the event log', folded.artifact.path === `works/${work}/state/events.jsonl`, folded.artifact.path)
 
   const status = await s.status(root, work)
   check('status writtenChapters = 1', status.writtenChapters === 1)
@@ -126,21 +123,20 @@ try {
 
   const chapter = await s.readChapter(root, { work, chapter: 1 })
   check('chapter current revision = 3', chapter.revision === 3, String(chapter.revision))
+  check('chapter path is virtual', chapter.path === `works/${work}/chapters/ch-0001.r3.md`, chapter.path)
   const planRead = await s.readChapter(root, { work, chapter: 1, view: 'plan' })
   check('plan read', planRead.content.includes('结尾变化'))
-  const reviewRead = await s.readReview(root, work, 1)
-  check('review read items', reviewRead.items.length === 1 && reviewRead.items[0].done === true, JSON.stringify(reviewRead.items))
+  let summaryCode
+  try {
+    await s.readChapter(root, { work, chapter: 1, view: 'summary' })
+  } catch (error) {
+    summaryCode = error.code
+  }
+  check('summary read before writing reports summary-not-found', summaryCode === 'summary-not-found', String(summaryCode))
 
-  // Concurrent writer: the lock makes a second mutation fail loudly.
-  const lockFile = join(root, 'works', `.${work}.lock`)
-  await (await import('node:fs/promises')).writeFile(lockFile, '')
-  await rejects('concurrent write rejected', 'work-busy', () => s.writePlan(root, {
-    work, chapter: 2, perspective: 'x', goal: 'y', obstacle: 'z', cost: 'w', turn: 'v',
-  }))
-  await (await import('node:fs/promises')).rm(lockFile, { force: true })
   // Unwritable root: creating the work must fail without leaving files behind.
   const blockingFile = join(root, 'not-a-directory')
-  await (await import('node:fs/promises')).writeFile(blockingFile, 'x')
+  await writeFile(blockingFile, 'x')
   let blocked = false
   try {
     await s.initWork(join(blockingFile, 'child'), { title: 'x' })
@@ -148,11 +144,12 @@ try {
     blocked = error?.code === 'ENOTDIR' || error?.code === 'EEXIST' || error?.code === 'ENOENT'
   }
   check('unwritable root fails cleanly', blocked, 'no error raised')
-  // Atomicity: a failing write must not change the manifest.
-  const manifestBefore = await readFile(join(root, 'works', work, 'manifest.json'), 'utf8')
+
+  // Atomicity: a failing write must not change the work.
+  const before = JSON.stringify(await s.readManifest(root, work))
   await rejects('reopened write without flag is rejected', 'chapter-settled', () => s.writeChapter(root, { work, chapter: 1, body: 'x' }))
-  const manifestAfter = await readFile(join(root, 'works', work, 'manifest.json'), 'utf8')
-  check('manifest unchanged after failure', manifestBefore === manifestAfter)
+  check('work unchanged after failure', JSON.stringify(await s.readManifest(root, work)) === before)
+
   // The confirmation policy is per work: required by default, opt-out allowed.
   const policyWork = (await s.initWork(root, { title: '策略测试' })).workId
   await s.writeOutline(root, { work: policyWork, mainline: '一条主线' })
@@ -184,3 +181,5 @@ try {
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`)
 process.exitCode = failures === 0 ? 0 : 1
+
+

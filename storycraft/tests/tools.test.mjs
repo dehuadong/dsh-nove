@@ -1,9 +1,11 @@
 // Throwaway verification for storycraft/tools.js registration and dispatch.
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
+import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import * as tools from '../tools.js'
 import * as s from '../storage.js'
+import { openWork } from '../db.js'
+import { readProposal } from '../proposals.js'
 import { setCurrent } from '../current.js'
 
 let failures = 0
@@ -29,12 +31,12 @@ const ctx = {
 tools.apply(ctx, { mode: 'longform' })
 
 const names = registered.map(definition => definition.name).sort()
-check('registers twenty-five actions', names.length === 25, names.join(','))
+check('registers twenty-seven actions', names.length === 27, names.join(','))
 check('action names', names.join(',') === [
-  'story_bible', 'story_bible_import', 'story_bible_write', 'story_brief', 'story_context', 'story_critique', 'story_current',
-  'story_delete', 'story_init', 'story_next', 'story_plan', 'story_rename', 'story_reopen', 'story_restore',
-  'story_outline', 'story_propose', 'story_review', 'story_revise', 'story_settings', 'story_state',
-  'story_status', 'story_summarize', 'story_volume', 'story_volumes', 'story_write',
+  'story_backup', 'story_bible', 'story_bible_import', 'story_bible_write', 'story_brief', 'story_context',
+  'story_critique', 'story_current', 'story_delete', 'story_export', 'story_init', 'story_next', 'story_outline',
+  'story_plan', 'story_propose', 'story_rename', 'story_reopen', 'story_restore', 'story_review', 'story_revise',
+  'story_settings', 'story_state', 'story_status', 'story_summarize', 'story_volume', 'story_volumes', 'story_write',
 ].sort().join(','), names.join(','))
 check('the delegation and scope guards are registered', guards.length === 2, String(guards.length))
 check('every action declares output schema', registered.every(definition => definition.output?.schema && typeof definition.output?.render === 'function'))
@@ -138,10 +140,11 @@ try {
   check('title must match the proposal', mismatched.ok === false && mismatched.error.code === 'proposal-mismatch', JSON.stringify(mismatched))
   const created = await byName.get('story_init').execute({ title: '雨里的灯', proposal: proposal.proposal }, exec)
   check('story_init ok', created.ok === true && typeof created.workId === 'string', JSON.stringify(created))
-  const used = JSON.parse(await readFile(join(root, 'works', '.proposals', `${proposal.proposal}.json`), 'utf8'))
-  check('the proposal records the work it became', used.workId === created.workId && typeof used.usedAt === 'string', JSON.stringify(used))
+  check('story_init reports a virtual work path', created.artifact.path === `works/${created.workId}`, created.artifact.path)
+  const used = await readProposal(root, proposal.proposal)
+  check('the proposal records the work it became', used.usedWorkId === created.workId && typeof used.usedAt === 'string', JSON.stringify(used))
   const work = created.workId
-  check('story_init wrote manifest', (await stat(join(root, 'works', work, 'manifest.json'))).isFile())
+  check('story_init wrote the work manifest', (await s.readWork(root, work)).manifest.title === '雨里的灯')
   // From here the session is pointed at that work, as the panel would.
   setCurrent('test-session', work)
 
@@ -187,7 +190,7 @@ try {
     work, chapter: 1, perspective: '林澈', goal: '拿回合同', obstacle: '房东', cost: '人情', turn: '合同是假的（修）',
   }, exec)
   check('rewriting a plan clears its approval', replanned.ok === true)
-  const afterReplan = JSON.parse(await readFile(join(root, 'works', work, 'manifest.json'), 'utf8'))
+  const afterReplan = await s.readManifest(root, work)
   check('approval is cleared on replan', afterReplan.chapters[0].planApprovedAt === undefined)
   const afterReplanWrite = await byName.get('story_write').execute({ work, chapter: 1, body: bodyBeforeApproval }, exec)
   check('a replanned chapter cannot be written before confirming again', afterReplanWrite.ok === false
@@ -203,7 +206,7 @@ try {
   const write = await byName.get('story_write').execute({ work, chapter: 1, title: '雨里的灯', body }, exec)
   check('story_write ok', write.ok === true && write.words > 0, JSON.stringify(write))
 
-  const afterWrite = JSON.parse(await readFile(join(root, 'works', work, 'manifest.json'), 'utf8'))
+  const afterWrite = await s.readManifest(root, work)
   check('chapter status written', afterWrite.chapters[0].status === 'written', afterWrite.chapters[0].status)
   check('chapter words recorded', afterWrite.chapters[0].words > 0, String(afterWrite.chapters[0].words))
   // The role context is the dispatch input: sections, trace, whitelist summary.
@@ -242,11 +245,11 @@ try {
 
   // Consistency runs at the landing action: an invented speaker blocks the write.
   const invented = `周三说：“走。”`.repeat(30)
-  const manifestBeforeConsistency = await readFile(join(root, 'works', work, 'manifest.json'), 'utf8')
+  const manifestBeforeConsistency = JSON.stringify(await s.readManifest(root, work))
   const rejected = await byName.get('story_write').execute({ work, chapter: 1, body: invented, rewrite: true }, exec)
   check('an invented speaker is refused at landing', rejected.ok === false && rejected.error.code === 'consistency-violation', JSON.stringify(rejected))
   check('a refused consistency check leaves the work untouched',
-    (await readFile(join(root, 'works', work, 'manifest.json'), 'utf8')) === manifestBeforeConsistency)
+    JSON.stringify(await s.readManifest(root, work)) === manifestBeforeConsistency)
 
   const sameText = await byName.get('story_critique').execute({ work, chapter: 1 }, exec)
   check('critique and write report the same word count', sameText.ok === true
@@ -317,11 +320,11 @@ try {
   // runtime keeps them from landing anything.
   const childExec = { agent: { ...exec.agent, id: 'child', session: { header: { cwd: root, delegationDepth: 1 } } } }
   setCurrent('child', work)
-  const manifestBefore = await readFile(join(root, 'works', work, 'manifest.json'), 'utf8')
+  const manifestBefore = JSON.stringify(await s.readManifest(root, work))
   const deniedWrite = await byName.get('story_write').execute({ work, chapter: 1, body, rewrite: true }, childExec)
   check('a delegated subagent cannot land a chapter', deniedWrite.ok === false && deniedWrite.error.code === 'subagent-cannot-land', JSON.stringify(deniedWrite))
   check('a refused landing leaves the manifest unchanged',
-    (await readFile(join(root, 'works', work, 'manifest.json'), 'utf8')) === manifestBefore)
+    JSON.stringify(await s.readManifest(root, work)) === manifestBefore)
   const childWithoutWork = { agent: { ...exec.agent, id: 'child-nowork', session: { header: { cwd: root, delegationDepth: 1 } } } }
   const deniedEarly = await byName.get('story_write').execute({ work, chapter: 1, body }, childWithoutWork)
   check('delegation is refused before work resolution', deniedEarly.ok === false && deniedEarly.error.code === 'subagent-cannot-land', JSON.stringify(deniedEarly))
@@ -372,7 +375,7 @@ try {
     .then(() => check('another id is refused while one work is active', false, 'expected a rejection'),
       error => check('another id is refused while one work is active', error.code === 'work-mismatch', String(error.code)))
 
-  const manifest = JSON.parse(await readFile(join(root, 'works', work, 'manifest.json'), 'utf8'))
+  const manifest = await s.readManifest(root, work)
   check('manifest tracks revision', manifest.chapters[0].currentRevision === 3, String(manifest.chapters[0].currentRevision))
 
   // A planned but unwritten chapter: the review path must say so, not crash.
@@ -399,7 +402,9 @@ try {
     && refusedRevise.error.code === 'consistency-violation', JSON.stringify(refusedRevise))
 
   // Removing the plan makes the dispatch action refuse before any work starts.
-  await rm(join(root, 'works', work, 'outline', 'ch-0002.plan.md'))
+  const removePlan = openWork(root, work)
+  removePlan.prepare('DELETE FROM chapter_plans WHERE number = 2').run()
+  removePlan.close()
   const noPlan = await byName.get('story_context').execute({ work, chapter: 2, role: 'reviewer' }, exec)
   check('a chapter without a plan is refused', noPlan.ok === false && noPlan.error.code === 'plan-not-found', JSON.stringify(noPlan))
 
@@ -414,6 +419,17 @@ try {
   const blockedNext = await byName.get('story_next').execute({ work }, exec)
   check('story_next agrees with the gate', blockedNext.ok === true
     && blockedNext.action === 'story_outline', JSON.stringify(blockedNext))
+
+  // Export and backup are ordinary actions on the selected work.
+  const exported = await byName.get('story_export').execute({ work }, exec)
+  check('story_export writes an export tree', exported.ok === true
+    && typeof exported.exported.directory === 'string' && exported.exported.files > 0, JSON.stringify(exported))
+  const backup = await byName.get('story_backup').execute({ work }, exec)
+  check('story_backup returns an integrity check', backup.ok === true
+    && backup.backup.integrity === 'ok' && typeof backup.backup.file === 'string', JSON.stringify(backup))
+  check('export and backup declare their output keys',
+    ['exported'].every(key => Object.keys(byName.get('story_export').output.schema.properties).includes(key))
+    && ['backup'].every(key => Object.keys(byName.get('story_backup').output.schema.properties).includes(key)))
 
 } finally {
   await rm(root, { recursive: true, force: true })

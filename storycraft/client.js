@@ -242,13 +242,13 @@ window.__ModuleLoader__.load({
         return `用 story_volume 给作品 ${workId} 分卷${id}：标题「${volume.title}」，第 ${volume.from}–${volume.to} 章${summary}。`
       },
       restore(name) {
-        return `用 story_restore 把回收站里的作品 ${name} 恢复回 works/。`
+        return `用 story_restore 把回收站里的作品 ${name} 恢复回作品列表。`
       },
       rename(workId, title) {
         return `用 story_rename 把作品 ${workId} 的标题改成「${title}」。`
       },
       remove(workId) {
-        return `用 story_delete 把作品 ${workId} 移入回收站（不要真的删除文件）。`
+        return `用 story_delete 把作品 ${workId} 移入回收站（不要真的删除作品库）。`
       },
       reopen(workId, chapter) {
         return `把作品 ${workId} 第 ${chapter} 章的定稿撤销（story_reopen：只作废定稿，不改正文），然后重新审稿、按清单修订、再定稿。`
@@ -578,7 +578,7 @@ window.__ModuleLoader__.load({
         ),
         h('p', { className: 'sc-item-body', style: { marginTop: 10 } },
           root === undefined
-            ? '当前没有打开的工作区会话：先打开一个会话，页面才知道用哪个 works/。'
+            ? '当前没有打开的工作区会话：先打开一个会话，页面才知道读哪个工作区。'
             : `当前工作区：${root}`),
       )
     }
@@ -957,7 +957,7 @@ window.__ModuleLoader__.load({
               className: 'sc-btn',
               title: '移入回收站，可用 story_restore 恢复',
               onClick: () => {
-                if (!window.confirm(`把作品「${manifest.title}」移入回收站？文件不会真删，可用 story_restore 恢复。`)) return
+                if (!window.confirm(`把作品「${manifest.title}」移入回收站？作品库不会真删，可用 story_restore 恢复。`)) return
                 compose(INSTRUCTIONS.remove(manifest.workId))
               },
             }, '删除'),
@@ -1637,3 +1637,4 @@ window.__ModuleLoader__.load({
     }
   },
 })
+

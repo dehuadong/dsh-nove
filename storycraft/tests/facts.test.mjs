@@ -1,10 +1,11 @@
-// Fact whitelist: derived from landed files only, shared by every consumer.
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+// Fact whitelist: derived from landed content only, shared by every consumer.
+import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../storage.js'
 import * as b from '../bible.js'
 import { deriveWhitelist, summariseWhitelist } from '../facts.js'
+import { writeVolume } from '../volumes.js'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -18,18 +19,19 @@ function check(name, condition, detail) {
 const root = await mkdtemp(join(tmpdir(), 'storycraft-facts-'))
 try {
   const work = (await s.initWork(root, { title: '白名单测试' })).workId
-  await s.writeOutline(root, { work, mainline: '一条主线', volumes: '第一卷：从白草滩到黑水滩' })
+  await s.writeOutline(root, { work, mainline: '一条主线' })
   await s.approveOutline(root, { work })
   await s.writePlan(root, { work, chapter: 1, perspective: '周观', goal: '把墙立起来，用到十六口人和七尺的料', obstacle: 'o', cost: 'c', turn: 't' })
   await b.writeBible(root, work, 'characters', JSON.stringify([
     { name: '周观', role: '主视角', want: '立墙', fear: '塌方', limit: '不拿人命换速度', voice: '短句' },
   ]))
-  await writeFile(join(root, 'works', work, 'bible', 'intent.md'), '# 意图\n故事发生在白草滩。\n', 'utf8')
+  await b.writeBible(root, work, 'intent', '# 意图\n故事发生在白草滩。\n')
+  await s.writeChapter(root, { work, chapter: 1, body: '阿六道：“我去提水。”'.repeat(20) })
+  await writeVolume(root, { work, title: '第一卷', from: 1, to: 1, summary: '从白草滩到黑水滩' })
 
   // A secondary character introduced in an earlier chapter is established even
   // when there is no character card for him.
   await s.writePlan(root, { work, chapter: 2, perspective: '周观', goal: 'g2', obstacle: 'o', cost: 'c', turn: 't' })
-  await s.writeChapter(root, { work, chapter: 1, body: '阿六道：“我去提水。”'.repeat(20) })
   await b.writeSummary(root, work, 1, '阿六去提水。')
 
   const whitelist = await deriveWhitelist(root, { work, chapter: 2 })
@@ -51,3 +53,4 @@ try {
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`)
 process.exitCode = failures === 0 ? 0 : 1
+

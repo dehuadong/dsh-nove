@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../storage.js'
 import * as b from '../bible.js'
+import { openCatalog } from '../db.js'
 import { countWords } from '../storage.js'
 import { critique } from '../critique.js'
 
@@ -52,8 +53,8 @@ try {
   await rejects('bad range refused', 'word-range-invalid', () => s.initWork(root, { title: '坏范围', wordRange: { min: 500, max: 100 } }))
   const created = await s.initWork(root, { title: '字数设定', wordRange: { min: 200, max: 400 } })
   const work = created.workId
-  const manifest = JSON.parse(await import('node:fs/promises').then(fs => fs.readFile(join(root, 'works', work, 'manifest.json'), 'utf8')))
-  check('range stored on the manifest', manifest.wordRange?.min === 200 && manifest.wordRange?.max === 400, JSON.stringify(manifest.wordRange))
+  const manifest = await s.readManifest(root, work)
+  check('range stored on the work', manifest.wordRange?.min === 200 && manifest.wordRange?.max === 400, JSON.stringify(manifest.wordRange))
 
   const plan = { work, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' }
   await s.writePlan(root, { ...plan, chapter: 1 })
@@ -66,8 +67,8 @@ try {
   // The form is work data; older works fall back to longform.
   await rejects('unknown form refused', 'form-invalid', () => s.initWork(root, { title: '坏形态', form: 'novella' }))
   const script = await s.initWork(root, { title: '剧本形态', form: 'script' })
-  const scriptManifest = JSON.parse(await import('node:fs/promises').then(fs => fs.readFile(join(root, 'works', script.workId, 'manifest.json'), 'utf8')))
-  check('form stored on the manifest', scriptManifest.form === 'script', String(scriptManifest.form))
+  const scriptManifest = await s.readManifest(root, script.workId)
+  check('form stored on the work', scriptManifest.form === 'script', String(scriptManifest.form))
   check('status reports the form', (await s.status(root, script.workId)).form === 'script')
   const legacy = await s.initWork(root, { title: '老作品' })
   check('default form is longform', (await s.status(root, legacy.workId)).form === 'longform')
@@ -79,23 +80,21 @@ try {
   const shortStep = await s.nextStep(root, short.workId)
   check('next step carries form and unit', shortStep.form === 'short' && shortStep.unit === '篇', JSON.stringify(shortStep))
 
-  // Readers default the form too, so a manifest without it still renders.
-  const manifestPath = join(root, 'works', legacy.workId, 'manifest.json')
-  const fs = await import('node:fs/promises')
-  const raw = JSON.parse(await fs.readFile(manifestPath, 'utf8'))
-  delete raw.form
-  await fs.writeFile(manifestPath, `${JSON.stringify(raw, null, 2)}\n`)
+  // Readers default an unknown form, so a work without a known form still renders.
+  const unknownForm = openCatalog(root, { create: false })
+  unknownForm.prepare("UPDATE works SET form = 'unknown' WHERE work_id = ?").run(legacy.workId)
+  unknownForm.close()
   check('readWork defaults the form', (await s.readWork(root, legacy.workId)).manifest.form === 'longform')
   check('listWorks defaults the form',
     (await s.listWorks(root)).find(item => item.workId === legacy.workId)?.form === 'longform')
 
   // Settings: the range can be set and cleared after the fact.
   await s.updateSettings(root, { work, wordRange: { min: 100, max: 900 } })
-  const afterSet = JSON.parse(await import('node:fs/promises').then(fs => fs.readFile(join(root, 'works', work, 'manifest.json'), 'utf8')))
+  const afterSet = await s.readManifest(root, work)
   check('settings store the range', afterSet.wordRange?.min === 100 && afterSet.wordRange?.max === 900, JSON.stringify(afterSet.wordRange))
   await rejects('settings reject a bad range', 'word-range-invalid', () => s.updateSettings(root, { work, wordRange: { min: 500, max: 200 } }))
   await s.updateSettings(root, { work, wordRange: null })
-  const afterClear = JSON.parse(await import('node:fs/promises').then(fs => fs.readFile(join(root, 'works', work, 'manifest.json'), 'utf8')))
+  const afterClear = await s.readManifest(root, work)
   check('settings clear the range', afterClear.wordRange === undefined, JSON.stringify(afterClear.wordRange))
 
   // Revision modes.
