@@ -485,6 +485,20 @@ const OUTPUT_PROPERTIES = {
       title: { type: 'string' },
       form: { type: 'string' },
       planApproval: { type: 'string', enum: ['required', 'off'] },
+      outline: {
+        oneOf: [
+          {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              writtenAt: { type: 'string' },
+              approvedAt: { type: 'string' },
+            },
+          },
+          { type: 'null' },
+        ],
+        description: 'Full-book outline timestamps; approvedAt proves the author confirmed it.',
+      },
       writtenChapters: { type: 'integer' },
       latestChapter: { type: 'integer' },
       openProblems: { type: 'integer' },
@@ -1427,7 +1441,7 @@ function rawDefinitions(ctx) {
 
     action({
       name: 'story_status',
-      description: '只读查看一部作品的进度：章数与状态、当前版本、未处理审稿问题、未解伏笔。'
+      description: '只读查看一部作品的进度：全书计划是否已确认、章数与状态、当前版本、未处理审稿问题、未解伏笔。'
         + ' 不知道下一步该写什么时先读它。',
       parameters: {
         type: 'object',

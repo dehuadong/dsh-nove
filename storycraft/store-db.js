@@ -484,6 +484,12 @@ export function status(root, work) {
     return {
       workId: manifest.workId,
       planApproval: planApprovalPolicy(manifest),
+      outline: manifest.outline === undefined
+        ? null
+        : {
+            ...(manifest.outline.writtenAt === undefined ? {} : { writtenAt: manifest.outline.writtenAt }),
+            ...(manifest.outline.approvedAt === undefined ? {} : { approvedAt: manifest.outline.approvedAt }),
+          },
       title: manifest.title,
       chapters: manifest.chapters.map(chapter => ({
         number: chapter.number,

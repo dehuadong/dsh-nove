@@ -176,6 +176,11 @@ try {
     afterOutline.ok === true && afterOutline.action === 'story_plan'
       && !afterOutline.missing.includes('outline'), JSON.stringify(afterOutline))
 
+  const statusAfterOutline = await byName.get('story_status').execute({ work }, exec)
+  check('story_status exposes the outline approval',
+    statusAfterOutline.ok === true && typeof statusAfterOutline.status.outline?.approvedAt === 'string',
+    JSON.stringify(statusAfterOutline.status?.outline))
+
   const plan = await byName.get('story_plan').execute({
     work, chapter: 1, perspective: '林澈', goal: '拿回合同', obstacle: '房东', cost: '人情', turn: '合同是假的',
   }, exec)
