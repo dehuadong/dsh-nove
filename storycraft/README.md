@@ -50,7 +50,7 @@ DSH 里的长篇创作编排：二十七个动作把立项、章纲、正文、�
   backups/<workId>-<ts>.db   单作品备份
 ```
 
-`catalog.db` 只存元数据，是 title/form/tags 的权威；作品库的 `meta` 行是导出副本。每部作品独立 `user_version`，升级一部不影响其他。表结构、连接策略、改名/删除/恢复顺序与启动对账的完整设计见 [作品入库 Note](../.agents/notes/proposed/pipeline/2026-10-19-storycraft-sqlite-store.md)。
+`catalog.db` 只存元数据，是 title/form/tags 的权威；作品库的 `meta` 行是导出副本。每部作品独立 `user_version`，升级一部不影响其他。表结构、连接策略、改名/删除/恢复顺序与启动对账的完整设计见 [作品入库 Note](../.agents/notes/implemented/pipeline/2026-10-19-storycraft-sqlite-store.md)。
 
 动作与路由返回的 `artifact.path` 是**虚拟路径** `works/<workId>/chapters/ch-0007.md`，不对应磁盘文件；实际内容在 `.storycraft/works/<workId>.db`。宿主启动及首次读取一个工作区时对账目录与文件：缺失的作品在列表跳过并记入宿主诊断，孤儿文件与回收站文件保留待人工恢复。
 
@@ -193,5 +193,6 @@ storycraft/
 ## 改动与生效
 
 包以 `link:` 装入 profile，改 `client.js` 后刷新窗口即可；改 `cordis.patch.yml` 或 Host 半边（`index.js`、`tools.js`、`db.js`、`store-db.js`）需要重启应用，或让 `plugin_manager` 把 bundle 关→开重载补丁。停用用 `set_bundle enabled:false`，卸载用 `remove_bundle`。
+
 
 
