@@ -13,7 +13,7 @@
 
 import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
-import { approveChapterPlan, approveOutline, ensureReconciled, listTrash, listWorks, nextStep, readManifest, readChapter, readReview, readWork, StoryError } from './storage.js'
+import { approveChapterPlan, approveOutline, ensureReconciled, listTrash, listWorks, nextStep, readManifest, readChapter, readReview, readWork, status as readStatus, StoryError } from './storage.js'
 import { critique } from './critique.js'
 import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent, snapshot as snapshotCurrent } from './current.js'
 import { readVolumes } from './volumes.js'
@@ -364,7 +364,7 @@ export function apply(ctx) {
       kind: 'exact',
       path: `${BASE}/state`,
       handler: (req, res) => readRoute(req, res, async (query) => ({
-        state: await status(rootOf(ctx, query), workOf(query)),
+        state: readStatus(await rootOf(ctx, query), workOf(query)),
       })),
     }),
     ctx.webServer.register({
