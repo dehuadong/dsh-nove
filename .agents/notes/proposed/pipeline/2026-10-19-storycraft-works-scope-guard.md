@@ -51,7 +51,7 @@ scopeDenial({ tool, arguments, cwd, worksRoot, dbRoot, currentWork }) -> string 
 
 ### 当前作品的来源
 
-- `sessionOf(exec)` 取会话 id，`sessionCurrentOf(root, id)` 取指针（内存为空时先从 `session_current` hydrate，见 `proposed/workspace/2026-10-20-storycraft-workbench-freshness.md`）；
+- `sessionOf(exec)` 取会话 id，`sessionCurrentOf(root, id)` 取指针（内存为空时先从 `session_current` hydrate，见 `implemented/workspace/2026-10-20-storycraft-workbench-freshness.md`）；
 - 子代理没有自己的指针：沿 `header.parentSession` 找到根会话，再取根会话指针；
 - 指针不存在时按「无当前作品」处理；
 - 当前作品解析同样以**根会话**为准，避免子代理 `cwd` 变化造成误判。
@@ -84,5 +84,6 @@ scopeDenial({ tool, arguments, cwd, worksRoot, dbRoot, currentWork }) -> string 
 - 符号链接未做 `realpath`，可能逃逸（记录为残余风险）；
 - 未进入作品时讨论受限，这是预期；
 - `glob`/`grep` 省略路径一律拒绝，会改变既有习惯，需要文档说明。
+
 
 
