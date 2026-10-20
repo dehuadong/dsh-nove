@@ -192,7 +192,7 @@ window.__ModuleLoader__.load({
           + '做到修订为止停下：把修订结果、剩余未处理条目与字数变化报给我，等我决定是否润色或去 AI 味，再定稿。汇报不粘贴正文。'
       },
       flowFull(workId, chapter) {
-        return `写作品 ${workId} 第 ${chapter} 章并一路做完：先调 story_next；有 delegate.role 时按角色调 story_delegate，没有 delegate 时才按 action 手动做（章纲 → 正文 → 质检 → 审稿 → 修订 → 定稿 → 摘要）。每步结果简短汇报，不粘贴正文，结尾给出本章摘要与下一步。`
+        return `写作品 ${workId} 第 ${chapter} 章并一路做完：先调 story_next；有 delegate.role 时按角色调 story_delegate，没有 delegate 时才按 action 手动做（章纲 → 正文 → 质检 → 审稿 → 修订/清稿 → 摘要 → 定稿）。每步结果简短汇报，不粘贴正文，结尾给出本章摘要与下一步。`
       },
       step(workId, chapter, action) {
         const label = {
@@ -211,7 +211,7 @@ window.__ModuleLoader__.load({
         return `对作品 ${workId} 第 ${chapter} 章只做一步：${label}（${path}）。做完就停，把结果告诉我（不要粘贴正文），不要继续后面的步骤。`
       },
       nextChapter(workId, chapter) {
-        return `继续写作品 ${workId} 第 ${chapter} 章：先调 story_next；有 delegate.role 时按角色调 story_delegate，没有 delegate 时才按 action 手动做（章纲 → 正文 → 质检 → 审稿 → 修订 → 定稿 → 摘要）。汇报不粘贴正文。`
+        return `继续写作品 ${workId} 第 ${chapter} 章：先调 story_next；有 delegate.role 时按角色调 story_delegate，没有 delegate 时才按 action 手动做（章纲 → 正文 → 质检 → 审稿 → 修订/清稿 → 摘要 → 定稿）。汇报不粘贴正文。`
       },
       review(workId, chapter) {
         return `对作品 ${workId} 第 ${chapter} 章做审稿：先调 story_next，有 delegate.role reviewer 时用 story_delegate；否则用 story_review。只找问题，不改正文，把问题清单落盘。`
@@ -718,12 +718,16 @@ window.__ModuleLoader__.load({
               : h('button', {
                 type: 'button',
                 className: 'sc-btn',
-                disabled: chapter.stage !== 'revised' || chapter.openProblems > 0,
-                title: chapter.stage !== 'revised'
-                  ? '先审稿、再按清单修订，才能定稿'
-                  : chapter.openProblems > 0
-                    ? `还有 ${chapter.openProblems} 条审稿未处理：先修订`
-                    : '把本章的人物变化与伏笔记进书里，并把该章锁为已定稿',
+                disabled: !(chapter.stage === 'revised' || (chapter.stage === 'reviewed' && chapter.openProblems === 0))
+                  || chapter.openProblems > 0
+                  || ((chapter.stage === 'reviewed' && chapter.openProblems === 0) && chapter.hasSummary !== true),
+                title: chapter.stage === 'reviewed' && chapter.openProblems === 0 && chapter.hasSummary !== true
+                  ? '先写摘要，再定稿'
+                  : chapter.stage !== 'revised' && chapter.stage !== 'reviewed'
+                    ? '先审稿、再按清单修订，才能定稿'
+                    : chapter.openProblems > 0
+                      ? `还有 ${chapter.openProblems} 条审稿未处理：先修订`
+                      : '把本章的人物变化与伏笔记进书里，并把该章锁为已定稿',
                 onClick: () => compose(INSTRUCTIONS.fold(workId, chapter.number)),
               }, '定稿'),
           ),
@@ -948,7 +952,7 @@ window.__ModuleLoader__.load({
             h('button', {
               type: 'button',
               className: 'sc-btn',
-              title: '写下一章并一次做完：章纲 → 正文 → 质检 → 审稿 → 修订 → 定稿 → 摘要',
+              title: '写下一章并一次做完：章纲 → 正文 → 质检 → 审稿 → 修订/清稿 → 摘要 → 定稿',
               onClick: () => compose(INSTRUCTIONS.flowFull(manifest.workId, next === undefined ? nextNumber : next.chapter)),
             }, `写第 ${next === undefined ? nextNumber : next.chapter} ${unitOf(manifest.form)}（一次做完）`),
             manifest.outline?.writtenAt !== undefined && manifest.outline?.approvedAt === undefined
@@ -1225,7 +1229,8 @@ window.__ModuleLoader__.load({
                           : h('button', {
                             type: 'button',
                             className: 'sc-btn sc-btn-small',
-                            disabled: item.stage !== 'revised' || item.openProblems > 0 || item.hasSummary !== true,
+                            disabled: !(item.stage === 'revised' || (item.stage === 'reviewed' && item.openProblems === 0))
+                              || item.openProblems > 0 || item.hasSummary !== true,
                             title: item.hasSummary === true ? '把事实与伏笔记进书里并锁定本章' : '先写摘要，再定稿',
                             onClick: () => compose(INSTRUCTIONS.fold(manifest.workId, item.number)),
                           }, '定稿'),
@@ -1708,3 +1713,4 @@ window.__ModuleLoader__.load({
     }
   },
 })
+
