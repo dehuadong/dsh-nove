@@ -45,7 +45,8 @@ updated: 2026-10-20
 - 本项**不替换** `host-delegation` 的 DSH subagent 与宿主侧 `story_delegate` 编排；只替换“最终文本作为角色结果”的传输段。
 - 本项不改 #22 的 artifact ID / stage context 契约；#22 的 `story_read` 与阶段作用域保留。
 - `role-input-contracts` 把 delegate 当例外、手动路径仍文本返回；本项不改手动路径，只改 delegate 角色通道。
-- 交付时在 `host-delegation` 加部分替代 banner，并更新 #23/#22 的验证边界。\n- 本 Note 新增 SubmissionStore 10 分钟 TTL；host-delegation 的“无新 TTL”不覆盖本通道。
+- 交付时在 `host-delegation` 加部分替代 banner，并更新 #23/#22 的验证边界。
+- 本 Note 新增 SubmissionStore 10 分钟 TTL；host-delegation 的“无新 TTL”不覆盖本通道。
 
 ## 提案
 
@@ -61,7 +62,7 @@ story_delegate
   → 写入宿主 SubmissionStore（内存，单次消费，TTL）
   → 子代理最终回答只写“已提交”
   → story_delegate 从 SubmissionStore 取 payload
-  → 父代理校验字数/模式/审稿条目
+  → 父代理只做阶段/DB 落盘校验（字数/mode 已在提交时校验）
   → 父代理调 writeChapter / writeReview / reviseChapter 落盘
   → 父会话收紧凑回执
 ```
@@ -91,10 +92,31 @@ story_delegate
   - reviser：`{ body }`（`mode` 与 `resolved` 由父代理持有/计算，不从子代理接收）。
 - 缺字段、reviewer 超过 8 条、reviser 的 body 为空均拒绝。
 
+### 2.1 提交时校验（并入 #19 的 reviser 修正）
+
+参考 `runWorkerAgentTool` 的 `validate + maxResultTurns=3`：校验在提交工具内完成，失败回给模型，子代理在同一次运行内修正后重提；宿主不重发角色。
+
+`story_submit` 接收 payload 后、消费 entry 前校验：
+
+- writer：`title` 非空，`body` 的 min/max 都硬校验；
+- reviser：`body` 的 min/max 都硬校验；手动 `story_revise` 不新增校验（现状没有 checkWordRange，不能宣称 warning）；
+- reviser mode（entry 持有，子代理不能改）：
+  - `patch` 改动 ≤ 20%；
+  - `polish` 改动 ≤ 40%；
+  - `rewrite` 不限制比例；
+  - `deslop` 必须减少腔调命中；
+- 校验失败返回 `submit-word-range` / `submit-mode-violation`（带实际值、限制、`retryable:true`），**不消费 entry、不落盘**；
+- 每次 `story_submit` 调用（含 schema/超长/字数/mode 校验失败）都计一次提交尝试；最多 3 次；第 3 次失败返回 `submit-attempts-exhausted` 给子代理；
+- 成功才 `consumed=true`；父代理只读取 accepted 结果；父代理最终只看到 `delegation-no-submission`（含 attempts=3），不把子代理的 exhausted 当成父级错误码；
+
+这直接修掉 #19 的 8 字 rewrite：8 字低于 min，返回 `submit-word-range`，不再成功。
+
+Entry 额外保存 `mode`、`wordRange`、`attempts`；校验读取当前正文用只读 `readChapter`，不写库。
+
 ### 3. SubmissionStore
 
 - 模块级内存 Map，key 为 `delegationId`；
-- entry：`{ role, workId, chapter, payload, createdAt, consumed, bytes }`；
+- entry：`{ role, workId, chapter, mode?, wordRange?, payload, attempts, createdAt, consumed, bytes }`；
 - TTL 10 分钟，单次消费；父代理读完即删除；
 - 不持久化、不写 SQLite、不进作品导出；
 - 父代理超时/失败时删除 entry，避免残留。
@@ -104,8 +126,9 @@ story_delegate
 - `delegate.js` 的 `promptFor` 同变更内改写：注入 `delegationId`，要求调用 `story_submit`，删除 `<<<TITLE/CHAPTER>>>`/JSON 输出与“不要调用任何动作”；
 - 子代理结束后从 SubmissionStore `consume(delegationId)`；
 - 没有提交 → `delegation-no-submission`；不做最终文本兜底；
-- 父代理仍负责 `writeChapter` / `writeReview` / `reviseChapter`；
-- 回执保持紧凑：artifact ID、revision、words、warnings、problems 计数，不含正文；
+- 父代理仍负责 `writeChapter` / `writeReview` / `reviseChapter`；字数/mode 不在父代理重复校验，避免 accepted 后二次拒绝；
+- 落盘失败只重试落盘或报错，**不重新提交、不回退手动正文**；
+- 回执保持紧凑：artifact ID、revision、words、warnings、problems 计数、`submissionAttempts`，不含正文；
 - reviewer 的 `REVIEW_SCHEMA`/`outputSchema` 不再传给子代理，避免 `structured_output` 在提交前截断。
 
 ### 5. 子代理展示
@@ -135,6 +158,9 @@ story_delegate
 | 已提交过 | `submit-already-consumed` | 拒绝 |
 | payload 超长 | `submit-too-large` | 拒绝 |
 | payload 缺字段/超限 | `submit-invalid` | 拒绝 |
+| 字数越界 | `submit-word-range` | 可重试，不消费 |
+| mode 超幅 | `submit-mode-violation` | 可重试，不消费 |
+| 提交尝试超过 3 次 | `submit-attempts-exhausted` | 子代理终止；父代理报 `delegation-no-submission`（attempts=3） |
 | 子代理没有提交 | `delegation-no-submission` | 父代理失败，不回退解析文本 |
 | 父代理超时/中断 | — | 删除 entry |
 
@@ -155,11 +181,11 @@ story_delegate
 
 ## 验收条件
 
-1. 子代理只通过 `story_submit` 交结果，**最终回答**不含正文；
+1. 子代理只通过 `story_submit` 交结果，**最终回答**不含正文；每次调用计一次，最多 3 次尝试；
 2. 父代理不解析最终文本，只从 SubmissionStore 取结构化结果；
-3. 错误/过期 delegationId、payload schema 不符、超长、重复提交被拒绝；entry 绑定关系有测试；
+3. 错误/过期 delegationId、payload schema 不符、超长、重复提交、字数越界、mode 超幅、3 次上限被拒绝；entry 绑定关系有测试；
 4. 父会话回执不含正文；
-5. 子代理仍不能直接落盘；
+5. 子代理仍不能直接落盘；writer/reviser 的 min/max 在提交时硬校验，8 字 rewrite 不再成功；手动路径行为保持现状（没有新增字数校验）；
 6. SubmissionStore 单次消费、TTL、失败清理有测试；
 7. 单元测试与 E2E 全过；`story_submit` 注册为第 30 个动作；
 8. 真实单章链路中父会话无正文，子代理**最终回答**无正文；工具调用参数展示不算失败。
@@ -170,6 +196,11 @@ story_delegate
 - 子代理可能忘记调用 `story_submit`；用 `delegation-no-submission` 失败测试约束，不静默回退；
 - 内存 SubmissionStore 在宿主崩溃时丢失；父代理必须报失败，不自动重跑整章；
 - 角色 payload schema 会随审稿/修订能力变化；变更需同步 #22 与 parity matrix。
+
+
+
+
+
 
 
 
