@@ -8,6 +8,7 @@
  * parent model.
  */
 
+import { createHash } from 'node:crypto'
 import {
   StoryError, chapterNumber, latestReview, readManifest, readPlan, reviseChapter, stageOf, writeChapter, writeReview,
 } from './storage.js'
@@ -16,6 +17,11 @@ import { checkDraft, checkWordRange } from './landing.js'
 
 /** One child run's budget; the timer is cleared before landing. */
 const DELEGATE_TIMEOUT_MS = 600000
+
+/** Short hash for a review receipt revision. */
+function hashText(text) {
+  return createHash('sha256').update(String(text ?? '')).digest('hex').slice(0, 12)
+}
 
 /** Maximum warnings carried by a receipt. */
 const MAX_WARNINGS = 5
@@ -349,6 +355,7 @@ export async function delegateRole(root, input, host) {
         role,
         stage: landedStage(root, work, chapter),
         revision: written.revision,
+        artifact: { workId: work, artifactId: `chapter:${chapter}`, revisionId: `r${written.revision}`, kind: 'chapter' },
         words: written.words,
         ...(warnings.length + range.warnings.length === 0 ? {} : { warnings: receiptWarnings([...warnings, ...range.warnings]) }),
       })
@@ -372,6 +379,7 @@ export async function delegateRole(root, input, host) {
         role,
         stage: landedStage(root, work, chapter),
         reviewRound: written.round,
+        artifact: { workId: work, artifactId: `review:${chapter}:r${latestReview(root, work, chapter).revision}:${written.round}`, revisionId: hashText(latestReview(root, work, chapter).text), kind: 'review' },
         problems: { total: written.problems.length, open: written.problems.length },
       })
     }
@@ -391,6 +399,7 @@ export async function delegateRole(root, input, host) {
       role,
       stage: landedStage(root, work, chapter),
       revision: revised.revision,
+      artifact: { workId: work, artifactId: `chapter:${chapter}`, revisionId: `r${revised.revision}`, kind: 'chapter' },
       words: revised.words,
       resolved: revised.resolved,
       ...(warnings.length + range.warnings.length === 0 ? {} : { warnings: receiptWarnings([...warnings, ...range.warnings]) }),

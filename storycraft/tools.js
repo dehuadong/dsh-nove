@@ -16,10 +16,12 @@
  * plugin row when it is wrong.
  */
 
+import { createHash } from 'node:crypto'
 import {
   StoryError, backupWork, deleteWork, exportWork, foldState, initWork, nextStep as nextStepFor,
   planApprovalPolicy,
-  readChapter, readManifest, readSessionCurrent, reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter, setSessionCurrent,
+  latestReview, readBibleEntry, readChapter, readEvents, readEventsText, readManifest, readPlan, readSessionCurrent, readSummary as readSummaryRow,
+  reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter, setSessionCurrent,
   status as readStatus, updateSettings, workIdOf, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
 } from './storage.js'
 import {
@@ -140,12 +142,14 @@ const OUTPUT_PROPERTIES = {
   artifact: {
     type: 'object',
     additionalProperties: false,
-    description: 'Virtual path of the artifact inside the work store; not a filesystem path. Do not open it with read/grep; use story_brief, story_context or story_bible.',
+    description: 'Registered artifact identity. The host owns the storage path; never construct one from an ID.',
     properties: {
-      path: { type: 'string' },
-      revision: { type: 'integer' },
+      workId: { type: 'string' },
+      artifactId: { type: 'string' },
+      revisionId: { type: 'string' },
+      kind: { type: 'string' },
     },
-    required: ['path'],
+    required: ['artifactId', 'revisionId', 'kind'],
   },
   words: { type: 'integer', description: 'Character count of the returned text (body or summary).' },
   problems: {
@@ -206,7 +210,7 @@ const OUTPUT_PROPERTIES = {
           properties: {
             name: { type: 'string' },
             protection: { type: 'string' },
-            source: { type: 'string' },
+            sourceIds: { type: 'array', items: { type: 'string' } },
             chars: { type: 'integer' },
             dropped: { type: 'boolean' },
             trimmed: { type: 'boolean' },
@@ -259,12 +263,15 @@ const OUTPUT_PROPERTIES = {
       additionalProperties: false,
       properties: {
         name: { type: 'string' },
-        path: { type: 'string' },
+        file: { type: 'string' },
+        artifactId: { type: 'string' },
+        revisionId: { type: 'string' },
+        kind: { type: 'string' },
         version: { type: 'string' },
         content: { type: 'string' },
         draft: { type: 'boolean' },
       },
-      required: ['name', 'path', 'version'],
+      required: ['name', 'file'],
     },
   },
   version: { type: 'string' },
@@ -277,7 +284,7 @@ const OUTPUT_PROPERTIES = {
       properties: {
         name: { type: 'string' },
         title: { type: 'string' },
-        source: { type: 'string' },
+        sourceIds: { type: 'array', items: { type: 'string' } },
         content: { type: 'string' },
         bytes: { type: 'integer' },
         protection: { type: 'string' },
@@ -333,25 +340,29 @@ const OUTPUT_PROPERTIES = {
   skipped: { type: 'array', description: 'Files the import left untouched because they already hold content.', items: { type: 'string' } },
   names: { type: 'array', description: 'Character names found in the old cast file.', items: { type: 'string' } },
   truncated: { type: 'boolean' },
+  content: { type: 'string', description: 'Returned text for one artifact.' },
+  startLine: { type: 'integer' },
+  endLine: { type: 'integer' },
+  totalLines: { type: 'integer' },
   exported: {
     type: 'object',
     additionalProperties: false,
-    description: '导出的目录与文件数；作者在系统文件管理器里取用。',
+    description: '导出 ID 与文件数；作者从只读路由取目录。',
     properties: {
-      directory: { type: 'string' },
+      exportId: { type: 'string' },
       files: { type: 'integer' },
     },
-    required: ['directory', 'files'],
+    required: ['exportId', 'files'],
   },
   backup: {
     type: 'object',
     additionalProperties: false,
-    description: '单作品备份文件与完整性检查结果。',
+    description: '单作品备份 ID 与完整性检查结果。',
     properties: {
-      file: { type: 'string' },
+      backupId: { type: 'string' },
       integrity: { type: 'string' },
     },
-    required: ['file', 'integrity'],
+    required: ['backupId', 'integrity'],
   },
   form: {
     type: 'string',
@@ -546,6 +557,152 @@ const OUTPUT_PROPERTIES = {
   },
 }
 
+/** Reject reads of an older chapter; summaries remain available through brief. */
+function assertCurrentChapter(manifest, chapter) {
+  const latest = manifest.chapters.length === 0 ? 0 : manifest.chapters[manifest.chapters.length - 1].number
+  if (chapter !== undefined && Number.isFinite(chapter) && chapter < latest) {
+    throw new StoryError('artifact-not-readable', `只能读当前章 ${latest}；旧章请用 story_brief 的摘要`)
+  }
+}
+
+/** Short content hash used as a stable upsert revision. */
+function contentRevision(text) {
+  return createHash('sha256').update(String(text ?? '')).digest('hex').slice(0, 12)
+}
+
+/**
+ * Turn one internal virtual artifact into the model-facing identity.
+ * The path stays inside the host; the model only receives IDs.
+ * @param {string} root - workspace directory.
+ * @param {string} workId - work identity.
+ * @param {{path?: string, revision?: number}} artifact - internal artifact.
+ * @returns {Promise<object|undefined>} model-facing reference.
+ */
+async function artifactRef(root, workId, artifact) {
+  const path = String(artifact?.path ?? '')
+  if (path === '') return undefined
+  const rel = path.replace(/^works\/[^/]+\//u, '')
+  try {
+    if (/^outline\/ch-\d+\.plan\.md$/u.test(rel)) {
+      const chapter = Number(/ch-(\d+)/u.exec(rel)?.[1])
+      const content = await readPlan(root, workId, chapter)
+      return { workId, artifactId: `plan:${chapter}`, revisionId: contentRevision(content), kind: 'plan' }
+    }
+    if (/^chapters\/ch-\d+(?:\.r\d+)?\.md$/u.test(rel)) {
+      const chapter = Number(/ch-(\d+)/u.exec(rel)?.[1])
+      const revision = artifact?.revision ?? Number(/\.r(\d+)\.md$/u.exec(rel)?.[1] ?? 1)
+      return { workId, artifactId: `chapter:${chapter}`, revisionId: `r${revision}`, kind: 'chapter' }
+    }
+    if (/^reviews\/ch-\d+\.r\d+\.md$/u.test(rel)) {
+      const chapter = Number(/ch-(\d+)/u.exec(rel)?.[1])
+      const round = Number(/\.r(\d+)\.md$/u.exec(rel)?.[1] ?? 1)
+      const review = latestReview(root, workId, chapter)
+      const bodyRev = review?.revision ?? 1
+      return {
+        workId,
+        artifactId: `review:${chapter}:r${bodyRev}:${round}`,
+        revisionId: contentRevision(review?.text ?? ''),
+        kind: 'review',
+      }
+    }
+    if (/^summaries\/ch-\d+\.md$/u.test(rel)) {
+      const chapter = Number(/ch-(\d+)/u.exec(rel)?.[1])
+      return { workId, artifactId: `summary:${chapter}`, revisionId: contentRevision(readSummaryRow(root, workId, chapter)), kind: 'summary' }
+    }
+    if (/^bible\//u.test(rel)) {
+      const file = rel.slice('bible/'.length).replace(/\.(?:md|json)$/u, '')
+      return { workId, artifactId: `bible:${file}`, revisionId: contentRevision(readBibleEntry(root, workId, file)?.content), kind: 'bible' }
+    }
+    if (rel === 'state/events.jsonl') {
+      const events = readEvents(root, workId)
+      const seq = events.length === 0 ? 0 : events[events.length - 1].seq
+      return { workId, artifactId: 'state', revisionId: `seq:${seq}`, kind: 'state' }
+    }
+    if (rel === 'manifest') {
+      return { workId, artifactId: 'manifest', revisionId: 'current', kind: 'manifest' }
+    }
+  } catch {
+    // Fall through to the generic identity if the content is already gone.
+  }
+  const base = rel.split('/').pop() ?? rel
+  return { workId, artifactId: base.replace(/\.(?:md|json|jsonl)$/u, ''), revisionId: 'current', kind: 'artifact' }
+}
+
+/** Map one internal source string to model-facing source IDs. */
+async function sourceIdsOf(root, workId, source) {
+  if (typeof source !== 'string' || source.trim() === '') return []
+  const refs = []
+  for (const part of source.split(/\s+\+\s+/u).map(value => value.trim()).filter(Boolean)) {
+    if (!/^works\//u.test(part)) {
+      refs.push(part)
+      continue
+    }
+    const ref = await artifactRef(root, workId, { path: part })
+    if (ref !== undefined) refs.push(ref.artifactId)
+  }
+  return [...new Set(refs)]
+}
+
+/**
+ * Replace every model-visible path with an artifact identity.
+ * Internal storage keeps `virtualPath`; only this boundary is sanitized.
+ * @param {unknown} value - action output.
+ * @param {string} root - workspace directory.
+ * @param {string} workId - work identity.
+ * @returns {Promise<unknown>} sanitized output.
+ */
+async function sanitizeOutput(value, root, workId) {
+  if (Array.isArray(value)) return Promise.all(value.map(item => sanitizeOutput(item, root, workId)))
+  if (value === null || typeof value !== 'object') return value
+  const output = {}
+  for (const [key, item] of Object.entries(value)) {
+    if (key === 'artifact' && item !== null && typeof item === 'object' && typeof item.path === 'string') {
+      const ref = await artifactRef(root, workId, item)
+      if (ref !== undefined) output.artifact = ref
+      continue
+    }
+    if (key === 'path' && typeof item === 'string' && /^(?:works|\.storycraft)\//u.test(item)) continue
+    if (key === 'source' && typeof item === 'string') {
+      output.sourceIds = await sourceIdsOf(root, workId, item)
+      continue
+    }
+    if (key === 'sections' && Array.isArray(item)) {
+      output.sections = await Promise.all(item.map(async section => {
+        const clean = await sanitizeOutput(section, root, workId)
+        if (clean !== null && typeof clean === 'object' && typeof section.source === 'string') {
+          clean.sourceIds = await sourceIdsOf(root, workId, section.source)
+        }
+        return clean
+      }))
+      continue
+    }
+    if (key === 'files' && Array.isArray(item) && item.some(file => typeof file?.path === 'string')) {
+      output.files = await Promise.all(item.map(async file => {
+        const ref = typeof file.path === 'string' ? await artifactRef(root, workId, file) : undefined
+        return {
+          ...file,
+          ...(typeof file.name === 'string' ? { file: file.name } : {}),
+          ...(ref === undefined ? {} : { artifactId: ref.artifactId, revisionId: ref.revisionId, kind: ref.kind }),
+          path: undefined,
+        }
+      }))
+      output.files = output.files.map(file => Object.fromEntries(Object.entries(file).filter(([name, v]) => name !== 'path' && v !== undefined)))
+      continue
+    }
+    if (key === 'exported' && item !== null && typeof item === 'object') {
+      output.exported = { exportId: `export:${workId}`, files: item.files }
+      continue
+    }
+    if (key === 'backup' && item !== null && typeof item === 'object') {
+      const stamp = typeof item.file === 'string' ? (/(\d{8,}|\d{4}-\d{2}-\d{2}[^/\\]*)/u.exec(item.file)?.[1] ?? 'current') : 'current'
+      output.backup = { backupId: `backup:${workId}:${String(stamp).replace(/[^\w.-]/gu, '')}`, integrity: item.integrity }
+      continue
+    }
+    output[key] = await sanitizeOutput(item, root, workId)
+  }
+  return output
+}
+
 /** Output declaration shared by every action. */
 const OUTPUT = {
   schema: {
@@ -595,6 +752,7 @@ const DELEGATE_OUTPUT = {
       revision: { type: 'integer' },
       words: OUTPUT_PROPERTIES.words,
       reviewRound: { type: 'integer' },
+      artifact: OUTPUT_PROPERTIES.artifact,
       problems: {
         type: 'object',
         additionalProperties: false,
@@ -636,7 +794,7 @@ const CONTEXT_OUTPUT = {
           properties: {
             name: { type: 'string' },
             title: { type: 'string' },
-            source: { type: 'string' },
+            sourceIds: { type: 'array', items: { type: 'string' } },
             content: { type: 'string' },
             protection: { type: 'string' },
           },
@@ -670,7 +828,16 @@ function action(spec) {
         return failureOf(new StoryError('subagent-cannot-land', DELEGATED_DENIAL))
       }
       try {
-        return await spec.execute(args ?? {}, exec)
+        const result = await spec.execute(args ?? {}, exec)
+        try {
+          const workId = typeof result?.workId === 'string'
+            ? result.workId
+            : typeof args?.work === 'string' ? args.work : undefined
+          if (workId !== undefined) return await sanitizeOutput(result, workspaceOf(exec), workId)
+        } catch {
+          return failureOf(new StoryError('output-unsafe', '动作结果无法安全转成 artifact ID；拒绝返回原始路径'))
+        }
+        return result
       } catch (error) {
         return failureOf(error)
       }
@@ -684,9 +851,9 @@ function rawDefinitions(ctx) {
     action({
       name: 'story_init',
       mutates: true,
-      description: '建立一部作品：作品库文件（.storycraft/works/<workId>.db）、真值五件与检索表。'
+      description: '建立一部作品：真值五件与检索表。'
         + ' 用户要求开始写一部新作品时先调用它。作品 id 由标题生成；同 id 已存在时拒绝，不覆盖已有作品。'
-        + ' 返回的 artifact.path 是作品库虚拟路径，不是工作区文件；不要用 read/grep 打开。'
+
         + ' 会话没有当前作品时，成功后会把新作品设为当前；已有其他当前作品时拒绝（请新建会话再立项）。',
       parameters: {
         type: 'object',
@@ -750,7 +917,7 @@ function rawDefinitions(ctx) {
           }
         }
         await markProposalUsed(root, proposal.id, created.workId).catch(() => {})
-        return { ok: true, workId: created.workId, artifact: { path: created.path } }
+        return { ok: true, workId: created.workId }
       },
     }),
 
@@ -790,7 +957,7 @@ function rawDefinitions(ctx) {
     action({
       name: 'story_outline',
       mutates: true,
-      description: '全书计划：写主线、卷划分、结局方向到 bible/plan.md。'
+      description: '全书计划：写主线、卷划分、结局方向；返回 outline artifact ID。'
         + ' 写完后请作者在面板点「确认全书计划」；模型不能代签确认。未确认前不能写任何章的章纲。',
       parameters: {
         type: 'object',
@@ -815,7 +982,13 @@ function rawDefinitions(ctx) {
           ...(typeof args.volumes === 'string' ? { volumes: args.volumes } : {}),
           ...(typeof args.ending === 'string' ? { ending: args.ending } : {}),
         })
-        return { ok: true, workId: result.workId, outline: result.outline }
+        const content = readBibleEntry(root, result.workId, 'plan')?.content ?? ''
+        return {
+          ok: true,
+          workId: result.workId,
+          outline: result.outline,
+          artifact: { workId: result.workId, artifactId: 'outline', revisionId: contentRevision(content), kind: 'outline' },
+        }
       },
     }),
 
@@ -877,6 +1050,7 @@ function rawDefinitions(ctx) {
       output: CONTEXT_OUTPUT,
       async execute(args, exec) {
         const root = workspaceOf(exec)
+        if (args.chapter !== undefined) assertCurrentChapter(readManifest(root, args.work), Number(args.chapter))
         const loaded = await loadRoleInput(root, args)
         const context = loaded.context
         const chapter = args.chapter === undefined ? undefined : (loaded.entry?.number ?? Number(args.chapter))
@@ -1053,7 +1227,12 @@ function rawDefinitions(ctx) {
             `第 ${args.chapter} 章还没有摘要：先用 story_summarize 写摘要，再定稿`)
         }
         const result = await foldState(root, args)
-        return { ok: true, workId: args.work, counts: result.counts, artifact: result.artifact }
+        return {
+          ok: true,
+          workId: args.work,
+          counts: result.counts,
+          artifact: { workId: args.work, artifactId: 'state', revisionId: `seq:${result.seq}`, kind: 'state' },
+        }
       },
     }),
 
@@ -1094,6 +1273,9 @@ function rawDefinitions(ctx) {
       },
       async execute(args, exec) {
         const root = workspaceOf(exec)
+        if (args.file === 'plan') {
+          throw new StoryError('approval-moved', '全书计划只能通过 story_outline 写入；不要用 story_bible_write 绕过作者确认')
+        }
         const written = await writeBibleEntry(root, args.work, args.file, args.content)
         return { ok: true, workId: args.work, artifact: { path: written.path }, version: written.version }
       },
@@ -1102,8 +1284,7 @@ function rawDefinitions(ctx) {
     action({
       name: 'story_bible_import',
       mutates: true,
-      description: '把旧文件作品 design/ 下的世界观与大纲收编进真值，并列出仍需作者补的项。'
-        + ' 只收编结构已知的内容，不替作者编人物档案。',
+      description: '把旧文件作品里的世界观收编进真值，并列出仍需作者补的项；不导入 plan/outline，不返回路径。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -1123,6 +1304,93 @@ function rawDefinitions(ctx) {
     }),
 
     action({
+      name: 'story_read',
+      description: '只读：按 artifactId 读取已登记的作品内容（chapter/plan/review/summary/state/bible/outline/volume）。宿主校验作品与当前章作用域；不返回文件路径。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+          artifactId: { type: 'string', description: '如 chapter:1、plan:1、bible:characters。' },
+          revisionId: { type: 'string', description: '可选；不传则读当前版本。' },
+          startLine: { type: 'integer', description: '可选：从第几行开始（1 起）。' },
+          lineCount: { type: 'integer', description: '可选：最多返回多少行。' },
+        },
+        required: ['work', 'artifactId'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const workId = String(args.work)
+        const manifest = readManifest(root, workId)
+        const latest = manifest.chapters.length === 0 ? 1 : manifest.chapters[manifest.chapters.length - 1].number
+        const id = String(args.artifactId)
+        const [kind, ...parts] = id.split(':')
+        let content = ''
+        let ref = { workId, artifactId: id, revisionId: String(args.revisionId ?? 'current'), kind }
+        const chapterNumber = Number(parts[0])
+        if (kind === 'chapter' || kind === 'review') {
+          if (!Number.isInteger(chapterNumber) || chapterNumber !== latest) {
+            throw new StoryError('artifact-not-readable', `只能读当前章 ${latest}；旧章请用 story_brief 的摘要`)
+          }
+        }
+        if (kind === 'outline') {
+          content = readBibleEntry(root, workId, 'plan')?.content ?? ''
+          ref = { ...ref, artifactId: 'outline', revisionId: contentRevision(content), kind: 'outline' }
+        } else if (kind === 'plan') {
+          content = readPlan(root, workId, chapterNumber)
+          ref = { ...ref, artifactId: `plan:${chapterNumber}`, revisionId: contentRevision(content), kind: 'plan' }
+        } else if (kind === 'chapter') {
+          const revision = args.revisionId === undefined ? undefined : Number(String(args.revisionId).replace(/^r/u, ''))
+          const read = readChapter(root, { work: workId, chapter: chapterNumber, ...(revision === undefined ? {} : { revision }) })
+          content = read.content
+          ref = { ...ref, artifactId: `chapter:${chapterNumber}`, revisionId: `r${read.revision}`, kind: 'chapter' }
+        } else if (kind === 'review') {
+          const review = latestReview(root, workId, chapterNumber)
+          if (review === undefined) throw new StoryError('review-required', `第 ${chapterNumber} 章还没有审稿`)
+          if ((parts[1] !== undefined && parts[1] !== `r${review.revision}`) || (parts[2] !== undefined && parts[2] !== String(review.round))) {
+            throw new StoryError('artifact-not-readable', '只保留当前审稿版本与轮次；旧版本不提供读取')
+          }
+          content = review.text
+          ref = { ...ref, artifactId: `review:${chapterNumber}:r${review.revision}:${review.round}`, revisionId: contentRevision(content), kind: 'review' }
+        } else if (kind === 'summary') {
+          content = readSummaryRow(root, workId, chapterNumber)
+          ref = { ...ref, artifactId: `summary:${chapterNumber}`, revisionId: contentRevision(content), kind: 'summary' }
+        } else if (kind === 'bible') {
+          const file = parts.join(':')
+          content = readBibleEntry(root, workId, file)?.content ?? ''
+          ref = { ...ref, artifactId: `bible:${file}`, revisionId: contentRevision(content), kind: 'bible' }
+        } else if (kind === 'state') {
+          content = readEventsText(root, workId)
+          const events = readEvents(root, workId)
+          ref = { ...ref, artifactId: 'state', revisionId: `seq:${events.length === 0 ? 0 : events[events.length - 1].seq}`, kind: 'state' }
+        } else if (kind === 'volume') {
+          const volume = (await readVolumes(root, workId)).find(item => String(item.id) === parts.join(':'))
+          if (volume === undefined) throw new StoryError('artifact-not-readable', `没有卷：${parts.join(':')}`)
+          content = JSON.stringify(volume, null, 2)
+          ref = { ...ref, artifactId: `volume:${volume.id}`, revisionId: contentRevision(content), kind: 'volume' }
+        } else {
+          throw new StoryError('artifact-not-readable', `不认识的 artifactId：${id}`)
+        }
+        if (args.revisionId !== undefined && String(args.revisionId) !== ref.revisionId) {
+          throw new StoryError('revision-not-found', `artifact ${ref.artifactId} 的 revisionId ${String(args.revisionId)} 已不是当前版本`)
+        }
+        const lines = String(content).split(/\r?\n/u)
+        const start = Math.max(1, Number(args.startLine ?? 1))
+        const count = Math.max(1, Math.min(500, Number(args.lineCount ?? 200)))
+        const slice = lines.slice(start - 1, start - 1 + count)
+        return {
+          ok: true,
+          workId,
+          artifact: ref,
+          content: slice.join('\n'),
+          startLine: start,
+          endLine: start + slice.length - 1,
+          totalLines: lines.length,
+        }
+      },
+    }),
+
+    action({
       name: 'story_brief',
       description: '装配写这一章前的上下文：作者意图、本章章纲、涉及人物、未解伏笔、上一章结尾、文风、字数口径。'
         + ' 动笔前先读它，而不是通读前文；超预算会说明裁掉了哪几段。',
@@ -1137,6 +1405,7 @@ function rawDefinitions(ctx) {
       },
       async execute(args, exec) {
         const root = workspaceOf(exec)
+        assertCurrentChapter(readManifest(root, args.work), Number(args.chapter))
         const brief = await assembleBriefFor(root, args.work, args.chapter)
         return { ok: true, workId: args.work, sections: brief.sections, budget: brief.budget, missing: brief.missing, dropped: brief.dropped }
       },
@@ -1214,8 +1483,7 @@ function rawDefinitions(ctx) {
     action({
       name: 'story_delete',
       mutates: true,
-      description: '把作品移进回收站（.storycraft/trash/），不再出现在列表里；可用 story_restore 恢复。'
-        + ' 不会真的删除作品库文件。',
+      description: '把作品移进回收站，不再出现在列表里；可用 story_restore 恢复。不返回路径。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -1365,7 +1633,14 @@ function rawDefinitions(ctx) {
           to: args.to,
           ...(typeof args.summary === 'string' ? { summary: args.summary } : {}),
         })
-        return { ok: true, workId: args.work, volumes: result.volumes, volume: result.volume }
+        const volume = result.volume
+        return {
+          ok: true,
+          workId: args.work,
+          volumes: result.volumes,
+          volume,
+          artifact: { workId: args.work, artifactId: `volume:${volume.id}`, revisionId: contentRevision(JSON.stringify(volume)), kind: 'volume' },
+        }
       },
     }),
 
@@ -1462,8 +1737,7 @@ function rawDefinitions(ctx) {
     action({
       name: 'story_export',
       mutates: true,
-      description: '把一部作品导出成可读目录（.storycraft/exports/<workId>/）：manifest、各版正文、章纲、摘要、'
-        + '各轮审稿、真值、卷、事件与提案。导出是给作者在系统文件管理器里取用的，模型不要直接读库文件。',
+      description: '把一部作品导出成可读目录，返回 export:<workId>；作者从面板的只读导出路由取用，模型不接触路径。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -1482,8 +1756,7 @@ function rawDefinitions(ctx) {
     action({
       name: 'story_backup',
       mutates: true,
-      description: '把一部作品的库备份成单个文件（.storycraft/backups/<workId>-<时间戳>.db），并返回完整性检查结果。'
-        + ' 备份是常备能力；库排障或迁移前先做一份。',
+      description: '把一部作品的库备份成单个文件，返回 backup:<workId>:<timestamp> 与完整性检查结果；作者从只读备份路由取用。',
       parameters: {
         type: 'object',
         additionalProperties: false,

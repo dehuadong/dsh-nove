@@ -1,12 +1,12 @@
 # 故事工坊（dsh-storycraft）
 
-DSH 里的长篇创作编排：二十八个动作把立项、章纲、正文、审稿、修订、定稿归档与导出备份落到**一作品一库**的 SQLite 存储，一个**工作台**以只读方式看作品与章节，并按键把固定指令投给当前会话。故事工坊是**一个工作模式**（一个 Agent 预设），以标准预设为基线再挂自己的动作、技能与人设。
+DSH 里的长篇创作编排：二十九个动作把立项、章纲、正文、审稿、修订、定稿归档与导出备份落到**一作品一库**的 SQLite 存储，一个**工作台**以只读方式看作品与章节，并按键把固定指令投给当前会话。故事工坊是**一个工作模式**（一个 Agent 预设），以标准预设为基线再挂自己的动作、技能与人设。
 
 ## 现状
 
 | 工作模式 | 人设 | 技能 | 动作 | 工作台 |
 | --- | --- | --- | --- | --- |
-| 故事工坊 `storycraft` | 有（主编 / 子代理两用） | 有（三套技能：长篇 / 短篇 / 剧本） | **有**：`story_init` `story_plan` `story_write` `story_review` `story_revise` `story_state` `story_status` `story_next` `story_delegate`，以及真值四件 `story_bible` `story_bible_write` `story_bible_import` `story_summarize` 与写前上下文 `story_brief`；常备能力 `story_export` `story_backup` | 有 |
+| 故事工坊 `storycraft` | 有（主编 / 子代理两用） | 有（三套技能：长篇 / 短篇 / 剧本） | **有**：`story_init` `story_plan` `story_write` `story_review` `story_revise` `story_state` `story_status` `story_next` `story_delegate`，以及真值四件 `story_bible` `story_bible_write` `story_bible_import` `story_summarize`、只读 `story_read` 与写前上下文 `story_brief`；常备能力 `story_export` `story_backup` | 有 |
 
 动作按预设作用域注册：只有「故事工坊」会话能看到 `story_*`，其他模式与其他会话的工具面不变。形态（长篇 / 短篇 / 剧本）是作品数据（`catalog.db` 的 `works.form`），不是预设；同一会话里可以分别打开三种形态的作品。
 
@@ -53,7 +53,7 @@ DSH 里的长篇创作编排：二十八个动作把立项、章纲、正文、�
 
 `catalog.db` 只存元数据，是 title/form/tags 的权威；作品库的 `meta` 行是导出副本。每部作品独立 `user_version`，升级一部不影响其他。表结构、连接策略、改名/删除/恢复顺序与启动对账的完整设计见 [作品入库 Note](../.agents/notes/implemented/pipeline/2026-10-19-storycraft-sqlite-store.md)。
 
-动作与路由返回的 `artifact.path` 是**虚拟路径** `works/<workId>/chapters/ch-0007.md`，不对应磁盘文件；实际内容在 `.storycraft/works/<workId>.db`。宿主启动及首次读取一个工作区时对账目录与文件：缺失的作品在列表跳过并记入宿主诊断，孤儿文件与回收站文件保留待人工恢复。
+动作与路由返回的模型可见 artifact 只有 `artifactId` / `revisionId` / `kind`，不含文件路径；正文/章纲/审稿/摘要等内容按 ID 用 `story_read` 或上下文动作读取。UI 与作者导出仍显示路径；实际内容在作品库内。宿主启动及首次读取一个工作区时对账目录与文件：缺失的作品在列表跳过并记入宿主诊断，孤儿文件与回收站文件保留待人工恢复。
 
 ## 真值与写前上下文
 
@@ -70,7 +70,7 @@ summaries         章节摘要（上限 400 字）
 
 - `story_bible`：读真值（可指定一份），缺失时指出缺哪几份。
 - `story_bible_write`：校验后写入并返回内容版本；人物档案缺字段或重名会被拒绝，原内容不变。
-- `story_bible_import`：把旧**文件作品** `works/<id>/design/` 下的世界观与大纲收编进真值，并列出仍需作者补的项（不替作者编人物档案）。
+- `story_bible_import`：把旧文件作品的世界观收编进真值，并列出仍需作者补的项（不替作者编人物档案）；不导入大纲，大纲只走 `story_outline` + 作者确认。
 - `story_summarize`：写章节摘要（超 400 字截断并报告）。
 - `story_brief`：装配写某一章前的上下文——意图、本章章纲、涉及人物、未解伏笔、上一章结尾、文风、字数口径；默认 8 KB，超预算按优先级裁剪并报告裁掉的段；同一输入两次结果逐字节一致。
 
@@ -81,7 +81,7 @@ summaries         章节摘要（上限 400 字）
 | `story_rename` | 改标题或作品 id；改 id 时库文件一起移，冲突拒绝 |
 | `story_delete` | 移入 `.storycraft/trash/`，不再出现在列表 |
 | `story_restore` | 恢复回收站里最近一次的同名作品 |
-| `story_export` | 导出到 `.storycraft/exports/<workId>/`：`manifest.json`、各版正文、章纲、摘要、各轮审稿、真值、卷、事件与**该作品立项所用的提案**；mtime 固定 |
+| `story_export` | 导出为 `export:<workId>`；作者从只读 `/exports` 路由取目录，内容含 manifest、各版正文、章纲、摘要、各轮审稿、真值、卷、事件与提案 |
 | `story_backup` | 用 SQLite 备份 API 生成单作品文件，返回 `integrity_check` |
 
 导出是给作者在系统文件管理器里取用的，不是让模型读库；`.storycraft` 仍整体拒绝工具直接访问。
@@ -111,12 +111,13 @@ summaries         章节摘要（上限 400 字）
 | `story_state` | 追加人物事实与伏笔事件，返回新增/已用/已解/未解计数 | 作品或章不存在；伏笔状态非法；「已用」指向未埋的伏笔；未修订完成或未清稿 |
 | `story_status` | 只读汇总进度、阶段、版本、未处理问题、未解伏笔 | 作品不存在 |
 | `story_delegate` | 宿主侧跑一个角色（writer/reviewer/reviser）：预检、装配上下文、校验、落库，返回紧凑回执 | 预检/阶段错误按原码返回；服务缺失 `delegation-unavailable`；writer/reviser 字数超界 `delegation-word-range` |
+| `story_read` | 只读：按 `artifactId`/`revisionId` 读取当前章可读内容；越界返回 `artifact-not-readable` | 作品不存在；旧章/旧审稿版本 |
 | `story_next` | 只读：下一步动作、章号、原因、缺什么；可委派时带 `delegate.role` | 作品不存在 |
 | `story_export` / `story_backup` | 见「作品操作与导出」 | 作品不存在 |
 
 字数口径只有一套：`domain.countWords`（CJK 字符 + 拉丁词，不含标点）；`story_critique` 的 `words` 用同一函数，标点数量单独放在 `chars`。
 
-返回值统一为 `{ ok: true, artifact: { path, revision? }, … }` 或 `{ ok: false, error: { code, message } }`；虚拟路径以 `works/<workId>/` 开头。
+返回值统一为 `{ ok: true, artifact: { workId, artifactId, revisionId, kind }, … }` 或 `{ ok: false, error: { code, message } }`；模型输出不含文件路径。
 
 ## 工作台
 
@@ -151,7 +152,7 @@ summaries         章节摘要（上限 400 字）
 | `GET /api/dsh-storycraft/review?root=&id=&chapter=` | 最新章节的审稿条目与轮次 |
 | `GET /api/dsh-storycraft/state?root=&id=` | 一个作品的进度摘要 |
 | `GET /api/dsh-storycraft/bible?root=&id=&file=` | 真值文件与内容版本 |
-| `GET /api/dsh-storycraft/brief?root=&id=&chapter=` | 写前上下文装配结果 |
+| `GET /api/dsh-storycraft/brief?root=&id=&chapter=` | 写前上下文装配结果 |`r`n| `GET /api/dsh-storycraft/exports?root=&id=` | 作者导出目录状态（只读） |`r`n| `GET /api/dsh-storycraft/backups?root=&id=` | 作者备份文件列表（只读） |
 | `GET /api/dsh-storycraft/roster` | 预设名册（含装载失败原因） |
 | `GET /api/dsh-storycraft/document?id=` | 某预设的完整声明 |
 
@@ -198,3 +199,19 @@ storycraft/
 ## 改动与生效
 
 包以 `link:` 装入 profile，改 `client.js` 后刷新窗口即可；改 `cordis.patch.yml` 或 Host 半边（`index.js`、`tools.js`、`delegate.js`、`db.js`、`store-db.js`）需要重启应用，或让 `plugin_manager` 把 bundle 关→开重载补丁。停用用 `set_bundle enabled:false`，卸载用 `remove_bundle`。
+
+## 阶段上下文
+
+| 阶段 | 给什么 | 不给什么 |
+| --- | --- | --- |
+| 讨论/提案 | 作者想法、形态、目标读者、字数范围 | 作品库内容 |
+| 立项 | 已确认提案、标题、形态、字数范围 | 其他作品、旧正文 |
+| 全书计划 | 作者意图、形态、字数、已有设定（`story_bible` / `story_read(outline)`） | 正文、文件路径 |
+| 章纲 | 全书计划、卷、相关人物、前情摘要、本章目标 | 旧章全文 |
+| 写正文 | 本章章纲、人物卡、未解伏笔、上一章结尾、文风、字数范围 | 其他章正文 |
+| 审稿 | 当前章正文、章纲、人物卡、审稿标准 | 其他作品、其他章正文 |
+| 修订 | 当前正文版本、未处理审稿条目、mode | 全库、旧版本正文 |
+| 清稿 | 当前正文、零问题审稿结果 | 其他作品 |
+| 摘要/定稿 | 当前章正文、`state`、摘要 | 其他作品 |
+
+内容只通过动作读取；模型只拿 artifact ID，不拿文件路径。

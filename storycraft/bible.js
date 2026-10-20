@@ -181,24 +181,26 @@ export async function importBible(root, workId) {
   const outline = await readOptional(join(design, 'outline.md'))
   const cast = await readOptional(join(design, 'cast.md'))
   if (world === undefined && outline === undefined && cast === undefined) {
-    throw new StoryError('nothing-to-import', '没有可收编的 design/ 内容')
+    throw new StoryError('nothing-to-import', '没有可收编的旧稿内容')
   }
   const imported = []
   const skipped = []
   const targets = [
-    { name: 'world', from: 'design/world.md', content: world },
-    { name: 'plan', from: 'design/outline.md', content: outline },
+    { name: 'world', from: 'bible:world', content: world },
   ]
+  if (outline !== undefined) {
+    skipped.push('outline-import-blocked（旧大纲不导入；请走 story_outline + 作者确认）')
+  }
   for (const target of targets) {
     if (target.content === undefined) continue
     const spec = BIBLE_FILES[target.name]
     const existing = readBibleEntry(root, manifest.workId, target.name)?.content
     if (existing !== undefined && !isDraft(existing)) {
-      skipped.push(`${spec.file}（已有内容，未覆盖）`)
+      skipped.push(`bible:${target.name}（已有内容，未覆盖）`)
       continue
     }
     writeBibleRow(root, { work: manifest.workId, name: target.name, content: target.content })
-    imported.push({ from: target.from, to: spec.file, version: contentVersion(target.content) })
+    imported.push({ from: target.from, to: `bible:${target.name}`, version: contentVersion(target.content) })
   }
   const headings = (pattern) => cast === undefined
     ? []

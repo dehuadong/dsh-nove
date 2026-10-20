@@ -11,14 +11,15 @@
  * Nothing here writes; every mutation is an action the model calls.
  */
 
-import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
-import { isAbsolute, resolve } from 'node:path'
+import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises'
+import { isAbsolute, join, resolve } from 'node:path'
 import { approveChapterPlan, approveOutline, ensureReconciled, listTrash, listWorks, nextStep, readManifest, readChapter, readReview, readWork, status as readStatus, StoryError } from './storage.js'
 import { critique } from './critique.js'
 import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent } from './current.js'
 import { readVolumes } from './volumes.js'
 import { clearSessionCurrent, readSessionCurrent, setSessionCurrent } from './store-db.js'
 import { assembleBrief, readBible } from './bible.js'
+import { backupsDir, exportsDir } from './db.js'
 
 /** Requires the host web server; without it the browser surface has no data. */
 export const inject = ['webServer']
@@ -323,6 +324,30 @@ export function apply(ctx) {
       handler: (req, res) => readRoute(req, res, async (query) => ({
         volumes: await readVolumes(await rootOf(ctx, query), workOf(query)),
       })),
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/exports`,
+      handler: (req, res) => readRoute(req, res, async (query) => {
+        const root = await rootOf(ctx, query)
+        const workId = workOf(query)
+        const directory = join(exportsDir(root), workId)
+        const info = await stat(directory).catch(() => undefined)
+        return { exportId: `export:${workId}`, directory, exists: info?.isDirectory() === true }
+      }),
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/backups`,
+      handler: (req, res) => readRoute(req, res, async (query) => {
+        const root = await rootOf(ctx, query)
+        const workId = workOf(query)
+        const directory = backupsDir(root)
+        const entries = await readdir(directory).catch(() => [])
+        return entries
+          .filter(name => name.startsWith(`${workId}-`) && name.endsWith('.db'))
+          .map(name => ({ backupId: `backup:${workId}:${name.slice(workId.length + 1, -3)}`, file: join(directory, name) }))
+      }),
     }),
     ctx.webServer.register({
       kind: 'exact',

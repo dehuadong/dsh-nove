@@ -106,7 +106,8 @@ try {
   await writeFile(join(olderDir, 'design', 'outline.md'), '# 大纲\n\n第一章：开局。\n')
   await writeFile(join(olderDir, 'design', 'cast.md'), '# 人物\n\n## 沈彻\n## 齐大山\n')
   const report = await b.importBible(root, older.workId)
-  check('import copies world and plan', report.imported.length === 2, JSON.stringify(report.imported))
+  check('import copies world only', report.imported.length === 1 && report.imported[0].to === 'bible:world', JSON.stringify(report.imported))
+  check('import does not import outline', report.skipped.some(item => item.includes('outline-import-blocked')), JSON.stringify(report.skipped))
   check('import extracts names', report.names.join(',') === '沈彻,齐大山', report.names.join(','))
   check('import reports pending', report.pending.some(item => item.includes('characters')))
   const imported = (await b.readBible(root, older.workId, 'world')).files[0].content
@@ -145,7 +146,7 @@ try {
   // Import must not overwrite a truth entry that already holds content.
   await b.writeBible(root, older.workId, 'world', '# 世界观\n\n作者已经改过的版本。\n')
   const second = await b.importBible(root, older.workId)
-  check('import skips existing content', second.skipped.length === 2 && second.skipped.some(item => item.includes('world.md')), JSON.stringify(second.skipped))
+  check('import skips existing content', second.skipped.length === 2 && second.skipped.some(item => item.includes('bible:world')), JSON.stringify(second.skipped))
   check('import keeps author content', (await b.readBible(root, older.workId, 'world')).files[0].content.includes('作者已经改过'))
 
   // Previous chapter falls back to the body tail when no summary exists.
@@ -158,4 +159,3 @@ try {
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`)
 process.exitCode = failures === 0 ? 0 : 1
-

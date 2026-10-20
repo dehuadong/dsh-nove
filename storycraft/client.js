@@ -20,6 +20,8 @@ window.__ModuleLoader__.load({
       review: '/api/dsh-storycraft/review',
       bible: '/api/dsh-storycraft/bible',
       brief: '/api/dsh-storycraft/brief',
+      exports: '/api/dsh-storycraft/exports',
+      backups: '/api/dsh-storycraft/backups',
     }
 
     /** How long one Host answer may take before the page stops waiting. */
@@ -310,6 +312,8 @@ window.__ModuleLoader__.load({
         review: (root, id, chapter) => route(ROUTE.review, { root, id, chapter }),
         bible: (root, id) => route(ROUTE.bible, { root, id }),
         brief: (root, id, chapter) => route(ROUTE.brief, { root, id, chapter }),
+        exports: (root, id) => route(ROUTE.exports, { root, id }),
+        backups: (root, id) => route(ROUTE.backups, { root, id }),
 
         /** Open the right-sidebar tab by kind; false when the sidebar is absent. */
         openSidebarTab(kind) {
@@ -708,6 +712,19 @@ window.__ModuleLoader__.load({
                 }
               },
             }, '质检'),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn',
+              title: '显示作者导出目录（只读路由，不把路径交给模型）',
+              onClick: async () => {
+                try {
+                  const payload = await face.exports(root, workId)
+                  onNotice({ kind: 'ok', text: payload.exists === true ? `导出目录：${payload.directory}` : '还没有导出：让模型调用 story_export。' })
+                } catch (error) {
+                  onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
+                }
+              },
+            }, '导出目录'),
             chapter.stage === 'settled'
               ? h('button', {
                 type: 'button',
@@ -1713,4 +1730,3 @@ window.__ModuleLoader__.load({
     }
   },
 })
-

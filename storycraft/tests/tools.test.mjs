@@ -32,11 +32,11 @@ const ctx = {
 tools.apply(ctx, { mode: 'longform' })
 
 const names = registered.map(definition => definition.name).sort()
-check('registers twenty-eight actions', names.length === 28, names.join(','))
+check('registers twenty-nine actions', names.length === 29, names.join(','))
 check('action names', names.join(',') === [
   'story_backup', 'story_bible', 'story_bible_import', 'story_bible_write', 'story_brief', 'story_context',
   'story_critique', 'story_current', 'story_delegate', 'story_delete', 'story_export', 'story_init', 'story_next', 'story_outline',
-  'story_plan', 'story_propose', 'story_rename', 'story_reopen', 'story_restore', 'story_review', 'story_revise',
+  'story_plan', 'story_propose', 'story_read', 'story_rename', 'story_reopen', 'story_restore', 'story_review', 'story_revise',
   'story_settings', 'story_state', 'story_status', 'story_summarize', 'story_volume', 'story_volumes', 'story_write',
 ].sort().join(','), names.join(','))
 check('the delegation and scope guards are registered', guards.length === 2, String(guards.length))
@@ -47,7 +47,7 @@ const byName = new Map(registered.map(definition => [definition.name, definition
 const scopeGuard = guards[1]
 const scopeRoot = resolve('repo')
 const discussionCopy = '讨论阶段不读历史作品：请先在面板进入一部作品，或给 path 限定到项目目录。'
-const otherWorkCopy = '只能访问当前作品：works/<其他作品> 不在当前会话的作用域内。'
+const otherWorkCopy = '只能访问当前作品：请求的 artifact 不在当前会话的作用域内。'
 const fakeSession = id => ({ header: { id, cwd: scopeRoot } })
 const fakeExec = (name, args, id = 'scope-main') => ({ name, arguments: args, agent: { id, session: fakeSession(id) } })
 
@@ -136,12 +136,11 @@ try {
   const proposal = await byName.get('story_propose').execute({
     title: '雨里的灯', form: 'longform', premise: '夜班司机捡到一盏不肯灭的灯。',
   }, exec)
-  check('proposal written', proposal.ok === true && typeof proposal.proposal === 'string', JSON.stringify(proposal))
   const mismatched = await byName.get('story_init').execute({ title: '别的标题', proposal: proposal.proposal }, exec)
   check('title must match the proposal', mismatched.ok === false && mismatched.error.code === 'proposal-mismatch', JSON.stringify(mismatched))
   const created = await byName.get('story_init').execute({ title: '雨里的灯', proposal: proposal.proposal }, exec)
   check('story_init ok', created.ok === true && typeof created.workId === 'string', JSON.stringify(created))
-  check('story_init reports a virtual work path', created.artifact.path === `works/${created.workId}`, created.artifact.path)
+  check('story_init reports only a work identity', created.artifact === undefined && typeof created.workId === 'string', JSON.stringify(created))
   check('story_init persists the current work', (await s.readSessionCurrent(root))['test-session'] === created.workId)
   clearCurrent('test-session')
   const hydratedCurrent = await byName.get('story_current').execute({}, exec)
@@ -185,7 +184,7 @@ try {
   const plan = await byName.get('story_plan').execute({
     work, chapter: 1, perspective: '林澈', goal: '拿回合同', obstacle: '房东', cost: '人情', turn: '合同是假的',
   }, exec)
-  check('story_plan ok', plan.ok === true && plan.artifact.path.endsWith('ch-0001.plan.md'), JSON.stringify(plan))
+  check('story_plan returns an artifact identity', plan.ok === true && plan.artifact.artifactId === 'plan:1' && plan.artifact.kind === 'plan', JSON.stringify(plan))
 
   const bodyBeforeApproval = '他站在雨里。'.repeat(60)
   const blockedPlanWrite = await byName.get('story_write').execute({ work, chapter: 1, body: bodyBeforeApproval }, exec)
@@ -275,7 +274,7 @@ try {
     && sameText.metrics.words === write.words, `${sameText.metrics?.words} vs ${write.words}`)
 
   const rewrite = await byName.get('story_write').execute({ work, chapter: 1, body, rewrite: true }, exec)
-  check('rewrite creates revision 2', rewrite.ok === true && rewrite.artifact.revision === 2, JSON.stringify(rewrite))
+  check('rewrite creates revision 2', rewrite.ok === true && rewrite.artifact.revisionId === 'r2', JSON.stringify(rewrite))
 
   const review = await byName.get('story_review').execute({
     work, chapter: 1, problems: [{ location: '结尾', problem: '钩子虚', suggestion: '落到合同上' }],
@@ -336,8 +335,8 @@ try {
   const invalidBible = await byName.get('story_bible_write').execute({ work, file: 'characters', content: 'not-json' }, exec)
   check('story_bible_write rejects invalid', invalidBible.ok === false && invalidBible.error.code === 'bible-invalid', JSON.stringify(invalidBible))
 
-  const bible = await byName.get('story_bible').execute({ work }, exec)
-  check('story_bible reads five files', bible.ok === true && bible.files.length === 5, JSON.stringify(bible.files?.map(file => file.name)))
+  const bibleRead = await byName.get('story_bible').execute({ work }, exec)
+  check('story_bible reads five files', bibleRead.ok === true && bibleRead.files.length === 5, JSON.stringify(bibleRead.files?.map(file => file.name)))
 
   const brief = await byName.get('story_brief').execute({ work, chapter: 1 }, exec)
   check('story_brief returns nine sections', brief.ok === true && brief.sections.length === 9, JSON.stringify(brief.sections?.map(section => section.name)))
@@ -455,12 +454,45 @@ try {
     },
   }
   const secondWrite = await byName.get('story_delegate').execute({ work, chapter: 2, role: 'writer' }, exec)
-  check('second chapter delegated and written', secondWrite.ok === true && secondWrite.role === 'writer', JSON.stringify(secondWrite))
+  check('second chapter delegated and written', secondWrite.ok === true && secondWrite.role === 'writer'
+    && secondWrite.artifact.artifactId === 'chapter:2', JSON.stringify(secondWrite))
   check('delegated write receipt carries no body', !JSON.stringify(secondWrite).includes('第二章正文'), JSON.stringify(secondWrite))
   const secondReview = await byName.get('story_review').execute({
     work, chapter: 2, problems: [{ location: '开头', problem: '进得太慢' }],
   }, exec)
   check('second review written', secondReview.ok === true, JSON.stringify(secondReview))
+
+  // #22: model-facing artifact identity, no path, and scoped reads.
+  const readCurrent = await byName.get('story_read').execute({ work, artifactId: 'chapter:2' }, exec)
+  check('story_read reads the current chapter by id', readCurrent.ok === true
+    && readCurrent.artifact.artifactId === 'chapter:2' && readCurrent.content.includes('第二章正文'), JSON.stringify(readCurrent))
+  const readOld = await byName.get('story_read').execute({ work, artifactId: 'chapter:1' }, exec)
+  check('story_read refuses an older chapter', readOld.ok === false && readOld.error.code === 'artifact-not-readable', JSON.stringify(readOld))
+  const readReview = await byName.get('story_read').execute({ work, artifactId: 'review:2:r1:1' }, exec)
+  check('story_read reads the current review by id', readReview.ok === true && readReview.artifact.kind === 'review', JSON.stringify(readReview))
+  const readPlan = await byName.get('story_read').execute({ work, artifactId: 'plan:2' }, exec)
+  check('story_read reads a plan by id', readPlan.ok === true && readPlan.artifact.artifactId === 'plan:2', JSON.stringify(readPlan))
+  const staleRead = await byName.get('story_read').execute({ work, artifactId: 'plan:2', revisionId: 'stale' }, exec)
+  check('story_read rejects a stale revision', staleRead.ok === false && staleRead.error.code === 'revision-not-found', JSON.stringify(staleRead))
+  const bibleFiles = await byName.get('story_bible').execute({ work }, exec)
+  check('story_bible returns file ids, not paths', bibleFiles.ok === true
+    && bibleFiles.files.every(file => file.path === undefined && typeof file.artifactId === 'string' && typeof file.file === 'string'), JSON.stringify(bibleFiles))
+  const briefRead = await byName.get('story_brief').execute({ work, chapter: 2 }, exec)
+  check('story_brief exposes sourceIds, not paths', briefRead.ok === true
+    && briefRead.sections.every(section => section.source === undefined && Array.isArray(section.sourceIds))
+    && briefRead.sections.some(section => section.sourceIds.includes('bible:characters')), JSON.stringify(briefRead))
+  const contextRead = await byName.get('story_context').execute({ work, chapter: 2, role: 'reviewer' }, exec)
+  check('story_context exposes sourceIds, not paths', contextRead.ok === true
+    && contextRead.sections.every(section => section.source === undefined && Array.isArray(section.sourceIds)), JSON.stringify(contextRead))
+  const visible = JSON.stringify([readCurrent, readReview, readPlan, bibleFiles, briefRead, contextRead])
+  check('model-facing reads contain no work paths', !visible.includes('works/') && !visible.includes('"path"'), visible.slice(0, 200))
+  const refusedPlanBible = await byName.get('story_bible_write').execute({ work, file: 'plan', content: 'x' }, exec)
+  check('story_bible_write cannot write the gated outline', refusedPlanBible.ok === false
+    && refusedPlanBible.error.code === 'approval-moved', JSON.stringify(refusedPlanBible))
+  const outline = await byName.get('story_outline').execute({ work, mainline: '一条主线的重写' }, exec)
+  check('story_outline returns an outline artifact id', outline.ok === true
+    && outline.artifact.artifactId === 'outline' && outline.artifact.kind === 'outline', JSON.stringify(outline))
+
   const inventedRevise = `周三说：“改。”`.repeat(30)
   const warnedRevise = await byName.get('story_revise').execute({
     work, chapter: 2, body: inventedRevise, problemIds: ['Q1'], mode: 'rewrite',
@@ -512,11 +544,11 @@ try {
 
   // Export and backup are ordinary actions on the selected work.
   const exported = await byName.get('story_export').execute({ work }, exec)
-  check('story_export writes an export tree', exported.ok === true
-    && typeof exported.exported.directory === 'string' && exported.exported.files > 0, JSON.stringify(exported))
+  check('story_export returns an export id', exported.ok === true
+    && exported.exported.exportId === `export:${work}` && exported.exported.files > 0, JSON.stringify(exported))
   const backup = await byName.get('story_backup').execute({ work }, exec)
   check('story_backup returns an integrity check', backup.ok === true
-    && backup.backup.integrity === 'ok' && typeof backup.backup.file === 'string', JSON.stringify(backup))
+    && backup.backup.integrity === 'ok' && typeof backup.backup.backupId === 'string', JSON.stringify(backup))
   check('export and backup declare their output keys',
     ['exported'].every(key => Object.keys(byName.get('story_export').output.schema.properties).includes(key))
     && ['backup'].every(key => Object.keys(byName.get('story_backup').output.schema.properties).includes(key)))
