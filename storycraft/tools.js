@@ -140,7 +140,7 @@ const OUTPUT_PROPERTIES = {
   artifact: {
     type: 'object',
     additionalProperties: false,
-    description: 'The file this action wrote, relative to the workspace root.',
+    description: 'Virtual path of the artifact inside the work store; not a filesystem path. Do not open it with read/grep; use story_brief, story_context or story_bible.',
     properties: {
       path: { type: 'string' },
       revision: { type: 'integer' },
@@ -686,6 +686,7 @@ function rawDefinitions(ctx) {
       mutates: true,
       description: '建立一部作品：作品库文件（.storycraft/works/<workId>.db）、真值五件与检索表。'
         + ' 用户要求开始写一部新作品时先调用它。作品 id 由标题生成；同 id 已存在时拒绝，不覆盖已有作品。'
+        + ' 返回的 artifact.path 是作品库虚拟路径，不是工作区文件；不要用 read/grep 打开。'
         + ' 会话没有当前作品时，成功后会把新作品设为当前；已有其他当前作品时拒绝（请新建会话再立项）。',
       parameters: {
         type: 'object',

@@ -23,7 +23,7 @@ const roots = { cwd, worksRoot, dbRoot }
 const discussion = '讨论阶段不读历史作品：请先在面板进入一部作品，或给 path 限定到项目目录。'
 const otherWork = '只能访问当前作品：works/<其他作品> 不在当前会话的作用域内。'
 const search = '检索默认会扫进 works/：请给 path 限定到项目目录或当前作品。'
-const database = '不直接访问作品库：请通过故事工坊动作或导出读取。'
+const database = '不直接访问作品库：读内容用 story_brief/story_context/story_bible；story_export 只供作者导出取用。'
 const cdDenied = '不进入作品目录：请用相对项目根的路径访问作品。'
 
 const cases = [
@@ -87,4 +87,3 @@ for (const [name, input, expected] of cases) {
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`)
 process.exitCode = failures === 0 ? 0 : 1
-
