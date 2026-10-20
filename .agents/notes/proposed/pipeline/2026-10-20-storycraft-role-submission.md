@@ -45,7 +45,7 @@ updated: 2026-10-20
 - 本项**不替换** `host-delegation` 的 DSH subagent 与宿主侧 `story_delegate` 编排；只替换“最终文本作为角色结果”的传输段。
 - 本项不改 #22 的 artifact ID / stage context 契约；#22 的 `story_read` 与阶段作用域保留。
 - `role-input-contracts` 把 delegate 当例外、手动路径仍文本返回；本项不改手动路径，只改 delegate 角色通道。
-- 交付时在 `host-delegation` 加部分替代 banner，并更新 #23/#22 的验证边界。
+- 交付时在 `host-delegation` 加部分替代 banner，并更新 #23/#22 的验证边界。\n- 本 Note 新增 SubmissionStore 10 分钟 TTL；host-delegation 的“无新 TTL”不覆盖本通道。
 
 ## 提案
 
@@ -82,7 +82,7 @@ story_delegate
 - 只允许 `delegationDepthOf(exec) > 0` 的子代理调用；父代理调用返回 `submit-parent-denied`；
 - `delegationId` 是 bearer token；work/chapter/role 从 SubmissionStore entry 读取，**不接受 payload 覆盖**；
 - 工具不经过 `withCurrentWork`（子会话没有当前作品），也不声明 `mutates`（它不写作品库）；
-- 不写作品库，不返回正文，只返回 `{ ok: true, submitted: true, bytes, words? }`；
+- 不写作品库，不返回正文，只返回 `{ ok: true, submitted: true, bytes, words? }`；使用独立 `SUBMIT_OUTPUT` schema（含 ok/submitted/bytes/words），不复用共享 `OUTPUT`，否则 registry 会按 `additionalProperties:false` 拒绝；
 - 单次提交：entry 已 `consumed` 时返回 `submit-already-consumed`；
 - `payload` 最大 64 KiB；超长 `submit-too-large`；
 - payload schema：
@@ -101,7 +101,7 @@ story_delegate
 
 ### 4. 父代理
 
-- `story_delegate` 创建 `delegationId`，拼入子代理 prompt；
+- `delegate.js` 的 `promptFor` 同变更内改写：注入 `delegationId`，要求调用 `story_submit`，删除 `<<<TITLE/CHAPTER>>>`/JSON 输出与“不要调用任何动作”；
 - 子代理结束后从 SubmissionStore `consume(delegationId)`；
 - 没有提交 → `delegation-no-submission`；不做最终文本兜底；
 - 父代理仍负责 `writeChapter` / `writeReview` / `reviseChapter`；
@@ -119,11 +119,11 @@ story_delegate
 
 同一变更内更新：
 
-- `skills/write/storycraft-write-craft`：改为调用 `story_submit`，不再要求 `<<<TITLE/CHAPTER>>>` 最终回答；
-- `skills/review/storycraft-review`：提交 `items` 的字段与父代理映射一致；
-- `skills/revise/storycraft-revise-craft`：只提交 `body`，mode/resolved 由父代理处理；
+- `skills/write/storycraft-write-craft`：保留正文标准，增加“委派时调用 story_submit；手动 subagent 时仍用首尾标记”的双模式说明；
+- `skills/review/storycraft-review`：items 字段与父代理映射一致；委派时提交，手动时仍返回 JSON；
+- `skills/revise/storycraft-revise-craft`：委派时提交 body，手动时仍返回首尾标记；mode/resolved 由父代理处理；
 - `storycraft-studio-orchestration` 的角色输出契约；
-- `cordis.patch.yml` persona 的“子代理只返文本/不要调用落盘动作”改为“只调用 story_submit，不落盘”；
+- `cordis.patch.yml` persona 区分委派/手动：委派只调用 `story_submit` 不落盘；手动 subagent 仍按文本契约返回；
 - README 动作数从 29 改为 30，`tests/tools.test.mjs` 的 action 列表与数量同步。
 
 ### 7. 失败与清理
@@ -157,7 +157,7 @@ story_delegate
 
 1. 子代理只通过 `story_submit` 交结果，**最终回答**不含正文；
 2. 父代理不解析最终文本，只从 SubmissionStore 取结构化结果；
-3. 错误/过期 delegationId、角色不符、超长、跨作品、重复提交被拒绝；
+3. 错误/过期 delegationId、payload schema 不符、超长、重复提交被拒绝；entry 绑定关系有测试；
 4. 父会话回执不含正文；
 5. 子代理仍不能直接落盘；
 6. SubmissionStore 单次消费、TTL、失败清理有测试；
@@ -170,3 +170,6 @@ story_delegate
 - 子代理可能忘记调用 `story_submit`；用 `delegation-no-submission` 失败测试约束，不静默回退；
 - 内存 SubmissionStore 在宿主崩溃时丢失；父代理必须报失败，不自动重跑整章；
 - 角色 payload schema 会随审稿/修订能力变化；变更需同步 #22 与 parity matrix。
+
+
+
