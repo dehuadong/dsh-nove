@@ -34,7 +34,7 @@ updated: 2026-10-20
 
 | 表 | 关键列 |
 | --- | --- |
-| `works` | `work_id PK`、`title`、`form`、`tags`、`created_at`、`updated_at`、`trashed_at` |
+| `works` | `work_id PK`、`title`、`form`、`tags`、`schema_version`、`created_at`、`updated_at`、`trashed_at` |
 | `proposals` | `id`、`title`、`form`、`premise`、`characters`、`conflict`、`notes`、`created_at`、`used_at`、`used_work_id` |
 | `session_current` | `session_id PK`、`work_id`、`updated_at` |
 
@@ -61,7 +61,7 @@ updated: 2026-10-20
 所有跨库操作先做 catalog 写、再做文件移动（或反之），失败按下面的顺序回滚；移动前 `wal_checkpoint(TRUNCATE)`，并一并处理 `-wal`/`-shm`。
 
 - 立项：先建 `works/<id>.db` 并初始化，再插 catalog；catalog 失败则删文件；
-- 改名：移动文件 → 更新 catalog 与 `meta`；catalog/meta 失败则把文件移回；
+- 改名：移动文件 → 更新作品库 `meta` → 更新 catalog；catalog 失败时回滚 `meta` 并把文件移回；
 - 删除：移动文件到 `.storycraft/trash/` → 记 `trashed_at`；写目录失败则移回；
 - 恢复：检查 `works/` 无同名 → 移回 → 清 `trashed_at`；写目录失败则移回 trash；
 - 启动对账：catalog 有行无文件 → 标记 `missing` 并在列表跳过；有文件无行 → 忽略并记录诊断；trash 有文件无行 → 保留待人工恢复；
@@ -69,7 +69,7 @@ updated: 2026-10-20
 
 ### 连接、锁与错误码
 
-- 每次操作打开目标库，`journal_mode=WAL`、`busy_timeout=5000`、`foreign_keys=ON`；
+- 每次操作打开目标库，`journal_mode=WAL`、`busy_timeout=5000`、`foreign_keys=ON`；`openStore` 只打开已存在作品库、不自动建库，未立项 id 返回 `work-not-found`；
 - 写事务 `BEGIN IMMEDIATE`；`SQLITE_BUSY` → `work-busy`；
 - 错误码：`sqlite-unavailable`、`db-corrupt`、`schema-version-mismatch`、`backup-failed`、`work-not-found`、`work-exists`；
 - 启动探测 `node:sqlite`；缺失时所有动作返回 `sqlite-unavailable`，无文件回退。
@@ -115,4 +115,3 @@ updated: 2026-10-20
 - 多文件生命周期（改名/删除/恢复）需要仔细的错误处理；
 - catalog 与作品文件可能不同步（文件在、目录无），需要启动时对账；
 - 二进制库排障依赖备份；
-- 既有 S1–S6b 代码需按新布局重构。
