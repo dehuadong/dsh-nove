@@ -117,7 +117,7 @@ story_propose / story_init
 | 节点 | 现象 | 根因 | 修法 | 状态 | owner | 验证 |
 | --- | --- | --- | --- | --- | --- | --- |
 | `story_init` | 模型读 `works/<id>/bible/characters.json` | `artifact.path` 是路径 affordance | #22 改为 artifactId/revisionId；本项只保留临时提示 | 迁移中（#22） | #22 / `tools.js` | #22 的无 path 回归 |
-| `grep` | 扫描 `works/` 被守卫拦住 | 默认扫描作品库 | 提示限定项目/作品；人设禁止 | 已修（`845a4c0`） | `scope.js` / 人设 | 节点测试 |
+| `grep` | 扫描 `works/` 被守卫拦住 | 默认扫描作品库 | #22 去掉模型可见 path；guard 只作兜底，不再靠“人设禁止” | 迁移中（#22） | #22 / `scope.js` | #22 无 path 回归 |
 | `story_next` | 计划确认后仍 `missing:['outline']` | `last === undefined` 分支写死 missing | 已确认后 `missing:[]` | 已修（`533bad1`） | `store-db.js` | 单元测试 |
 | `story_status` | 看不到计划是否确认 | 只返回章节/审稿 | 返回 `outline.writtenAt/approvedAt` | 已修（`76c072d`） | `store-db.js` / `tools.js` | 单元测试 |
 | 面板确认 | 确认后自动写正文 | 确认按钮内 `face.send` | 确认只落库；动作按钮填输入框 | 已修（`b75d44c`） | `client.js` | E2E/手工 |
@@ -170,7 +170,7 @@ story_propose / story_init
 ### 3. 节点修复
 
 - `story_init`/artifact schema 的路径项由 #22 接管；
-- 禁止 read/grep 作品库的人设与技能说明；
+- 由 #22 去掉模型可见 path；guard 保留兜底，不再把人设禁令当主方案；
 - `story_next` 的 `missing` 只表示真实缺失；
 - `story_status` 返回 outline；
 - 面板确认不自动发送，动作按钮填输入框；
@@ -212,4 +212,5 @@ story_propose / story_init
 - 不做 StateValidator，状态矛盾仍可能漏；单列后续工作。
 - 参考目标还有 forecast/同人/番外等能力，本项不覆盖，需在能力矩阵标非范围。
 - 真实单章测量仍需新会话与干净作品；旧会话历史会污染测量。
+
 

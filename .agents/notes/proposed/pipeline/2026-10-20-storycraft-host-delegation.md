@@ -192,7 +192,7 @@ story_delegate(
 ### 验证切入点
 
 - 假 `subagents` 服务返回 writer/reviewer/reviser 输出，断言落库版本、审稿轮次、条目关单与回执字段；
-- 断言回执不含 `body` / `sections` / `prompt`，序列化 ≤2,000 字符；
+- 断言回执不含 `body` / `sections` / `prompt`，序列化 ≤1,500 字符；
 - 预检错误、服务缺失、取消/超时、输出不合约、reviewer 空条目；
 - writer 超 min/max、reviser 超 max 返回 `delegation-word-range` 且不落库；reviser 低于 min 只警告；
 - `extractSpeakerNames` 对角色词与对话片段不判人名；
@@ -232,3 +232,4 @@ story_delegate(
 - 主上下文下降不等于总 token 下降：子代理自身仍消耗上下文；本设计只消除主会话的重复搬运；
 - 宿主侧启动子代理涉及父 Agent 身份、权限与子会话生命周期，需要在实现阶段用真实运行时验证；
 - 子代理会话仍会出现在会话目录，作者可能看到；不影响作品库隔离。
+
