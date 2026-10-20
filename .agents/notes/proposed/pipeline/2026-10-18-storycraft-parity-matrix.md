@@ -62,7 +62,7 @@ updated: 2026-10-20
 | 全书计划/卷图 | foundation outline + volume map | `story_outline` + 作者确认 | 状态字段不完整 | 部分 | 补状态字段 |
 | 章纲/章 memo | chapter intent + memo | `story_plan` | 无独立 memo，章纲兼任 | 部分 | 保留，不新增对象 |
 | 写前上下文 | protected/compressible，语义选择 | `story_brief` / `story_context` | 固定段，无语义选择/预算 | 部分 | 补预算；语义选择后续 |
-| 正文写作 | writer，一次整章 | `story_write` / delegate writer | 无 | 对齐 | 保留 |
+| 正文写作 | writer，一次整章，结构化 `submit_chapter_draft` | `story_write` / delegate writer 的最终文本 | 角色结果走聊天文本；子代理会话出现全文 | 缺失 | 新增 `story_submit` + SubmissionStore，保留 DSH subagent |
 | 连续性审稿 | LLM auditor + 证据 observations | `story_review` / reviewer 问题条目 | 无 observation 证据模型 | 部分 | 未登记人名转 warning；审稿承接 |
 | 质检 | 指标与审稿分离 | `story_critique` | 未进入工作流对拍 | 部分 | 保留为独立只读节点 |
 | 状态抽取 | chapter summary / factOps / hookOps | `story_state` 手写 | 无自动 settler | 部分 | 本项不自动 settler |
@@ -103,3 +103,4 @@ updated: 2026-10-20
 
 - 对拍从「凭印象」变成「按表」，切片范围可核对；
 - 表格会随阶段增长；暂缓项需要定期回看，否则会变成遗忘项。
+
