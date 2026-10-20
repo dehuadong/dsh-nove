@@ -189,10 +189,10 @@ window.__ModuleLoader__.load({
     const INSTRUCTIONS = {
       flowToRevision(workId, chapter) {
         return `写作品 ${workId} 第 ${chapter} 章：按顺序做——章纲（缺则 story_plan）→ story_brief 取上下文 → 正文 story_write → story_critique 质检 → story_review 审稿 → 按清单修订 story_revise（mode 用 patch）。`
-          + '做到修订为止停下：把修订结果、剩余未处理条目与字数变化报给我，等我决定是否润色或去 AI 味，再定稿。'
+          + '做到修订为止停下：把修订结果、剩余未处理条目与字数变化报给我，等我决定是否润色或去 AI 味，再定稿。汇报不粘贴正文。'
       },
       flowFull(workId, chapter) {
-        return `写作品 ${workId} 第 ${chapter} 章并一路做完：章纲 → story_brief → 正文 → 质检 → 审稿 → 按清单修订 → 定稿 → 摘要。每步结果简短汇报，结尾给出本章摘要与下一步。`
+        return `写作品 ${workId} 第 ${chapter} 章并一路做完：章纲 → story_brief → 正文 → 质检 → 审稿 → 按清单修订 → 定稿 → 摘要。每步结果简短汇报，不粘贴正文，结尾给出本章摘要与下一步。`
       },
       step(workId, chapter, action) {
         const label = {
@@ -204,10 +204,10 @@ window.__ModuleLoader__.load({
           story_summarize: '写本章摘要',
           story_volume: '补本卷摘要',
         }[action] ?? action
-        return `对作品 ${workId} 第 ${chapter} 章只做一步：${label}（调 ${action}）。做完就停，把结果告诉我，不要继续后面的步骤。`
+        return `对作品 ${workId} 第 ${chapter} 章只做一步：${label}（调 ${action}）。做完就停，把结果告诉我（不要粘贴正文），不要继续后面的步骤。`
       },
       nextChapter(workId, chapter) {
-        return `继续写作品 ${workId} 第 ${chapter} 章：先调 story_next 看下一步，再按它给的顺序做（章纲 → story_brief 取上下文 → 正文 → 质检 → 审稿 → 修订 → 定稿 → 摘要）。`
+        return `继续写作品 ${workId} 第 ${chapter} 章：先调 story_next 看下一步，再按它给的顺序做（章纲 → story_brief 取上下文 → 正文 → 质检 → 审稿 → 修订 → 定稿 → 摘要）。汇报不粘贴正文。`
       },
       review(workId, chapter) {
         return `对作品 ${workId} 第 ${chapter} 章做审稿：只找问题，不改正文，把问题清单用 story_review 落盘。`
@@ -215,12 +215,12 @@ window.__ModuleLoader__.load({
       revise(workId, chapter, mode) {
         const label = { patch: '局部修补', polish: '润色', rewrite: '重写', deslop: '去 AI 味' }[mode] ?? '局部修补'
         if (mode === 'patch') {
-          return `按作品 ${workId} 第 ${chapter} 章最新的审稿清单里未处理的条目修订正文（模式：局部修补，story_revise 的 mode 传 patch），落盘并标记处理过的条目。`
+          return `按作品 ${workId} 第 ${chapter} 章最新的审稿清单里未处理的条目修订正文（模式：局部修补，story_revise 的 mode 传 patch），落盘并标记处理过的条目。汇报不粘贴正文。`
         }
-        return `把作品 ${workId} 第 ${chapter} 章按「${label}」再修一遍（story_revise 的 mode 传 ${mode}，不需要新的审稿条目），落盘为新版本。`
+        return `把作品 ${workId} 第 ${chapter} 章按「${label}」再修一遍（story_revise 的 mode 传 ${mode}，不需要新的审稿条目），落盘为新版本。汇报不粘贴正文。`
       },
       planApproved(workId, chapter) {
-        return `作品 ${workId} 第 ${chapter} 章的章纲已在面板确认，继续写正文。`
+        return `作品 ${workId} 第 ${chapter} 章的章纲已在面板确认，继续写正文。落盘后只汇报字数、版本与下一步，不要粘贴正文。`
       },
       outlineApproved(workId) {
         return `作品 ${workId} 的全书计划已在面板确认，按 story_next 给出的下一步继续。`
