@@ -307,6 +307,10 @@ try {
   const brief = await byName.get('story_brief').execute({ work, chapter: 1 }, exec)
   check('story_brief returns nine sections', brief.ok === true && brief.sections.length === 9, JSON.stringify(brief.sections?.map(section => section.name)))
   check('story_brief reports budget', brief.ok === true && brief.budget.limit > 0)
+  const briefSectionProps = Object.keys(byName.get('story_brief').output.schema.properties.sections.items.properties ?? {})
+  check('story_brief sections use only declared fields',
+    brief.ok === true && brief.sections.every(section => Object.keys(section).every(key => briefSectionProps.includes(key))),
+    JSON.stringify(brief.sections?.flatMap(section => Object.keys(section).filter(key => !briefSectionProps.includes(key)))))
 
   const summary = await byName.get('story_summarize').execute({ work, chapter: 1, summary: '林澈在塌方里救人，决定北上。' }, exec)
   check('story_summarize ok', summary.ok === true && summary.truncated === false, JSON.stringify(summary))
@@ -370,6 +374,9 @@ try {
 
   const status = await byName.get('story_status').execute({ work }, exec)
   check('story_status ok', status.ok === true && status.status.writtenChapters === 1, JSON.stringify(status.status ?? status))
+  check('story_status returns only declared fields',
+    Object.keys(status.status).every(key => statusProps.includes(key)),
+    JSON.stringify(Object.keys(status.status).filter(key => !statusProps.includes(key))))
 
   await byName.get('story_status').execute({ work: '不存在' }, exec)
     .then(() => check('another id is refused while one work is active', false, 'expected a rejection'),
