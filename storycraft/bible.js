@@ -45,8 +45,6 @@ function biblePath(workId, name) {
   return virtualPath(workId, BIBLE_FILES[name].file)
 }
 
-export { contentVersion }
-
 /** `true` when the file carries nothing but headings. */
 export function isDraft(text) {
   return String(text).split(/\r?\n/).every(line => /^\s*$|^#{1,6}\s/.test(line))

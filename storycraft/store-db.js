@@ -33,14 +33,14 @@ const EXPORT_MTIME = new Date('2000-01-01T00:00:00.000Z')
 // Shared helpers
 // ---------------------------------------------------------------------------
 
-/** Virtual path of one work, as actions and routes report it. */
+/** Virtual path of one work root, as actions and routes report it. */
 export function virtualWorkPath(workId) {
   return `works/${workId}`
 }
 
 /** Virtual path of one artifact inside a work. */
 export function virtualPath(workId, relative) {
-  return `works/${workId}/${String(relative).replaceAll('\\', '/')}`
+  return `${virtualWorkPath(workId)}/${String(relative).replaceAll('\\', '/')}`
 }
 
 /** One catalog row, or undefined. */
@@ -252,7 +252,7 @@ export function initWork(root, input) {
  * A row without a file is marked `missing_at` and skipped by the list; a file
  * without a row is reported as an orphan and left alone for manual recovery.
  * @param {string} root - workspace directory.
- * @returns {{missing: string[], orphans: string[], trash: string[]}} reconciliation report.
+ * @returns {{missing: string[], orphans: string[], trash: string[], degraded: boolean}} reconciliation report.
  */
 export function reconcileWorks(root) {
   const catalog = openCatalog(root, { create: false })
@@ -260,6 +260,7 @@ export function reconcileWorks(root) {
     const rows = catalog === undefined ? [] : catalog.prepare('SELECT work_id, trashed_at, missing_at FROM works').all()
     const known = new Set(rows.map(row => row.work_id))
     const missing = []
+    let degraded = false
     if (catalog !== undefined) {
       try {
         transaction(catalog, () => {
@@ -279,6 +280,7 @@ export function reconcileWorks(root) {
       } catch {
         // Another writer holds the catalog; the next start reconciles again. The
         // listing itself must stay readable.
+        degraded = true
       }
     }
     const orphans = []
@@ -293,7 +295,7 @@ export function reconcileWorks(root) {
       ? readdirSync(trashDir(root))
         .filter(name => name.endsWith('.db') && !trashedIds.has(name.slice(0, -3)))
       : []
-    return { missing, orphans, trash }
+    return { missing, orphans, trash, degraded }
   } finally {
     catalog?.close()
   }
@@ -309,9 +311,10 @@ const reconciledRoots = new Set()
  */
 export function ensureReconciled(root) {
   if (reconciledRoots.has(root)) return
-  reconciledRoots.add(root)
   try {
     const report = reconcileWorks(root)
+    // A locked catalog is retried on the next read instead of being marked done.
+    if (!report.degraded) reconciledRoots.add(root)
     if (report.missing.length > 0 || report.orphans.length > 0 || report.trash.length > 0) {
       console.warn(`[storycraft] 作品库对账（${root}）：`
         + `缺失 ${report.missing.length}（${report.missing.join('、') || '无'}）；`

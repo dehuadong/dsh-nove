@@ -77,7 +77,7 @@ updated: 2026-10-20
 ### 虚拟路径与导出
 
 - 动作与路由返回的 `artifact.path`：`works/<workId>/chapters/ch-0007.md`（虚拟，不对应磁盘文件）；
-- `story_export(work)` 产出：`manifest.json`（schemaVersion、title/form/tags/wordRange/planApproval、outline 时间、章节状态）、`chapters/ch-0007.md`=r1、`ch-0007.rN.md`=第 N 版、`outline/*.plan.md`、`summaries/*.md`、`reviews/*.rN.md`（全部轮次）、`bible/{intent,characters.json,style,plan,world}`、`volumes.json`、`proposals/<id>.json`、`state/events.jsonl`；顺序与 mtime 固定；
+- `story_export(work)` 产出：`manifest.json`（schemaVersion、title/form/tags/wordRange/planApproval、outline 时间、章节状态）、`chapters/ch-0007.md`=r1、`ch-0007.rN.md`=第 N 版、`outline/*.plan.md`、`summaries/*.md`、`reviews/*.rN.md`（全部轮次）、`bible/{intent,characters.json,style,plan,world}`、`volumes.json`、`proposals/<id>.json`（仅 `used_work_id` 指向该作品的提案）、`state/events.jsonl`；顺序与 mtime 固定；
 - `story_backup(work)` 用 `backup()`/`VACUUM INTO`，返回 `integrity_check`。
 
 ### 与 #17 / #16 的关系

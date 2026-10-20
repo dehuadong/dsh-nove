@@ -42,6 +42,22 @@ try {
   versionDb.close()
   check('each work records its own user_version', version === WORK_SCHEMA_VERSION)
 
+  // A locked catalog leaves reconciliation retryable instead of caching failure.
+  const retry = store.initWork(root, { title: '重试' }).workId
+  await rm(workFile(root, retry), { force: true })
+  const lock = openCatalog(root)
+  lock.exec('BEGIN IMMEDIATE')
+  store.ensureReconciled(root)
+  lock.exec('ROLLBACK')
+  lock.close()
+  const beforeRetry = openCatalog(root, { create: false })
+  check('a locked reconcile does not stamp missing', beforeRetry.prepare('SELECT missing_at FROM works WHERE work_id = ?').get(retry).missing_at === null)
+  beforeRetry.close()
+  store.ensureReconciled(root)
+  const afterRetry = openCatalog(root, { create: false })
+  check('the next read reconciles the retried root', afterRetry.prepare('SELECT missing_at FROM works WHERE work_id = ?').get(retry).missing_at !== null)
+  afterRetry.close()
+
   // Reconciliation diagnostics: row without file, file without row, trash file.
   await rm(workFile(root, b.workId), { force: true })
   const report = store.reconcileWorks(root)
@@ -75,6 +91,25 @@ try {
   const meta = openWork(root, a.workId)
   check('rollback restores the meta id', meta.prepare('SELECT work_id FROM meta WHERE id = 1').get().work_id === a.workId)
   meta.close()
+
+  // The host reconciles its known workspaces at startup.
+  const startupRoot = await mkdtemp(join(tmpdir(), 'storycraft-startup-'))
+  try {
+    const startupWork = store.initWork(startupRoot, { title: '启动对账' }).workId
+    await rm(workFile(startupRoot, startupWork), { force: true })
+    const { apply } = await import('../index.js')
+    apply({
+      get: name => (name === 'workspaceRegistry' ? { list: () => [{ path: startupRoot }] } : undefined),
+      webServer: { register: () => () => {} },
+      effect: fn => { const dispose = fn(); return () => dispose?.() },
+    })
+    const startupCatalog = openCatalog(startupRoot, { create: false })
+    check('the host startup reconciles known workspaces',
+      startupCatalog.prepare('SELECT missing_at FROM works WHERE work_id = ?').get(startupWork).missing_at !== null)
+    startupCatalog.close()
+  } finally {
+    await rm(startupRoot, { recursive: true, force: true }).catch(() => {})
+  }
 } finally {
   await rm(root, { recursive: true, force: true }).catch(() => {})
 }

@@ -80,7 +80,7 @@ summaries         章节摘要（上限 400 字）
 | `story_rename` | 改标题或作品 id；改 id 时库文件一起移，冲突拒绝 |
 | `story_delete` | 移入 `.storycraft/trash/`，不再出现在列表 |
 | `story_restore` | 恢复回收站里最近一次的同名作品 |
-| `story_export` | 导出到 `.storycraft/exports/<workId>/`：`manifest.json`、各版正文、章纲、摘要、各轮审稿、真值、卷、事件与提案；mtime 固定 |
+| `story_export` | 导出到 `.storycraft/exports/<workId>/`：`manifest.json`、各版正文、章纲、摘要、各轮审稿、真值、卷、事件与**该作品立项所用的提案**；mtime 固定 |
 | `story_backup` | 用 SQLite 备份 API 生成单作品文件，返回 `integrity_check` |
 
 导出是给作者在系统文件管理器里取用的，不是让模型读库；`.storycraft` 仍整体拒绝工具直接访问。
@@ -184,7 +184,7 @@ storycraft/
 - 单元测试在 `storycraft/tests/*.test.mjs`：每个文件自带断言，成功时以 `ALL CHECKS PASSED` 结束。全部运行：
 
   ```powershell
-  Get-ChildItem storycraft/tests -Filter *.test.mjs | ForEach-Object { node $_.FullName }
+  Get-ChildItem storycraft/tests -Filter *.test.mjs | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { exit 1 } }
   ```
 
 - 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑七条页面 spec——侧栏入口、页面读数、两个作者确认、指令门禁与两条预设声明。不调用模型，零额度；需要本机装有 Playwright（可用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装它的目录）。

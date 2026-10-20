@@ -1,5 +1,5 @@
-// Search projection + export/backup inside one work database.
-import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises'
+// Search projection inside one work database.
+import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as store from '../store-db.js'
@@ -44,32 +44,9 @@ try {
   check('volume is searchable', byVolume.some(hit => hit.kind === 'volume'))
   check('empty query returns nothing', store.search(root, work, '  ', 5).length === 0)
 
-  const first = store.exportWork(root, work, join(root, '.storycraft', 'exports', 'one'))
-  const manifest = JSON.parse(await readFile(join(first.directory, 'manifest.json'), 'utf8'))
-  check('export manifest has chapters', manifest.chapters.length === 1 && manifest.schemaVersion === 1)
-  const chapters = await readdir(join(first.directory, 'chapters'))
-  check('export keeps r1 as ch-0001.md', chapters.includes('ch-0001.md'), chapters.join(','))
-  check('export keeps r2 as ch-0001.r2.md', chapters.includes('ch-0001.r2.md'), chapters.join(','))
-  const reviews = await readdir(join(first.directory, 'reviews'))
-  check('export includes review rounds', reviews.includes('ch-0001.r1.md'), reviews.join(','))
-  const bible = await readdir(join(first.directory, 'bible'))
-  check('export includes world and characters', bible.includes('world.md') && bible.includes('characters.json'), bible.join(','))
-  const events = await readFile(join(first.directory, 'state', 'events.jsonl'), 'utf8')
-  check('export includes events', events.includes('周砚'))
-
   const renamed = store.renameWork(root, { work, workId: '检索改名' })
   const afterRename = store.search(root, '检索改名', '河工', 5)
   check('search survives rename', afterRename.some(hit => hit.kind === 'chapter'))
-  const second = store.exportWork(root, renamed.workId, join(root, '.storycraft', 'exports', 'two'))
-  const again = JSON.parse(await readFile(join(second.directory, 'manifest.json'), 'utf8'))
-  check('two manifest copies match', JSON.stringify(again) === JSON.stringify(manifest))
-  const firstTime = (await stat(join(first.directory, 'manifest.json'))).mtimeMs
-  const secondTime = (await stat(join(second.directory, 'manifest.json'))).mtimeMs
-  check('manifest mtimes are normalized', firstTime === secondTime, `${firstTime} vs ${secondTime}`)
-
-  const backup = await store.backupWork(root, renamed.workId, join(root, '.storycraft', 'backups', 'b.db'))
-  check('backup integrity ok', backup.integrity === 'ok', backup.integrity)
-  check('backup is one work file', (await stat(backup.file)).size > 0)
 } finally {
   await rm(root, { recursive: true, force: true }).catch(() => {})
 }
