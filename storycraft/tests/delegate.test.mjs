@@ -92,11 +92,17 @@ try {
   check('reviser resolves open items', Array.isArray(reviser.resolved) && reviser.resolved.includes('Q1'), JSON.stringify(reviser.resolved))
   check('reviser receipt stays compact', JSON.stringify(reviser).length <= 1500)
 
+
   // Preflight failures happen before a child starts.
   const existingService = fakeService([])
   await rejects('writer refuses an existing body', 'chapter-exists',
     () => delegateRole(root, { work, chapter: 1, role: 'writer' }, { service: existingService, agent, signal }))
   check('preflight did not start a child', existingService.specs.length === 0, String(existingService.specs.length))
+  // The delegated chapter can then settle through the existing summary/state actions.
+  s.writeSummary(root, { work, chapter: 1, text: '甲回到屋里。' })
+  s.foldState(root, { work, chapter: 1, entities: [{ name: '甲', facts: ['回到屋里'] }], hooks: [] })
+  check('the delegated chapter settles', s.readManifest(root, work).chapters[0].stage === 'settled')
+  check('the next step moves to the next chapter plan', s.nextStep(root, work).action === 'story_plan')
 
   s.writePlan(root, { work, chapter: 2, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   s.approveChapterPlan(root, { work, chapter: 2 })
@@ -174,5 +180,7 @@ try {
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`)
 process.exitCode = failures === 0 ? 0 : 1
+
+
 
 
