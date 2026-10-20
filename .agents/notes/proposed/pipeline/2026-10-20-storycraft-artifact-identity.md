@@ -165,7 +165,7 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
 ## 迁移与兼容
 
 - 内部 `virtualPath` 继续服务 UI、导出、日志与旧测试；不再进入模型 schema。
-- HTTP 路由与面板接口保持现状；本次只改模型可见的工具输出。
+- 现有 UI 路由与面板布局保持现状；仅新增作者只读的 `/exports/<workId>` 与备份读取路由，并把 `story_bible_write(file="plan")` 改为拒绝。
 - 现有 SQLite 数据不需要迁移；ID/revision 按当前内容哈希、章版本、event seq 生成。
 - 导出是覆盖式：`export:<workId>` 指向当前 `.storycraft/exports/<workId>`，不保留历史；`/exports/<workId>` 只读校验目录存在。
 - 备份文件带时间戳，`backup:<workId>:<timestamp>` 可定位；新增只读备份列表/下载路由，模型只拿 ID。
@@ -198,6 +198,7 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
 - 旧会话历史仍含路径，可能继续诱导；需要新会话验证；
 - `story_read` 是第 29 个动作，需同步动作数、README、测试；
 - 不引入 artifact 编辑/分支系统，复杂编辑仍由现有动作承担。
+
 
 
 
