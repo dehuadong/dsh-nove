@@ -78,7 +78,13 @@
 
 不测：文笔好坏、情节是否好看、具体小说的人名/角色词是否“正确”、某部作品该写什么。
 
-### 测试执行与对拍
+
+### 对拍工作法
+
+- 对拍的记忆不靠对话：规则记在本文件，能力对照与差距记在 `.agents/notes/proposed/pipeline/2026-10-18-storycraft-parity-matrix.md`，决定记在对应 Issue/Note，验证记在 tests/CI。
+- 每次对拍先读参考实现、CI、技能与角色资源，提取可验证的不变量；再写“参考证据 / 我们落点 / 差异原因 / 验证命令”。
+- 不复制参考代码或文案；只对齐契约和行为。不能完全照做时，说明约束、替代方案和风险，必要时先取得用户许可。
+- 新发现先更新对照表，再决定是否立工单；不要把聊天里的分析当成已完成的对拍。### 测试执行与对拍
 
 - 开发测试由代理执行，不交给用户手工跑：项目 CI 命令是 `node storycraft/scripts/ci.mjs`（21 个单元契约文件 + Playwright E2E）；没有 Playwright 时按 `e2e/run.mjs` 的提示安装或用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装目录。
 - 参考工程的 CI 是 `.github/workflows/ci.yml` 里的 `pnpm install --frozen-lockfile && pnpm build && pnpm test`；对拍时先读参考的 CI、技能、角色资源和测试，再决定我们的实现，不凭印象造替代方案。差异必须写清原因、约束和为什么不能完全照做，必要时先取得用户许可。
@@ -117,3 +123,4 @@ DeepSeek Harness 包工作区：packages文档地址 `E:\dsh-nove\deepseek-harne
 - 分诊角色到标签字符串的映射：[docs/agents/triage-labels.md](docs/agents/triage-labels.md)。
 - 领域文档：单上下文，根目录 `GLOSSARY.md`；读取规则见 [docs/agents/domain.md](docs/agents/domain.md)。
 - 长期技术提案与决定的记录范围、生命周期和格式：`.agents/notes/`；管理与检查见 [.agents/notes/README.md](.agents/notes/README.md)，本地阅读与维护指引见 [.agents/notes/AGENTS.md](.agents/notes/AGENTS.md)。
+
