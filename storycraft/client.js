@@ -223,12 +223,6 @@ window.__ModuleLoader__.load({
         }
         return `把作品 ${workId} 第 ${chapter} 章按「${label}」再修一遍：先调 story_next，有 delegate.role reviser 时用 story_delegate(mode: ${mode})；否则用 story_revise(mode: ${mode})，落盘为新版本。汇报不粘贴正文。`
       },
-      planApproved(workId, chapter) {
-        return `作品 ${workId} 第 ${chapter} 章的章纲已在面板确认，继续写正文：先调 story_next，有 delegate.role writer 时用 story_delegate；否则用 story_write。落盘后只汇报字数、版本与下一步，不要粘贴正文。`
-      },
-      outlineApproved(workId) {
-        return `作品 ${workId} 的全书计划已在面板确认，按 story_next 给出的下一步继续。`
-      },
       settings(workId, range, planApproval) {
         const policy = planApproval === 'off'
           ? '章纲确认设为不需要（planApproval 传 off），之后写正文前不必逐章确认。'
@@ -616,7 +610,7 @@ window.__ModuleLoader__.load({
 
     /** One chapter reader with plan/body tabs, review list and state. */
     /** Inline editor: shows the canned instruction, lets the author add specifics. */
-    function ChapterPanel({ face, root, workId, sessionId, chapter, unit, onNotice, onApproved, canSend, compose, hideActions }) {
+    function ChapterPanel({ face, root, workId, sessionId, chapter, unit, onNotice, onApproved, compose, hideActions }) {
       const [view, setView] = useState('body')
       const [metrics, setMetrics] = useState(undefined)
       const [reviseMode, setReviseMode] = useState('patch')
@@ -779,16 +773,7 @@ window.__ModuleLoader__.load({
                 onClick: async () => {
                   try {
                     await face.approveChapterPlan(root, sessionId, workId, chapter.number)
-                    // This node is a hand-off, not a draft: confirming should make the
-                    // conversation continue by itself instead of leaving a draft behind.
-                    if (canSend === true) {
-                      const failure = await face.send(INSTRUCTIONS.planApproved(workId, chapter.number))
-                      onNotice?.(failure === undefined
-                        ? { kind: 'ok', text: '章纲已确认，已发送「继续写正文」' }
-                        : { kind: 'error', text: `章纲已确认，但续写指令没发出去：${failure}` })
-                    } else {
-                      onNotice?.({ kind: 'ok', text: '章纲已确认；当前会话不能发送，请手动继续' })
-                    }
+                    onNotice?.({ kind: 'ok', text: '章纲已确认；请选择「写下一章」继续' })
                     onApproved?.()
                   } catch (error) {
                     onNotice?.({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
@@ -968,10 +953,7 @@ window.__ModuleLoader__.load({
                 onClick: async () => {
                   try {
                     await face.approveOutline(root, sessionId, manifest.workId)
-                    const failure = canSend === true ? await face.send(INSTRUCTIONS.outlineApproved(manifest.workId)) : undefined
-                    onNotice(failure === undefined
-                      ? { kind: 'ok', text: '全书计划已确认，已发送「按下一步继续」' }
-                      : { kind: 'error', text: `计划已确认，但续写指令没发出去：${failure}` })
+                    onNotice({ kind: 'ok', text: '全书计划已确认；请选择「写第 1 章」继续' })
                     void load()
                   } catch (error) {
                     onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
@@ -1259,7 +1241,6 @@ window.__ModuleLoader__.load({
                 chapter,
                 unit: unitOf(manifest.form),
                 onNotice,
-                canSend,
                 compose,
                 hideActions: true,
               }),
