@@ -110,7 +110,7 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
   - 超长内容按行分页（startLine/lineCount），与参考目标的 read 行为对齐。
 - 写前上下文仍用 `story_brief(work, chapter)`；正文/审稿/修订上下文用 `story_context(work, chapter, role)`；真值用 `story_bible`。
 - `story_read` 让 ID 可读、可测，不再是只写标识。
-- 读取权限不是“同作品即可”：
+- 读取权限不是“同作品即可”，`story_read`、`story_context`、`story_brief` 共用同一阶段作用域：
   - 写正文时只读当前章 `plan:<n>`、`bible:*`、`outline`，不读其他章正文；
   - 审稿/修订只读当前章 `chapter:<n>` 与 `review:<n>:...`；
   - 摘要/定稿只读当前章与 `state`/`summary:<n>`；
@@ -125,7 +125,7 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
 | 讨论/提案 | 作者想法、形态、目标读者、字数范围 | 作者对话 + `story_propose` | 任何作品库内容 |
 | 立项 | 已确认方案、标题、形态、字数范围 | `story_propose` / `story_init` | 其他作品、旧正文 |
 | 全书计划 | 作者意图、形态、字数、已有设定 | `story_brief` / `story_bible` | 正文、文件路径 |
-| 章纲 | 全书计划、卷位置、相关人物、前情摘要、本章目标 | `story_next` + `story_brief` | 旧章全文、数据库路径 |
+| 章纲 | 全书计划、卷位置、相关人物、前情摘要、本章目标 | `story_next` + `story_brief` + `story_bible`/`story_read(outline)` | 旧章全文、数据库路径 |
 | 写正文 | 本章章纲、人物卡、未解伏笔、上一章结尾、文风、字数范围 | `story_brief` 分段；delegate 时由宿主装配 | 其他章正文、作品库路径 |
 | 审稿 | 当前章正文、章纲、人物卡、审稿标准 | `story_context` + `story_read` | 其他作品、内部路径 |
 | 修订 | 当前正文版本、未处理审稿条目、mode | `story_read` + `story_review` | 全库、文件路径 |
@@ -159,7 +159,7 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
 
 ### 5. 删除提示词补丁
 
-- 删除 persona / `storycraft-studio-orchestration` / `story_init` 描述中的“不要 read/grep artifact.path”；
+- 删除 persona / `storycraft-studio-orchestration` / `story_init` 描述中的“不要 read/grep artifact.path”；\n- 同时删除 `story_init`、`story_export`、`story_backup`、`story_delete` 描述里的 `.storycraft/...` 文件路径暗示，改为 artifact ID/作者路由；\n- 技能中“虚拟路径/works/”说明改为“artifact ID”，不再教模型理解路径；
 - 保留 scope guard 作为兜底；
 - 工具 schema 不再提供 path，模型就没有可拼的路径。
 
@@ -199,6 +199,7 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
 - 旧会话历史仍含路径，可能继续诱导；需要新会话验证；
 - `story_read` 是第 29 个动作，需同步动作数、README、测试；
 - 不引入 artifact 编辑/分支系统，复杂编辑仍由现有动作承担。
+
 
 
 
