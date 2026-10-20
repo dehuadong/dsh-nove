@@ -8,6 +8,8 @@ updated: 2026-10-20
 # Agent Note：故事工坊：宿主侧章节生产委派（主上下文不搬运正文）
 
 > 2026-10-20 部分替代：`proposed/pipeline/2026-10-20-storycraft-production-parity.md` 把全局角色词/对白词硬判定与“自造人名阻断”改为 warning-only；本 Note 的一致性硬判定段落仅保留历史依据，验收归 #21。
+>
+> 2026-10-20 传输段部分替代：`proposed/pipeline/2026-10-20-storycraft-role-submission.md` 把“子代理最终文本作为角色结果”改为 `story_submit` + SubmissionStore；DSH subagent、宿主侧编排与 `subagent-cannot-land` 保留。
 
 ## 问题
 
@@ -232,4 +234,6 @@ story_delegate(
 - 主上下文下降不等于总 token 下降：子代理自身仍消耗上下文；本设计只消除主会话的重复搬运；
 - 宿主侧启动子代理涉及父 Agent 身份、权限与子会话生命周期，需要在实现阶段用真实运行时验证；
 - 子代理会话仍会出现在会话目录，作者可能看到；不影响作品库隔离。
+
+
 
