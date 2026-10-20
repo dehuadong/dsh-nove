@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { delegateRole } from '../delegate.js'
+import { checkWordRange } from '../landing.js'
 import * as s from '../storage.js'
 import { writeBible } from '../bible.js'
 
@@ -45,6 +46,34 @@ const completed = value => ({ value: { ...value, stopReason: 'completed' } })
 const signal = new AbortController().signal
 const agent = { id: 'parent' }
 
+const range = { min: 10, max: 20 }
+try {
+  checkWordRange({ role: 'writer', body: '字'.repeat(5), chapter: 1, wordRange: range })
+  check('writer short range is refused', false, 'no error')
+} catch (error) {
+  check('writer short range is refused', error.code === 'delegation-word-range', String(error.code))
+}
+try {
+  checkWordRange({ role: 'writer', body: '字'.repeat(25), chapter: 1, wordRange: range })
+  check('writer over max is refused', false, 'no error')
+} catch (error) {
+  check('writer over max is refused', error.code === 'delegation-word-range', String(error.code))
+}
+try {
+  checkWordRange({ role: 'reviser', mode: 'deslop', body: '字'.repeat(25), chapter: 1, wordRange: range })
+  check('deslop over max asks the author', false, 'no error')
+} catch (error) {
+  check('deslop over max asks the author', error.code === 'delegation-word-range' && error.message.includes('deslop 不自动改 mode'), String(error.message))
+}
+try {
+  checkWordRange({ role: 'reviser', body: '字'.repeat(25), chapter: 1, wordRange: range })
+  check('reviser over max is refused', false, 'no error')
+} catch (error) {
+  check('reviser over max is refused', error.code === 'delegation-word-range', String(error.code))
+}
+const shortRevision = checkWordRange({ role: 'reviser', body: '字'.repeat(5), chapter: 1, wordRange: range })
+check('reviser below min only warns', shortRevision.warnings.length === 1 && shortRevision.warnings[0].includes('低于'), JSON.stringify(shortRevision))
+check('in-range writer passes', checkWordRange({ role: 'writer', body: '字'.repeat(15), chapter: 1, wordRange: range }).warnings.length === 0)
 const root = await mkdtemp(join(tmpdir(), 'storycraft-delegate-'))
 try {
   const { workId: work } = s.initWork(root, { title: '委派测试' })
@@ -119,6 +148,53 @@ try {
     () => delegateRole(root, { work, chapter: 2, role: 'writer' }, { service: brokenService, agent, signal }))
   check('failed writer did not create a body', s.readManifest(root, work).chapters.find(c => c.number === 2).currentRevision === 0)
 
+  // A word-ranged work: writer gate, reviser max gate and mode retry.
+  const rangeWork = s.initWork(root, { title: '范围测试', wordRange: { min: 50, max: 80 } })
+  s.writeOutline(root, { work: rangeWork.workId, mainline: '一条主线' })
+  s.approveOutline(root, { work: rangeWork.workId })
+  s.writePlan(root, { work: rangeWork.workId, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+  s.approveChapterPlan(root, { work: rangeWork.workId, chapter: 1 })
+  await writeBible(root, rangeWork.workId, 'characters', JSON.stringify([
+    { name: '甲', role: '主视角', want: 'w', fear: 'f', limit: 'l', voice: 'v' },
+  ]))
+  const shortWriterService = fakeService([completed({
+    output: [{ type: 'text', text: '<<<TITLE 短稿 TITLE>>>\n<<<CHAPTER 太短。CHAPTER>>>' }],
+  })])
+  await rejects('writer below the word range is refused', 'delegation-word-range',
+    () => delegateRole(root, { work: rangeWork.workId, chapter: 1, role: 'writer' }, { service: shortWriterService, agent, signal }))
+  check('the refused short writer did not land', s.readManifest(root, rangeWork.workId).chapters.find(c => c.number === 1).currentRevision === 0)
+
+  const baseBody = '甲在雨里走。'.repeat(10)
+  const rangedWriterService = fakeService([completed({
+    output: [{ type: 'text', text: `<<<TITLE 雨里 TITLE>>>\n<<<CHAPTER ${baseBody} CHAPTER>>>` }],
+  })])
+  const rangedWrite = await delegateRole(root, { work: rangeWork.workId, chapter: 1, role: 'writer' }, { service: rangedWriterService, agent, signal })
+  check('writer in range lands', rangedWrite.ok === true && rangedWrite.words >= 50 && rangedWrite.words <= 80, JSON.stringify(rangedWrite))
+  s.writeReview(root, { work: rangeWork.workId, chapter: 1, problems: [{ location: '开头', problem: '慢' }] })
+
+  const overMaxService = fakeService([completed({
+    output: [{ type: 'text', text: `<<<CHAPTER ${'字'.repeat(100)} CHAPTER>>>` }],
+  })])
+  await rejects('reviser over max is refused', 'delegation-word-range',
+    () => delegateRole(root, { work: rangeWork.workId, chapter: 1, role: 'reviser', mode: 'rewrite' }, { service: overMaxService, agent, signal }))
+
+  const patchService = fakeService([completed({
+    output: [{ type: 'text', text: `<<<CHAPTER ${'字'.repeat(70)} CHAPTER>>>` }],
+  })])
+  await rejects('a patch over 20% is refused', 'revise-mode-violation',
+    () => delegateRole(root, { work: rangeWork.workId, chapter: 1, role: 'reviser', mode: 'patch' }, { service: patchService, agent, signal }))
+
+  const polishService = fakeService([completed({
+    output: [{ type: 'text', text: `<<<CHAPTER ${'字'.repeat(75)} CHAPTER>>>` }],
+  })])
+  await rejects('a polish over 40% is refused', 'revise-mode-violation',
+    () => delegateRole(root, { work: rangeWork.workId, chapter: 1, role: 'reviser', mode: 'polish' }, { service: polishService, agent, signal }))
+
+  const rewriteService = fakeService([completed({
+    output: [{ type: 'text', text: `<<<CHAPTER ${'字'.repeat(75)} CHAPTER>>>` }],
+  })])
+  const rewritten = await delegateRole(root, { work: rangeWork.workId, chapter: 1, role: 'reviser', mode: 'rewrite' }, { service: rewriteService, agent, signal })
+  check('the editor can retry the reviser with rewrite', rewritten.ok === true && rewritten.revision === 2, JSON.stringify(rewritten))
   // A non-completed child maps to delegation-failed.
   const failedService = fakeService([{ value: { output: [], stopReason: 'error', diagnostic: 'model down' } }])
   await rejects('non-completed child is refused', 'delegation-failed',
@@ -182,8 +258,3 @@ try {
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`)
 process.exitCode = failures === 0 ? 0 : 1
-
-
-
-
-

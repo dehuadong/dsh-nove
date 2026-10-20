@@ -2,7 +2,7 @@
 title: 故事工坊：单一工作模式与子代理强制
 status: implemented
 created: 2026-10-19
-updated: 2026-10-19
+updated: 2026-10-20
 verification: 交付于 6bb6a32：单一预设 + 官方 subagent + delegationDepth 守卫；presets/tools 断言与 preset spec 覆盖。
 ---
 
@@ -28,6 +28,7 @@ DSH 0.2.1 移除了 `dsh-tool-subagent` 的 `persona` 与 `toolFilter`：子代�
 - 委派：一条 `dsh-tool-subagent`，`provider: spawn`、`toolName: subagent`、`maxDepth: 1`，不写 `agentPreset`；
 - 故事工坊行：人设、`dsh-storycraft/skills`（`mode: all`）、`dsh-storycraft/tools`；
 - 不启用 `modelSelectionSettings`。
+- 2026-10-20 后续：写手/审稿/修订默认改由宿主 `story_delegate` 启动官方 `subagents` 子代理，仍保留官方服务、深度限制与守卫；这是对“派发只由模型调 `subagent`”的部分替代，见 `proposed/pipeline/2026-10-20-storycraft-host-delegation.md`。
 
 ### 子代理加入父方组合
 

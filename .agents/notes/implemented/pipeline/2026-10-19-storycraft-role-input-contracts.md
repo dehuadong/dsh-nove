@@ -2,8 +2,8 @@
 title: 故事工坊：角色输入契约（单一模式版）
 status: implemented
 created: 2026-10-19
-updated: 2026-10-19
-verification: 实跑 story_context 四角色与第 7 章 story_write(rewrite)；14 套断言与 5 条页面 spec 全过
+updated: 2026-10-20
+verification: 实跑 story_context 四角色与第 7 章 story_write(rewrite)；14 套断言与 5 条页面 spec 全过；2026-10-20 角色词/对话片段回归通过
 ---
 
 # Agent Note：故事工坊：角色输入契约（单一模式版）
@@ -40,16 +40,16 @@ verification: 实跑 story_context 四角色与第 7 章 story_write(rewrite)；
 
 ### 校验在落盘处
 
-子代理不能写，写发生在主编：
+子代理不能写，写发生在主编或宿主动作：`story_delegate` 是例外，由宿主侧动作落盘，主编辑只收紧凑回执；手动路径仍按本节。
 
 - `story_write`：落盘前比对白名单。未知说话人 → `consistency-violation`；地名、尺寸/数量 → `warnings`，仍落盘；
 - `story_revise`：对新版本正文做同样检查；
 - 白名单由 `facts.js` 只从**已落盘资料**派生：人物卡、意图、计划、卷图、章纲，以及既往章节正文与摘要里的说话人；本章正文与作者指令不参与；
-- 误报防线：说话人需跟说话标点，剔除代词、虚词与角色名词；地名排除含虚词/量词/数字的片段；尺寸按「数字 + 单位」归一后比对。
+- 误报防线：说话人需跟说话标点，剔除代词、虚词与角色名词；地名排除含虚词/量词/数字的片段；尺寸按「数字 + 单位」归一后比对。角色词（`住户`、`师傅`、`师父`、`监理` 等）与对话片段停用词（`当面`、`开口`、`低声` 等）在 `extractSpeakerNames` 中跳过。
 
 ### 入口校验的属主
 
-前置校验只在 `story_context`：缺章 → `chapter-not-found`，缺章纲 → `plan-not-found`，缺人物卡 → `bible-missing`，审稿/修订无正文 → `chapter-not-written`，非规划角色缺章号 → `chapter-required`，修订无条目 → `review-required`。`story_write`/`story_revise` 不重复前置校验。
+前置校验只在 `story_context`：缺章 → `chapter-not-found`，缺章纲 → `plan-not-found`，缺人物卡 → `bible-missing`，审稿/修订无正文 → `chapter-not-written`，非规划角色缺章号 → `chapter-required`，修订无条目 → `review-required`。`story_write`/`story_revise` 不重复前置校验。`story_delegate` 是例外：输入与预检都在宿主侧完成，仍复用同一组阶段错误码；手动派发仍沿用 `story_context` 契约。部分替代见 `proposed/pipeline/2026-10-20-storycraft-host-delegation.md`。
 
 ### 派发模板
 
@@ -74,4 +74,4 @@ verification: 实跑 story_context 四角色与第 7 章 story_write(rewrite)；
 - 实跑：`story_context` 对 writer（6 段）/ reviewer（7 段）/ reviser（7 段）/ planner（含计划与人物卡）各返回契约内的段，带 `trace.sections` 与白名单 `counts`；
 - 入口：实跑 `chapter-not-found`；动作测试覆盖 `plan-not-found`、`bible-missing`、`chapter-not-written`、`chapter-required`、`review-required`；
 - 落盘：第 7 章 `story_write(rewrite)` 实跑通过、名单为空；离线覆盖自造说话人拒收、地名/尺寸告警、修订稿拒收；
-- 回归：14 套断言与 5 条页面 spec 全过。
+- 回归：14 套断言与 5 条页面 spec 全过；2026-10-20 角色词/对话片段回归通过。

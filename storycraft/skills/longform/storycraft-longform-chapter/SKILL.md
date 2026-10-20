@@ -44,7 +44,7 @@ whenToUse: 用户要求写长篇的下一章、续写、改章节，或要求检
    - `polish` 顺语气与节奏，≤ 40%；
    - `rewrite` 重写，不限幅度；
    - `deslop` 专治腔调词，必须减少命中（原文零命中时可用）。
-   模式与幅度不符会被拒绝，按错误提示换模式。
+   模式与幅度不符会被拒绝：`revise-mode-violation` 从失败 mode 逐级重试（patch→polish→rewrite、polish→rewrite；deslop 不自动换）；`delegation-word-range` 时 writer 先判断章纲容量（够则带差额重试，不够则改章纲并请作者确认），reviser 超 max 时 patch/polish/rewrite 只用 rewrite 重试一次、deslop 交给作者决定，低于 min 只警告；仍失败才手动。
 7. **定稿**：`story_next` 说可以定稿、且阶段是「已修订」时，用 `story_state` 写本章的人物事实与伏笔变化（只写变化，不重抄设定）。
 8. **摘要**：定稿后用 `story_summarize` 给本章写摘要（上限 400 字，只写事实与状态变化）。下一章的滚动窗口靠它。
 

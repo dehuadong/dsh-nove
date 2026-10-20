@@ -110,7 +110,7 @@ summaries         章节摘要（上限 400 字）
 | `story_revise` | 生成新版本正文并把条目改为已处理 | 没有审稿清单；未指定条目；条目不存在；正文与当前版本相同；模式与改动幅度不符 |
 | `story_state` | 追加人物事实与伏笔事件，返回新增/已用/已解/未解计数 | 作品或章不存在；伏笔状态非法；「已用」指向未埋的伏笔；未修订完成 |
 | `story_status` | 只读汇总进度、阶段、版本、未处理问题、未解伏笔 | 作品不存在 |
-| `story_delegate` | 宿主侧跑一个角色（writer/reviewer/reviser）：预检、装配上下文、校验、落库，返回紧凑回执 | 预检/阶段错误按原码返回；服务缺失 `delegation-unavailable` |
+| `story_delegate` | 宿主侧跑一个角色（writer/reviewer/reviser）：预检、装配上下文、校验、落库，返回紧凑回执 | 预检/阶段错误按原码返回；服务缺失 `delegation-unavailable`；writer/reviser 字数超界 `delegation-word-range` |
 | `story_next` | 只读：下一步动作、章号、原因、缺什么；可委派时带 `delegate.role` | 作品不存在 |
 | `story_export` / `story_backup` | 见「作品操作与导出」 | 作品不存在 |
 

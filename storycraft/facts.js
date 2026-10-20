@@ -75,12 +75,16 @@ const INNER_STOP = new Set([
   '我', '你', '他', '她', '它', '么', '呢', '吧', '啊', '又', '才', '正', '把', '被',
 ])
 
+/** Common dialogue adverbs that are not part of a name. */
+const DIALOGUE_STOPS = ['当面', '开口', '低声', '轻声', '沉声', '半晌', '顿了顿']
+
 /** Nouns that describe a role, not a named person. */
 export const ROLE_NOUNS = new Set([
   '老人', '众人', '有人', '那人', '这人', '汉子', '妇人', '孩子', '小孩', '士兵', '亲兵',
   '流民', '民夫', '工匠', '书生', '官差', '差役', '掌柜', '伙计', '乡绅', '队正', '里正',
   '书吏', '书办', '驿卒', '差官', '军士', '队副', '里长', '保长', '甲长', '乡亲', '兵丁',
   '民壮', '衙役', '押司', '官军', '守军', '监工', '工头',
+  '住户', '保安', '邻居', '师傅', '师父', '监理', '值班', '路人', '过路人', '门里的人',
 ])
 
 /**
@@ -97,6 +101,7 @@ export function extractSpeakerNames(text, known = []) {
       const full = match[1]
       if (known.some(name => name !== '' && full.includes(name))) continue
       if ([...ROLE_NOUNS].some(noun => full.includes(noun))) continue
+      if (DIALOGUE_STOPS.some(stop => full.includes(stop))) continue
       const window = full.slice(-3)
       if (window.length < 2) continue
       if (LEAD_STOP.has(window[0])) continue

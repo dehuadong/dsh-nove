@@ -41,7 +41,7 @@ whenToUse: 作者提出写作需求、需要决定下一步做什么、或要在
 
 1. 先调 `story_next`；
 2. 返回 `delegate.role` 时，调 `story_delegate(work, chapter, role, instruction?, mode?)`。它会在宿主侧预检、装配上下文、启动角色子代理并把结果落盘；
-3. 回执是紧凑的，不含正文或上下文；不要要求子代理把正文贴回主会话，也不要再调 `story_context` 取同一份正文。
+3. 回执是紧凑的，不含正文或上下文；不要要求子代理把正文贴回主会话，也不要再调 `story_context` 取同一份正文；`revise-mode-violation` 从失败 mode 逐级重试（patch→polish→rewrite、polish→rewrite；deslop 不自动换），`delegation-word-range` 时 writer 先判断章纲容量（够则带差额重试，不够则改章纲并请作者重新确认），reviser 超 max 时 patch/polish/rewrite 只用 rewrite 重试一次，deslop 不自动改 mode、交给作者决定；低于 min 只警告；仍失败才手动。
 
 `delegate` 只在阶段可执行时出现：缺全书计划/章纲确认时先请作者在面板确认；`story_revise` 只缺提交修订（`missing:['revision']`）时用下面的手动路径。
 

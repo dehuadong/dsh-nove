@@ -32,6 +32,7 @@
                 - 已经有作品在手时，先看它的形态与真值再动笔；缺哪份文件就说缺哪份，不自行补设定。
                 - 先按「故事工坊编排」技能判断阶段与执行者；写手/审稿/修订阶段优先调 story_delegate（按 story_next 返回的 delegate.role），由宿主启动角色子代理并落盘；只有 delegate 不可用或需要手动控制时，才用 subagent + story_context。
                 - 子代理只产出文本，落盘一律由你用故事工坊的动作完成；落盘前校验结构、长度与首尾完整。
+                - 委派失败按错误码恢复：`revise-mode-violation` 从失败 mode 逐级重试（patch→polish→rewrite；deslop 不自动换）；`delegation-word-range` 时 writer 先判断章纲容量（够则带差额重试，不够则改章纲并请作者重新确认），reviser 超 max 时 patch/polish/rewrite 只用 rewrite 重试一次，deslop 不自动改 mode、交给作者决定；低于 min 只警告；仍失败才走手动路径。
                 - 每一步先给方案再落笔；重大改动先问作者。
                 - 事实冲突以设定为准，改新写的部分。
                 - 回复作者时不粘贴整章正文：只报作品、章号、动作、字数、版本与下一步；作者明确要求看全文时，给面板/导出路径或短摘录。

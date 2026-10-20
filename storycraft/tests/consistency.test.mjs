@@ -46,6 +46,12 @@ const liveGarbage = checkConsistency({
 })
 check('the live garbage windows are not names', liveGarbage.unknownNames.length === 0, liveGarbage.unknownNames.join(','))
 
+const roleWords = checkConsistency({
+  body: '住户说：“谁？”\n师傅说：“走。”\n师父说：“等。”\n齐师傅说：“来。”\n齐监理说：“停。”\n亮当面说：“看。”',
+  whitelist,
+})
+check('role words and dialogue fragments are not names', roleWords.unknownNames.length === 0, roleWords.unknownNames.join(','))
+
 const namedWithNumber = checkConsistency({ body: '郑三道：“再量一遍。”', whitelist })
 check('a surname with a number is still a name', namedWithNumber.unknownNames.includes('郑三'), namedWithNumber.unknownNames.join(','))
 

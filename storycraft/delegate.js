@@ -12,7 +12,7 @@ import {
   StoryError, chapterNumber, latestReview, readManifest, readPlan, reviseChapter, stageOf, writeChapter, writeReview,
 } from './storage.js'
 import { loadRoleInput } from './role-input.js'
-import { checkDraft } from './landing.js'
+import { checkDraft, checkWordRange } from './landing.js'
 
 /** One child run's budget; the timer is cleared before landing. */
 const DELEGATE_TIMEOUT_MS = 600000
@@ -135,7 +135,12 @@ function promptFor({ input, manifest, context }) {
   } else if (input.role === 'reviser') {
     lines.push('只输出修订后的整章正文，使用首尾标记：')
     lines.push('<<<CHAPTER 修订后的整章正文 CHAPTER>>>')
-    lines.push(`修订模式：${input.mode}。只改本次任务点名的条目，未点名段落保持原样；不要调用任何动作。`)
+    const modeRule = input.mode === 'rewrite'
+      ? '可以重组段落与场景，但必须保留章纲事实、人物动机与章末落点；'
+      : input.mode === 'deslop'
+        ? '只处理腔调词与套话，不改情节与段落结构；'
+        : '只改本次任务点名的条目，未点名段落保持原样；'
+    lines.push(`修订模式：${input.mode}。${modeRule}不要调用任何动作。`)
   } else {
     lines.push('只输出一个 JSON 对象，不要写解释：')
     lines.push('{"items":[{"where":"正文里的具体位置","problem":"问题","impact":"读者影响","severity":"blocker|major|minor","fix":"怎么修","mode":"patch|polish|rewrite|deslop"}]}')
@@ -331,6 +336,7 @@ export async function delegateRole(root, input, host) {
     if (role === 'writer') {
       const { title, body } = bodyOf(result, { requireTitle: true })
       const { warnings } = await checkDraft(root, { work, chapter, body })
+      const range = checkWordRange({ role: 'writer', body, chapter, wordRange: loaded.manifest.wordRange })
       assertActive(signal)
       const written = writeChapter(root, {
         work, chapter, title, body,
@@ -344,7 +350,7 @@ export async function delegateRole(root, input, host) {
         stage: landedStage(root, work, chapter),
         revision: written.revision,
         words: written.words,
-        ...(warnings.length === 0 ? {} : { warnings: receiptWarnings(warnings) }),
+        ...(warnings.length + range.warnings.length === 0 ? {} : { warnings: receiptWarnings([...warnings, ...range.warnings]) }),
       })
     }
 
@@ -375,6 +381,7 @@ export async function delegateRole(root, input, host) {
 
     const { body } = bodyOf(result, { requireTitle: false })
     const { warnings } = await checkDraft(root, { work, chapter, body })
+    const range = checkWordRange({ role: 'reviser', mode, body, chapter, wordRange: loaded.manifest.wordRange })
     assertActive(signal)
     const open = latestReview(root, work, chapter).items.filter(item => !item.done).map(item => item.id)
     const revised = reviseChapter(root, {
@@ -389,7 +396,7 @@ export async function delegateRole(root, input, host) {
       revision: revised.revision,
       words: revised.words,
       resolved: revised.resolved,
-      ...(warnings.length === 0 ? {} : { warnings: receiptWarnings(warnings) }),
+      ...(warnings.length + range.warnings.length === 0 ? {} : { warnings: receiptWarnings([...warnings, ...range.warnings]) }),
     })
   } finally {
     clearTimeout(timer)
