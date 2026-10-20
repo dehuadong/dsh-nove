@@ -171,6 +171,11 @@ try {
   const approved = await s.approveOutline(root, { work })
   check('the host records the plan approval', typeof approved.outline?.approvedAt === 'string', JSON.stringify(approved))
 
+  const afterOutline = await byName.get('story_next').execute({ work }, exec)
+  check('an approved outline no longer looks missing',
+    afterOutline.ok === true && afterOutline.action === 'story_plan'
+      && !afterOutline.missing.includes('outline'), JSON.stringify(afterOutline))
+
   const plan = await byName.get('story_plan').execute({
     work, chapter: 1, perspective: '林澈', goal: '拿回合同', obstacle: '房东', cost: '人情', turn: '合同是假的',
   }, exec)

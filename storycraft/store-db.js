@@ -556,7 +556,7 @@ export function nextStep(root, work) {
         return { chapter, stage: 'planned', action: 'story_outline', reason, missing: ['outline'] }
       }
       if (last === undefined) {
-        return { chapter, stage: 'planned', action: 'story_plan', reason: '还没有任何章节：先写第 1 章章纲', missing: ['outline'] }
+        return { chapter, stage: 'planned', action: 'story_plan', reason: '还没有任何章节：先写第 1 章章纲', missing: [] }
       }
       const stage = stageOf(last)
       const hasBody = last.currentRevision > 0
@@ -584,7 +584,7 @@ export function nextStep(root, work) {
             reason: '全书计划等作者确认：先在面板点「确认全书计划」，再写下一章章纲', missing: ['outline'],
           }
         }
-        return { chapter: next, stage: 'planned', action: 'story_plan', reason: `第 ${last.number} 章已定稿：写第 ${next} 章章纲`, missing: ['outline'] }
+        return { chapter: next, stage: 'planned', action: 'story_plan', reason: `第 ${last.number} 章已定稿：写第 ${next} 章章纲`, missing: [] }
       }
       if (!hasPlan(last.number)) {
         if (outline?.approvedAt === undefined) {
@@ -593,7 +593,7 @@ export function nextStep(root, work) {
             reason: '全书计划等作者确认：先在面板点「确认全书计划」，再写章纲', missing: ['outline'],
           }
         }
-        return { chapter: last.number, stage, action: 'story_plan', reason: `第 ${last.number} 章缺章纲`, missing: ['outline'] }
+        return { chapter: last.number, stage, action: 'story_plan', reason: `第 ${last.number} 章缺章纲`, missing: [] }
       }
       if (!hasBody) {
         if (planApprovalPolicy(manifest) === 'required' && last.planApprovedAt === undefined) {
