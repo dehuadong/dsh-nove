@@ -166,7 +166,7 @@ story_propose / story_init
 - 清稿不是自动通过：作者仍可要求再审或改写；
 - 阶段机必须同步：清稿审稿把章留在 `reviewed` 并记录“零问题”标志；`foldState`/`story_state` 接受 `reviewed + 零问题`，不能继续要求 `revised`；`story_next` 直接进入摘要/定稿；
 - 不把清稿伪装成一次 `revise`，也不虚增版本。
-- 现有 `empty-review` 只用于“审稿没有覆盖当前版本”等真实错误，不再用于合法清稿。
+- 清稿不再返回 `empty-review`；“审稿未覆盖当前版本”的既有错误是 `review-required`，不是 `empty-review`；`empty-review` 只保留给 reviewer 输出格式/空内容的真实错误。
 ### 3. 节点修复
 
 - `story_init`/artifact schema 明确虚拟路径；
@@ -181,6 +181,7 @@ story_propose / story_init
 - `storycraft-studio-orchestration`：删掉“自造人名会被拒收”“主编代写”文案；改为 warning + reviewer 判断；委派失败只在服务不可用/超时/输出不合约时重试。
 - `storycraft-review`：未登记人名作为审稿观察，不直接退稿；清稿审稿允许无问题。
 - `storycraft-write-craft`：不写“名字必须命中全局词表”；只提醒使用人物卡。
+- `storycraft-longform-chapter`：清稿审稿后不能强制“审稿→修订→定稿”；允许 `reviewed + 零问题` 直接摘要/定稿，阶段机与技能同步。
 - 错误映射：`delegation-unavailable`（无服务）、`delegation-failed`（启动/超时/非 completed）、`delegation-output-invalid`（标记/格式不合契约）、`delegation-word-range`（字数门）。审稿失败不新增“正文有罪”错误；按 delegate 失败返回，保留 `story_next` 的 review 步骤。
 ### 4. 文档材料
 
@@ -211,4 +212,3 @@ story_propose / story_init
 - 不做 StateValidator，状态矛盾仍可能漏；单列后续工作。
 - 参考目标还有 forecast/同人/番外等能力，本项不覆盖，需在能力矩阵标非范围。
 - 真实单章测量仍需新会话与干净作品；旧会话历史会污染测量。
-
