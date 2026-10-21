@@ -73,6 +73,7 @@ summaries         章节摘要（上限 400 字；revision 绑定正文版本）
 - `story_bible_import`：把旧文件作品的世界观收编进真值，并列出仍需作者补的项（不替作者编人物档案）；不导入大纲，大纲只走 `story_outline` + 作者确认。
 - `story_summarize`：手动写章节摘要（超 400 字截断并报告；写入时绑定当前正文版本）；正常链路先由 `story_next` 给出 `summarizer` 委派，子代理通过 `story_submit` 提交摘要，主编不读整章。摘要过期时 `story_next` 会重新要求摘要，`story_state` 返回 `summary-stale`。
 - `story_brief`：装配写某一章前的上下文——意图、本章章纲、涉及人物、未解伏笔、上一章结尾、文风、字数口径；默认 8 KB，超预算按优先级裁剪并报告裁掉的段；同一输入两次结果逐字节一致。
+- `story_context` 的检索段：作品内正文 ≥3 章时，按本章任务从作品库 FTS5 召回 current 摘要、未解/已用伏笔与卷摘要；最多 5 条 / 1200 字，`recent` 已发的摘要去重；过期摘要、已解伏笔、reopen 前事件与目标章之后的材料不进入。`trace.retrieval` 记录 `enabled / query / candidateCount / hits[{id, kind, sourceIds, score, sent}]` 与可选 `error`，整段被预算裁掉时 `sent` 全为 false。
 
 ## 作品操作与导出
 
@@ -113,6 +114,7 @@ summaries         章节摘要（上限 400 字；revision 绑定正文版本）
 | `story_delegate` | 宿主侧跑一个角色（writer/reviewer/reviser/summarizer）：预检、装配上下文、启动子代理、消费 `story_submit`、落库，返回紧凑回执 | 预检/阶段错误按原码返回；服务缺失 `delegation-unavailable`；无合格提交 `delegation-no-submission`；当前版本已有摘要 `summary-exists` |
 | `story_submit` | 仅子代理调用：提交结构化角色结果，宿主校验字数/mode，失败可重提 | 父代理/非委派 `submit-parent-denied`；超 3 次 `submit-attempts-exhausted` |
 | `story_read` | 只读：按 `artifactId`/`revisionId` 读取当前章可读内容；越界返回 `artifact-not-readable` | 作品不存在；旧章/旧审稿版本 |
+| `story_context` | 只读按角色装配上下文；正文 ≥3 章时带 FTS5 检索段与 `trace.retrieval` | 缺章 `chapter-not-found`；缺章纲 `plan-not-found`；缺人物卡 `bible-missing` |
 | `story_next` | 只读：下一步动作、章号、原因、缺什么；可委派时带 `delegate.role` | 作品不存在 |
 | `story_export` / `story_backup` | 见「作品操作与导出」 | 作品不存在 |
 
@@ -171,7 +173,8 @@ storycraft/
   storage.js                   # 稳定门面：动作与路由从这里取领域函数与存储函数
   domain.js                    # 共享词汇：错误码、id、阶段、审稿文本、事件折叠
   facts.js                     # 白名单唯一派生入口：只读已落库资料，正文与任务不参与
-  context.js                   # 角色上下文拼装：七项分段、保护级别、预算裁剪、轨迹、白名单摘要
+  context.js                   # 角色上下文拼装：按角色分段、保护级别、预算裁剪、检索段、轨迹、白名单摘要
+  retrieval.js                 # 检索查询与整条选择（纯函数，无 I/O）
   role-input.js                # story_context 与 story_delegate 共用的角色输入读取
   landing.js                   # 落库前白名单校验（checkDraft），consistency.js 保持纯比较
   delegate.js                  # 宿主侧角色委派：预检、子代理、输出校验、落库、回执

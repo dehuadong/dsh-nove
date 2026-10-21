@@ -51,6 +51,8 @@ try {
   check('whitelist summary lists sample names', out.whitelist.counts.names === 2 && out.whitelist.sample.names.join(',') === '周观,韩松', JSON.stringify(out.whitelist))
   check('whitelist summary counts numbers', typeof out.whitelist.counts.numbers === 'number', JSON.stringify(out.whitelist))
   check('recent uses summaries', out.text.includes('第一章摘要'), out.text.slice(0, 300))
+  check('retrieval is disabled below three written chapters',
+    out.trace.retrieval?.enabled === false && out.trace.retrieval.hits.length === 0, JSON.stringify(out.trace.retrieval))
   check('trace sources are virtual work paths', out.trace.sections.every(item => item.source === undefined || !item.source.startsWith('outline/')), JSON.stringify(out.trace.sections.map(item => item.source)))
 
   // A tight budget drops compressible sections before protected ones.

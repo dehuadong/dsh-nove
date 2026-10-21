@@ -257,6 +257,9 @@ try {
     && ['authority', 'task', 'constraints', 'state', 'style'].every(name => context.sections.some(item => item.name === name)),
   JSON.stringify(context).slice(0, 300))
   check('story_context returns a trace', context.ok === true && context.trace.budget > 0, JSON.stringify(context.trace))
+  check('story_context always carries the retrieval trace',
+    context.ok === true && context.trace.retrieval?.enabled === false && Array.isArray(context.trace.retrieval.hits),
+    JSON.stringify(context.trace.retrieval))
   check('whitelist leaves the action as a summary', context.ok === true
     && typeof context.whitelist.counts.names === 'number' && Array.isArray(context.whitelist.sample.names), JSON.stringify(context.whitelist))
   check('the whitelist sample stays bounded',
@@ -377,6 +380,10 @@ try {
   check('story_status chapter schema declares summary fields',
     ['hasSummary', 'summaryRevision', 'summaryStale'].every(key => statusChapterProps.includes(key)),
     statusChapterProps.join(','))
+  const traceRetrievalProps = byName.get('story_context').output.schema.properties.trace.properties.retrieval.properties
+  check('story_context trace declares retrieval hits',
+    ['enabled', 'query', 'candidateCount', 'hits'].every(key => Object.hasOwn(traceRetrievalProps, key))
+    && traceRetrievalProps.hits.items.required.includes('sourceIds'), Object.keys(traceRetrievalProps).join(','))
 
   // Delegated subagents share this composition and see the same tools; the
   // runtime keeps them from landing anything.

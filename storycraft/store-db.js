@@ -1841,19 +1841,131 @@ function syncSearchDoc(db, docId, kind, source, chapter, body) {
  * @returns {Array<object>} ranked documents.
  */
 export function search(root, work, query, limit = 5) {
-  const tokens = searchTokens(query).split(' ').filter(token => token !== '')
-  if (tokens.length === 0) return []
+  const match = matchOf(query)
+  if (match === '') return []
   const db = openWork(root, work)
   try {
-    const match = tokens.map(token => `"${token.replaceAll('"', '""')}"`).join(' OR ')
-    return db.prepare(`SELECT d.doc_id AS id, d.kind, d.source, d.chapter, d.body, bm25(search_fts) AS score
-      FROM search_fts JOIN search_docs d ON d.rowid = search_fts.rowid
-      WHERE search_fts MATCH ? ORDER BY score, d.chapter DESC, d.doc_id LIMIT ?`)
-      .all(match, limit)
+    return queryDocs(db, { match, limit })
       .map(row => ({ id: row.id, kind: row.kind, source: row.source, chapter: row.chapter, body: row.body, score: row.score }))
   } finally {
     db.close()
   }
+}
+
+/**
+ * Retrieve current summaries, unresolved hooks and closed volumes for context.
+ * The SQL ranks first and limits second; post-filters use the same state rules
+ * as the rest of the store, so stale summaries and reopened/resolved hooks do
+ * not leak into a role context.
+ * @param {string} root - workspace directory.
+ * @param {string} work - work identity.
+ * @param {string} query - query text.
+ * @param {object} [options] - retrieval filter.
+ * @param {number} [options.beforeChapter] - only material before this chapter.
+ * @returns {Array<{id: string, kind: string, source: string, sourceIds: string[], chapter: number, text: string, score: number}>} candidates.
+ */
+export function searchMemory(root, work, query, options = {}) {
+  const beforeChapter = Number.isInteger(options.beforeChapter) ? options.beforeChapter : undefined
+  const match = matchOf(query)
+  if (match === '') return []
+  const db = openWork(root, work)
+  try {
+    const rows = queryDocs(db, {
+      match,
+      kinds: MEMORY_KINDS,
+      beforeChapter,
+      limit: 200,
+    })
+    const reopened = new Map(db.prepare("SELECT chapter, max(seq) AS seq FROM events WHERE kind = 'reopen' GROUP BY chapter")
+      .all().map(row => [row.chapter, row.seq]))
+    const hookStates = new Map()
+    for (const event of db.prepare("SELECT seq, chapter, payload FROM events WHERE kind = 'hook' ORDER BY seq").all()) {
+      if (event.seq <= (reopened.get(event.chapter) ?? -1)) continue
+      try {
+        const payload = JSON.parse(event.payload)
+        if (typeof payload?.text === 'string' && typeof payload?.state === 'string') {
+          hookStates.set(payload.text, payload.state)
+        }
+      } catch {
+        // A malformed historical event is ignored, not allowed to break context.
+      }
+    }
+    const volumes = new Map(db.prepare('SELECT id, to_ch FROM volumes').all().map(row => [row.id, row.to_ch]))
+    const candidates = []
+    for (const row of rows) {
+      const chapter = row.chapter
+      if (beforeChapter !== undefined && (chapter === null || chapter >= beforeChapter)) continue
+      if (row.kind === 'summary') {
+        if (chapter === null || summaryStateOf(db, chapter).state !== 'current') continue
+        candidates.push({
+          id: row.id, kind: row.kind, source: row.source, sourceIds: [row.id], chapter, text: row.body, score: -row.score,
+        })
+        continue
+      }
+      if (row.kind === 'hook') {
+        const seq = Number(/^event:(\d+)$/u.exec(row.id)?.[1])
+        if (!Number.isInteger(seq) || seq <= (reopened.get(chapter) ?? -1)) continue
+        const event = db.prepare('SELECT chapter, payload FROM events WHERE seq = ?').get(seq)
+        if (event === undefined) continue
+        let payload
+        try {
+          payload = JSON.parse(event.payload)
+        } catch {
+          continue
+        }
+        if (typeof payload?.text !== 'string' || hookStates.get(payload.text) === 'resolved') continue
+        candidates.push({
+          id: row.id,
+          kind: row.kind,
+          source: row.source,
+          sourceIds: ['state'],
+          chapter,
+          text: `${payload.text}（${payload.state ?? 'opened'}，第 ${chapter} 章）`,
+          score: -row.score,
+        })
+        continue
+      }
+      if (row.kind === 'volume') {
+        const id = row.id.startsWith('volume:') ? row.id.slice('volume:'.length) : undefined
+        if (id === undefined || !volumes.has(id)) continue
+        if (beforeChapter !== undefined && volumes.get(id) >= beforeChapter) continue
+        candidates.push({
+          id: row.id, kind: row.kind, source: row.source, sourceIds: [row.id], chapter, text: row.body, score: -row.score,
+        })
+      }
+    }
+    return candidates
+  } finally {
+    db.close()
+  }
+}
+
+/** Document kinds exposed to role context retrieval. */
+const MEMORY_KINDS = ['summary', 'hook', 'volume']
+
+/** FTS match string for one query, or '' when the query has no tokens. */
+function matchOf(query) {
+  const tokens = searchTokens(query).split(' ').filter(token => token !== '')
+  return tokens.map(token => `"${token.replaceAll('"', '""')}"`).join(' OR ')
+}
+
+/** One FTS query with the shared projection, ordering and limit. */
+function queryDocs(db, { match, kinds, beforeChapter, limit }) {
+  const clauses = ['search_fts MATCH ?']
+  const params = [match]
+  if (Array.isArray(kinds) && kinds.length > 0) {
+    clauses.push(`d.kind IN (${kinds.map(() => '?').join(', ')})`)
+    params.push(...kinds)
+  }
+  if (Number.isInteger(beforeChapter)) {
+    clauses.push('d.chapter < ?')
+    params.push(beforeChapter)
+  }
+  params.push(limit)
+  return db.prepare(`SELECT d.doc_id AS id, d.kind, d.source, d.chapter, d.body, bm25(search_fts) AS score
+    FROM search_fts JOIN search_docs d ON d.rowid = search_fts.rowid
+    WHERE ${clauses.join(' AND ')}
+    ORDER BY score, d.chapter DESC, d.doc_id LIMIT ?`).all(...params)
 }
 
 // ---------------------------------------------------------------------------

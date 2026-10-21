@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as store from '../store-db.js'
+import { select } from '../retrieval.js'
 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-perf-'))
 let failures = 0
@@ -36,6 +37,22 @@ try {
   const appendOne = performance.now() - started
   check('append one chapter under 50ms', appendOne < 50, `${appendOne.toFixed(1)}ms`)
   check('bulk append stays reasonable', appendAll < 5000, `${appendAll.toFixed(0)}ms`)
+
+  for (let number = 1; number <= 200; number += 1) {
+    store.writeSummary(root, { work, chapter: number, text: `第 ${number} 章摘要：周砚在井台边找到一把旧钥匙。` })
+  }
+  for (let number = 1; number <= 20; number += 1) {
+    store.writeReview(root, { work, chapter: number, problems: [] })
+    store.foldState(root, { work, chapter: number, hooks: [{ text: '旧钥匙', state: 'opened' }] })
+  }
+  store.reopenChapter(root, { work, chapter: 10 })
+  started = performance.now()
+  const candidates = store.searchMemory(root, work, '井台 旧钥匙', { beforeChapter: 201 })
+  const picked = select(candidates, { excludeIds: [], limit: 5, budget: 1200 })
+  const retrieval = performance.now() - started
+  check('200-chapter retrieval fits 400ms', retrieval < 400, `${retrieval.toFixed(1)}ms`)
+  check('retrieval returns five bounded hits', picked.hits.filter(hit => hit.sent).length <= 5
+    && picked.chars <= 1200 && candidates.length > 0, `${candidates.length}/${picked.chars}`)
 } finally {
   await rm(root, { recursive: true, force: true }).catch(() => {})
 }

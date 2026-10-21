@@ -16,14 +16,15 @@ import {
 } from './domain.js'
 import {
   readBibleMap, readChapter as readChapterRow, readFoldedState, readManifest, readPlan,
-  readVolumes, readSummaryState, virtualPath,
+  readVolumes, readSummaryState, searchMemory, virtualPath,
 } from './store-db.js'
+import { buildQuery, select } from './retrieval.js'
 
 /** Default budget for one role context, in characters. */
 export const DEFAULT_CONTEXT_BUDGET = 8000
 
 /** Section order used when trimming: earlier compressible sections go first. */
-const TRIM_ORDER = ['recent', 'state', 'characters', 'style']
+const TRIM_ORDER = ['retrieval', 'recent', 'state', 'characters', 'style']
 
 /** Fixed authority order per role. */
 const AUTHORITY = {
@@ -88,8 +89,9 @@ function section(name, title, content, protection, source) {
  * @param {number} [input.budget] - character budget.
  * @returns {Promise<{sections: object[], text: string, trace: object, whitelist: object, taskText: string}>} the context package.
  */
-export async function assembleRoleContext(input) {
+export async function assembleRoleContext(input, dependencies = {}) {
   const { root, role } = input
+  const retrieve = typeof dependencies.searchMemory === 'function' ? dependencies.searchMemory : searchMemory
   const scope = input.scope === 'work' ? 'work' : 'chapter'
   const manifest = readManifest(root, input.work)
   const work = manifest.workId
@@ -195,12 +197,16 @@ export async function assembleRoleContext(input) {
 
   // 5. recent — compressible; the summary stage reads only the current chapter and state.
   let recent
+  const recentSummaryIds = []
   if (role !== 'summarizer') {
     const summaries = []
     const lastNumber = number ?? (manifest.chapters.length === 0 ? 1 : manifest.chapters[manifest.chapters.length - 1].number + 1)
     for (let index = Math.max(1, lastNumber - 3); index < lastNumber; index += 1) {
       const summary = readSummaryState(root, work, index)
-      if (summary.state === 'current') summaries.push(`第 ${index} 章：${summary.text.trim()}`)
+      if (summary.state === 'current') {
+        summaries.push(`第 ${index} 章：${summary.text.trim()}`)
+        recentSummaryIds.push(`summary:${index}`)
+      }
     }
     if (lastNumber > 1) {
       let previousBody
@@ -212,6 +218,34 @@ export async function assembleRoleContext(input) {
       if (previousBody !== undefined) summaries.push(`上一章结尾：…${previousBody.trim().slice(-400)}`)
     }
     recent = section('recent', '最近脉络', summaries.join('\n'), 'compressible', `${virtualPath(work, 'summaries/')} + 上一章结尾`)
+  }
+
+  // 5b. retrieval — compressible; FTS candidates are already ranked by the store.
+  const written = manifest.chapters.filter(chapter => Number(chapter.currentRevision) > 0).length
+  const retrievalEnabled = role !== 'summarizer' && written >= 3
+  const query = retrievalEnabled
+    ? buildQuery({ taskText, chapterPlan, openHooks, instruction })
+    : ''
+  let retrieval
+  let retrievalTrace = { enabled: false, query: '', candidateCount: 0, hits: [] }
+  if (query.trim() !== '') {
+    try {
+      const candidates = retrieve(root, work, query, number === undefined ? {} : { beforeChapter: number })
+      const picked = select(candidates, { excludeIds: recentSummaryIds })
+      if (picked.text !== '') {
+        retrieval = section('retrieval', '相关往事', picked.text, 'compressible',
+          `${virtualPath(work, 'summaries/')} + ${virtualPath(work, 'state/events.jsonl')} + ${virtualPath(work, 'volumes')}`)
+      }
+      retrievalTrace = { enabled: true, query, candidateCount: candidates.length, hits: picked.hits }
+    } catch (error) {
+      retrievalTrace = {
+        enabled: true,
+        query,
+        candidateCount: 0,
+        hits: [],
+        error: typeof error?.code === 'string' ? error.code : 'retrieval-failed',
+      }
+    }
   }
 
   // 6. style — compressible
@@ -252,6 +286,7 @@ export async function assembleRoleContext(input) {
   if (bodySection !== undefined) sections.push(bodySection)
   sections.push(state)
   if (recent !== undefined) sections.push(recent)
+  if (retrieval !== undefined) sections.push(retrieval)
   if (role === 'writer' || role === 'planner') sections.push(style)
   if (standard !== undefined) sections.push(standard)
 
@@ -268,7 +303,10 @@ export async function assembleRoleContext(input) {
     const target = segments.find(item => item.name === name)
     if (target === undefined || target.protection !== 'compressible' || target.content === '') continue
     const allowed = budget - (total - target.content.length)
-    if (allowed >= 80) {
+    if (name === 'retrieval') {
+      target.content = ''
+      trace.dropped.push(name)
+    } else if (allowed >= 80) {
       target.content = `${target.content.slice(0, Math.floor(allowed * 0.7))}\n…（已压缩）…\n${target.content.slice(-Math.floor(allowed * 0.25))}`
       target.trimmed = true
       trace.trimmed.push(name)
@@ -279,6 +317,10 @@ export async function assembleRoleContext(input) {
     total = segments.reduce((sum, item) => sum + item.content.length, 0)
   }
   if (total > budget) trace.overflow = true
+  if (trace.dropped.includes('retrieval')) {
+    retrievalTrace = { ...retrievalTrace, hits: retrievalTrace.hits.map(hit => ({ ...hit, sent: false })) }
+  }
+  trace.retrieval = retrievalTrace
   for (const item of segments) {
     trace.sections.push({
       name: item.name,

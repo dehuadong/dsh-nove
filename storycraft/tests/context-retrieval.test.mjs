@@ -1,0 +1,100 @@
+// Role context retrieval: section placement, stale filter, trace and trim order.
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import * as s from '../storage.js'
+import * as b from '../bible.js'
+import { openWork } from '../db.js'
+import { assembleRoleContext } from '../context.js'
+
+let failures = 0
+function check(name, condition, detail) {
+  if (condition) console.log(`ok   ${name}`)
+  else {
+    failures += 1
+    console.log(`FAIL ${name}${detail === undefined ? '' : ` — ${detail}`}`)
+  }
+}
+
+const root = await mkdtemp(join(tmpdir(), 'storycraft-context-retrieval-'))
+try {
+  const work = (await s.initWork(root, { title: '检索上下文', wordRange: { min: 200, max: 400 } })).workId
+  await s.writeOutline(root, { work, mainline: '旧井与钥匙' })
+  await s.approveOutline(root, { work })
+  await b.writeBible(root, work, 'characters', JSON.stringify([
+    { name: '甲', role: '主视角', want: '找旧井', fear: '失去钥匙', limit: '不伤人', voice: '短句' },
+  ]))
+  for (const number of [1, 2, 3, 4]) {
+    await s.writePlan(root, { work, chapter: number, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+    await s.approveChapterPlan(root, { work, chapter: number })
+    await s.writeChapter(root, { work, chapter: number, body: `第${number}章正文。`.repeat(30) })
+    await s.writeSummary(root, { work, chapter: number, text: number === 1 ? '旧井边有一把备用钥匙。' : `第${number}章摘要。` })
+  }
+  await s.writePlan(root, { work, chapter: 5, perspective: '甲', goal: '找旧井', obstacle: 'o', cost: 'c', turn: 't' })
+  await s.approveChapterPlan(root, { work, chapter: 5 })
+  await s.writeReview(root, { work, chapter: 1, problems: [] })
+  await s.foldState(root, { work, chapter: 1, hooks: [{ text: '备用钥匙', state: 'opened' }] })
+  const raw = openWork(root, work)
+  raw.prepare('UPDATE summaries SET revision = 0 WHERE number = 2').run()
+  raw.close()
+
+  const out = await assembleRoleContext({ root, work, chapter: 5, role: 'writer', task: '写第 5 章正文。', instruction: '写旧井' })
+  const names = out.trace.sections.map(item => item.name)
+  check('retrieval follows recent', names.indexOf('retrieval') === names.indexOf('recent') + 1, names.join(','))
+  check('retrieval section is present', out.text.includes('相关往事') && out.text.includes('〔summary:1〕'), out.text.slice(-600))
+  check('retrieval trace is enabled with candidates',
+    out.trace.retrieval?.enabled === true && out.trace.retrieval.candidateCount > 0 && out.trace.retrieval.hits.length > 0,
+    JSON.stringify(out.trace.retrieval))
+  check('retrieval hits use artifact ids', out.trace.retrieval.hits.every(hit => hit.sourceIds?.length > 0 && !hit.sourceIds.some(id => id.includes('/'))),
+    JSON.stringify(out.trace.retrieval.hits))
+  check('stale chapter 2 summary is not retrieved', !out.trace.retrieval.hits.some(hit => hit.id === 'summary:2'), JSON.stringify(out.trace.retrieval.hits))
+  check('recent still carries current summaries', out.text.includes('第 4 章：第4章摘要。'))
+  const deduped = await assembleRoleContext({
+    root, work, chapter: 5, role: 'writer', task: '写第 5 章正文。', instruction: '第4章摘要',
+  })
+  check('summaries already sent by recent are deduped',
+    !deduped.trace.retrieval.hits.some(hit => hit.id === 'summary:4'), JSON.stringify(deduped.trace.retrieval.hits))
+  const failed = await assembleRoleContext(
+    { root, work, chapter: 5, role: 'writer', task: '写第 5 章正文。', instruction: '写旧井' },
+    { searchMemory: () => { const error = new Error('busy'); error.code = 'work-busy'; throw error } },
+  )
+  check('retrieval failure is fail-open with a trace code',
+    failed.trace.retrieval.error === 'work-busy' && failed.trace.retrieval.hits.length === 0
+    && !failed.text.includes('相关往事') && failed.text.includes('本章任务'), JSON.stringify(failed.trace.retrieval))
+
+  const tight = await assembleRoleContext({
+    root, work, chapter: 5, role: 'writer', task: '写第 5 章正文。', instruction: '写旧井', budget: 150,
+  })
+  check('retrieval is the first compressible dropped', tight.trace.dropped[0] === 'retrieval', tight.trace.dropped.join(','))
+  check('dropped retrieval marks all hits unsent', tight.trace.retrieval.hits.every(hit => hit.sent === false), JSON.stringify(tight.trace.retrieval))
+  check('dropped retrieval is absent from text', !tight.text.includes('相关往事'))
+
+  const planner = await assembleRoleContext({ root, work, role: 'planner', scope: 'work', task: '出全书计划' })
+  check('work-scope planner retrieves without a target', planner.trace.retrieval?.enabled === true, JSON.stringify(planner.trace.retrieval))
+
+  const emptyWork = (await s.initWork(root, { title: '无命中检索', wordRange: { min: 100, max: 200 } })).workId
+  await s.writeOutline(root, { work: emptyWork, mainline: '无命中' })
+  await s.approveOutline(root, { work: emptyWork })
+  await b.writeBible(root, emptyWork, 'characters', JSON.stringify([{ name: '乙', role: '主视角', want: '走', fear: '停', limit: '不回头', voice: '短句' }]))
+  for (const number of [1, 2, 3]) {
+    await s.writePlan(root, { work: emptyWork, chapter: number, perspective: '乙', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+    await s.approveChapterPlan(root, { work: emptyWork, chapter: number })
+    await s.writeChapter(root, { work: emptyWork, chapter: number, body: `第${number}章正文。`.repeat(20) })
+    await s.writeSummary(root, { work: emptyWork, chapter: number, text: `第${number}章摘要。` })
+  }
+  await s.writePlan(root, { work: emptyWork, chapter: 4, perspective: '乙', goal: 'zzzz', obstacle: 'o', cost: 'c', turn: 't' })
+  await s.approveChapterPlan(root, { work: emptyWork, chapter: 4 })
+  const empty = await assembleRoleContext({ root, work: emptyWork, role: 'planner', scope: 'work', task: 'zzzz' })
+  check('zero-hit retrieval keeps an enabled empty trace',
+    empty.trace.retrieval?.enabled === true && empty.trace.retrieval.candidateCount === 0
+    && empty.trace.retrieval.hits.length === 0 && !empty.text.includes('相关往事'), JSON.stringify(empty.trace.retrieval))
+} finally {
+  await rm(root, { recursive: true, force: true })
+}
+
+if (failures > 0) {
+  console.error(`${failures} CHECK(S) FAILED`)
+  process.exitCode = 1
+} else {
+  console.log('ALL CHECKS PASSED')
+}

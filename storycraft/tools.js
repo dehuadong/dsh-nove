@@ -225,6 +225,33 @@ const OUTPUT_PROPERTIES = {
         properties: { round: { type: 'integer' }, revision: { type: 'integer' } },
         required: ['round', 'revision'],
       },
+      retrieval: {
+        type: 'object',
+        additionalProperties: false,
+        description: 'FTS retrieval trace for one role context.',
+        properties: {
+          enabled: { type: 'boolean' },
+          query: { type: 'string' },
+          candidateCount: { type: 'integer' },
+          error: { type: 'string' },
+          hits: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                id: { type: 'string' },
+                kind: { type: 'string' },
+                sourceIds: { type: 'array', items: { type: 'string' } },
+                score: { type: 'number' },
+                sent: { type: 'boolean' },
+              },
+              required: ['id', 'kind', 'sourceIds', 'score', 'sent'],
+            },
+          },
+        },
+        required: ['enabled', 'query', 'candidateCount', 'hits'],
+      },
     },
     required: ['budget'],
   },

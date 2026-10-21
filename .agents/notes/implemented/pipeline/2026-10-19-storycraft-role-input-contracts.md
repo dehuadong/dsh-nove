@@ -8,6 +8,8 @@ verification: 实跑 story_context 四角色与第 7 章 story_write(rewrite)；
 
 # Agent Note：故事工坊：角色输入契约（单一模式版）
 
+> 2026-10-21 部分扩展：`story_context` 的 writer/planner/reviewer/reviser 增加可选 `retrieval` 段（在 `recent` 之后），`trace.retrieval` 固定为 `{enabled, query, candidateCount, hits, error?}`；裁剪顺序改为 `retrieval → recent → state → characters → style`，检索段只整段丢弃、不做字符压缩。检索规则由 [基于作品库 FTS5 的上下文检索](../../proposed/pipeline/2026-10-21-storycraft-retrieval-fts.md) 承接。
+
 ## 问题
 
 单一预设之后，角色不再是预设，而是**任务提示里的分工**：主编用官方 `subagent` 派发，子代理继承同一套工具，靠运行时守卫禁止落盘。
@@ -25,20 +27,20 @@ verification: 实跑 story_context 四角色与第 7 章 story_write(rewrite)；
 | 字段 | 内容 |
 | --- | --- |
 | `sections` | 每段 `{name, title, content, protection, source}` |
-| `trace` | `budget`、`trimmed`、`dropped`、`missing`、每段字符数；审稿/修订再记 `review {round, revision}` |
+| `trace` | `budget`、`trimmed`、`dropped`、`missing`、每段字符数、`retrieval`；审稿/修订再记 `review {round, revision}` |
 | `whitelist` | `counts` 与 `sample`（各取前若干），不外发完整清单 |
 
 角色与段：
 
 | 角色 | 段 |
 | --- | --- |
-| 写手 | 权威顺序、本章任务（章纲 + 作者要求）、硬约束、人物与状态、最近脉络、文风 |
-| 规划（章级） | 权威顺序、任务、硬约束、人物与状态、最近脉络、文风；任务由动作生成 |
+| 写手 | 权威顺序、本章任务（章纲 + 作者要求）、硬约束、人物与状态、最近脉络、检索段（可选）、文风 |
+| 规划（章级） | 权威顺序、任务、硬约束、人物与状态、最近脉络、检索段（可选）、文风；任务由动作生成 |
 | 规划（作品级） | 同上，另加全书计划与卷图、人物卡；不含单章字数 |
-| 审稿 | 权威顺序、任务（未处理条目或「审正文」）、硬约束、本章章纲、正文、人物与状态、最近脉络、审稿标准 |
-| 修订 | 权威顺序、任务（条目与模式）、硬约束、本章章纲、正文、人物与状态、最近脉络、修订标准 |
+| 审稿 | 权威顺序、任务（未处理条目或「审正文」）、硬约束、本章章纲、正文、人物与状态、最近脉络、检索段（可选）、审稿标准 |
+| 修订 | 权威顺序、任务（条目与模式）、硬约束、本章章纲、正文、人物与状态、最近脉络、检索段（可选）、修订标准 |
 
-保护级别：权威顺序、任务、硬约束、章纲、正文、全书计划、标准为 `protected`；人物与状态、最近脉络、文风、人物卡为 `compressible`。预算默认 8000 字符，先压缩（头尾保留 + 标记）再整段裁掉，顺序 `recent → state → characters → style`。
+保护级别：权威顺序、任务、硬约束、章纲、正文、全书计划、标准为 `protected`；人物与状态、最近脉络、检索段、文风、人物卡为 `compressible`。预算默认 8000 字符，先压缩（头尾保留 + 标记）再整段裁掉，顺序 `retrieval → recent → state → characters → style`；检索段只整段丢弃，不做字符压缩。
 
 ### 校验在落盘处
 
