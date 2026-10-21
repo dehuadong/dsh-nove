@@ -2,8 +2,8 @@
 title: 故事工坊：角色分工与交接（单一预设版）
 status: implemented
 created: 2026-10-18
-updated: 2026-10-20
-verification: 6bb6a32 单一预设与守卫；#12 角色输入；#14 章纲闸门；presets/tools 断言与 6 条页面 spec 全过
+updated: 2026-10-21
+verification: 6bb6a32 单一预设与守卫；#12 角色输入；#14 章纲闸门；#24 摘要角色；presets/tools 断言与 23 套单测 + E2E 全过
 ---
 
 # Agent Note：故事工坊：角色分工与交接（单一预设版）
@@ -14,16 +14,19 @@ verification: 6bb6a32 单一预设与守卫；#12 角色输入；#14 章纲闸�
 
 ## 决定
 
-### 一个模式，四种任务
+### 一个模式，五种任务
 
-故事工坊只声明一个预设 `storycraft`。角色不是模式，而是**派发时写进任务提示的分工**，方法与输出契约留在四份技能里：
+故事工坊只声明一个预设 `storycraft`。角色不是模式，而是**派发时写进任务提示的分工**，方法与输出契约留在四份技能与摘要提示里：
 
 | 角色 | 技能 | 输出 |
 | --- | --- | --- |
 | 写手 | `storycraft-write-craft` | 标题 + 整章正文（首尾标记） |
 | 审稿 | `storycraft-review` | 问题清单 JSON |
 | 修订 | `storycraft-revise-craft` | 修订后的整章正文 |
+| 摘要 | 无（`story_delegate` 内的摘要提示） | `story_submit {summary}`，≤400 字 |
 | 规划 | `storycraft-plan-craft` | 章纲五项或全书计划三段 |
+
+2026-10-21 交付：`summarizer` 只走 `story_delegate`，输入是当前章正文与 `state`，原先的写手/审稿/修订三角色不变；摘要不经过 `story_context`。
 
 ### 派发与强制
 

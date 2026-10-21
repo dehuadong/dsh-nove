@@ -43,6 +43,10 @@ const AUTHORITY = {
     '权威顺序：点名条目与模式 > 未被点名的正文 > 章纲。',
     '只改点名位置；不得引入上下文里没有的人名、地名与数字。',
   ].join('\n'),
+  summarizer: [
+    '权威顺序：本章正文 > 人物与状态。',
+    '只写正文里能核实的事实与状态变化；不评价、不补设定、不写下一章计划。',
+  ].join('\n'),
 }
 
 /** Standards segments, summarised from the role skills. */
@@ -76,10 +80,10 @@ function section(name, title, content, protection, source) {
  * @param {string} input.root - workspace directory.
  * @param {string} input.work - work identity.
  * @param {number} [input.chapter] - chapter number; optional for work-scoped planning.
- * @param {'writer'|'planner'|'reviewer'|'reviser'} input.role - role name.
+ * @param {'writer'|'planner'|'reviewer'|'reviser'|'summarizer'} input.role - role name.
  * @param {string} [input.instruction] - author instruction for this run.
  * @param {string} [input.task] - task text composed by the calling action.
- * @param {string} [input.body] - chapter body (reviewer/reviser paths).
+ * @param {string} [input.body] - chapter body (reviewer/reviser/summarizer paths).
  * @param {'work'|'chapter'} [input.scope] - planning scope.
  * @param {number} [input.budget] - character budget.
  * @returns {Promise<{sections: object[], text: string, trace: object, whitelist: object, taskText: string}>} the context package.
@@ -111,13 +115,13 @@ export async function assembleRoleContext(input) {
   }
 
   const characters = (await readCards(root, work)) ?? []
-  if (characters.length === 0 && role !== 'planner') {
+  if (characters.length === 0 && role !== 'planner' && role !== 'summarizer') {
     throw new StoryError('bible-missing', '人物卡缺失：先用 story_bible_write 建 bible/characters.json 再派活')
   }
 
   const body = String(input.body ?? '').trim()
-  if ((role === 'reviewer' || role === 'reviser') && body === '') {
-    throw new StoryError('chapter-not-written', `第 ${number} 章还没有正文：先写正文，再审稿或修订`)
+  if ((role === 'reviewer' || role === 'reviser' || role === 'summarizer') && body === '') {
+    throw new StoryError('chapter-not-written', `第 ${number} 章还没有正文：先写正文，再审稿、修订或写摘要`)
   }
 
   const bible = readBibleMap(root, work)
@@ -143,6 +147,8 @@ export async function assembleRoleContext(input) {
     taskText = [`按条目修订第 ${number} 章，模式：${mode}。`, ...openItems.map(item => `- ${item.id}：${item.problem}`)].join('\n')
   } else if (role === 'writer') {
     taskText = `写第 ${number} 章正文。`
+  } else if (role === 'summarizer') {
+    taskText = `给第 ${number} 章写摘要：只写本章发生的事实与状态变化，≤400 字；不评价、不写下一章计划。`
   }
   if (taskText === '') throw new StoryError('task-required', '派发需要一句任务说明')
   const task = section('task', scope === 'work' ? '作品任务' : '本章任务', [
@@ -167,8 +173,10 @@ export async function assembleRoleContext(input) {
     ]),
     ...(intent.trim() === '' ? [] : ['本书口径（摘自意图文件）：', intent.trim().slice(0, 600)]),
   ].filter(line => line !== '')
-  const constraints = section('constraints', '硬约束', constraintLines.join('\n'), 'protected',
-    `${virtualPath(work, 'manifest')} + ${virtualPath(work, 'bible/characters.json')} + ${virtualPath(work, 'bible/intent.md')}`)
+  const constraints = role === 'summarizer'
+    ? undefined
+    : section('constraints', '硬约束', constraintLines.join('\n'), 'protected',
+      `${virtualPath(work, 'manifest')} + ${virtualPath(work, 'bible/characters.json')} + ${virtualPath(work, 'bible/intent.md')}`)
 
   // 4. state — compressible
   const folded = readFoldedState(root, work)
@@ -185,23 +193,26 @@ export async function assembleRoleContext(input) {
   ]
   const state = section('state', '人物与状态', stateLines.join('\n'), 'compressible', virtualPath(work, 'state/events.jsonl'))
 
-  // 5. recent — compressible
-  const summaries = []
-  const lastNumber = number ?? (manifest.chapters.length === 0 ? 1 : manifest.chapters[manifest.chapters.length - 1].number + 1)
-  for (let index = Math.max(1, lastNumber - 3); index < lastNumber; index += 1) {
-    const text = readSummaryRow(root, work, index)
-    if (text !== undefined && text.trim() !== '') summaries.push(`第 ${index} 章：${text.trim()}`)
-  }
-  if (lastNumber > 1) {
-    let previousBody
-    try {
-      previousBody = readChapterRow(root, { work, chapter: lastNumber - 1 }).content
-    } catch {
-      previousBody = undefined
+  // 5. recent — compressible; the summary stage reads only the current chapter and state.
+  let recent
+  if (role !== 'summarizer') {
+    const summaries = []
+    const lastNumber = number ?? (manifest.chapters.length === 0 ? 1 : manifest.chapters[manifest.chapters.length - 1].number + 1)
+    for (let index = Math.max(1, lastNumber - 3); index < lastNumber; index += 1) {
+      const text = readSummaryRow(root, work, index)
+      if (text !== undefined && text.trim() !== '') summaries.push(`第 ${index} 章：${text.trim()}`)
     }
-    if (previousBody !== undefined) summaries.push(`上一章结尾：…${previousBody.trim().slice(-400)}`)
+    if (lastNumber > 1) {
+      let previousBody
+      try {
+        previousBody = readChapterRow(root, { work, chapter: lastNumber - 1 }).content
+      } catch {
+        previousBody = undefined
+      }
+      if (previousBody !== undefined) summaries.push(`上一章结尾：…${previousBody.trim().slice(-400)}`)
+    }
+    recent = section('recent', '最近脉络', summaries.join('\n'), 'compressible', `${virtualPath(work, 'summaries/')} + 上一章结尾`)
   }
-  const recent = section('recent', '最近脉络', summaries.join('\n'), 'compressible', `${virtualPath(work, 'summaries/')} + 上一章结尾`)
 
   // 6. style — compressible
   const style = section('style', '文风要点', bible.get('style') ?? '', 'compressible', virtualPath(work, 'bible/style.md'))
@@ -221,7 +232,7 @@ export async function assembleRoleContext(input) {
     ].join('\n')).join('\n'), 'compressible', virtualPath(work, 'bible/characters.json'))
     : undefined
 
-  // writer/reviewer/reviser: the chapter plan; reviewer/reviser also get the body
+  // The plan feeds writer/reviewer/reviser; writer/reviewer/reviser/summarizer read the body.
   const chapterPlanSection = role === 'writer' ? undefined
     : needsPlan ? section('plan', '本章章纲', chapterPlan ?? '', 'protected', virtualPath(work, `outline/${chapterStem(number)}.plan.md`)) : undefined
   const bodySection = body === ''
@@ -232,14 +243,15 @@ export async function assembleRoleContext(input) {
     : undefined
 
   // Section order follows the role contract.
-  const sections = [authority, task, constraints]
+  const sections = [authority, task, ...(constraints === undefined ? [] : [constraints])]
   if (role === 'planner') {
     if (planSection !== undefined) sections.push(planSection)
     if (characterBrief !== undefined) sections.push(characterBrief)
   }
   if (chapterPlanSection !== undefined) sections.push(chapterPlanSection)
   if (bodySection !== undefined) sections.push(bodySection)
-  sections.push(state, recent)
+  sections.push(state)
+  if (recent !== undefined) sections.push(recent)
   if (role === 'writer' || role === 'planner') sections.push(style)
   if (standard !== undefined) sections.push(standard)
 

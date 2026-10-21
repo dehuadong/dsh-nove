@@ -729,7 +729,7 @@ const NEXT_OUTPUT = {
         type: 'object',
         additionalProperties: false,
         properties: {
-          role: { type: 'string', enum: ['writer', 'reviewer', 'reviser'] },
+          role: { type: 'string', enum: ['writer', 'reviewer', 'reviser', 'summarizer'] },
         },
         required: ['role'],
       },
@@ -740,7 +740,7 @@ const NEXT_OUTPUT = {
 }
 
 /** Output contract for one delegated role submission. */
-const SUBMIT_OUTPUT = {
+export const SUBMIT_OUTPUT = {
   schema: {
     type: 'object',
     additionalProperties: false,
@@ -777,10 +777,11 @@ const DELEGATE_OUTPUT = {
       ok: OUTPUT_PROPERTIES.ok,
       workId: OUTPUT_PROPERTIES.workId,
       chapter: OUTPUT_PROPERTIES.chapter,
-      role: { type: 'string', enum: ['writer', 'reviewer', 'reviser'] },
+      role: { type: 'string', enum: ['writer', 'reviewer', 'reviser', 'summarizer'] },
       stage: OUTPUT_PROPERTIES.stage,
       revision: { type: 'integer' },
       words: OUTPUT_PROPERTIES.words,
+      summaryChars: { type: 'integer' },
       reviewRound: { type: 'integer' },
       submissionAttempts: { type: 'integer' },
       lastMode: { type: 'string', enum: ['patch', 'polish', 'rewrite', 'deslop'] },
@@ -1725,7 +1726,7 @@ function rawDefinitions(ctx) {
     action({
       name: 'story_delegate',
       mutates: true,
-      description: '宿主侧委派一个角色完成单步：writer 写首版正文、reviewer 审稿并落清单、reviser 按未处理条目修订。'
+      description: '宿主侧委派一个角色完成单步：writer 写首版正文、reviewer 审稿并落清单、reviser 按未处理条目修订、summarizer 写本章摘要。'
         + ' 主编只收回执（版本/字数/审稿计数/警告），不接触正文与上下文；子代理通过 story_submit 提交，失败返回 delegation-no-submission。',
       parameters: {
         type: 'object',
@@ -1733,7 +1734,7 @@ function rawDefinitions(ctx) {
         properties: {
           work: { type: 'string', description: '作品 id。' },
           chapter: { type: 'integer', description: '章号。' },
-          role: { type: 'string', enum: ['writer', 'reviewer', 'reviser'], description: '本次要跑的角色。' },
+          role: { type: 'string', enum: ['writer', 'reviewer', 'reviser', 'summarizer'], description: '本次要跑的角色。' },
           instruction: { type: 'string', description: '作者本轮要求，会并入子代理任务。' },
           mode: {
             type: 'string',
@@ -1758,7 +1759,7 @@ function rawDefinitions(ctx) {
     action({
       name: 'story_next',
       description: '查询这部作品下一步该做什么：动作名、章号、原因、缺什么（章纲/审稿/条目 id）。'
-        + ' 返回 delegate 时优先用 story_delegate（writer/reviewer/reviser）；没有 delegate 时按 action 走手动路径。'
+        + ' 返回 delegate 时优先用 story_delegate（writer/reviewer/reviser/summarizer）；没有 delegate 时按 action 走手动路径。'
         + ' 每写完一步先调它，不要凭记忆猜下一步；它只读，不改任何文件。',
       parameters: {
         type: 'object',

@@ -151,14 +151,32 @@ try {
   check('reviser receipt carries mode and attempts', reviser.lastMode === 'rewrite' && reviser.submissionAttempts === 1, JSON.stringify(reviser))
   check('reviser receipt stays compact', JSON.stringify(reviser).length <= 1500)
 
+  // Summarizer: the chapter is revised and still has no summary.
+  const beforeSummary = s.nextStep(root, work)
+  check('nextStep advertises summarizer delegation',
+    beforeSummary.action === 'story_summarize' && beforeSummary.delegate?.role === 'summarizer', JSON.stringify(beforeSummary))
+  await rejects('summarizer reports a missing service', 'delegation-unavailable',
+    () => delegateRole(root, { work, chapter: 1, role: 'summarizer' }, { service: undefined, agent, signal }))
+  check('missing service wrote no summary', s.readSummary(root, work, 1) === undefined)
+  await rejects('summarizer reports no submission', 'delegation-no-submission',
+    () => delegateRole(root, { work, chapter: 1, role: 'summarizer' }, { service: fakeService([completed({})]), agent, signal }))
+  check('no submission wrote no summary', s.readSummary(root, work, 1) === undefined)
+  const summarizerService = fakeService([completed({ payload: { summary: '甲回到屋里。' } })])
+  const summarizer = await delegateRole(root, { work, chapter: 1, role: 'summarizer' }, { service: summarizerService, agent, signal })
+  check('summarizer delegates and lands', summarizer.ok === true && summarizer.summaryChars === 6 && summarizer.artifact?.kind === 'summary', JSON.stringify(summarizer))
+  check('summarizer receipt carries attempts and no text',
+    summarizer.submissionAttempts === 1 && !JSON.stringify(summarizer).includes('甲回到屋里。'), JSON.stringify(summarizer))
+  check('summarizer wrote the summary', s.readSummary(root, work, 1)?.includes('甲回到屋里'), s.readSummary(root, work, 1))
+  check('summary step moves to state', s.nextStep(root, work).action === 'story_state', JSON.stringify(s.nextStep(root, work)))
+  await rejects('a second summarizer is refused', 'summary-exists',
+    () => delegateRole(root, { work, chapter: 1, role: 'summarizer' }, { service: fakeService([]), agent, signal }))
 
   // Preflight failures happen before a child starts.
   const existingService = fakeService([])
   await rejects('writer refuses an existing body', 'chapter-exists',
     () => delegateRole(root, { work, chapter: 1, role: 'writer' }, { service: existingService, agent, signal }))
   check('preflight did not start a child', existingService.specs.length === 0, String(existingService.specs.length))
-  // The delegated chapter can then settle through the existing summary/state actions.
-  s.writeSummary(root, { work, chapter: 1, text: '甲回到屋里。' })
+  // The delegated chapter can then settle through the existing state action.
   s.foldState(root, { work, chapter: 1, entities: [{ name: '甲', facts: ['回到屋里'] }], hooks: [] })
   check('the delegated chapter settles', s.readManifest(root, work).chapters[0].stage === 'settled')
   check('the next step moves to the next chapter plan', s.nextStep(root, work).action === 'story_plan')
@@ -250,6 +268,9 @@ try {
   const cleanReview = await delegateRole(root, { work, chapter: 3, role: 'reviewer' }, { service: emptyReviewService, agent, signal })
   check('empty review is recorded as a clean pass',
     cleanReview.ok === true && cleanReview.problems?.total === 0, JSON.stringify(cleanReview))
+  const afterClean = s.nextStep(root, work)
+  check('clean review advertises summarizer delegation',
+    afterClean.action === 'story_summarize' && afterClean.delegate?.role === 'summarizer', JSON.stringify(afterClean))
 
   s.writePlan(root, { work, chapter: 4, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   await rejects('unapproved plan is refused before the child', 'plan-not-approved',

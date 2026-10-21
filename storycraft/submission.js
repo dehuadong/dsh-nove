@@ -7,7 +7,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { StoryError, countWords } from './domain.js'
+import { StoryError, SUMMARY_MAX_CHARS, countWords, trimSummary } from './domain.js'
 import { assertRevisionMode } from './revision.js'
 import { checkWordRange } from './landing.js'
 import { readChapter } from './storage.js'
@@ -79,6 +79,10 @@ function validateShape(role, payload) {
     if (typeof payload.body !== 'string' || payload.body.trim() === '') return 'reviser 缺少 body'
     return undefined
   }
+  if (role === 'summarizer') {
+    if (typeof payload.summary !== 'string' || payload.summary.trim() === '') return 'summarizer 缺少 summary'
+    return undefined
+  }
   if (!Array.isArray(payload.items)) return 'reviewer 缺少 items 数组'
   if (payload.items.length > 8) return 'reviewer items 最多 8 条'
   for (const [index, item] of payload.items.entries()) {
@@ -126,6 +130,19 @@ export async function submitPayload(input) {
     return entry.attempts >= MAX_ATTEMPTS
       ? failure('submit-attempts-exhausted', `提交尝试超过 ${MAX_ATTEMPTS} 次`)
       : failure('submit-too-large', `payload ${bytes} 字节，超过 ${MAX_PAYLOAD_BYTES}`)
+  }
+
+  if (entry.role === 'summarizer') {
+    const { chars } = trimSummary(payload.summary)
+    if (chars > SUMMARY_MAX_CHARS) {
+      return entry.attempts >= MAX_ATTEMPTS
+        ? failure('submit-attempts-exhausted', `提交尝试超过 ${MAX_ATTEMPTS} 次；摘要 ${chars} 字，上限 ${SUMMARY_MAX_CHARS} 字`)
+        : failure('submit-summary-range', `摘要 ${chars} 字，超过上限 ${SUMMARY_MAX_CHARS} 字`, {
+          retryable: true,
+          actual: `${chars} 字`,
+          limit: `≤${SUMMARY_MAX_CHARS} 字`,
+        })
+    }
   }
 
   if (entry.role === 'writer' || entry.role === 'reviser') {

@@ -1,8 +1,9 @@
 /**
  * Host-side chapter production delegation.
  *
- * One model-visible action runs a single role (writer, reviewer or reviser) as a
- * managed child through the official `subagents` service, validates the child's
+ * One model-visible action runs a single role (writer, reviewer, reviser or
+ * summarizer) as a managed child through the official `subagents` service,
+ * validates the child's
  * output in the host, lands it through the existing store functions, and returns
  * a compact receipt. The chapter body and assembled context never reach the
  * parent model.
@@ -10,7 +11,8 @@
 
 import { createHash } from 'node:crypto'
 import {
-  StoryError, chapterNumber, latestReview, readManifest, readPlan, reviseChapter, stageOf, writeChapter, writeReview,
+  StoryError, chapterNumber, latestReview, readManifest, readPlan, readSummary, reviseChapter, stageOf,
+  summaryAdmissible, writeChapter, writeReview, writeSummary,
 } from './storage.js'
 import { loadRoleInput } from './role-input.js'
 import { checkDraft } from './landing.js'
@@ -35,6 +37,7 @@ const ROLE_META = {
   writer: { label: '写手', skill: 'storycraft-write-craft' },
   reviewer: { label: '审稿', skill: 'storycraft-review' },
   reviser: { label: '修订', skill: 'storycraft-revise-craft' },
+  summarizer: { label: '摘要' },
 }
 
 function chapterEntryOf(manifest, number) {
@@ -64,6 +67,19 @@ function preflight(root, input) {
       throw new StoryError('plan-not-approved', `第 ${chapter} 章章纲还没经作者确认：请在面板「章纲」里点「确认章纲」后再写正文`)
     }
     return { manifest, entry }
+  }
+
+  if (role === 'summarizer') {
+    if (entry === undefined || entry.currentRevision === 0) {
+      throw new StoryError('chapter-not-written', `第 ${chapter} 章还没有正文：先写正文，再写摘要`)
+    }
+    const summary = readSummary(root, work, chapter)
+    if (summary !== undefined && String(summary).trim() !== '') {
+      throw new StoryError('summary-exists', `第 ${chapter} 章已有摘要：作者的主动重写请走手动 story_summarize`)
+    }
+    const latest = latestReview(root, work, chapter)
+    if (summaryAdmissible(entry, latest)) return { manifest, entry }
+    throw new StoryError('review-required', `第 ${chapter} 章还没到可写摘要的阶段：先完成审稿与修订，或清稿`)
   }
 
   if (entry === undefined || entry.currentRevision === 0) {
@@ -98,7 +114,7 @@ function promptFor({ input, manifest, context, delegationId }) {
   const meta = ROLE_META[input.role]
   const lines = [
     `你是长篇小说《${manifest.title}》（${manifest.workId}）的${meta.label}子代理，负责第 ${input.chapter} 章。`,
-    `开工前先调用 skill 工具加载 \`${meta.skill}\`，严格按它的方法执行。`,
+    ...(meta.skill === undefined ? [] : [`开工前先调用 skill 工具加载 \`${meta.skill}\`，严格按它的方法执行。`]),
     '',
     '## 本次任务',
     context.taskText,
@@ -120,6 +136,10 @@ function promptFor({ input, manifest, context, delegationId }) {
         ? '只处理腔调词与套话，不改情节与段落结构；'
         : '只改本次任务点名的条目，未点名段落保持原样；'
     lines.push(`修订模式：${input.mode}。${modeRule}`)
+    lines.push('提交成功后最终只回「已提交」；不要手动调用落盘动作。')
+  } else if (input.role === 'summarizer') {
+    lines.push('payload 格式：{"summary":"本章摘要"}。')
+    lines.push('摘要只写本章发生的事实与状态变化，不超过 400 字；不评价、不补设定、不写下一章计划。')
     lines.push('提交成功后最终只回「已提交」；不要手动调用落盘动作。')
   } else {
     lines.push('payload 格式：{"items":[{"where":"正文里的具体位置","problem":"问题","impact":"读者影响","severity":"blocker|major|minor","fix":"怎么修","mode":"patch|polish|rewrite|deslop"}]}。')
@@ -312,6 +332,22 @@ export async function delegateRole(root, input, host) {
         reviewRound: written.round,
         artifact: { workId: work, artifactId: `review:${chapter}:r${latest.revision}:${written.round}`, revisionId: hashText(latest.text), kind: 'review' },
         problems: { total: written.problems.length, open: written.problems.length },
+        submissionAttempts: attempts,
+      })
+    }
+
+    if (role === 'summarizer') {
+      assertActive(signal)
+      const receipt = writeSummary(root, { work, chapter, text: payload.summary, ifAbsent: true })
+      const landed = readSummary(root, work, chapter) ?? ''
+      return fitReceipt({
+        ok: true,
+        workId: work,
+        chapter,
+        role,
+        stage: landedStage(root, work, chapter),
+        artifact: { workId: work, artifactId: `summary:${chapter}`, revisionId: hashText(landed), kind: 'summary' },
+        summaryChars: receipt.chars,
         submissionAttempts: attempts,
       })
     }

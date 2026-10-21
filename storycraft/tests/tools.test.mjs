@@ -315,7 +315,8 @@ try {
   }, exec)
   check('story_revise ok', revise.ok === true && revise.resolved[0] === 'Q1', JSON.stringify(revise))
   const afterReviseNext = await byName.get('story_next').execute({ work }, exec)
-  check('story_next does not offer a delegate for summary/state', afterReviseNext.delegate === undefined, JSON.stringify(afterReviseNext))
+  check('story_next offers summarizer after revision',
+    afterReviseNext.action === 'story_summarize' && afterReviseNext.delegate?.role === 'summarizer', JSON.stringify(afterReviseNext))
 
 
 
@@ -323,6 +324,8 @@ try {
   check('settling before the summary is refused', earlySettle.ok === false && earlySettle.error.code === 'summary-required', JSON.stringify(earlySettle))
   const preSummary = await byName.get('story_summarize').execute({ work, chapter: 1, summary: '司机捡到一盏灯。' }, exec)
   check('summary written before settle', preSummary.ok === true, JSON.stringify(preSummary))
+  const afterSummaryNext = await byName.get('story_next').execute({ work }, exec)
+  check('story_next offers no delegate for state', afterSummaryNext.action === 'story_state' && afterSummaryNext.delegate === undefined, JSON.stringify(afterSummaryNext))
   const state = await byName.get('story_state').execute({
     work, chapter: 1,
     entities: [{ name: '林澈', facts: ['拿到假合同'] }],

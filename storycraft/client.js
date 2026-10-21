@@ -194,7 +194,7 @@ window.__ModuleLoader__.load({
           + '做到修订为止停下：把修订结果、剩余未处理条目与字数变化报给我，等我决定是否润色或去 AI 味，再定稿。汇报不粘贴正文。'
       },
       flowFull(workId, chapter) {
-        return `写作品 ${workId} 第 ${chapter} 章并一路做完：先调 story_next；有 delegate.role 时按角色调 story_delegate，没有 delegate 时才按 action 手动做（章纲 → 正文 → 质检 → 审稿 → 修订/清稿 → 摘要 → 定稿）。每步结果简短汇报，不粘贴正文，结尾给出本章摘要与下一步。`
+        return `写作品 ${workId} 第 ${chapter} 章并一路做完：先调 story_next；有 delegate.role 时按角色调 story_delegate，没有 delegate 时才按 action 手动做（章纲 → 正文 → 质检 → 审稿 → 修订/清稿 → 摘要 → 定稿）。摘要步骤若委派不可用或未提交，只报告并停手，不自动读正文、不重派。每步结果简短汇报，不粘贴正文，结尾给出本章摘要与下一步。`
       },
       step(workId, chapter, action) {
         const label = {
@@ -260,7 +260,7 @@ window.__ModuleLoader__.load({
         return `把作品 ${workId} 第 ${chapter} 章的定稿撤销（story_reopen：只作废定稿，不改正文），然后重新审稿、按清单修订、再定稿。`
       },
       summarize(workId, chapter) {
-        return `用 story_summarize 给作品 ${workId} 第 ${chapter} 章写摘要（不超过 400 字，只写事实与状态变化）。`
+        return `给作品 ${workId} 第 ${chapter} 章写摘要：先调 story_next；只有返回 delegate.role=summarizer 时才用 story_delegate(role: summarizer)；否则不读正文，回报「摘要已存在或当前阶段不需要摘要，重写请明确要求」。`
       },
       fold(workId, chapter) {
         return `把作品 ${workId} 第 ${chapter} 章已经发生的事实定稿进状态：人物事实与伏笔变化用 story_state 落盘。`
@@ -1237,6 +1237,7 @@ window.__ModuleLoader__.load({
                           ? h('button', {
                             type: 'button',
                             className: 'sc-btn sc-btn-small',
+                            title: INSTRUCTIONS.summarize(manifest.workId, item.number),
                             onClick: () => compose(INSTRUCTIONS.summarize(manifest.workId, item.number)),
                           }, '摘要')
                           : null,

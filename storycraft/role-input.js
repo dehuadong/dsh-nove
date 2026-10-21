@@ -16,7 +16,7 @@ import { assembleRoleContext } from './context.js'
  * @param {string} root - workspace directory.
  * @param {object} input - role input.
  * @param {string} input.work - work identity.
- * @param {'writer'|'planner'|'reviewer'|'reviser'} input.role - role.
+ * @param {'writer'|'planner'|'reviewer'|'reviser'|'summarizer'} input.role - role.
  * @param {number|string} [input.chapter] - chapter number; optional for work-scoped planning.
  * @param {string} [input.instruction] - author instruction.
  * @param {string} [input.mode] - revision mode.
@@ -38,25 +38,27 @@ export async function loadRoleInput(root, input) {
   let body = ''
   let latest
   let review
-  if (role === 'reviewer' || role === 'reviser') {
+  if (role === 'reviewer' || role === 'reviser' || role === 'summarizer') {
     if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${number} 章：先写章纲再派活`)
     try {
       body = readChapter(root, { work: input.work, chapter: number }).content
     } catch (error) {
       if (error?.code === 'body-not-found') {
-        throw new StoryError('chapter-not-written', `第 ${number} 章还没有正文：先写正文，再审稿或修订`)
+        throw new StoryError('chapter-not-written', `第 ${number} 章还没有正文：先写正文，再审稿、修订或写摘要`)
       }
       throw error
     }
-    latest = latestReview(root, manifest, entry)
-    const open = latest === undefined ? [] : parseReview(latest.text).filter(item => !item.done)
-    if (role === 'reviser' && open.length === 0) {
-      throw new StoryError('review-required', `第 ${number} 章没有未处理的审稿条目：先 story_review，再修订`)
-    }
-    review = {
-      round: latest?.round,
-      revision: latest?.revision,
-      open: open.map(item => ({ id: item.id, problem: item.problem })),
+    if (role !== 'summarizer') {
+      latest = latestReview(root, manifest, entry)
+      const open = latest === undefined ? [] : parseReview(latest.text).filter(item => !item.done)
+      if (role === 'reviser' && open.length === 0) {
+        throw new StoryError('review-required', `第 ${number} 章没有未处理的审稿条目：先 story_review，再修订`)
+      }
+      review = {
+        round: latest?.round,
+        revision: latest?.revision,
+        open: open.map(item => ({ id: item.id, problem: item.problem })),
+      }
     }
   }
 

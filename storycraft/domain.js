@@ -142,6 +142,27 @@ export function stageOf(entry) {
 }
 
 /**
+ * Whether a chapter may receive a delegated summary.
+ *
+ * Shared by `story_next` and `story_delegate` preflight so the advertised role
+ * never disagrees with the admission check: revised or settled chapters pass;
+ * a reviewed chapter passes only when its latest review is clean and targets
+ * the current revision.
+ * @param {object|undefined} entry - chapter entry.
+ * @param {{text: string, revision: number}|undefined} latest - latest review.
+ * @returns {boolean} true when a summarizer delegation would pass preflight.
+ */
+export function summaryAdmissible(entry, latest) {
+  if (entry === undefined || entry.currentRevision === 0) return false
+  const stage = stageOf(entry)
+  if (stage === 'revised' || stage === 'settled') return true
+  return stage === 'reviewed'
+    && latest !== undefined
+    && latest.revision === entry.currentRevision
+    && parseReview(latest.text).filter(item => !item.done).length === 0
+}
+
+/**
  * Count characters of the body (CJK-aware: whitespace is excluded).
  * @param {string} text - body text.
  * @returns {number} character count.
@@ -150,6 +171,19 @@ export function countWords(text) {
   const cjk = String(text).match(/[\u3400-\u4dbf\u4e00-\u9fff]/g)?.length ?? 0
   const latin = String(text).match(/[A-Za-z][A-Za-z'-]*/g)?.length ?? 0
   return cjk + latin
+}
+
+/** Character cap of one chapter summary, counted in Unicode code points. */
+export const SUMMARY_MAX_CHARS = 400
+
+/**
+ * Trim a summary and count it by Unicode code point.
+ * @param {unknown} text - summary text.
+ * @returns {{text: string, chars: number}} trimmed text and its code-point length.
+ */
+export function trimSummary(text) {
+  const trimmed = String(text ?? '').trim()
+  return { text: trimmed, chars: [...trimmed].length }
 }
 
 /**

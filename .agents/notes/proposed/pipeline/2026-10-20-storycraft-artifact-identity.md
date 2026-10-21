@@ -2,7 +2,7 @@
 title: 故事工坊：模型可见的 artifact 身份与阶段上下文契约
 status: proposed
 created: 2026-10-20
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 # Agent Note：故事工坊：模型可见的 artifact 身份与阶段上下文契约
@@ -113,7 +113,7 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
 - 读取权限不是“同作品即可”，`story_read`、`story_context`、`story_brief` 共用同一阶段作用域：
   - 写正文时只读当前章 `plan:<n>`、`bible:*`、`outline`，不读其他章正文；
   - 审稿/修订只读当前章 `chapter:<n>` 与 `review:<n>:...`；
-  - 摘要/定稿只读当前章与 `state`/`summary:<n>`；
+  - 摘要由 `story_delegate(role:'summarizer')` 读取当前章与 `state`，正文留在子代理；定稿只读 `state`/`summary:<n>`；
   - 前情通过 `story_brief` 摘要，不通过 `story_read` 读旧章全文；
   - 越界返回 `artifact-not-readable` / `chapter-not-current`，不返回内容。
 - 不提供“按路径读作品”的模型入口。
@@ -130,7 +130,8 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
 | 审稿 | 当前章正文、章纲、人物卡、审稿标准 | `story_context` + `story_read` | 其他作品、内部路径 |
 | 修订 | 当前正文版本、未处理审稿条目、mode | `story_read` + `story_review` | 全库、文件路径 |
 | 清稿 | 当前正文、零问题审稿结果 | `story_review`（空清单）+ `story_read` | 其他作品、路径 |
-| 摘要/定稿 | 当前章正文、已有状态/伏笔 | `story_read` + `story_summarize` / `story_state` | 其他作品、路径 |
+| 摘要 | 当前章正文、已有状态/伏笔 | `story_next` → `story_delegate(role:'summarizer')`；正文在子代理 | 主会话正文、其他作品、路径 |
+| 定稿 | 当前状态/伏笔、已有摘要 | `story_state` | 主会话正文、其他作品、路径 |
 | 面板/导出 | 作者需要看的路径、版本、状态 | UI / `story_export`（作者侧） | 模型不参与 |
 
 原则：

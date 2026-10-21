@@ -34,8 +34,6 @@ export const BRIEF_BUDGET_BYTES = 8192
 /** Bytes of the previous chapter's tail used when no summary exists yet. */
 const PREV_TAIL_BYTES = 800
 
-/** Character cap of one chapter summary. */
-export const SUMMARY_MAX_CHARS = 400
 
 /** Word-count policy the brief hands to the model (validation belongs to a later stage). */
 export const WORD_POLICY = '单章 3000–5000 字；每章结尾留悬念钩子；61 章起分卷。'
@@ -244,7 +242,7 @@ export async function readSummary(root, workId, chapter) {
 }
 
 /**
- * Write one chapter's summary, capped at {@link SUMMARY_MAX_CHARS}.
+ * Write one chapter's summary, capped at 400 code points.
  * @param {string} root - workspace directory.
  * @param {string} workId - work identity.
  * @param {number} chapter - chapter number.
@@ -253,21 +251,14 @@ export async function readSummary(root, workId, chapter) {
  */
 export async function writeSummary(root, workId, chapter, text) {
   const number = chapterNumber(chapter)
-  const body = String(text ?? '').trim()
-  if (body === '') throw new StoryError('empty-summary', '摘要不能为空')
   const manifest = readManifest(root, workId)
-  const entry = manifest.chapters.find(item => item.number === number)
-  if (entry === undefined || entry.currentRevision === 0) {
-    throw new StoryError('body-not-found', `第 ${number} 章还没有正文，不能写摘要`)
-  }
-  const chars = [...body]
-  const truncated = chars.length > SUMMARY_MAX_CHARS
-  const content = `${truncated ? chars.slice(0, SUMMARY_MAX_CHARS).join('') : body}\n`
-  writeSummaryRow(root, { work: manifest.workId, chapter: number, text: content })
+  // The store owner validates the body, caps the text and returns the
+  // pre-truncation code-point count.
+  const receipt = writeSummaryRow(root, { work: manifest.workId, chapter: number, text })
   return {
     path: virtualPath(manifest.workId, `summaries/${chapterStem(number)}.md`),
-    truncated,
-    words: [...body].length,
+    truncated: receipt.truncated,
+    words: receipt.chars,
   }
 }
 

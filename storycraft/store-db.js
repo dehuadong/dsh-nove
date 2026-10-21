@@ -18,8 +18,8 @@ import {
   trashDir, trashFile, workFile, worksDir, backupsDir,
 } from './db.js'
 import {
-  StoryError, WORK_FORMS, chapterNumber, chapterStem, contentVersion, countWords, foldEvents, formOf, now,
-  parseReview, planApprovalPolicy, stageOf, unitOf, workIdOf,
+  StoryError, SUMMARY_MAX_CHARS, WORK_FORMS, chapterNumber, chapterStem, contentVersion, countWords, foldEvents,
+  formOf, now, parseReview, planApprovalPolicy, stageOf, summaryAdmissible, trimSummary, unitOf, workIdOf,
 } from './domain.js'
 import { assertRevisionMode } from './revision.js'
 
@@ -529,15 +529,18 @@ export function status(root, work) {
  * @param {{action: string, missing?: string[]}} step - next step.
  * @param {object|undefined} last - last chapter entry.
  * @param {object|undefined} candidate - latest review row.
- * @returns {{role: 'writer'|'reviewer'|'reviser'}|undefined} delegate hint.
+ * @returns {{role: 'writer'|'reviewer'|'reviser'|'summarizer'}|undefined} delegate hint.
  */
 function delegateOf(step, last, candidate) {
-  const role = { story_write: 'writer', story_review: 'reviewer', story_revise: 'reviser' }[step.action]
+  const role = { story_write: 'writer', story_review: 'reviewer', story_revise: 'reviser', story_summarize: 'summarizer' }[step.action]
   if (role === undefined) return undefined
   const missing = Array.isArray(step.missing) ? step.missing : []
   if (missing.includes('outline') || missing.includes('plan-approval') || missing.includes('revision')) return undefined
   if (role === 'reviser' && (last === undefined || candidate === undefined || candidate.revision !== last.currentRevision)) {
     return undefined
+  }
+  if (role === 'summarizer') {
+    return summaryAdmissible(last, candidate) ? { role } : undefined
   }
   return { role }
 }
@@ -1273,26 +1276,40 @@ export function reviseChapter(root, input) {
 // ---------------------------------------------------------------------------
 
 /**
- * Write a chapter summary (already capped by the caller).
+ * Write a chapter summary. The single write owner for manual and delegated
+ * summaries; {@link SUMMARY_MAX_CHARS} caps content and the receipt reports the
+ * pre-truncation code-point count.
  * @param {string} root - workspace directory.
- * @param {{work: string, chapter: number|string, text: string}} input - summary input.
- * @returns {{workId: string, chapter: number, chars: number}} receipt.
+ * @param {{work: string, chapter: number|string, text: string, ifAbsent?: boolean}} input - summary input.
+ * @returns {{workId: string, chapter: number, chars: number, truncated: boolean}} receipt.
  */
 export function writeSummary(root, input) {
   const number = chapterNumber(input.chapter)
-  const text = String(input.text ?? '').trim()
+  const { text } = trimSummary(input.text)
   if (text === '') throw new StoryError('empty-summary', '摘要不能为空')
   const workId = String(input.work)
   const db = openWork(root, workId)
   try {
     return transaction(db, () => {
-      ensureChapter(db, number)
+      const entry = chapterRow(db, number)
+      if (entry === undefined || entry.current_revision === 0) {
+        throw new StoryError('body-not-found', `第 ${number} 章还没有正文，不能写摘要`)
+      }
+      if (input.ifAbsent === true) {
+        const existing = db.prepare('SELECT text FROM summaries WHERE number = ?').get(number)
+        if (existing !== undefined && String(existing.text).trim() !== '') {
+          throw new StoryError('summary-exists', `第 ${number} 章已有摘要：作者的主动重写请走手动 story_summarize`)
+        }
+      }
+      const points = [...text]
+      const truncated = points.length > SUMMARY_MAX_CHARS
+      const content = `${truncated ? points.slice(0, SUMMARY_MAX_CHARS).join('') : text}\n`
       const at = now()
       db.prepare(`INSERT INTO summaries (number, text, written_at) VALUES (?, ?, ?)
-        ON CONFLICT(number) DO UPDATE SET text = excluded.text, written_at = excluded.written_at`).run(number, text, at)
-      syncSearchDoc(db, `summary:${number}`, 'summary', `summaries/${chapterStem(number)}`, number, text)
+        ON CONFLICT(number) DO UPDATE SET text = excluded.text, written_at = excluded.written_at`).run(number, content, at)
+      syncSearchDoc(db, `summary:${number}`, 'summary', `summaries/${chapterStem(number)}`, number, content)
       touchMeta(db, at)
-      return { workId, chapter: number, chars: text.length }
+      return { workId, chapter: number, chars: points.length, truncated }
     })
   } finally {
     db.close()

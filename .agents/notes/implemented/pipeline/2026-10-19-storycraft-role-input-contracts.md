@@ -2,8 +2,8 @@
 title: 故事工坊：角色输入契约（单一模式版）
 status: implemented
 created: 2026-10-19
-updated: 2026-10-20
-verification: 实跑 story_context 四角色与第 7 章 story_write(rewrite)；14 套断言与 5 条页面 spec 全过；2026-10-20 未登记人名/地名/尺寸 warning 测试通过
+updated: 2026-10-21
+verification: 实跑 story_context 四角色与第 7 章 story_write(rewrite)；14 套断言与 5 条页面 spec 全过；2026-10-20 未登记人名/地名/尺寸 warning 测试通过；2026-10-21 摘要角色 section 集合断言通过
 ---
 
 # Agent Note：故事工坊：角色输入契约（单一模式版）
@@ -15,6 +15,8 @@ verification: 实跑 story_context 四角色与第 7 章 story_write(rewrite)；
 于是「角色拿到什么」失去了承载点：私有派发动作被删除后，`context.js` 与 `consistency.js` 成了无人引用的模块；主编只能手拼 prompt，校验也没有落点。
 
 ## 决定
+
+2026-10-21 交付：摘要角色不经过 `story_context`，由 `story_delegate` 内部装配 `authority`/`task`/`body`/`state`；不读章纲、人物卡、`recent` 与 `constraints`。其余四角色契约不变。
 
 ### 输入由只读动作交付
 

@@ -107,6 +107,17 @@ try {
   check('reviewer gets the chapter plan before the body',
     review.trace.sections.map(item => item.name).indexOf('plan') < review.trace.sections.map(item => item.name).indexOf('body'))
   check('reviewer gets a standards segment', review.trace.sections.some(item => item.name === 'standard' && item.protection === 'protected'))
+
+  const summaryBody = s.readChapter(root, { work, chapter: 1 }).content
+  const summaryContext = await assembleRoleContext({ root, work, chapter: 1, role: 'summarizer', body: summaryBody })
+  const summaryNames = summaryContext.trace.sections.map(item => item.name)
+  check('summarizer gets exactly authority/task/body/state',
+    JSON.stringify(summaryNames) === JSON.stringify(['authority', 'task', 'body', 'state']), summaryNames.join(','))
+  check('summarizer gets the body as protected',
+    summaryContext.trace.sections.some(item => item.name === 'body' && item.protection === 'protected'))
+  check('summarizer task names the summary', summaryContext.text.includes('写摘要'), summaryContext.text.slice(0, 200))
+  check('summarizer omits constraints/recent/style/standard',
+    ['constraints', 'recent', 'style', 'standard', 'plan'].every(name => !summaryNames.includes(name)), summaryNames.join(','))
 } finally {
   await rm(root, { recursive: true, force: true })
 }

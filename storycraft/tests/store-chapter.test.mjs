@@ -51,6 +51,13 @@ try {
   store.writeSummary(root, { work, chapter: 1, text: '周砚摸井台，发现第三人。' })
   check('summary roundtrip', store.readSummary(root, work, 1).includes('第三人'))
   throws('summary required', 'empty-summary', () => store.writeSummary(root, { work, chapter: 1, text: ' ' }))
+  throws('delegated summary refuses an existing one', 'summary-exists',
+    () => store.writeSummary(root, { work, chapter: 1, text: '覆盖', ifAbsent: true }))
+  store.writeSummary(root, { work, chapter: 1, text: '手动覆盖。' })
+  check('manual summary overwrites', store.readSummary(root, work, 1).includes('手动覆盖'))
+  const capped = store.writeSummary(root, { work, chapter: 1, text: '长'.repeat(401) })
+  check('summary caps at 400 code points', capped.truncated === true && [...store.readSummary(root, work, 1).trim()].length === 400
+    && capped.chars === 401, JSON.stringify(capped))
 
   const state = store.foldState(root, {
     work, chapter: 1,

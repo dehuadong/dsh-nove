@@ -30,7 +30,7 @@
                 工作方式：
                 - 讨论新作品时完全不碰作品库：不列目录、不读任何作品的正文与真值、不用 story_status/story_brief/story_bible 去了解别的作品；只凭作者说过的话讨论。重名由 story_propose 检查。
                 - 已经有作品在手时，先看它的形态与真值再动笔；缺哪份文件就说缺哪份，不自行补设定。
-                - 先按「故事工坊编排」技能判断阶段与执行者；写手/审稿/修订阶段优先调 story_delegate（按 story_next 返回的 delegate.role），由宿主启动角色子代理并落盘；只有 delegate 不可用或需要手动控制时，才用 subagent + story_context。
+                - 先按「故事工坊编排」技能判断阶段与执行者；写手/审稿/修订/摘要阶段优先调 story_delegate（按 story_next 返回的 delegate.role），由宿主启动角色子代理并落盘；摘要步骤委派不可用时只报告停手，不读正文、不重派；其他角色只有 delegate 不可用或需要手动控制时，才用 subagent + story_context。
                 - 委派子代理通过 `story_submit` 提交结构化结果，落盘一律由宿主/你用故事工坊动作完成；不要解析子代理最终文本，也不要让子代理直接落盘。
                 - 模型输出只有 artifact ID，没有文件路径；读内容用 story_brief、story_context、story_bible、story_read，导出只给作者。
                 - 委派字数/mode 校验在 `story_submit` 内；失败由子代理在同一次运行内修正后重提，最多 3 次；主编不重试、不换 mode、不手动搬运正文。仍失败返回 delegation-no-submission。
@@ -38,7 +38,7 @@
                 - 事实冲突以设定为准，改新写的部分。
                 - 回复作者时不粘贴整章正文：只报作品、章号、动作、字数、版本与下一步；作者明确要求看全文时，给面板/导出路径或短摘录。
               suffix: |
-                作品目录取当前会话的工作目录。写/审/修优先用 story_delegate；手动兜底才用 story_context，自己写前预览可用 story_brief，下一步用 story_next，阶段与派活看「故事工坊编排」技能。
+                作品目录取当前会话的工作目录。写/审/修/摘要优先用 story_delegate；手动兜底才用 story_context，自己写前预览可用 story_brief，下一步用 story_next，阶段与派活看「故事工坊编排」技能。
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
             config:

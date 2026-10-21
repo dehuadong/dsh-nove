@@ -12,7 +12,7 @@ DSH 里的长篇创作编排：三十个动作把立项、章纲、正文、审�
 
 ## 角色与委派
 
-写手、审稿、修订、规划**不是预设**，而是子代理；写手/审稿/修订默认由宿主动作 `story_delegate` 通过官方 `subagents` 服务启动，规划仍用手动 `subagent`：
+写手、审稿、修订、摘要、规划**不是预设**，而是子代理；写手/审稿/修订/摘要默认由宿主动作 `story_delegate` 通过官方 `subagents` 服务启动，规划仍用手动 `subagent`：
 
 - `story_delegate` 在宿主侧预检、装配上下文、启动子代理、校验并落库；主编只收紧凑回执，正文不进入主会话；
 - 手动兜底仍用官方 `subagent`：省略 `agentPreset`，子代理加入故事工坊当前组合；角色由任务提示与对应技能（`storycraft-write-craft`、`storycraft-review`、`storycraft-revise-craft`、`storycraft-plan-craft`）决定；
@@ -71,7 +71,7 @@ summaries         章节摘要（上限 400 字）
 - `story_bible`：读真值（可指定一份），缺失时指出缺哪几份。
 - `story_bible_write`：校验后写入并返回内容版本；人物档案缺字段或重名会被拒绝，原内容不变。
 - `story_bible_import`：把旧文件作品的世界观收编进真值，并列出仍需作者补的项（不替作者编人物档案）；不导入大纲，大纲只走 `story_outline` + 作者确认。
-- `story_summarize`：写章节摘要（超 400 字截断并报告）。
+- `story_summarize`：手动写章节摘要（超 400 字截断并报告）；正常链路先由 `story_next` 给出 `summarizer` 委派，子代理通过 `story_submit` 提交摘要，主编不读整章。
 - `story_brief`：装配写某一章前的上下文——意图、本章章纲、涉及人物、未解伏笔、上一章结尾、文风、字数口径；默认 8 KB，超预算按优先级裁剪并报告裁掉的段；同一输入两次结果逐字节一致。
 
 ## 作品操作与导出
@@ -97,7 +97,7 @@ summaries         章节摘要（上限 400 字）
 - 已定稿章改章纲要先带 `reopen: true` 重写正文回退（`chapter-settled`）；
 - `reopen` 会在事件表里追加一条 `reopen`，该章旧的定稿不再计入状态折叠。
 
-`story_next` 是只读查询：告诉模型下一步该调哪个动作、为什么、缺什么；可委派时返回 `delegate.role`（writer/reviewer/reviser），主编据此调用 `story_delegate`，`action` 保留给手动路径。
+`story_next` 是只读查询：告诉模型下一步该调哪个动作、为什么、缺什么；可委派时返回 `delegate.role`（writer/reviewer/reviser/summarizer），主编据此调用 `story_delegate`，`action` 保留给手动路径。
 
 ## 动作
 
@@ -110,7 +110,7 @@ summaries         章节摘要（上限 400 字）
 | `story_revise` | 生成新版本正文并把条目改为已处理 | 没有审稿清单；未指定条目；条目不存在；正文与当前版本相同；模式与改动幅度不符 |
 | `story_state` | 追加人物事实与伏笔事件，返回新增/已用/已解/未解计数 | 作品或章不存在；伏笔状态非法；「已用」指向未埋的伏笔；未修订完成或未清稿 |
 | `story_status` | 只读汇总进度、阶段、版本、未处理问题、未解伏笔 | 作品不存在 |
-| `story_delegate` | 宿主侧跑一个角色：预检、装配上下文、启动子代理、消费 `story_submit`、落库，返回紧凑回执 | 预检/阶段错误按原码返回；服务缺失 `delegation-unavailable`；无合格提交 `delegation-no-submission` |
+| `story_delegate` | 宿主侧跑一个角色（writer/reviewer/reviser/summarizer）：预检、装配上下文、启动子代理、消费 `story_submit`、落库，返回紧凑回执 | 预检/阶段错误按原码返回；服务缺失 `delegation-unavailable`；无合格提交 `delegation-no-submission`；摘要已存在 `summary-exists` |
 | `story_submit` | 仅子代理调用：提交结构化角色结果，宿主校验字数/mode，失败可重提 | 父代理/非委派 `submit-parent-denied`；超 3 次 `submit-attempts-exhausted` |
 | `story_read` | 只读：按 `artifactId`/`revisionId` 读取当前章可读内容；越界返回 `artifact-not-readable` | 作品不存在；旧章/旧审稿版本 |
 | `story_next` | 只读：下一步动作、章号、原因、缺什么；可委派时带 `delegate.role` | 作品不存在 |

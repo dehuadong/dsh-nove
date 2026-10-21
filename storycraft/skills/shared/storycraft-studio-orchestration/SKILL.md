@@ -49,19 +49,22 @@ whenToUse: 作者提出写作需求、需要决定下一步做什么、或要在
 
 delegate 不可用（`delegation-unavailable`）、作者要求你直接做，或需要手动控制时：
 
+摘要步骤例外：`delegation-unavailable` / `delegation-no-submission` 时只报告并停手，不自动读正文、不重派、不转手动；只有作者显式要求时才手动写摘要。
+
 1. 一句话任务：对象（作品/章号）、目标、禁止事项；
 2. 输入：先调 `story_context`（作品、章号、角色、作者要求），把返回的 `sections` 按顺序拼进任务；**不要**用 `story_brief` 派发，也不要整库打开；
 3. 输出契约：清单 JSON 还是整章正文（带首尾标记），并点名要读的技能（`storycraft-write-craft` / `storycraft-review` / `storycraft-revise-craft`）。
 
 子代理**不落盘**：它继承同一套工具，但 `write`、`edit`、外壳与 `story_*` 写动作会被守卫拒绝。不要让它试；委派时它通过 `story_submit` 提交，宿主消费后由你用动作落盘；手动 subagent 才返回文本。`story_write` / `story_revise` 会做一致性校验：未登记人名、地名与尺寸都进 `warnings`，不阻断正文；看到 warning 再决定是否补人物卡。
 
-## 四类派发模板
+## 五类派发模板
 
 | 角色 | 首选 | 手动兜底 | 技能 | 输出契约 |
 | --- | --- | --- | --- | --- |
 | 写手 | `story_delegate(role:'writer')` | `story_context` + `subagent` | `storycraft-write-craft` | 委派：`story_submit {title,body}`；手动：`<<<TITLE … TITLE>>>` + `<<<CHAPTER … CHAPTER>>>` |
 | 审稿 | `story_delegate(role:'reviewer')` | `story_context` + `subagent` | `storycraft-review` | 委派：`story_submit {items}`；手动：同一 JSON，最多 8 条 |
 | 修订 | `story_delegate(role:'reviser', mode)` | `story_context` + `subagent` | `storycraft-revise-craft` | 委派：`story_submit {body}`；手动：整章正文（同一对首尾标记） |
+| 摘要 | `story_delegate(role:'summarizer')` | —（仅作者显式要求时主编手动写） | — | 委派：`story_submit {summary}`，≤400 字；手动：`story_summarize` |
 | 规划 | — | `story_context` + `subagent` | `storycraft-plan-craft` | 章纲 JSON（五项）或全书计划 JSON（三段） |
 
 任务段一律由宿主或 `story_context` 生成，作者要求写进 `instruction`，不要在任务里另写一套上下文。
