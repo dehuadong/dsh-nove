@@ -373,6 +373,10 @@ try {
   check('story_delegate declares its compact receipt', ['role', 'stage', 'revision', 'problems'].every(key => delegateProps.includes(key)), delegateProps.join(','))
   const statusProps = Object.keys(byName.get('story_status').output.schema.properties.status.properties ?? {})
   check('story_status declares the fields it returns', ['form', 'wordRange', 'chapters', 'hooks'].every(key => statusProps.includes(key)), statusProps.join(','))
+  const statusChapterProps = Object.keys(byName.get('story_status').output.schema.properties.status.properties.chapters.items.properties ?? {})
+  check('story_status chapter schema declares summary fields',
+    ['hasSummary', 'summaryRevision', 'summaryStale'].every(key => statusChapterProps.includes(key)),
+    statusChapterProps.join(','))
 
   // Delegated subagents share this composition and see the same tools; the
   // runtime keeps them from landing anything.
