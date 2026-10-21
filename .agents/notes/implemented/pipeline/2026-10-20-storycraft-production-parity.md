@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：参考目标对拍与章节生产编排整改
-status: proposed
+status: implemented
 created: 2026-10-20
-updated: 2026-10-20
+updated: 2026-10-21
+verification: ef83ea2 / db6b4df；23 个单测 + 11 条 E2E；真实第 1–4 章 warning-only、清稿、委派与窗口回归
 ---
 
 # Agent Note：故事工坊：参考目标对拍与章节生产编排整改
@@ -117,15 +118,15 @@ story_propose / story_init
 
 | 节点 | 现象 | 根因 | 修法 | 状态 | owner | 验证 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `story_init` | 模型读 `works/<id>/bible/characters.json` | `artifact.path` 是路径 affordance | #22 改为 artifactId/revisionId；本项只保留临时提示 | 迁移中（#22） | #22 / `tools.js` | #22 的无 path 回归 |
-| `grep` | 扫描 `works/` 被守卫拦住 | 默认扫描作品库 | #22 去掉模型可见 path；guard 只作兜底，不再靠“人设禁止” | 迁移中（#22） | #22 / `scope.js` | #22 无 path 回归 |
+| `story_init` | 模型读 `works/<id>/bible/characters.json` | `artifact.path` 是路径 affordance | #22 改为 artifactId/revisionId；本项只保留临时提示 | 已交付（#22） | #22 / `tools.js` | #22 的无 path 回归 |
+| `grep` | 扫描 `works/` 被守卫拦住 | 默认扫描作品库 | #22 去掉模型可见 path；guard 只作兜底，不再靠“人设禁止” | 已交付（#22） | #22 / `scope.js` | #22 无 path 回归 |
 | `story_next` | 计划确认后仍 `missing:['outline']` | `last === undefined` 分支写死 missing | 已确认后 `missing:[]` | 已修（`533bad1`） | `store-db.js` | 单元测试 |
 | `story_status` | 看不到计划是否确认 | 只返回章节/审稿 | 返回 `outline.writtenAt/approvedAt` | 已修（`76c072d`） | `store-db.js` / `tools.js` | 单元测试 |
 | 面板确认 | 确认后自动写正文 | 确认按钮内 `face.send` | 确认只落库；动作按钮填输入框 | 已修（`b75d44c`） | `client.js` | E2E/手工 |
 | 动作按钮 | 需复制/手打 | 只提示不写入或直接发送 | 明确“填入输入框”，保留作者补充 | 已修（`b75d44c`） | `client.js` | E2E |
-| consistency | 角色词/对白片段被当人名，整章重写 | 全局词表硬阻断 | warning；人物卡权威；删除硬词表依赖 | 待修（#21） | `facts.js` / `landing.js` | warning 测试 + 真实首章 |
-| delegate | 三次 writer 失败 | 误报被当正文有罪 | 不因 warning 重试；失败分类 | 待修（#21） | `delegate.js` / skills | 会话回归 |
-| 上下文 | 主会话 2.87M tokens | 失败重写 + 历史累积 | 取消误报重写；新会话；预算 | 待修（#21） | 编排/测量文档 | 测量 |
+| consistency | 角色词/对白片段被当人名，整章重写 | 全局词表硬阻断 | warning；人物卡权威；删除硬词表依赖 | 已交付（#21） | `facts.js` / `landing.js` | warning 测试 + 真实第 1–4 章 |
+| delegate | 三次 writer 失败 | 误报被当正文有罪 | 不因 warning 重试；失败分类 | 已交付（#21） | `delegate.js` / skills | 真实第 1–4 章 |
+| 上下文 | 主会话 2.87M tokens | 失败重写 + 历史累积 | 取消误报重写；新会话；预算 | 已交付（#21/#23） | 编排/测量文档 | #19 AC6 窗口 1,758 / 2,107 |
 
 ## 已交付节点修复
 
@@ -137,7 +138,7 @@ story_propose / story_init
 - `845a4c0`：虚拟路径临时提示（#22 接管为 artifactId 契约）。
 
 上述提交的回归仍需并入 #21 的最终验证；未完成的行为以本 Note 提案为准。
-## 提案
+## 决定
 
 ### 1. 一致性：warning，不是 gate
 
@@ -198,14 +199,13 @@ story_propose / story_init
 - **整章全自动 pipeline**：与作者闸门和现有动作边界冲突；放弃。
 - **把 warning 直接当错误**：重复本轮失败；放弃。
 
-## 验收条件
+## 后果
 
-本 Note 证明设计自洽；产品验收属于工作项 #21，不在此重复。
-
-1. 能力矩阵由既有 parity-matrix Note 更新，包含长篇核心能力、差距和状态；
-2. 工作流表把参考的 writer → review observation → persistence/state validation → persist 映射到当前动作，并标注保留/缺失/非范围；
-3. 一致性设计明确：无全局词表硬判定，未登记人名 warning，清稿审稿可行；
-4. 节点错误清单区分已交付修复与待修项，并给出 owner/验证方式。
+- 一致性从硬阻断改为 warning：未登记人名/地名/尺寸不再导致整章重写，噪声由 reviewer 与作者补卡承接。
+- 清稿审稿（`items: []`）可以沿 `reviewed + 零问题` 直接进入摘要/定稿；`story_next` 不再强制 reviser。
+- 章节生产保留显式节点与作者闸门，不复制参考的原子 pipeline；失败分类与手动兜底边界写入技能。
+- 节点错误清单按 owner 分派：#22 接路径/无 path，#21 接 warning/清稿/委派/预算；当前清单已全部标为已交付。
+- 能力矩阵继续由 `2026-10-18-storycraft-parity-matrix.md` 单一维护，本 Note 不另建表。
 
 ## 风险
 
@@ -213,5 +213,13 @@ story_propose / story_init
 - 不做 StateValidator，状态矛盾仍可能漏；单列后续工作。
 - 参考目标还有 forecast/同人/番外等能力，本项不覆盖，需在能力矩阵标非范围。
 - 真实单章测量仍需新会话与干净作品；旧会话历史会污染测量。
+
+## 验证
+
+- `node storycraft/scripts/ci.mjs`：23 个单测文件 + 11 条 E2E 全过。
+- warning-only：第 1–4 章 writer/reviser 只返回 `warnings`，正文正常落盘。
+- 清稿：第 3 章 `story_review(problems: [])` 后 `story_next` 直接 `story_summarize`；委派空清单分支由 `delegate.test.mjs` 覆盖。
+- 委派：第 1–4 章均走 `story_delegate`，无手动正文回退；第 4 章摘要窗口 591、整轮 2,735。
+- AC7 预算：#19 AC6 clean 窗口 1,758 / 2,107（≤4,000）；首次建档 recovery episode 6,290（≤10,000）。
 
 
