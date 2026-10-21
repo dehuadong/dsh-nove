@@ -83,7 +83,7 @@ updated: 2026-10-21
 
 ### #24 摘要角色通道（第 4 章）
 
-真实单章在 `session-91e3c83e` 跑到摘要完成（未定稿）：
+真实单章在 `session-91e3c83e` 跑到定稿：
 
 1. writer 1,278 字（`r1`，1 次提交）→ reviewer 6 条问题 → reviser `patch` 1,456 字（`r2`，Q1–Q6 resolved，1 次提交）。
 2. `story_next` 返回 `action: story_summarize`、`delegate.role: summarizer`。
@@ -91,6 +91,7 @@ updated: 2026-10-21
 4. 主会话本步只调 `story_next` + `story_delegate`，**没有 `story_read`**，也没有手动 `story_summarize` / `story_write` / `story_revise` / `subagent`。
 5. 测量：摘要窗口（`story_next` 调用 → 摘要回执）**591 字符**；整轮工具参数+结果 **2,735 字符**；均低于 #24 的 700 / 6,311 基线。
 6. 三个子代理最终回答均为「已提交」，未回正文。
+7. `story_state` 定稿：state `seq:32`，第 4 章 `settled`（`r2`，1,456 字，摘要 317 字未改）；第一次因伏笔原文抄错字被 `hook-not-open` 拒绝，按已存文本修正后同轮重提成功。
 
 ### 本轮遗留
 
