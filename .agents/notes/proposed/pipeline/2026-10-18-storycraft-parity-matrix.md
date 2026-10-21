@@ -62,18 +62,18 @@ updated: 2026-10-20
 | 全书计划/卷图 | foundation outline + volume map | `story_outline` + 作者确认 | 状态字段不完整 | 部分 | 补状态字段 |
 | 章纲/章 memo | chapter intent + memo | `story_plan` | 无独立 memo，章纲兼任 | 部分 | 保留，不新增对象 |
 | 写前上下文 | protected/compressible，语义选择 | `story_brief` / `story_context` | 固定段，无语义选择/预算 | 部分 | 补预算；语义选择后续 |
-| 正文写作 | writer，一次整章，结构化 `submit_chapter_draft` | `story_write` / delegate writer 的最终文本 | 角色结果走聊天文本；子代理会话出现全文 | 缺失 | 新增 `story_submit` + SubmissionStore，保留 DSH subagent |
-| 连续性审稿 | LLM auditor + 证据 observations | `story_review` / reviewer 问题条目 | 无 observation 证据模型 | 部分 | 未登记人名转 warning；审稿承接 |
+| 正文写作 | writer，一次整章，结构化 `submit_chapter_draft` | delegate writer 走 `story_submit`，父回执不含正文 | 无 | 对齐 | 保留 DSH subagent；2026-10-21 两章真实链路验证 |
+| 连续性审稿 | LLM auditor + 证据 observations；空 observations 有效 | `story_review` / reviewer 问题条目；委派走 `story_submit` | 无 observation 证据模型；空清单清稿未真实触发 | 部分 | 未登记人名转 warning；#21 继续验证空清单 |
 | 质检 | 指标与审稿分离 | `story_critique` | 未进入工作流对拍 | 部分 | 保留为独立只读节点 |
 | 状态抽取 | chapter summary / factOps / hookOps | `story_state` 手写 | 无自动 settler | 部分 | 本项不自动 settler |
 | 状态对账 | StateValidator 语义对账 | 无 | 缺失 | 缺失 | 单列后续工作 |
 | 修订 | 独立 revise，mode + observations | `story_revise` / reviser | 无 observation 输入 | 部分 | 保留 mode |
 | 审稿/修订分离 | 审稿只观察，不自动改 | review 条目 + 主编决定 | 委派失败会回退重写 | 部分 | warning 不触发重写 |
-| 作者闸门 | 计划/章纲确认 | 面板确认 | 自动发送/状态误报已修（`b75d44c`/`533bad1`），待回归 | 对齐（待回归） | 确认不自动发送 |
-| 下一步/进度 | pipeline 返回阶段结果 | `story_next` / `story_status` | outline 误报/状态缺字段已修（`533bad1`/`76c072d`），待回归 | 对齐（待回归） | 修 next/status |
-| 卷/摘要/滚动 | volume map + summaries | `story_volume` / `story_summarize` | 无 | 对齐 | 保留 |
+| 作者闸门 | 计划/章纲确认 | 面板确认 | 无 | 对齐 | 2026-10-21 两章回归通过；确认不自动发送 |
+| 下一步/进度 | pipeline 返回阶段结果 | `story_next` / `story_status` | 无 | 对齐 | 2026-10-21 两章回归通过 |
+| 卷/摘要/滚动 | volume map + summaries；writer 提交 `chapterSummary` | `story_volume` / `story_summarize`；摘要由主编手写 | 摘要前主编用 `story_read` 读整章（第 1 章 2,224 字符） | 部分 | 新工单：摘要随角色提交或宿主侧生成 |
 | 导入/导出/备份 | import/export | `story_export` / `story_backup`；无导入 | 缺章节导入 | 部分 | 非本项阻塞 |
-| 上下文/token 治理 | token usage + context trace | 仅主会话字符测量 | 缺 trace/预算 | 缺失 | 本项补测量规范 |
+| 上下文/token 治理 | token usage + context trace | 主会话字符已测量；#19 AC6 clean 窗口 1,758 / 2,107；无 context trace | 缺摘要通道、trace 与独立预算 | 部分 | 摘要通道单列；trace 后续 |
 | 失败策略 | review-unavailable 不重写 | delegate 失败重试/回退 | 误报触发整章重写 | 部分 | 统一失败分类 |
 | forecast/同人/番外/互动影游 | 参考有 | 无 | 不在主线 | 非范围 | 不纳入本项 |
 ### 明确不做
