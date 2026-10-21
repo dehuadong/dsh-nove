@@ -8,7 +8,7 @@ verification: 20 个单元测试文件与 7 条页面 spec 全绿；200 章加�
 
 # Agent Note：故事工坊：作品入库与导出（SQLite，一作品一库）
 
-> 2026-10-21 部分修订：`db.js:331` 的“任何非当前 `user_version` 都拒绝打开”改为 v1→v2 受控自动迁移；迁移失败新增 `schema-migration-failed`，`work-busy` 仍可重试。迁移细节见 [摘要 revision 绑定](../../proposed/pipeline/2026-10-21-storycraft-summary-revision-binding.md)。
+> 2026-10-21 部分修订：`db.js:331` 的“任何非当前 `user_version` 都拒绝打开”改为 v1→v2 受控自动迁移；迁移失败新增 `schema-migration-failed`，`work-busy` 仍可重试。迁移细节见 [摘要 revision 绑定](2026-10-21-storycraft-summary-revision-binding.md)。
 
 ## 问题
 

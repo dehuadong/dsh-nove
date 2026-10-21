@@ -8,7 +8,7 @@ verification: e0992f9；23 个单测 + 11 条 E2E；真实第 4 章摘要窗口 
 
 # Agent Note：故事工坊：章节摘要的角色提交通道
 
-> 2026-10-21 部分修订：摘要绑定正文 revision、过期识别与迁移由 [摘要 revision 绑定](../../proposed/pipeline/2026-10-21-storycraft-summary-revision-binding.md) 承接；本 Note 的 `summary-exists` 语义改为“当前版本已有摘要”，`nextStep`/`hasSummary` 的旧描述以新 Note 为准。
+> 2026-10-21 部分修订：摘要绑定正文 revision、过期识别与迁移由 [摘要 revision 绑定](2026-10-21-storycraft-summary-revision-binding.md) 承接；本 Note 的 `summary-exists` 语义改为“当前版本已有摘要”，`nextStep`/`hasSummary` 的旧描述以新 Note 为准。
 
 ## 问题
 

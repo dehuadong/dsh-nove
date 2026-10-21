@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：摘要绑定正文 revision 与过期识别
-status: proposed
+status: implemented
 created: 2026-10-21
 updated: 2026-10-21
+verification: cddc551 / 30d9be9；25 个单测 + 11 条 E2E；真实第 4 章重写 r4 1,203 字、摘要 399 字 / 2 次提交、summaryRevision 4、summaryStale false
 ---
 
 # Agent Note：故事工坊：摘要绑定正文 revision 与过期识别
@@ -24,7 +25,7 @@ updated: 2026-10-21
 - 沿用 `2026-10-20-storycraft-artifact-identity.md` 的 `summary:<n>` artifact 身份；`hasSummary` / `summaryStale` 是面板与 `readWork` 字段，不进入模型可见 artifact，故不改变 #22。
 - 对拍表「卷/摘要/滚动」行在交付时从“绑定未立项”改为已交付。
 
-## 提案
+## 决定
 
 ### 1. Schema 与迁移
 
@@ -147,19 +148,15 @@ missing = 其余（含空文本行与 revision IS NULL）
 - **显式 `story_migrate` 动作**：给作者控制权，但增加第 31 个动作与迁移前置，和“打开即用”冲突；否决。
 - **`openWork` 迁移失败后按 v1 只读打开**：需要摘要查询两套 SQL，且 `readWork`/`nextStep` 都要分支；否决，改为 fail-closed + 目录可见错误行。
 
-## 验收条件
+## 后果
 
-本 Note 只检查设计自洽；产品验收见 #25。
-
-1. 新库与 v1 迁移库的 `summaries.revision` 可空；写入摘要时等于当前正文 revision，旧摘要回填 current（0 章回填 NULL）。
-2. current / stale / missing 只有一个判定函数（返回显式 `state`），`readWork`、`status`、`story_next`、preflight、`foldState`、brief/context 共用。
-3. 迁移幂等且事务化：重复打开与半迁移态不重复回填，失败回滚并返回 `schema-migration-failed`，`SQLITE_BUSY` 返回 `work-busy`；未知版本仍 `schema-version-mismatch`。
-4. 过期摘要不被当成 current 进入 `story_state`、brief 或 context；文本仍可读。
-5. 迁移失败时目录仍显示该作品（`degraded: true` + `migrationError`，计数为 `null`），不静默消失；`readWork` / `status` / 其他动作 fail-closed。
-6. 导出 manifest v2 的字段对无摘要章节取 `null`/`false`，旧读取方可忽略。
-7. 面板三态徽标/按钮与定稿 tooltip 一致；摘要固定指令流程不变，文案包含“已存在、已过期或当前阶段不需要摘要”。
-8. 模型可见动作回执形状不变；`summaryRevision` 只出现在 `readWork` / `status` / 导出 manifest / `writeSummary` 内部返回值与测试中。
-9. `story_state` 的早期检查与 `foldState` 的事务内复查对 missing 返回 `summary-required`、对 stale 返回 `summary-stale`；直调 `foldState` 时未审稿仍先返回 `review-required`；两种摘要错误下章节与状态不变。
+- 摘要现在绑定写入时的 `chapters.current_revision`；改正文后旧摘要变为 stale，`story_next` 会重新要求摘要，`story_state` 拒绝定稿。
+- `readWork` / `story_status` 暴露 `hasSummary` / `summaryRevision` / `summaryStale`；面板显示「摘要过期」与「重写摘要」，定稿按钮在无当前摘要时禁用。
+- `story_brief` 的 `previous` / `recentSummaries` 与 `story_context` 的 `recent` 只用 current 摘要，stale 回退到正文结尾。
+- 迁移是 v1→v2 的加列；旧摘要按当时 current revision 回填，历史已过期但无版本信息的摘要无法追溯。
+- 迁移失败的作品仍在目录中显示为降级，动作 fail-closed；`work-busy` 可重试，其他迁移失败返回 `schema-migration-failed`。
+- 导出 manifest 升到 2，新增 `summaryRevision` / `summaryStale`；模型可见动作回执形状不变。
+- 搜索索引仍保留 stale 摘要，只标记不删除。
 
 ## 风险
 
@@ -169,3 +166,11 @@ missing = 其余（含空文本行与 revision IS NULL）
 - `summary-stale` 是新增错误码，面板/技能/README 未同步时会被模型当未知错误。
 - stale 摘要仍留在 FTS，搜索可能命中过期内容；本项只标记不删索引，后续可按需处理。
 - 迁移失败后每次打开都重试；对持续损坏的库会重复失败，错误信息必须包含原因与恢复建议。
+
+## 验证
+
+- `node storycraft/scripts/ci.mjs`：25 个单测文件 + 11 条 E2E 全过。
+- 迁移：v1 fixture 加列/回填/幂等/半迁移/回滚/未知版本/内容保持。
+- 判定：current → stale → rebind、NULL revision 归 missing、brief `previous`/`recentSummaries` 排除 stale、delegate stale 准入、`foldState` `summary-required` / `summary-stale`。
+- 导出：manifest v2 的 `summaryRevision` / `summaryStale`；无摘要为 `null` / `false`。
+- 真实第 4 章：reopen → 重写 `r4` 1,203 字 → 清稿审稿 → `story_next` 报“摘要针对旧版本 r2” → `story_delegate(role: summarizer)` 399 字 / 2 次提交 → `story_state` `seq:37` 重新定稿；`story_status` / `readWork` 返回 `summaryRevision: 4`、`summaryStale: false`。

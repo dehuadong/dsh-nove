@@ -45,6 +45,7 @@ updated: 2026-10-21
 | 手动正文回退 | 3 次 | 0 |
 | 子代理最终回答正文 | 有 | 无 |
 | #24 摘要窗口（第 4 章） | — | 591 字符；整轮 2,735；`summaryChars` 317；摘要前 `story_read` 0 次 |
+| #25 摘要 revision 绑定（第 4 章） | — | 重写 r4 1,203；摘要 399 字 / 2 次提交；`summaryRevision 4`、`summaryStale false` |
 
 主会话字符分布（第 1 章整轮）：
 
@@ -92,6 +93,17 @@ updated: 2026-10-21
 5. 测量：摘要窗口（`story_next` 调用 → 摘要回执）**591 字符**；整轮工具参数+结果 **2,735 字符**；均低于 #24 的 700 / 6,311 基线。
 6. 三个子代理最终回答均为「已提交」，未回正文。
 7. `story_state` 定稿：state `seq:32`，第 4 章 `settled`（`r2`，1,456 字，摘要 317 字未改）；第一次因伏笔原文抄错字被 `hook-not-open` 拒绝，按已存文本修正后同轮重提成功。
+
+### #25 摘要 revision 绑定（第 4 章）
+
+在已定稿的第 4 章上做真实验收：
+
+1. `story_reopen` 后重写正文：第一次 1,081 字（低于 1,200，落盘但带 warning），同章重写到 `r4` **1,203 字**。
+2. `story_review(problems: [])` 写清稿审稿 `review:4:r4:2`。
+3. `story_next`：`action: story_summarize`，`reason: 第 4 章摘要针对旧版本 r2：先重写摘要，再定稿`，`missing: ['summary']`，`delegate.role: summarizer`。
+4. `story_delegate(role: summarizer)`：`summary:4` `c429874abb79`，**399 字**，`submissionAttempts: 2`（首次超 400 字上限，子代理同轮内重提）。
+5. `story_state`：2 条人物事实 + 1 条伏笔 `used`，state `seq:37`，第 4 章重新 `settled`。
+6. `story_status` / `readWork`：`hasSummary: true`、`summaryRevision: 4`、`summaryStale: false`；DB 中 `summaries.revision = 4`、`chapters.current_revision = 4`。
 
 ### 本轮遗留
 
