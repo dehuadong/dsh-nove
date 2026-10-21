@@ -1,11 +1,11 @@
 ---
-title: 故事工坊：真实单章测试收口报告（#19/#21/#22/#23）
+title: 故事工坊：真实单章测试收口报告（#19/#21/#22/#23/#24）
 status: proposed
 created: 2026-10-20
 updated: 2026-10-21
 ---
 
-# Agent Note：故事工坊：真实单章测试收口报告（#19/#21/#22/#23）
+# Agent Note：故事工坊：真实单章测试收口报告（#19/#21/#22/#23/#24）
 
 > 本文件是测试收口记录，不是新的实现设计。用来防止会话变长后丢失真实结论；实施决定仍归各工作项。
 
@@ -44,6 +44,7 @@ updated: 2026-10-21
 | 总 token（第 1 章） | 1,459,887 | 865,521（uncached 28,923 / output 11,510 / cache read 825,088） |
 | 手动正文回退 | 3 次 | 0 |
 | 子代理最终回答正文 | 有 | 无 |
+| #24 摘要窗口（第 4 章） | — | 591 字符；整轮 2,735；`summaryChars` 317；摘要前 `story_read` 0 次 |
 
 主会话字符分布（第 1 章整轮）：
 
@@ -80,9 +81,20 @@ updated: 2026-10-21
 5. `story_summarize`：234 字，`summary:3`；`story_state`：`state seq:22`，第 3 章 `settled`。
 6. 全程未派 reviser、未改正文。
 
+### #24 摘要角色通道（第 4 章）
+
+真实单章在 `session-91e3c83e` 跑到摘要完成（未定稿）：
+
+1. writer 1,278 字（`r1`，1 次提交）→ reviewer 6 条问题 → reviser `patch` 1,456 字（`r2`，Q1–Q6 resolved，1 次提交）。
+2. `story_next` 返回 `action: story_summarize`、`delegate.role: summarizer`。
+3. `story_delegate(role: summarizer)` 回执：`summary:4`、`summaryChars: 317`、`submissionAttempts: 1`；摘要正文只写事实与状态变化。
+4. 主会话本步只调 `story_next` + `story_delegate`，**没有 `story_read`**，也没有手动 `story_summarize` / `story_write` / `story_revise` / `subagent`。
+5. 测量：摘要窗口（`story_next` 调用 → 摘要回执）**591 字符**；整轮工具参数+结果 **2,735 字符**；均低于 #24 的 700 / 6,311 基线。
+6. 三个子代理最终回答均为「已提交」，未回正文。
+
 ### 本轮遗留
 
-1. 整体成本仍高：摘要前 `story_read` 把整章读回主会话（第 1 章 2,224；第 2 章同类）。#19 AC3 把 summary/state 排除在 AC6 之外，所以这不是 AC6 的失败，但属于 token 治理缺口；若要继续压，需要新增摘要委派或宿主侧摘要。
+1. ~~摘要前 `story_read` 把整章读回主会话~~：2026-10-21 #24 已由 summarizer 角色通道关闭（第 4 章摘要窗口 591，无 `story_read`）。摘要 revision 绑定仍是后续缺口。
 2. #21 清稿路径：手动空清单已通过；委派 reviewer 的 `items: []` 真实链路未触发（严格“只报硬伤”指令下仍出 3 条），该分支由 `delegate.test.mjs` 覆盖。
 3. 一致性 warning 误报：把「交叉两」「看见山」「用袖口」「院门口」等分句/短语当人名地名；只 warning、不阻断，噪声偏高。
 4. 8 字 reviser 的真实链路未复现；同一条 `submit-word-range` 校验由 writer 两次越界实测，8 字、3 次上限与 mode 比例由 `storycraft/tests/submission.test.mjs` 覆盖。
