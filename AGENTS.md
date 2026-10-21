@@ -81,8 +81,8 @@
 
 ### 对拍工作法
 - InkOS 仓库分析研究文档 `docs\report\inkos\readme.md`
-- 不引入 InkOS 的 Pi Agent、LLM Provider、全新 Harness/SDK、资源管理服务或额外子 Agent。
-- 其结构、代码、文档资源、提示词以及技能均可采纳；并设配本Harness环境。
+- 不引入 InkOS 的 Pi Agent、LLM Provider、全新 Harness/SDK、资源管理服务或额外子 Agent。以本 DeepSeek Harness 工作环境为基准。
+- 其结构、代码、文档资源、提示词以及技能均可采纳。
 - 对拍的记忆不靠对话：规则记在本文件，能力对照与差距记在 `.agents/notes/proposed/pipeline/2026-10-18-storycraft-parity-matrix.md`，决定记在对应 Issue/Note，验证记在 tests/CI。
 - 遇到实现、流程、节点或验收问题时，**先查对拍项目如何实现**：读它的源码、文档、CI、技能、角色资源与测试，再决定我们的做法；不得先改提示词或凭直觉自创。
 - 每次对拍先提取可验证的不变量；再写“参考证据 / 我们落点 / 差异原因 / 验证命令”。查不到或不能照做时，记录约束与原因，必要时先取得用户许可。
