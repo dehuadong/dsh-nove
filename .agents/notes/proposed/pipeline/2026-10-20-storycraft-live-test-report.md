@@ -20,11 +20,11 @@ updated: 2026-10-21
 
 ## 2026-10-21 复验结论
 
-会话 `session-91e3c83e-05b6-4781-b319-a3f539b74ef8`，作品《雪线邮路》（longform，单章 1200–1800 字）。两章各跑一遍完整链路：提案/立项 → 全书计划（面板确认）→ 章纲（面板确认）→ writer → reviewer → reviser → 摘要 → 定稿。第 1 章从零建档，第 2 章在作品已备好的情况下复测 AC6 窗口。两章均 `settled`：第 1 章 `r2` 1,485 字，第 2 章 `r2` 1,703 字，`openProblems 0`。宿主运行的是当前代码（persona 已含 `story_submit`，无需重载）。
+会话 `session-91e3c83e-05b6-4781-b319-a3f539b74ef8`，作品《雪线邮路》（longform，单章 1200–1800 字）。三章各跑一遍链路：提案/立项 → 全书计划（面板确认）→ 章纲（面板确认）→ writer → reviewer → reviser / 清稿 → 摘要 → 定稿。第 1 章从零建档，第 2 章在作品已备好的情况下复测 AC6 窗口，第 3 章验证 #21 的空清单清稿。三章均 `settled`：第 1 章 `r2` 1,485 字，第 2 章 `r2` 1,703 字，第 3 章 `r1` 1,408 字，`openProblems 0`。宿主运行的是当前代码（persona 已含 `story_submit`，无需重载）。
 
 | 工作项 | 结论 | 证据 |
 | --- | --- | --- |
-| #23 角色结果通道 | **通过** | 两章共 6 个子代理（writer / reviewer / reviser）都只调 `story_submit`，最终回答均为「已提交」（3 字符）；父回执含 `submissionAttempts`/`lastMode`/`wordRange`，不含正文 |
+| #23 角色结果通道 | **通过** | 三章共 8 个子代理（3× writer、3× reviewer、2× reviser）都只调 `story_submit`，最终回答均为「已提交」（3 字符）；父回执含 `submissionAttempts`/`lastMode`/`wordRange`，不含正文 |
 | #19 无手动正文回退 | **通过** | 主会话无 `subagent` / `story_write` / `story_revise` 调用；正文只出现在 `story_read` 的只读结果里 |
 | #19 字数硬校验 + 同轮重提 | **通过** | 第 1 章 writer 连续两次被 `submit-word-range` 拒绝（1,042 / 1,165 < 1,200），第 3 次提交 1,247 字成功；同一子代理运行内完成，父回执 `submissionAttempts: 3`。第 2 章 writer / reviewer / reviser 均一次通过 |
 | #19 reviser mode | **通过（未触发违规提交）** | 两章 reviser 都是 `patch` 一次成功（1,247→1,485；1,461→1,703），Q1–Q6 resolved，`submissionAttempts: 1`；没有 mode 违规被接受 |
@@ -32,7 +32,7 @@ updated: 2026-10-21
 | #19 首次建档 setup episode | **单独记录** | 第 1 章 `bible-missing` + 源码排查 + 4 份 bible：6,290（≤10,000，不并入 clean 值） |
 | #22 路径 / artifact ID | **通过** | 主会话无 `works/`、`.dsh/` 路径；只按 `chapter:1` / `chapter:2` 读取，未跨章 |
 | #21 warning-only | **通过** | 未登记人名 / 地名只进 `warnings`，未阻断落盘 |
-| #21 清稿路径 | **未验证** | 两章审稿都各有 6 条问题，没有空清单清稿 |
+| #21 清稿路径 | **通过（手动空清单）** | 第 3 章 `story_review(problems: [])` 落盘 `review:3:r1:2`；`story_next` 返回 `story_summarize`（reason「清稿审稿无问题」）；`story_state` 定稿到 `settled`。委派 reviewer 的空清单未触发（严格指令下仍报 3 条硬伤），由 `delegate.test.mjs` 覆盖 |
 
 ### 量化
 
@@ -71,10 +71,19 @@ updated: 2026-10-21
 | 2 | reviewer | 1 | — | 6 条问题，`review:2:r1:1` |
 | 2 | reviser | 1 | — | `patch`，1,703 字，Q1–Q6 resolved，`r2` |
 
+### #21 清稿路径明细（第 3 章）
+
+1. writer 委派：1,408 字，`submissionAttempts: 1`，`chapter:3 r1`。
+2. 委派 reviewer 时明确要求「只报阻断定稿的硬伤，没有就 `items: []`」，回执仍为 3 条问题；委派空清单路径未触发。
+3. 主编按作者要求调用 `story_review(chapter=3, problems=[])`：接受，`review:3:r1:2`，`problems: []`。
+4. `story_next`：`action: story_summarize`，`reason: 第 3 章清稿审稿无问题：先写摘要，再定稿`；没有返回 `story_revise`。
+5. `story_summarize`：234 字，`summary:3`；`story_state`：`state seq:22`，第 3 章 `settled`。
+6. 全程未派 reviser、未改正文。
+
 ### 本轮遗留
 
 1. 整体成本仍高：摘要前 `story_read` 把整章读回主会话（第 1 章 2,224；第 2 章同类）。#19 AC3 把 summary/state 排除在 AC6 之外，所以这不是 AC6 的失败，但属于 token 治理缺口；若要继续压，需要新增摘要委派或宿主侧摘要。
-2. #21 空审稿清稿路径：连续两章审稿都是 6 条问题，仍未真实触发。
+2. #21 清稿路径：手动空清单已通过；委派 reviewer 的 `items: []` 真实链路未触发（严格“只报硬伤”指令下仍出 3 条），该分支由 `delegate.test.mjs` 覆盖。
 3. 一致性 warning 误报：把「交叉两」「看见山」「用袖口」「院门口」等分句/短语当人名地名；只 warning、不阻断，噪声偏高。
 4. 8 字 reviser 的真实链路未复现；同一条 `submit-word-range` 校验由 writer 两次越界实测，8 字、3 次上限与 mode 比例由 `storycraft/tests/submission.test.mjs` 覆盖。
 

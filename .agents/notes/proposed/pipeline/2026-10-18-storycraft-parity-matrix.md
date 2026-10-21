@@ -63,7 +63,7 @@ updated: 2026-10-20
 | 章纲/章 memo | chapter intent + memo | `story_plan` | 无独立 memo，章纲兼任 | 部分 | 保留，不新增对象 |
 | 写前上下文 | protected/compressible，语义选择 | `story_brief` / `story_context` | 固定段，无语义选择/预算 | 部分 | 补预算；语义选择后续 |
 | 正文写作 | writer，一次整章，结构化 `submit_chapter_draft` | delegate writer 走 `story_submit`，父回执不含正文 | 无 | 对齐 | 保留 DSH subagent；2026-10-21 两章真实链路验证 |
-| 连续性审稿 | LLM auditor + 证据 observations；空 observations 有效 | `story_review` / reviewer 问题条目；委派走 `story_submit` | 无 observation 证据模型；空清单清稿未真实触发 | 部分 | 未登记人名转 warning；#21 继续验证空清单 |
+| 连续性审稿 | LLM auditor + 证据 observations；空 observations 有效 | `story_review` / reviewer 问题条目；委派走 `story_submit` | 无 observation 证据模型；委派空清单未在真实链路触发 | 部分 | 未登记人名转 warning；手动空清单清稿 2026-10-21 已通过 |
 | 质检 | 指标与审稿分离 | `story_critique` | 未进入工作流对拍 | 部分 | 保留为独立只读节点 |
 | 状态抽取 | chapter summary / factOps / hookOps | `story_state` 手写 | 无自动 settler | 部分 | 本项不自动 settler |
 | 状态对账 | StateValidator 语义对账 | 无 | 缺失 | 缺失 | 单列后续工作 |

@@ -15,17 +15,18 @@
   - 首次建档 `bible-missing` episode **6,290** 单独记录（≤10,000，不并入 clean 值）。
 - **#22 回归**：主会话无 `works/` 或 `.dsh/` 路径；只按 `artifactId` 读取当前章，无跨章读正文。
 - **#21 warning-only**：只返回 `warnings`，未阻断落盘（有「交叉两」「看见山」「用袖口」等误报）。
+- **#21 清稿路径**：第 3 章手动 `story_review(problems: [])` 通过，`story_next` 直接给 `story_summarize`，`story_state` 定稿；委派 reviewer 的空清单未触发（严格“只报硬伤”指令下仍出 3 条），由 `delegate.test.mjs` 覆盖。
 
 ### 未完成
 
-- **#21 清稿路径**：两章审稿都各有 6 条问题，空清单清稿仍未真实触发；该链路仍归 #21。
-- **token 治理**：摘要前 `story_read` 把整章读回主会话（第 1 章 2,224；第 2 章同类）。#19 AC3 把 summary/state 排除在 AC6 之外，所以这不是 AC6 失败，但整体成本仍高；建议单列工单：新增摘要委派或宿主侧摘要。
+- **token 治理**：摘要前 `story_read` 把整章读回主会话（第 1 章 2,224；第 2、3 章同类）。#19 AC3 把 summary/state 排除在 AC6 之外，所以这不是 AC6 失败，但整体成本仍高；建议单列工单：新增摘要委派或宿主侧摘要。
 - **P2 测试补强**：SubmissionStore TTL/过期清理、`SUBMIT_OUTPUT` 失败 envelope 的 DSH 级校验、真实链路 token 预算。
+- **#21 其余对拍项**：清稿与 warning 已回归；#21 的状态/doc AC 仍按 Issue 自身评审处理，不在本轮范围。
 
 ## 2. 证据
 
 - 会话：`session-91e3c83e-05b6-4781-b319-a3f539b74ef8`
-- 作品：《雪线邮路》，longform，单章 1200–1800 字；第 1 章 `settled` `r2` 1,485 字，第 2 章 `settled` `r2` 1,703 字，`openProblems 0`
+- 作品：《雪线邮路》，longform，单章 1200–1800 字；第 1 章 `settled` `r2` 1,485 字，第 2 章 `settled` `r2` 1,703 字，第 3 章 `settled` `r1` 1,408 字，`openProblems 0`
 - 报告：`.agents/notes/proposed/pipeline/2026-10-20-storycraft-live-test-report.md`（commit `b54c802`）
 - Issue：
   - #23 验收评论：https://github.com/dehuadong/dsh-nove/issues/23#issuecomment-6306480229
@@ -54,9 +55,9 @@
 
 ## 4. 下一步
 
-### P1：#21 空审稿清稿
+### P1：#21 清稿与 warning
 
-- 真实触发一次 reviewer 返回空清单的章节，确认清稿允许空清单、阶段能继续；
+- 清稿路径已用第 3 章的手动空清单验证；委派空清单仍由单元测试覆盖；
 - 若真实链路再次暴露新问题，先按 `AGENTS.md` 查参考实现，再决定是否立工单。
 
 ### P2：token 治理
