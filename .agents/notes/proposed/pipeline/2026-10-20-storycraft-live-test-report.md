@@ -46,6 +46,7 @@ updated: 2026-10-21
 | 子代理最终回答正文 | 有 | 无 |
 | #24 摘要窗口（第 4 章） | — | 591 字符；整轮 2,735；`summaryChars` 317；摘要前 `story_read` 0 次 |
 | #25 摘要 revision 绑定（第 4 章） | — | 重写 r4 1,203；摘要 399 字 / 2 次提交；`summaryRevision 4`、`summaryStale false` |
+| #16 上下文检索（第 4 章） | — | `candidateCount 14`、5 条 sent、段 311 字；stale summary:2 不在 hits |
 
 主会话字符分布（第 1 章整轮）：
 
@@ -104,6 +105,15 @@ updated: 2026-10-21
 4. `story_delegate(role: summarizer)`：`summary:4` `c429874abb79`，**399 字**，`submissionAttempts: 2`（首次超 400 字上限，子代理同轮内重提）。
 5. `story_state`：2 条人物事实 + 1 条伏笔 `used`，state `seq:37`，第 4 章重新 `settled`。
 6. `story_status` / `readWork`：`hasSummary: true`、`summaryRevision: 4`、`summaryStale: false`；DB 中 `summaries.revision = 4`、`chapters.current_revision = 4`。
+
+### #16 上下文检索（第 4 章）
+
+在 `雪线邮路` 上用宿主真实调用 `story_context(work, chapter=4, role=planner, task="找旧井")`：
+
+1. `trace.retrieval` 存在：`enabled: true`、`candidateCount: 14`、`hits` 10 条，前 5 条 `sent: true`；`sourceIds` 全部为 `["state"]`，没有路径泄漏。
+2. 检索段 `retrieval` 进入 `sections`，311 字；`recent` 仍是单独的「最近脉络」段。
+3. 临时把第 2 章摘要 revision 置 0 后再查 `task="第2章摘要"`：`hits` 为 `event:*`，没有 `summary:2`，`candidateCount` 13；探测后已把 revision 恢复为 2。
+4. 结果以伏笔事件为主：FTS 词法排序把同一任务关键词命中的 hook 事件排在摘要前；这是第一版“不做语义重排”的已知取舍，后续可按 trace 评估。
 
 ### 本轮遗留
 

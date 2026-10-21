@@ -72,7 +72,7 @@ updated: 2026-10-21
 | 作者闸门 | 计划/章纲确认 | 面板确认 | 无 | 对齐 | 2026-10-21 两章回归通过；确认不自动发送 |
 | 下一步/进度 | pipeline 返回阶段结果 | `story_next` / `story_status` | 无 | 对齐 | 2026-10-21 两章回归通过 |
 | 卷/摘要/滚动 | volume map + summaries；writer 提交 `chapterSummary` | `story_volume` / `story_summarize`；摘要由 `story_delegate` 的 summarizer 角色提交并绑定正文 revision | 摘要不再进主会话；过期摘要由 `summary-stale` 识别 | 对齐 | #24 / #25 已交付 |
-| 检索/长期记忆 | FTS5 + BM25 + 前章保底 + Hook 定向回溯 + LLM 语义选择 | 作品库已有 FTS5/BM25（#18）；`story_context` 检索段由 #16 规划 | 第一版不做 LLM 重排/向量；先做确定性召回 + trace | 部分 | #16 规划中 |
+| 检索/长期记忆 | FTS5 + BM25 + 前章保底 + Hook 定向回溯 + LLM 语义选择 | 作品库 FTS5/BM25（#18）；`story_context` 检索段（#16）只取 current 摘要、未解/已用伏笔、卷摘要 | 第一版不做 LLM 重排/向量；确定性召回 + trace | 对齐（语义重排除外） | #16 已交付 |
 | 导入/导出/备份 | import/export | `story_export` / `story_backup`；无导入 | 缺章节导入 | 部分 | 非本项阻塞 |
 | 上下文/token 治理 | token usage + context trace | 主会话字符已测量；#19 AC6 clean 窗口 1,758 / 2,107；摘要通道已接（#24）；无 context trace | 缺 trace 与独立预算 | 部分 | trace 后续 |
 | 失败策略 | review-unavailable 不重写 | delegate 失败重试/回退 | 误报触发整章重写 | 部分 | 统一失败分类 |

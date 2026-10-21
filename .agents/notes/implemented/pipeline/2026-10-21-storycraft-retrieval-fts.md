@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：基于作品库 FTS5 的上下文检索
-status: proposed
+status: implemented
 created: 2026-10-21
 updated: 2026-10-21
+verification: f491ed6；27 个单测 + 11 条 E2E；真实第 4 章 `story_context` 返回 retrieval 5 条 / candidateCount 13–14，stale summary:2 不进入 hits
 ---
 
 # Agent Note：故事工坊：基于作品库 FTS5 的上下文检索
@@ -11,7 +12,7 @@ updated: 2026-10-21
 
 `story_context` 的「最近脉络」只覆盖最近 3 章摘要；更早的伏笔与卷记忆无法按需召回。作品库已有 FTS5 + BM25（`store-db.js` 的 `search_docs` / `search_fts`），但只有内部 `search()` 使用，没有接入角色上下文；#25 补了摘要 revision 绑定，过期摘要不能再被当成当前记忆。
 
-旧设计 [检索召回的设计（纯 JS BM25）](2026-10-19-storycraft-retrieval.md) 以“读摘要文件、不引入 SQLite/FTS5”为前提，已被 #18 的作品库取代。本 Note 承接其“段位置、预算、trace”结论，替换语料与排名实现；角色查询表、开启条件与产品验收由 [#16](https://github.com/dehuadong/dsh-nove/issues/16) 拥有。
+旧设计 [检索召回的设计（纯 JS BM25）](../../proposed/pipeline/2026-10-19-storycraft-retrieval.md) 以“读摘要文件、不引入 SQLite/FTS5”为前提，已被 #18 的作品库取代。本 Note 承接其“段位置、预算、trace”结论，替换语料与排名实现；角色查询表、开启条件与产品验收由 [#16](https://github.com/dehuadong/dsh-nove/issues/16) 拥有。
 
 参考实现（InkOS）的可验证做法：FTS5/BM25、前一章摘要保底、Hook ID 定向回溯、retrieval trace；它还会把未命中文档交给 LLM 语义选择。第一版只吸收确定性部分。
 
@@ -22,7 +23,7 @@ updated: 2026-10-21
 - 扩展 [角色输入契约](../../implemented/pipeline/2026-10-19-storycraft-role-input-contracts.md) 的 `story_context` 段与 trace；不改变现有段的保护级别。
 - 部分替代旧设计：旧记录的 corpus/纯 JS BM25 不适用；段位置、预算与 trace 的历史依据保留，角色查询与开启条件以 #16 为准。
 
-## 提案
+## 决定
 
 ### 1. 语料与过滤
 
@@ -121,7 +122,7 @@ summarizer 不启用检索；空查询（token 为空）直接返回 `enabled:fa
 - **检索整章正文/人物卡**：召回更细，但体积与噪声大；否决，先用摘要/伏笔/卷。
 - **只在 `story_brief` 加检索**：brief 是写前固定装配，不适合按角色动态查询；否决，统一放 `story_context`。
 
-## 验收条件
+## 后果
 
 本 Note 只证明技术性质；产品验收在 #16。
 
@@ -139,3 +140,11 @@ summarizer 不启用检索；空查询（token 为空）直接返回 `enabled:fa
 - `reopen` 过滤需要额外查 `events`，200 章测量要含这一段。
 - 过期摘要被过滤后，早期章节的检索覆盖会变窄；这与 #25 的“过期不当 current”一致，需在 README 说明。
 - 检索失败走 fail-open（只少一段），trace 的 `error` 让作者可诊断。
+
+## 验证
+
+- `node storycraft/scripts/ci.mjs`：27 个单测文件 + 11 条 E2E 全过。
+- `retrieval.test`：current/stale、reopen、latest-post-reopen resolved、volume `to_ch`、目标章过滤、5/1200 预算、determinism、10 条 trace。
+- `context-retrieval.test`：段位置、`recent` 去重、整段丢弃后 `sent:false`、零命中、fail-open `work-busy`、work-scope planner。
+- `store-perf.test`：200 章摘要 + 20 条 hook 事件 + 一次 reopen，`searchMemory` + `select` < 400ms。
+- 真实第 4 章 `story_context`：`trace.retrieval.enabled: true`、`candidateCount` 13–14、5 条 `sent`；临时把第 2 章摘要置 stale 后，`hits` 中没有 `summary:2`；探测后已恢复 revision。
