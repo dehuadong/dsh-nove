@@ -52,6 +52,9 @@ try {
   store.writeBible(root, { work, name: 'world', content: '# 世界观\n\n荒原。\n' })
   const proposal = store.createProposal(root, { title: '提案一', premise: '一句话' })
   store.markProposalUsed(root, proposal.id, work)
+  const material = await store.importMaterial(root, work, {
+    name: '参考.md', contentBase64: Buffer.from('作者的参考资料。', 'utf8').toString('base64'),
+  })
 
   const defaulted = store.exportWork(root, work)
   check('default export lands under .storycraft/exports', defaulted.directory === join(root, '.storycraft', 'exports', work), defaulted.directory)
@@ -61,9 +64,13 @@ try {
   check('export manifest is the export copy', manifest.title === '导出测试' && manifest.wordRange?.min === 100
     && manifest.planApproval === 'required' && manifest.tags[0] === '短', JSON.stringify(manifest))
   check('manifest carries the settled chapter', manifest.chapters[0].stage === 'settled' && manifest.chapters[0].currentRevision === 2)
-  check('manifest v2 carries the summary binding',
-    manifest.schemaVersion === 2 && manifest.chapters[0].summaryRevision === 2
-    && manifest.chapters[0].summaryStale === false, JSON.stringify(manifest.chapters[0]))
+  check('manifest v3 carries the summary binding and materials',
+    manifest.schemaVersion === 3 && manifest.chapters[0].summaryRevision === 2
+    && manifest.chapters[0].summaryStale === false
+    && manifest.materials.some(item => item.id === material.material.id && item.hash.length === 64),
+    JSON.stringify({ chapter: manifest.chapters[0], materials: manifest.materials }))
+  const materialFile = await readFile(join(first.directory, 'materials', `${material.material.id}.md`), 'utf8')
+  check('export carries the material content', materialFile === '作者的参考资料。', materialFile)
   const chapters = await readdir(join(first.directory, 'chapters'))
   check('r1 keeps the base name and r2 is versioned', chapters.includes('ch-0001.md') && chapters.includes('ch-0001.r2.md'), chapters.join(','))
   const reviews = await readdir(join(first.directory, 'reviews'))
@@ -91,7 +98,12 @@ try {
   check('backup is a readable work database', (await stat(backup.file)).size > 0)
   const copy = openDatabase(backup.file)
   check('backup carries the same chapters', copy.prepare('SELECT count(*) AS n FROM chapters').get().n === 1)
+  const backed = copy.prepare('SELECT * FROM materials').get()
+  check('backup carries materials', backed?.id === material.material.id && backed.content === '作者的参考资料。', JSON.stringify(backed))
   copy.close()
+  check('manifest origin differs from the export path',
+    manifest.materials[0].origin.startsWith('materials/') && manifest.materials[0].origin !== `materials/${material.material.id}.md`,
+    manifest.materials[0].origin)
 
   // A backup that cannot be written reports backup-failed, not a raw fs error.
   const blocked = join(root, 'blocked')

@@ -13,7 +13,7 @@
 
 import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, resolve } from 'node:path'
-import { approveChapterPlan, approveOutline, ensureReconciled, listTrash, listWorks, nextStep, readManifest, readChapter, readReview, readWork, status as readStatus, StoryError } from './storage.js'
+import { approveChapterPlan, approveOutline, deleteMaterial, ensureReconciled, importMaterial, listMaterials, listTrash, listWorks, nextStep, readManifest, readChapter, readReview, readWork, renameMaterial, status as readStatus, StoryError } from './storage.js'
 import { critique } from './critique.js'
 import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent } from './current.js'
 import { readVolumes } from './volumes.js'
@@ -89,7 +89,7 @@ async function readRoute(req, res, handler) {
  * @param {object} res - ServerResponse.
  * @param {(body: object) => Promise<object>} handler - route body returning the success payload.
  */
-async function postRoute(req, res, handler) {
+async function postRoute(req, res, handler, options = {}) {
   if (req.method !== 'POST') {
     json(res, 405, failure('method-not-allowed', '请使用 POST。'))
     return
@@ -99,10 +99,26 @@ async function postRoute(req, res, handler) {
     return
   }
   try {
+    if (options.requireJson === true
+      && !String(req.headers['content-type'] ?? '').toLowerCase().startsWith('application/json')) {
+      throw new StoryError('invalid-body', '请求必须是 application/json')
+    }
     const chunks = []
-    for await (const chunk of req) chunks.push(chunk)
+    let size = 0
+    for await (const chunk of req) {
+      size += chunk.length
+      if (Number.isInteger(options.maxBytes) && size > options.maxBytes) {
+        throw new StoryError('body-too-large', '请求体超过上限')
+      }
+      chunks.push(chunk)
+    }
     const text = Buffer.concat(chunks).toString('utf8')
-    const body = text === '' ? {} : JSON.parse(text)
+    let body
+    try {
+      body = text === '' ? {} : JSON.parse(text)
+    } catch {
+      throw new StoryError('invalid-body', '请求体不是合法 JSON')
+    }
     json(res, 200, { ok: true, ...(await handler(body)) })
   } catch (error) {
     if (error instanceof StoryError) {
@@ -201,6 +217,19 @@ export function apply(ctx) {
     }
   } catch {
     // Reconciliation is diagnostic; it never blocks the host surfaces.
+  }
+  const materialTarget = async (body) => {
+    const sessionId = typeof body?.sessionId === 'string' ? body.sessionId : ''
+    const workId = typeof body?.workId === 'string' ? body.workId : ''
+    if (sessionId === '' || workId === '') throw new StoryError('invalid-body', '素材操作需要 sessionId 与 workId')
+    const root = await rootOf(ctx, new URLSearchParams({ root: String(body?.root ?? '') }))
+    if (getCurrent(sessionId) !== workId) {
+      hydrateCurrent(await readCurrentFile(root))
+      if (getCurrent(sessionId) !== workId) {
+        throw new StoryError('work-mismatch', '只在面板当前作品里管理素材')
+      }
+    }
+    return { root, workId }
   }
   const disposers = [
     ctx.webServer.register({
@@ -324,6 +353,52 @@ export function apply(ctx) {
       handler: (req, res) => readRoute(req, res, async (query) => ({
         volumes: await readVolumes(await rootOf(ctx, query), workOf(query)),
       })),
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/materials`,
+      handler: (req, res) => readRoute(req, res, async (query) => {
+        const root = await rootOf(ctx, query)
+        const workId = query.get('workId') ?? workOf(query)
+        return { materials: await listMaterials(root, workId) }
+      }),
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/materials/import`,
+      handler: (req, res) => {
+        void postRoute(req, res, async (body) => {
+          const { root, workId } = await materialTarget(body)
+          const name = typeof body?.name === 'string' ? body.name : ''
+          const contentBase64 = typeof body?.contentBase64 === 'string' ? body.contentBase64 : ''
+          return importMaterial(root, workId, {
+            name,
+            contentBase64,
+            ...(typeof body?.title === 'string' ? { title: body.title } : {}),
+          })
+        }, { maxBytes: 1024 * 1024, requireJson: true })
+      },
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/materials/rename`,
+      handler: (req, res) => {
+        void postRoute(req, res, async (body) => {
+          const { root, workId } = await materialTarget(body)
+          const material = await renameMaterial(root, workId, String(body?.id ?? ''), String(body?.title ?? ''))
+          return { material }
+        }, { maxBytes: 32 * 1024, requireJson: true })
+      },
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/materials/delete`,
+      handler: (req, res) => {
+        void postRoute(req, res, async (body) => {
+          const { root, workId } = await materialTarget(body)
+          return deleteMaterial(root, workId, String(body?.id ?? ''))
+        }, { maxBytes: 32 * 1024, requireJson: true })
+      },
     }),
     ctx.webServer.register({
       kind: 'exact',

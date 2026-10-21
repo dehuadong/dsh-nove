@@ -8,7 +8,7 @@ verification: cddc551 / 30d9be9；25 个单测 + 11 条 E2E；真实第 4 章重
 
 # Agent Note：故事工坊：摘要绑定正文 revision 与过期识别
 
-> 2026-10-21 导出边界待修订：本文固定 `manifest.schemaVersion = 2`；#26（素材入库）计划在 v2 字段基础上加素材并升到 3。当前代码仍是 2，交付 #26 时同步更新本文与 `export-backup.test`。
+> 2026-10-21 导出边界已修订：`manifest.schemaVersion = 3`，在 v2 字段基础上增加 `materials` 元数据；本文其余 v2 字段不变。#26 交付后 `export-backup.test` 已改。
 
 ## 问题
 
@@ -58,11 +58,11 @@ COMMIT;
 
 - 事务内重新读 `PRAGMA user_version`：并发打开的第二个连接在拿到 `BEGIN IMMEDIATE` 后看到 2，执行 `COMMIT` 后原样返回；不会重复 `ALTER`。
 - `ALTER` 前检查 `PRAGMA table_info(summaries)`，列已存在则跳过；回填只处理 `revision IS NULL`，不会把已经正确绑定的旧摘要重新绑到今天的版本。
-- 只接受版本 1 或 2；其他版本仍返回 `schema-version-mismatch`。除 `SQLITE_BUSY` 外，迁移失败返回 `schema-migration-failed`，库保持 v1，连接关闭。
+- v1/v2 进入 step 迁移，其他版本返回 `schema-version-mismatch`；迁移失败返回 `schema-migration-failed`，库保持进入时版本，连接关闭。
 - `SQLITE_BUSY` 按现有 `work-busy` 返回（可重试），不包装成迁移失败；`openWork` 的 5s busy timeout 仍先生效。
 - 旧摘要按迁移时的 `current_revision` 回填；`current_revision` 为 0 的章节回填 `NULL`。历史里已经过期、但当时没有版本信息的摘要无法追溯，只能按“当前版本”对待；这是兼容性限制。
-- 迁移成功后 best-effort 更新 `catalog.works.schema_version = 2`；目录不可写、不存在或 `work-busy` 时忽略，目录字段不作为打开门槛。
-- `story_export` 的 manifest `schemaVersion` 升到 2；章节条目增加 `summaryRevision`（无摘要为 `null`）与 `summaryStale`（无摘要或 current 为 `false`）。摘要文件仍是当前文本，不导出历史。
+- 迁移成功后 best-effort 更新 `catalog.works.schema_version = 3`；目录不可写、不存在或 `work-busy` 时忽略，目录字段不作为打开门槛。
+- `story_export` 的 manifest 升到 3（v2 字段 + 素材元数据）；章节条目增加 `summaryRevision`（无摘要为 `null`）与 `summaryStale`（无摘要或 current 为 `false`）。摘要文件仍是当前文本，不导出历史。
 
 ### 2. 判定与读取
 
@@ -108,7 +108,7 @@ missing = 其余（含空文本行与 revision IS NULL）
 | `story_brief` 的 `recentSummaries` 与 `previous` | 只取 current；stale 跳过，`previous` 回退到上一章正文结尾 |
 | `story_context` 的 `recent` | 只取 current；stale 跳过 |
 | `story_read(summary)` | 仍返回摘要文本（含 stale）；不新增 stale 字段 |
-| 导出 | manifest v2；摘要文件取当前文本（即使 stale）；章节字段 `null`/`false` 如上 |
+| 导出 | manifest v3（v2 字段 + 素材元数据）；摘要文件取当前文本（即使 stale）；章节字段 `null`/`false` 如上 |
 | 搜索 | stale 摘要仍留在 FTS；不做投影变更，`readWork`/next 负责标记 |
 
 `summary-stale` 是新增错误码；`story_summarize` 与 `story_delegate` 不因 stale 失败，只有 current 拒绝委派。
@@ -137,7 +137,7 @@ missing = 其余（含空文本行与 revision IS NULL）
 - `store-db.test.mjs`：`nextStep` 对 stale 返回 summarize 且 reason 含旧 revision；`readWork` / `status` 字段；`delegateOf` 对 stale 广告 summarizer；`storage.test` 的直调 `foldState`“无摘要 + 未审稿 → `review-required`”不变；`tools.test` 的 `story_state` 早期检查保持 `summary-required`，再补“审稿已过 + 无摘要/过期 → foldState 事务内拒绝”的用例。
 - `tools.test.mjs`：`foldState` / `story_state` 在审稿/阶段已通过时对 missing/stale 分别返回 `summary-required` / `summary-stale`，且状态不变；`status()` payload 含 `hasSummary` / `summaryRevision` / `summaryStale`（无 output schema 变更）。
 - `bible.test.mjs` / `context.test.mjs`：brief 的 `recentSummaries` 与 `previous`、context 的 `recent` 均不含 stale；回退正文结尾。
-- `export-backup.test.mjs`：manifest v2、`summaryRevision`/`summaryStale`、无摘要章节为 `null`/`false`。
+- `export-backup.test.mjs`：manifest v3、`summaryRevision`/`summaryStale`、无摘要章节为 `null`/`false`。
 - E2E：过期徽标/「重写摘要」/定稿 tooltip；摘要按钮固定指令含“已存在、已过期或当前阶段不需要摘要”；不自动发送。
 - 真实单章：摘要后改正文 → stale → 重新摘要 → 定稿；记录回执与窗口。
 
@@ -157,7 +157,7 @@ missing = 其余（含空文本行与 revision IS NULL）
 - `story_brief` 的 `previous` / `recentSummaries` 与 `story_context` 的 `recent` 只用 current 摘要，stale 回退到正文结尾。
 - 迁移是 v1→v2 的加列；旧摘要按当时 current revision 回填，历史已过期但无版本信息的摘要无法追溯。
 - 迁移失败的作品仍在目录中显示为降级，动作 fail-closed；`work-busy` 可重试，其他迁移失败返回 `schema-migration-failed`。
-- 导出 manifest 升到 2，新增 `summaryRevision` / `summaryStale`；模型可见动作回执形状不变。
+- 导出 manifest 升到 3（v2 字段 + 素材元数据），新增 `summaryRevision` / `summaryStale`；模型可见动作回执形状不变。
 - 搜索索引仍保留 stale 摘要，只标记不删除。
 
 ## 风险
@@ -174,5 +174,5 @@ missing = 其余（含空文本行与 revision IS NULL）
 - `node storycraft/scripts/ci.mjs`：25 个单测文件 + 11 条 E2E 全过。
 - 迁移：v1 fixture 加列/回填/幂等/半迁移/回滚/未知版本/内容保持。
 - 判定：current → stale → rebind、NULL revision 归 missing、brief `previous`/`recentSummaries` 排除 stale、delegate stale 准入、`foldState` `summary-required` / `summary-stale`。
-- 导出：manifest v2 的 `summaryRevision` / `summaryStale`；无摘要为 `null` / `false`。
+- 导出：manifest v3 的 `summaryRevision` / `summaryStale`；无摘要为 `null` / `false`。
 - 真实第 4 章：reopen → 重写 `r4` 1,203 字 → 清稿审稿 → `story_next` 报“摘要针对旧版本 r2” → `story_delegate(role: summarizer)` 399 字 / 2 次提交 → `story_state` `seq:37` 重新定稿；`story_status` / `readWork` 返回 `summaryRevision: 4`、`summaryStale: false`。

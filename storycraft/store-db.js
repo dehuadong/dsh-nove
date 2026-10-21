@@ -10,13 +10,16 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import {
+  closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, unlinkSync, utimesSync, writeFileSync, writeSync,
+} from 'node:fs'
 import { join } from 'node:path'
 import {
   backupTo, checkpoint, createWorkDatabase, exportsDir, integrityCheck, WORK_SCHEMA_VERSION,
-  moveDatabaseFiles, openCatalog, openDatabase, openWork, removeDatabaseFiles, transaction,
+  materialsDir, moveDatabaseFiles, openCatalog, openDatabase, openWork, removeDatabaseFiles, transaction,
   trashDir, trashFile, workFile, worksDir, backupsDir,
 } from './db.js'
+import { MATERIAL_TITLE_MAX, materialMetadata, prepareMaterial } from './materials.js'
 import {
   StoryError, SUMMARY_MAX_CHARS, WORK_FORMS, chapterNumber, chapterStem, contentVersion, countWords, foldEvents,
   formOf, now, parseReview, planApprovalPolicy, stageOf, summaryAdmissible, trimSummary, unitOf, workIdOf,
@@ -1811,6 +1814,202 @@ export function searchTokens(text) {
 }
 
 /**
+ * Write one managed material copy, reusing an identical existing file.
+ * @param {string} root - workspace directory.
+ * @param {object} prepared - result of `prepareMaterial`.
+ * @returns {{origin: string, path: string, created: boolean}} copy identity.
+ */
+export function writeManagedCopy(root, prepared, write = writeSync) {
+  const dir = materialsDir(root)
+  try {
+    mkdirSync(dir, { recursive: true })
+  } catch (error) {
+    throw new StoryError('material-write-failed', `素材目录无法创建：${error.message}`)
+  }
+  for (let index = 0; index < 100; index += 1) {
+    const name = index === 0
+      ? `${prepared.hash.slice(0, 8)}-${prepared.fileName}`
+      : `${prepared.hash.slice(0, 8)}-${index}-${prepared.fileName}`
+    const path = join(dir, name)
+    let fd
+    let created = false
+    try {
+      fd = openSync(path, 'wx')
+      created = true
+      try {
+        let offset = 0
+        while (offset < prepared.buffer.length) {
+          const written = write(fd, prepared.buffer, offset)
+          if (!Number.isInteger(written) || written <= 0) {
+            throw new StoryError('material-write-failed', '素材文件写入不完整')
+          }
+          offset += written
+        }
+      } finally {
+        closeSync(fd)
+        fd = undefined
+      }
+      return { origin: `materials/${name}`, path, created: true }
+    } catch (error) {
+      if (created) {
+        if (fd !== undefined) {
+          try {
+            closeSync(fd)
+          } catch {
+            // Best effort while cleaning up a failed open/write.
+          }
+        }
+        try {
+          unlinkSync(path)
+        } catch {
+          // Leave an orphan only when even cleanup fails.
+        }
+      }
+      if (error?.code !== 'EEXIST') {
+        throw new StoryError('material-write-failed', `素材文件写入失败：${error.message}`)
+      }
+      try {
+        if (readFileSync(path).equals(prepared.buffer)) return { origin: `materials/${name}`, path, created: false }
+      } catch {
+        // The file vanished between EEXIST and the comparison; try the next name.
+      }
+    }
+  }
+  throw new StoryError('material-write-failed', '素材文件名冲突过多')
+}
+
+/** Validate and normalize one material title. */
+function materialTitle(value) {
+  const title = String(value ?? '').trim()
+  if ([...title].length > MATERIAL_TITLE_MAX) {
+    throw new StoryError('material-title-too-long', `素材标题不能超过 ${MATERIAL_TITLE_MAX} 字`)
+  }
+  return title
+}
+
+/**
+ * Import one uploaded material into a work. The managed copy is written inside
+ * the write transaction after the hash probe; only a copy created by this call
+ * is removed when the insert or index sync fails.
+ * @param {string} root - workspace directory.
+ * @param {string} work - work identity.
+ * @param {{name: string, contentBase64: string, title?: string}} input - upload.
+ * @returns {{material: object, duplicate: boolean}} metadata.
+ */
+export function importMaterial(root, work, input) {
+  const prepared = prepareMaterial(input)
+  const db = openWork(root, work)
+  try {
+    return transaction(db, () => {
+      const existing = db.prepare('SELECT * FROM materials WHERE hash = ?').get(prepared.hash)
+      if (existing !== undefined) return { material: materialMetadata(existing), duplicate: true }
+      const copy = writeManagedCopy(root, prepared)
+      try {
+        const id = `mat-${prepared.hash.slice(0, 16)}`
+        const at = now()
+        try {
+          db.prepare(`INSERT INTO materials (id, title, format, origin, bytes, hash, created_at, content)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+            .run(id, prepared.title, prepared.format, copy.origin, prepared.bytes, prepared.hash, at, prepared.content)
+        } catch (error) {
+          const raced = db.prepare('SELECT * FROM materials WHERE hash = ?').get(prepared.hash)
+          if (raced !== undefined) {
+            if (copy.created) {
+              try {
+                unlinkSync(copy.path)
+              } catch {
+                // The row is the authority; leave an orphan file for later cleanup.
+              }
+            }
+            return { material: materialMetadata(raced), duplicate: true }
+          }
+          if (/PRIMARY KEY/iu.test(String(error?.message))) {
+            throw new StoryError('material-id-conflict', '素材 id 冲突')
+          }
+          throw error
+        }
+        syncSearchDoc(db, `material:${id}`, 'material', `materials/${id}`, 0, prepared.content)
+        return {
+          material: materialMetadata(db.prepare('SELECT * FROM materials WHERE id = ?').get(id)),
+          duplicate: false,
+        }
+      } catch (error) {
+        if (copy.created) {
+          try {
+            unlinkSync(copy.path)
+          } catch {
+            // Best effort: the row was rolled back anyway.
+          }
+        }
+        throw error
+      }
+    })
+  } finally {
+    db.close()
+  }
+}
+
+/**
+ * List material metadata for one work.
+ * @param {string} root - workspace directory.
+ * @param {string} work - work identity.
+ * @returns {object[]} metadata rows.
+ */
+export function listMaterials(root, work) {
+  const db = openWork(root, work)
+  try {
+    return db.prepare('SELECT * FROM materials ORDER BY created_at, id').all().map(materialMetadata)
+  } finally {
+    db.close()
+  }
+}
+
+/**
+ * Rename one material title; content, hash, origin and index stay unchanged.
+ * @param {string} root - workspace directory.
+ * @param {string} work - work identity.
+ * @param {string} id - material id.
+ * @param {string} title - new title.
+ * @returns {object} updated metadata.
+ */
+export function renameMaterial(root, work, id, title) {
+  const clean = materialTitle(title)
+  const db = openWork(root, work)
+  try {
+    return transaction(db, () => {
+      const row = db.prepare('SELECT * FROM materials WHERE id = ?').get(String(id))
+      if (row === undefined) throw new StoryError('material-not-found', `没有素材：${String(id)}`)
+      db.prepare('UPDATE materials SET title = ? WHERE id = ?').run(clean, row.id)
+      return materialMetadata({ ...row, title: clean })
+    })
+  } finally {
+    db.close()
+  }
+}
+
+/**
+ * Remove one material row and its search document; the managed file stays.
+ * @param {string} root - workspace directory.
+ * @param {string} work - work identity.
+ * @param {string} id - material id.
+ * @returns {{id: string}} removed id.
+ */
+export function deleteMaterial(root, work, id) {
+  const db = openWork(root, work)
+  try {
+    return transaction(db, () => {
+      const row = db.prepare('SELECT id FROM materials WHERE id = ?').get(String(id))
+      if (row === undefined) throw new StoryError('material-not-found', `没有素材：${String(id)}`)
+      db.prepare('DELETE FROM materials WHERE id = ?').run(row.id)
+      dropSearchDoc(db, `material:${row.id}`)
+      return { id: row.id }
+    })
+  } finally {
+    db.close()
+  }
+}
+
+/**
  * Drop one search document and its FTS row.
  * @param {object} db - open work database.
  * @param {string} docId - document id.
@@ -1977,8 +2176,9 @@ function exportManifest(root, workId, catalogRowValue, db) {
   const meta = metaOf(db)
   const chapters = db.prepare('SELECT * FROM chapters ORDER BY number').all()
   const summaryStates = summaryStateMap(db)
+  const materials = db.prepare('SELECT * FROM materials ORDER BY created_at, id').all()
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     title: catalogRowValue.title,
     form: catalogRowValue.form,
     tags: catalogRowValue.tags === null ? [] : JSON.parse(catalogRowValue.tags),
@@ -2002,6 +2202,14 @@ function exportManifest(root, workId, catalogRowValue, db) {
         summaryStale: summary.state === 'stale',
       }
     }),
+    materials: materials.map(row => ({
+      id: row.id,
+      title: row.title,
+      format: row.format,
+      bytes: row.bytes,
+      hash: row.hash,
+      origin: row.origin,
+    })),
   }
 }
 
@@ -2057,6 +2265,9 @@ export function exportWork(root, work, destination) {
       put('state/events.jsonl', `${db.prepare('SELECT * FROM events ORDER BY seq').all()
         .map(event => JSON.stringify({ seq: event.seq, at: event.at, chapter: event.chapter, kind: event.kind, ...JSON.parse(event.payload) }))
         .join('\n')}\n`)
+      for (const material of db.prepare('SELECT * FROM materials ORDER BY created_at, id').all()) {
+        put(join('materials', `${material.id}.${material.format}`), material.content)
+      }
       for (const proposal of catalog.prepare('SELECT * FROM proposals WHERE used_work_id = ? ORDER BY created_at').all(row.work_id)) {
         put(join('proposals', `${proposal.id}.json`), `${JSON.stringify({
           id: proposal.id,

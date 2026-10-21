@@ -20,6 +20,10 @@ window.__ModuleLoader__.load({
       review: '/api/dsh-storycraft/review',
       bible: '/api/dsh-storycraft/bible',
       brief: '/api/dsh-storycraft/brief',
+      materials: '/api/dsh-storycraft/materials',
+      materialImport: '/api/dsh-storycraft/materials/import',
+      materialRename: '/api/dsh-storycraft/materials/rename',
+      materialDelete: '/api/dsh-storycraft/materials/delete',
       exports: '/api/dsh-storycraft/exports',
       backups: '/api/dsh-storycraft/backups',
     }
@@ -150,10 +154,11 @@ window.__ModuleLoader__.load({
      * @param path - path with query string.
      * @returns parsed JSON, or a thrown error carrying the server message.
      */
-    async function fetchOwnRoute(path) {
+    async function fetchOwnRoute(path, options = {}) {
       const response = await fetch(path, {
         method: 'GET',
         credentials: 'same-origin',
+        ...(options.cache === undefined ? {} : { cache: options.cache }),
         headers: { accept: 'application/json' },
       })
       if (response.status === 404) {
@@ -279,12 +284,12 @@ window.__ModuleLoader__.load({
 
     /** Build the business face the page renders from. */
     function createFace(ctx, bindings) {
-      const route = (path, query) => {
+      const route = (path, query, options = {}) => {
         const params = new URLSearchParams()
         for (const [key, value] of Object.entries(query)) {
           if (value !== undefined && value !== null) params.set(key, String(value))
         }
-        return fetchOwnRoute(`${path}?${params.toString()}`)
+        return fetchOwnRoute(`${path}?${params.toString()}`, options)
       }
       const post = async (path, body) => {
         const response = await fetch(path, {
@@ -312,6 +317,12 @@ window.__ModuleLoader__.load({
         review: (root, id, chapter) => route(ROUTE.review, { root, id, chapter }),
         bible: (root, id) => route(ROUTE.bible, { root, id }),
         brief: (root, id, chapter) => route(ROUTE.brief, { root, id, chapter }),
+        materials: (root, workId) => route(ROUTE.materials, { root, workId }, { cache: 'no-store' }),
+        importMaterial: (root, sessionId, workId, name, contentBase64, title) => post(ROUTE.materialImport, {
+          root, sessionId, workId, name, contentBase64, ...(title === undefined ? {} : { title }),
+        }),
+        renameMaterial: (root, sessionId, workId, id, title) => post(ROUTE.materialRename, { root, sessionId, workId, id, title }),
+        deleteMaterial: (root, sessionId, workId, id) => post(ROUTE.materialDelete, { root, sessionId, workId, id }),
         exports: (root, id) => route(ROUTE.exports, { root, id }),
         backups: (root, id) => route(ROUTE.backups, { root, id }),
 
@@ -867,7 +878,13 @@ window.__ModuleLoader__.load({
       const [stateOpen, setStateOpen] = useState(false)
       const [bible, setBible] = useState({ status: 'idle' })
       const [brief, setBrief] = useState({ status: 'idle' })
+      const [materials, setMaterials] = useState([])
+      const [materialBusy, setMaterialBusy] = useState(false)
+      const [materialError, setMaterialError] = useState(undefined)
+      const [materialEditing, setMaterialEditing] = useState(undefined)
       const [briefChapter, setBriefChapter] = useState(1)
+      const materialFileRef = useRef(null)
+      const materialTitleInputRef = useRef(null)
       const [renaming, setRenaming] = useState(undefined)
       const [volumes, setVolumes] = useState([])
       const [volumeForm, setVolumeForm] = useState(undefined)
@@ -938,6 +955,70 @@ window.__ModuleLoader__.load({
           setBrief({ status: 'ready', chapter, ...payload })
         } catch (error) {
           setBrief({ status: 'error', chapter, error: error instanceof Error ? error.message : String(error) })
+        }
+      }
+
+      const loadMaterials = useCallback(async () => {
+        try {
+          const payload = await face.materials(root, workId)
+          setMaterials(payload.materials ?? [])
+          setMaterialError(undefined)
+        } catch (error) {
+          setMaterialError(error instanceof Error ? error.message : String(error))
+        }
+      }, [face, root, workId])
+
+      useEffect(() => { void loadMaterials() }, [loadMaterials])
+
+      const importMaterialFile = async (event) => {
+        const file = event.target.files?.[0]
+        event.target.value = ''
+        if (file === undefined || sessionId === undefined) return
+        setMaterialBusy(true)
+        setMaterialError(undefined)
+        try {
+          const bytes = new Uint8Array(await file.arrayBuffer())
+          let binary = ''
+          for (let index = 0; index < bytes.length; index += 0x8000) {
+            binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000))
+          }
+          await face.importMaterial(root, sessionId, workId, file.name, btoa(binary))
+          await loadMaterials()
+        } catch (error) {
+          setMaterialError(error instanceof Error ? error.message : String(error))
+        } finally {
+          setMaterialBusy(false)
+        }
+      }
+
+      const renameMaterial = async () => {
+        if (materialEditing === undefined || sessionId === undefined) return
+        setMaterialBusy(true)
+        setMaterialError(undefined)
+        try {
+          const title = materialTitleInputRef.current?.value ?? materialEditing.title
+          await face.renameMaterial(root, sessionId, workId, materialEditing.id, title)
+          setMaterialEditing(undefined)
+          await loadMaterials()
+        } catch (error) {
+          setMaterialError(error instanceof Error ? error.message : String(error))
+        } finally {
+          setMaterialBusy(false)
+        }
+      }
+
+      const removeMaterial = async (material) => {
+        if (sessionId === undefined) return
+        if (!window.confirm(`删除素材「${material.title}」？作品库与检索会移除，磁盘副本保留。`)) return
+        setMaterialBusy(true)
+        setMaterialError(undefined)
+        try {
+          await face.deleteMaterial(root, sessionId, workId, material.id)
+          await loadMaterials()
+        } catch (error) {
+          setMaterialError(error instanceof Error ? error.message : String(error))
+        } finally {
+          setMaterialBusy(false)
         }
       }
 
@@ -1350,6 +1431,67 @@ window.__ModuleLoader__.load({
               )),
             )
             : null,
+        ),
+
+        h('div', { className: 'sc-section' },
+          h('div', { className: 'sc-actions' },
+            h('button', {
+              type: 'button',
+              className: 'sc-btn',
+              disabled: materialBusy || sessionId === undefined,
+              onClick: () => materialFileRef.current?.click(),
+            }, materialBusy ? '处理中…' : '导入素材'),
+            h('input', {
+              type: 'file',
+              accept: '.txt,.md',
+              'aria-label': '导入素材文件',
+              ref: materialFileRef,
+              style: { display: 'none' },
+              onChange: event => { void importMaterialFile(event) },
+            }),
+            h('span', { className: 'sc-muted' }, `素材库：${materials.length} 份`),
+          ),
+          materialError === undefined
+            ? null
+            : h('p', { className: 'sc-notice sc-notice-info' }, materialError),
+          materials.length === 0
+            ? h('p', { className: 'sc-muted', style: { marginTop: 8 } }, '还没有素材。点「导入素材」选 .txt / .md 文件。')
+            : h('div', { style: { marginTop: 10 } }, ...materials.map(material => h('div', { className: 'sc-item', key: material.id },
+              h('div', { className: 'sc-item-head' },
+                h('span', { className: 'sc-item-name' }, material.title),
+                h('span', { className: 'sc-badge' }, material.format),
+                h('span', { className: 'sc-badge' }, `${material.bytes} B`),
+                h('span', { className: 'sc-item-id' }, `${material.id} · ${String(material.createdAt ?? '').replace('T', ' ').slice(0, 16)}`),
+                materialEditing?.id === material.id
+                  ? null
+                  : h('button', {
+                    type: 'button',
+                    className: 'sc-btn sc-btn-small',
+                    onClick: () => setMaterialEditing({ id: material.id, title: material.title }),
+                  }, '重命名'),
+                h('button', {
+                  type: 'button',
+                  className: 'sc-btn sc-btn-small',
+                  onClick: () => { void removeMaterial(material) },
+                }, '删除'),
+              ),
+              materialEditing?.id === material.id
+                ? h('div', { className: 'sc-rename' },
+                  h('input', {
+                    className: 'sc-input',
+                    defaultValue: material.title,
+                    ref: materialTitleInputRef,
+                    'aria-label': `素材「${material.title}」的新标题`,
+                    onKeyDown: event => {
+                      if (event.key === 'Enter') void renameMaterial()
+                      if (event.key === 'Escape') setMaterialEditing(undefined)
+                    },
+                  }),
+                  h('button', { type: 'button', className: 'sc-btn sc-btn-primary', onClick: () => { void renameMaterial() } }, '保存'),
+                  h('button', { type: 'button', className: 'sc-btn', onClick: () => setMaterialEditing(undefined) }, '取消'),
+                )
+                : null,
+            ))),
         ),
 
         h('div', { className: 'sc-section' },

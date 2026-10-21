@@ -47,11 +47,12 @@ DSH 里的长篇创作编排：三十个动作把立项、章纲、正文、审�
   catalog.db                 目录：works、proposals、session_current
   works/<workId>.db          单部作品的全部内容
   trash/<workId>.db          软删除的作品库
+  materials/                 素材托管副本（模型不可读；删除素材时保留）
   exports/<workId>/          按需导出（作者在系统文件管理器里取用）
   backups/<workId>-<ts>.db   单作品备份
 ```
 
-`catalog.db` 只存元数据，是 title/form/tags 的权威；作品库的 `meta` 行是导出副本。每部作品独立 `user_version`，升级一部不影响其他；v1→v2 首次打开自动迁移，给摘要加 revision 列，迁移失败返回 `schema-migration-failed`，目录会把该作品标为降级而不是静默跳过。表结构、连接策略、改名/删除/恢复顺序与启动对账的完整设计见 [作品入库 Note](../.agents/notes/implemented/pipeline/2026-10-19-storycraft-sqlite-store.md)。
+`catalog.db` 只存元数据，是 title/form/tags 的权威；作品库的 `meta` 行是导出副本。每部作品独立 `user_version`，升级一部不影响其他；v1/v2 首次打开自动迁移到 v3（摘要 revision + `materials` 表），迁移失败返回 `schema-migration-failed`，目录会把该作品标为降级而不是静默跳过。表结构、连接策略、改名/删除/恢复顺序与启动对账的完整设计见 [作品入库 Note](../.agents/notes/implemented/pipeline/2026-10-19-storycraft-sqlite-store.md)。
 
 动作与路由返回的模型可见 artifact 只有 `artifactId` / `revisionId` / `kind`，不含文件路径；正文/章纲/审稿/摘要等内容按 ID 用 `story_read` 或上下文动作读取。UI 与作者导出仍显示路径；实际内容在作品库内。宿主启动及首次读取一个工作区时对账目录与文件：缺失的作品在列表跳过并记入宿主诊断，孤儿文件与回收站文件保留待人工恢复。
 
@@ -66,6 +67,7 @@ bible/style       文风基准：人称、时态、句长节奏、禁用词与�
 bible/plan        写作计划与章序规划
 bible/intent      作者意图与当前焦点
 summaries         章节摘要（上限 400 字；revision 绑定正文版本）
+materials         作者素材（txt/md；FTS5 索引；元数据表格 + .storycraft/materials 副本）
 ```
 
 - `story_bible`：读真值（可指定一份），缺失时指出缺哪几份。
@@ -75,6 +77,10 @@ summaries         章节摘要（上限 400 字；revision 绑定正文版本）
 - `story_brief`：装配写某一章前的上下文——意图、本章章纲、涉及人物、未解伏笔、上一章结尾、文风、字数口径；默认 8 KB，超预算按优先级裁剪并报告裁掉的段；同一输入两次结果逐字节一致。
 - `story_context` 的检索段：作品内正文 ≥3 章时，按本章任务从作品库 FTS5 召回 current 摘要、未解/已用伏笔与卷摘要；最多 5 条 / 1200 字，`recent` 已发的摘要去重；过期摘要、已解伏笔、reopen 前事件与目标章之后的材料不进入。`trace.retrieval` 记录 `enabled / query / candidateCount / hits[{id, kind, sourceIds, score, sent}]` 与可选 `error`，整段被预算裁掉时 `sent` 全为 false。
 
+## 素材库
+
+面板“素材”区由宿主直接管理，不经过 LLM：文件选择器导入 `.txt` / `.md`，列表、重命名、删除；单文件 ≤512 KB、UTF-8。素材写入作品库 `materials` 表并同步 FTS5，副本放 `.storycraft/materials/`（模型不可读）；删除只移除库与索引，保留副本。B1 不把素材接入 `story_context`，B2 再接。
+
 ## 作品操作与导出
 
 | 动作 | 行为 |
@@ -82,7 +88,7 @@ summaries         章节摘要（上限 400 字；revision 绑定正文版本）
 | `story_rename` | 改标题或作品 id；改 id 时库文件一起移，冲突拒绝 |
 | `story_delete` | 移入 `.storycraft/trash/`，不再出现在列表 |
 | `story_restore` | 恢复回收站里最近一次的同名作品 |
-| `story_export` | 导出为 `export:<workId>`；作者从只读 `/exports` 路由取目录，内容含 manifest、各版正文、章纲、摘要、各轮审稿、真值、卷、事件与提案 |
+| `story_export` | 导出为 `export:<workId>`；作者从只读 `/exports` 路由取目录，内容含 manifest v3、各版正文、章纲、摘要、各轮审稿、真值、卷、事件、提案与 `materials/<id>.<format>` |
 | `story_backup` | 用 SQLite 备份 API 生成单作品文件，返回 `integrity_check` |
 
 导出是给作者在系统文件管理器里取用的，不是让模型读库；`.storycraft` 仍整体拒绝工具直接访问。
@@ -130,7 +136,7 @@ summaries         章节摘要（上限 400 字；revision 绑定正文版本）
 - 右侧：作品详情——章节列表（状态、有无章纲、版本、字数、未处理问题）→ 章节点开后可切「正文 / 章纲」两视图、看审稿清单；「写第 N 章」「审稿」「按清单修订」「定稿」把固定指令投递给当前会话。
 - 「真值」与「写前上下文」两个只读视图：真值列出五件的路径、版本与内容；写前上下文按章显示装配结果、字节占用、被裁项与草稿标记。
 
-页面只读作品内容；写操作只有两个作者确认：章纲页「确认章纲」（`POST /chapter/approve`）与全书计划「确认全书计划」（`POST /outline/approve`），都不碰正文，也不会自动发送写正文指令；确认后由作者点动作按钮，把指令填入输入框，补充信息后发送。指令按钮在被点击时才校验——没有会话、或当前会话不是故事工坊时只显示原因不投递；故事工坊预设装载失败时，页面顶部直接显示宿主给出的失败原因。
+页面读取作品内容；写操作只有作者直接触发的管理动作：章纲/全书计划确认（`POST /chapter/approve`、`POST /outline/approve`），以及素材库的导入/重命名/删除（`POST /api/dsh-storycraft/materials/*`）。它们都不碰正文，也不会自动发送写正文指令；确认后由作者点动作按钮，把指令填入输入框，补充信息后发送。指令按钮在被点击时才校验——没有会话、或当前会话不是故事工坊时只显示原因不投递；故事工坊预设装载失败时，页面顶部直接显示宿主给出的失败原因。
 
 ## 读取作用域
 
@@ -141,9 +147,9 @@ summaries         章节摘要（上限 400 字；revision 绑定正文版本）
 - `.storycraft/`（目录库、作品库、`-wal`、`-shm`）对工具一律不可直接读，只能通过动作或导出访问；
 - 项目文件（`AGENTS.md`、`docs/`、`storycraft/` 源码等）不受影响。
 
-## 只读接口
+## 接口
 
-宿主半边除确认章纲外只注册只读路由（仅本机、需浏览器同源 cookie）：
+宿主半边提供只读路由与少量作者写路由（仅本机、需浏览器同源 cookie；素材写路由还校验当前作品）：
 
 | 路由 | 用途 |
 | --- | --- |
@@ -155,7 +161,13 @@ summaries         章节摘要（上限 400 字；revision 绑定正文版本）
 | `GET /api/dsh-storycraft/review?root=&id=&chapter=` | 最新章节的审稿条目与轮次 |
 | `GET /api/dsh-storycraft/state?root=&id=` | 一个作品的进度摘要 |
 | `GET /api/dsh-storycraft/bible?root=&id=&file=` | 真值文件与内容版本 |
-| `GET /api/dsh-storycraft/brief?root=&id=&chapter=` | 写前上下文装配结果 |`r`n| `GET /api/dsh-storycraft/exports?root=&id=` | 作者导出目录状态（只读） |`r`n| `GET /api/dsh-storycraft/backups?root=&id=` | 作者备份文件列表（只读） |
+| `GET /api/dsh-storycraft/brief?root=&id=&chapter=` | 写前上下文装配结果 |
+| `GET /api/dsh-storycraft/materials?root=&workId=` | 素材元数据列表 |
+| `POST /api/dsh-storycraft/materials/import` | 上传 txt/md 导入（JSON + base64） |
+| `POST /api/dsh-storycraft/materials/rename` | 重命名素材标题 |
+| `POST /api/dsh-storycraft/materials/delete` | 删除素材库记录与索引（保留副本） |
+| `GET /api/dsh-storycraft/exports?root=&id=` | 作者导出目录状态（只读） |
+| `GET /api/dsh-storycraft/backups?root=&id=` | 作者备份文件列表（只读） |
 | `GET /api/dsh-storycraft/roster` | 预设名册（含装载失败原因） |
 | `GET /api/dsh-storycraft/document?id=` | 某预设的完整声明 |
 
@@ -167,9 +179,10 @@ summaries         章节摘要（上限 400 字；revision 绑定正文版本）
 storycraft/
   package.json                 # bundle 清单：dsh.bundle.patch + dsh.client
   cordis.patch.yml             # 入口行 + 一条预设声明（故事工坊，技能行 mode: all）
-  index.js                     # Host 半边：只读路由 + 作者确认
+  index.js                     # Host 半边：只读路由 + 作者确认/素材管理
   db.js                        # SQLite 目录库 / 作品库 schema、连接、检查点与备份
-  store-db.js                  # 全部读写：作品、章节、真值、卷、检索、生命周期、导出备份
+  store-db.js                  # 全部读写：作品、章节、真值、卷、素材、检索、生命周期、导出备份
+  materials.js                 # 素材上传字节校验、文件名、哈希与元数据
   storage.js                   # 稳定门面：动作与路由从这里取领域函数与存储函数
   domain.js                    # 共享词汇：错误码、id、阶段、审稿文本、事件折叠
   facts.js                     # 白名单唯一派生入口：只读已落库资料，正文与任务不参与
@@ -197,7 +210,7 @@ storycraft/
   Get-ChildItem storycraft/tests -Filter *.test.mjs | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { exit 1 } }
   ```
 
-- 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑九条页面 spec——侧栏入口、页面读数、两个作者确认、指令门禁、预设声明与两条刷新。不调用模型，零额度；需要本机装有 Playwright（可用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装它的目录）。
+- 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑 12 条页面 spec——侧栏入口、页面读数、作者确认、摘要徽标、素材导入/重命名/删除、指令门禁、预设声明与刷新。不调用模型，零额度；需要本机装有 Playwright（可用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装它的目录）。
 - 端到端验收、评审与证据记录在 issue `dehuadong/dsh-nove#18`。
 
 ## 改动与生效

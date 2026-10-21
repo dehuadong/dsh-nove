@@ -138,6 +138,56 @@ test.describe('故事工坊工作台', () => {
     await expect(rewrite).toHaveAttribute('title', /delegate\.role=summarizer/)
   })
 
+  test('素材面板可以导入、重命名、去重和删除', async ({ page }) => {
+    await openWorkbench(page)
+    await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())
+    await expect(page.getByText('素材库：0 份')).toBeVisible({ timeout: 15_000 })
+    const input = page.getByLabel('导入素材文件')
+    const file = {
+      name: '素材测试.md',
+      mimeType: 'text/markdown',
+      buffer: Buffer.from('旧井边的参考资料。', 'utf8'),
+    }
+    const composer = page.getByRole('textbox', { name: /Describe what/ })
+    const composerText = () => composer.evaluate(node => String(node.value ?? node.textContent ?? ''))
+    expect(await composer.count()).toBeGreaterThan(0)
+    expect(await composerText()).toBe('')
+    await input.setInputFiles(file)
+    await expect(page.getByText('素材库：1 份')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText('素材测试', { exact: true })).toHaveCount(1)
+    expect(await composerText()).toBe('')
+
+    await input.setInputFiles(file)
+    await page.waitForTimeout(200)
+    await expect(page.getByText('素材库：1 份')).toBeVisible()
+    await expect(page.getByText('素材测试', { exact: true })).toHaveCount(1)
+
+    await input.setInputFiles({ name: '坏文件.exe', mimeType: 'application/octet-stream', buffer: Buffer.from('x') })
+    await expect(page.getByText(/只支持 \.txt \/ \.md/)).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText('素材库：1 份')).toBeVisible()
+
+    const notice = page.getByRole('button', { name: 'Continue' })
+    if (await notice.count() > 0) await notice.first().evaluate(node => node.click())
+    const getStarted = page.getByRole('dialog', { name: 'Get started' })
+    if (await getStarted.count() > 0) {
+      await getStarted.getByRole('button', { name: 'Close' }).evaluate(node => node.click())
+    }
+    await page.getByRole('button', { name: '重命名' }).evaluate(node => node.click())
+    const rename = page.getByLabel('素材「素材测试」的新标题')
+    await rename.evaluate((node, value) => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+      setter.call(node, value)
+      node.dispatchEvent(new Event('input', { bubbles: true }))
+    }, '新的素材标题')
+    await page.waitForTimeout(100)
+    await page.getByRole('button', { name: '保存' }).evaluate(node => node.click())
+    await expect(page.getByText('新的素材标题', { exact: true })).toBeVisible({ timeout: 15_000 })
+
+    page.once('dialog', dialog => dialog.accept())
+    await page.getByRole('button', { name: '删除' }).last().evaluate(node => node.click())
+    await expect(page.getByText('素材库：0 份')).toBeVisible({ timeout: 15_000 })
+  })
+
   test('全书计划可以从面板确认', async ({ page }) => {
     await openWorkbench(page)
     await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())

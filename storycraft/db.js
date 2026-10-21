@@ -29,7 +29,22 @@ export const STORE_DIR = '.storycraft'
 export const CATALOG_SCHEMA_VERSION = 1
 
 /** Schema version of one work database. */
-export const WORK_SCHEMA_VERSION = 2
+export const WORK_SCHEMA_VERSION = 3
+
+/** Material table; shared by new databases and the v2→v3 step. */
+const MATERIALS_SCHEMA = `
+CREATE TABLE IF NOT EXISTS materials (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  format TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  bytes INTEGER NOT NULL,
+  hash TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  content TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_materials_hash ON materials(hash);
+`
 
 /** Catalog schema. Metadata only: no chapter content is ever stored here. */
 const CATALOG_SCHEMA = `
@@ -154,6 +169,8 @@ CREATE TABLE IF NOT EXISTS bible (
   updated_at TEXT NOT NULL
 );
 
+${MATERIALS_SCHEMA}
+
 CREATE TABLE IF NOT EXISTS search_docs (
   doc_id TEXT PRIMARY KEY,
   kind TEXT NOT NULL,
@@ -193,6 +210,11 @@ export function trashDir(root) {
 /** Absolute directory holding exports. */
 export function exportsDir(root) {
   return join(root, STORE_DIR, 'exports')
+}
+
+/** Absolute directory holding managed material copies. */
+export function materialsDir(root) {
+  return join(root, STORE_DIR, 'materials')
 }
 
 /** Absolute directory holding backups. */
@@ -329,7 +351,7 @@ export function openWork(root, workId) {
   const db = openDatabase(file)
   try {
     const version = userVersion(db)
-    if (version === 1) {
+    if (version === 1 || version === 2) {
       try {
         migrateWorkSchema(db)
       } catch (error) {
@@ -349,26 +371,42 @@ export function openWork(root, workId) {
   return db
 }
 
+/** Column names declared by the shared material table fragment. */
+const MATERIAL_COLUMNS = [...MATERIALS_SCHEMA.matchAll(/^\s{2}([a-z_]+)\s/gmu)].map(match => match[1])
+
 /**
- * Upgrade a v1 work database in place. Idempotent: a concurrent opener that
- * already committed v2 is a no-op, and a half-migrated column is reused.
- * @param {import('node:sqlite').DatabaseSync} db - open v1 work database.
+ * Upgrade a v1/v2 work database in place. Idempotent: a concurrent opener that
+ * already committed the current version is a no-op, and existing columns are
+ * reused only when their shape still matches the shared schema.
+ * @param {import('node:sqlite').DatabaseSync} db - open v1/v2 work database.
  */
 function migrateWorkSchema(db) {
   transaction(db, () => {
-    if (userVersion(db) === WORK_SCHEMA_VERSION) return
-    if (userVersion(db) !== 1) {
-      throw new StoryError('schema-version-mismatch', '只支持从 v1 升级作品库')
+    let version = userVersion(db)
+    if (version === WORK_SCHEMA_VERSION) return
+    if (version !== 1 && version !== 2) {
+      throw new StoryError('schema-version-mismatch', '只支持从 v1/v2 升级作品库')
     }
-    const columns = db.prepare('PRAGMA table_info(summaries)').all()
-    if (!columns.some(column => column.name === 'revision')) {
-      db.exec('ALTER TABLE summaries ADD COLUMN revision INTEGER')
+    if (version === 1) {
+      const columns = db.prepare('PRAGMA table_info(summaries)').all()
+      if (!columns.some(column => column.name === 'revision')) {
+        db.exec('ALTER TABLE summaries ADD COLUMN revision INTEGER')
+      }
+      db.exec(`UPDATE summaries SET revision = (
+        SELECT CASE WHEN chapters.current_revision > 0 THEN chapters.current_revision END
+        FROM chapters WHERE chapters.number = summaries.number
+      ) WHERE revision IS NULL`)
+      version = 2
+      db.exec('PRAGMA user_version = 2')
     }
-    db.exec(`UPDATE summaries SET revision = (
-      SELECT CASE WHEN chapters.current_revision > 0 THEN chapters.current_revision END
-      FROM chapters WHERE chapters.number = summaries.number
-    ) WHERE revision IS NULL`)
-    db.exec(`PRAGMA user_version = ${WORK_SCHEMA_VERSION}`)
+    if (version === 2) {
+      const columns = db.prepare('PRAGMA table_info(materials)').all()
+      if (columns.length > 0 && columns.map(column => column.name).join(',') !== MATERIAL_COLUMNS.join(',')) {
+        throw new StoryError('schema-migration-failed', 'materials 表已存在但列不匹配，拒绝复用')
+      }
+      db.exec(MATERIALS_SCHEMA)
+      db.exec(`PRAGMA user_version = ${WORK_SCHEMA_VERSION}`)
+    }
   })
 }
 

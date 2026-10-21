@@ -24,6 +24,10 @@ function throwsCode(name, code, fn) {
 function rawVersion(db) {
   return Number(db.prepare('PRAGMA user_version').get().user_version)
 }
+function hasMaterials(db) {
+  return db.prepare("SELECT count(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'materials'").get().n === 1
+}
+
 function hasRevision(db) {
   return db.prepare('PRAGMA table_info(summaries)').all().some(column => column.name === 'revision')
 }
@@ -40,9 +44,10 @@ async function fixture(root, title) {
 }
 
 /** Turn a current work database back into a v1 shape. */
-function downgrade(root, workId, { dropRevision = true, dropChapters = false } = {}) {
+function downgrade(root, workId, { dropRevision = true, dropChapters = false, dropMaterials = false } = {}) {
   const db = openDatabase(workFile(root, workId))
   try {
+    if (dropMaterials) db.exec('DROP TABLE materials')
     if (dropRevision) db.exec('ALTER TABLE summaries DROP COLUMN revision')
     if (dropChapters) {
       db.exec('PRAGMA foreign_keys = OFF')
@@ -60,8 +65,8 @@ try {
   downgrade(root, work)
   const migrated = openWork(root, work)
   try {
-    check('migration adds revision', hasRevision(migrated))
-    check('migration sets user_version 2', rawVersion(migrated) === WORK_SCHEMA_VERSION, String(rawVersion(migrated)))
+    check('migration adds revision and materials', hasRevision(migrated) && hasMaterials(migrated))
+    check('migration sets the current version', rawVersion(migrated) === WORK_SCHEMA_VERSION, String(rawVersion(migrated)))
     check('migration backfills current revision',
       migrated.prepare('SELECT revision FROM summaries WHERE number = 1').get().revision === 1)
     check('migration preserves chapters and body',
@@ -91,6 +96,34 @@ try {
       halfOpened.prepare('SELECT revision FROM summaries WHERE number = 1').get().revision === 1)
   } finally {
     halfOpened.close()
+  }
+
+  const v2 = await fixture(root, 'v2 素材迁移')
+  downgrade(root, v2, { dropRevision: false, dropMaterials: true })
+  const v2Db = openDatabase(workFile(root, v2))
+  v2Db.exec('PRAGMA user_version = 2')
+  v2Db.close()
+  const v2Opened = openWork(root, v2)
+  try {
+    check('v2 migration adds materials and keeps content',
+      hasMaterials(v2Opened) && rawVersion(v2Opened) === WORK_SCHEMA_VERSION
+      && v2Opened.prepare('SELECT count(*) AS n FROM chapters').get().n === 1)
+  } finally {
+    v2Opened.close()
+  }
+
+  const bad = await fixture(root, '坏素材表')
+  downgrade(root, bad, { dropRevision: false, dropMaterials: true })
+  const badDb = openDatabase(workFile(root, bad))
+  badDb.exec('CREATE TABLE materials (id TEXT PRIMARY KEY)')
+  badDb.exec('PRAGMA user_version = 2')
+  badDb.close()
+  throwsCode('incompatible materials shape fails', 'schema-migration-failed', () => openWork(root, bad))
+  const badAfter = openDatabase(workFile(root, bad))
+  try {
+    check('failed v2 migration keeps version 2', rawVersion(badAfter) === 2, String(rawVersion(badAfter)))
+  } finally {
+    badAfter.close()
   }
 
   const broken = await fixture(root, '回滚测试')
