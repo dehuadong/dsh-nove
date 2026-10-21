@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：章节摘要的角色提交通道
-status: proposed
+status: implemented
 created: 2026-10-21
 updated: 2026-10-21
+verification: e0992f9；23 个单测 + 11 条 E2E；真实第 4 章摘要窗口 591 字符、整轮 2,735、summaryChars 317、0 次 story_read
 ---
 
 # Agent Note：故事工坊：章节摘要的角色提交通道
@@ -29,7 +30,7 @@ updated: 2026-10-21
 - 不改变 `story_summarize` 的 artifact 身份（`summary:<n>`，内容哈希）。
 - 对拍表 `2026-10-18-storycraft-parity-matrix.md` 的「卷/摘要/滚动」与「上下文/token 治理」两行随本项同步。
 
-## 提案
+## 决定
 
 ### 1. 角色与工具契约
 
@@ -142,22 +143,18 @@ updated: 2026-10-21
 - **继续主编手写摘要**：不解决整章进入主会话；否决。
 - **本项一并加 revision 绑定**：需要 schema 迁移与既有作品升级，超出摘要通道范围；拆出后续工单。
 
-## 验收条件
+## 后果
 
-产品验收以 #24 为准；本 Note 只检查设计自洽：
+- 主会话在摘要步骤只保留 `story_next` + `story_delegate` 两个回执；摘要窗口实测 591 字符，整轮 2,735 字符（第 4 章）。
+- 摘要变成一次额外子代理调用，单章总调用数上升；换来主会话不再持有整章正文。
+- 手动 `story_summarize` 保留覆盖语义，作者仍可主动重写；委派路径用 `ifAbsent` 防并发覆盖。
+- 已有摘要过期仍不会被识别；这是本项明确保留的既有缺口，需后续工单补齐。
+- 角色接缝较多（枚举、`AUTHORITY`、`recent` 段），靠 `context.test` 的精确 section 集合与真实链路兜底。
+- 面板按钮已改为委派优先；已摘要章节不显示摘要按钮。
 
-1. `preflight` 与 `story_next` 使用同一组条件，三个允许路径都能通过委派前置；
-2. 新增角色只扩展 `story_submit`，不建立第二条传输；
-3. 摘要阶段上下文不超过 #22 的「当前章 + `state`」读取范围；
-4. 回执符合 #22 artifact 形状，不含正文与路径；
-5. 落盘错误原样透传，不触发整章重生成；
-6. `delegation-unavailable` / `delegation-no-submission` 都不自动改为主编读正文；
-7. 设计明确 `summaries` 表与 `WORK_SCHEMA_VERSION` 不变。
+## 验证
 
-## 风险
-
-- 摘要变成一次额外子代理调用，单章总 token 可能略升；收益是主会话不再持有整章，需在真实链路同时记录总 token；
-- 子代理可能把摘要写成评论或下一章计划；用 payload 校验与提示词约束，质量仍需真实阅读抽样；
-- 已有摘要过期仍不会被识别；这是本项明确保留的既有缺口，需后续工单补齐；
-- 上下文接缝较多（角色枚举、`AUTHORITY`、`recent` 段），漏一处会在真实链路才暴露；单元测试要逐项覆盖；
-- 面板按钮仍可能触发手动摘要，需同步固定指令，否则收益不会出现在真实使用中。
+- `node storycraft/scripts/ci.mjs` → PASS：23 个单测文件 + 11 条 E2E。
+- `node scripts/decisions/check.mjs` → PASS。
+- 真实第 4 章（`session-91e3c83e`）：writer 1,278 字 → reviewer 6 条 → reviser 1,456 字 → `story_next` 给 `delegate.role: summarizer` → `story_delegate` 回执 `summary:4`、`summaryChars: 317`、`submissionAttempts: 1`；主会话 0 次 `story_read`、0 次手动摘要/正文回退；子代理最终回答均为「已提交」。
+- 窗口：摘要 591 字符（≤700）；整轮工具参数+结果 2,735（≤6,311）。
