@@ -72,8 +72,10 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
 | 卷 | `volume:<id>` | 内容哈希（前 12 位） | `volume` |
 | 导出 | `export:<workId>` | 当前导出（覆盖式，无历史） | `export` |
 | 备份 | `backup:<workId>:<timestamp>` | 生成时间戳 | `backup` |
+| 素材 | `material:<id>` | 内容哈希（前 12 位） | `material` |
 
 - plan / summary / bible / outline / volume 是原地 upsert，**不能用固定 `r1`**，用当前内容哈希；本项不保留这些对象的历史，旧 revisionId 在 `story_read` 返回 `revision-not-found`，不伪造历史；
+- 素材（`material:<id>`）是检索文档身份，不由 `story_read` 解析；`story_materials` 只返回元数据，正文不进入模型；
 - review 的 ID 包含被审正文版本和轮次；审稿条目勾选会改变内容哈希，旧哈希不可再读；
 - chapter 的 revision 用现有真实版本号；
 - state 用 event seq，不能写“seq 或 r1”。

@@ -8,7 +8,7 @@ verification: 20 个单元测试文件与 7 条页面 spec 全绿；200 章加�
 
 # Agent Note：故事工坊：作品入库与导出（SQLite，一作品一库）
 
-> 2026-10-21 部分修订：`db.js:331` 的“任何非当前 `user_version` 都拒绝打开”改为 v1→v2 受控自动迁移；迁移失败新增 `schema-migration-failed`，`work-busy` 仍可重试。迁移细节见 [摘要 revision 绑定](2026-10-21-storycraft-summary-revision-binding.md)。
+> 2026-10-21 部分修订：`db.js:331` 的“任何非当前 `user_version` 都拒绝打开”改为 v1→v2 受控自动迁移；迁移失败新增 `schema-migration-failed`，`work-busy` 仍可重试。迁移细节见 [摘要 revision 绑定](2026-10-21-storycraft-summary-revision-binding.md)。v1→v2→v3（`materials` 表、导出 manifest 3）由 [素材入库](../../proposed/pipeline/2026-10-21-storycraft-material-ingest.md) 承接，**当前代码仍是 v2**，交付后再更新本文。
 
 ## 问题
 
@@ -77,13 +77,13 @@ verification: 20 个单元测试文件与 7 条页面 spec 全绿；200 章加�
 - 每次操作打开目标库，`journal_mode=WAL`、`busy_timeout=5000`、`foreign_keys=ON`；写事务 `BEGIN IMMEDIATE`；`SQLITE_BUSY` → `work-busy`；
 - 对账与诊断连接用 `busy_timeout=0`，锁定时立即降级，不拖慢列表或宿主启动；
 - v1→v2：`openWork` 在事务内给 `summaries` 加 `revision`，只回填 `revision IS NULL`，成功后 best-effort 更新 `catalog.works.schema_version`；未知版本仍 `schema-version-mismatch`，迁移失败（非 `work-busy`）返回 `schema-migration-failed`，库保持 v1；
-- 错误码：`sqlite-unavailable`、`db-corrupt`、`schema-version-mismatch`、`schema-migration-failed`、`backup-failed`、`work-not-found`、`work-exists`；
+- 错误码：`sqlite-unavailable`、`db-corrupt`、`schema-version-mismatch`、`schema-migration-failed`、`backup-failed`、`work-not-found`、`work-exists`；v3/素材错误码待 #26 交付后补；
 - 启动探测 `node:sqlite`；缺失时所有动作返回 `sqlite-unavailable`，无文件回退。
 
 ### 虚拟路径与导出
 
 - 动作与路由返回的 `artifact.path`：`works/<workId>/chapters/ch-0007.md`（虚拟，不对应磁盘文件）；
-- `story_export(work)` 产出：`manifest.json`（schemaVersion、title/form/tags/wordRange/planApproval、outline 时间、章节状态）、`chapters/ch-0007.md`=r1、`ch-0007.rN.md`=第 N 版、`outline/*.plan.md`、`summaries/*.md`、`reviews/*.rN.md`（全部轮次）、`bible/{intent,characters.json,style,plan,world}`、`volumes.json`、`proposals/<id>.json`（仅 `used_work_id` 指向该作品的提案）、`state/events.jsonl`；顺序与 mtime 固定；
+- `story_export(work)` 产出：`manifest.json`（schemaVersion 2、title/form/tags/wordRange/planApproval、outline 时间、章节状态）、`chapters/ch-0007.md`=r1、`ch-0007.rN.md`=第 N 版、`outline/*.plan.md`、`summaries/*.md`、`reviews/*.rN.md`（全部轮次）、`bible/{intent,characters.json,style,plan,world}`、`volumes.json`、`proposals/<id>.json`（仅 `used_work_id` 指向该作品的提案）、`state/events.jsonl`；顺序与 mtime 固定；#26 交付后升 v3 并加 `materials/<id>.<format>`；
 - `story_backup(work)` 用 `backup()`/`VACUUM INTO`，返回 `integrity_check`。
 
 ### 与 #17 / #16 的关系

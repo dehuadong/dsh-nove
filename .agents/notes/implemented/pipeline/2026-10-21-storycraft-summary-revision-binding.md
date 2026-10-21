@@ -8,6 +8,8 @@ verification: cddc551 / 30d9be9；25 个单测 + 11 条 E2E；真实第 4 章重
 
 # Agent Note：故事工坊：摘要绑定正文 revision 与过期识别
 
+> 2026-10-21 导出边界待修订：本文固定 `manifest.schemaVersion = 2`；#26（素材入库）计划在 v2 字段基础上加素材并升到 3。当前代码仍是 2，交付 #26 时同步更新本文与 `export-backup.test`。
+
 ## 问题
 
 `summaries` 只有 `number` / `text` / `written_at`，没有记录摘要依据的正文版本。摘要在 `revised` 或清稿审稿后写入，此后 `story_revise` 或 `story_write(rewrite)` 可能再改正文，但摘要仍被当作当前：
