@@ -71,9 +71,9 @@ updated: 2026-10-20
 | 审稿/修订分离 | 审稿只观察，不自动改 | review 条目 + 主编决定 | 委派失败会回退重写 | 部分 | warning 不触发重写 |
 | 作者闸门 | 计划/章纲确认 | 面板确认 | 无 | 对齐 | 2026-10-21 两章回归通过；确认不自动发送 |
 | 下一步/进度 | pipeline 返回阶段结果 | `story_next` / `story_status` | 无 | 对齐 | 2026-10-21 两章回归通过 |
-| 卷/摘要/滚动 | volume map + summaries；writer 提交 `chapterSummary` | `story_volume` / `story_summarize`；摘要由主编手写 | 摘要前主编用 `story_read` 读整章（第 1 章 2,224 字符） | 部分 | 新工单：摘要随角色提交或宿主侧生成 |
+| 卷/摘要/滚动 | volume map + summaries；writer 提交 `chapterSummary` | `story_volume` / `story_summarize`；摘要由主编手写 | 摘要前主编用 `story_read` 读整章（第 1 章 2,224 字符） | 部分 | #24：摘要随角色提交；revision 绑定与迁移未立项（后续） |
 | 导入/导出/备份 | import/export | `story_export` / `story_backup`；无导入 | 缺章节导入 | 部分 | 非本项阻塞 |
-| 上下文/token 治理 | token usage + context trace | 主会话字符已测量；#19 AC6 clean 窗口 1,758 / 2,107；无 context trace | 缺摘要通道、trace 与独立预算 | 部分 | 摘要通道单列；trace 后续 |
+| 上下文/token 治理 | token usage + context trace | 主会话字符已测量；#19 AC6 clean 窗口 1,758 / 2,107；无 context trace | 缺摘要通道、trace 与独立预算 | 部分 | #24 摘要通道；trace 后续 |
 | 失败策略 | review-unavailable 不重写 | delegate 失败重试/回退 | 误报触发整章重写 | 部分 | 统一失败分类 |
 | forecast/同人/番外/互动影游 | 参考有 | 无 | 不在主线 | 非范围 | 不纳入本项 |
 ### 明确不做

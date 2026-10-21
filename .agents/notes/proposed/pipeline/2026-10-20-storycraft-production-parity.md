@@ -7,6 +7,7 @@ updated: 2026-10-20
 
 # Agent Note：故事工坊：参考目标对拍与章节生产编排整改
 
+> 2026-10-21 部分替代：摘要的生成与传输由 `2026-10-21-storycraft-summary-transport.md` 承接；本 Note 的 fact/hook settler、审稿 observation 与其余编排结论仍保留。
 
 ## 问题
 

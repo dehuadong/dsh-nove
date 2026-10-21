@@ -12,6 +12,8 @@ updated: 2026-10-20
 > 2026-10-20 传输段部分替代：`proposed/pipeline/2026-10-20-storycraft-role-submission.md` 把“子代理最终文本作为角色结果”改为 `story_submit` + SubmissionStore；DSH subagent、宿主侧编排与 `subagent-cannot-land` 保留。
 >
 > 2026-10-20 reviser 校验再修正：委派 reviser 的 min/max、mode 与 3 次提交校验并入 #23 的 `story_submit`。本 Note 正文里的“低于 min 只警告”“主编 patch→polish→rewrite / 超 max 重试”由 #23 取代；委派失败由子代理在提交工具内自我修正，主编不重试、不手动搬运正文。
+>
+> 2026-10-21 角色枚举扩展：新增 `summarizer` 角色，角色枚举、预检与回执由 `proposed/pipeline/2026-10-21-storycraft-summary-transport.md` 扩展；本 Note 的“delegate 只在预检会通过时出现”、writer/reviewer/reviser 契约与 `subagent-cannot-land` 保留。
 
 ## 问题
 
