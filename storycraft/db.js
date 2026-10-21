@@ -29,7 +29,7 @@ export const STORE_DIR = '.storycraft'
 export const CATALOG_SCHEMA_VERSION = 1
 
 /** Schema version of one work database. */
-export const WORK_SCHEMA_VERSION = 1
+export const WORK_SCHEMA_VERSION = 2
 
 /** Catalog schema. Metadata only: no chapter content is ever stored here. */
 const CATALOG_SCHEMA = `
@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS chapter_plans (
 CREATE TABLE IF NOT EXISTS summaries (
   number INTEGER PRIMARY KEY,
   text TEXT NOT NULL,
+  revision INTEGER,
   written_at TEXT NOT NULL,
   FOREIGN KEY (number) REFERENCES chapters(number) ON DELETE CASCADE
 );
@@ -328,7 +329,16 @@ export function openWork(root, workId) {
   const db = openDatabase(file)
   try {
     const version = userVersion(db)
-    if (version !== WORK_SCHEMA_VERSION) {
+    if (version === 1) {
+      try {
+        migrateWorkSchema(db)
+      } catch (error) {
+        if (error?.code === 'work-busy' || error?.code === 'schema-version-mismatch') throw error
+        throw new StoryError('schema-migration-failed',
+          `作品 ${workId} 的库升级到 v${WORK_SCHEMA_VERSION} 失败：${error instanceof Error ? error.message : String(error)}`)
+      }
+      syncCatalogSchemaVersion(root, workId)
+    } else if (version !== WORK_SCHEMA_VERSION) {
       throw new StoryError('schema-version-mismatch',
         `作品 ${workId} 的库版本 ${version} 不是支持的 ${WORK_SCHEMA_VERSION}：请升级插件或恢复备份`)
     }
@@ -337,6 +347,44 @@ export function openWork(root, workId) {
     throw error
   }
   return db
+}
+
+/**
+ * Upgrade a v1 work database in place. Idempotent: a concurrent opener that
+ * already committed v2 is a no-op, and a half-migrated column is reused.
+ * @param {import('node:sqlite').DatabaseSync} db - open v1 work database.
+ */
+function migrateWorkSchema(db) {
+  transaction(db, () => {
+    if (userVersion(db) === WORK_SCHEMA_VERSION) return
+    if (userVersion(db) !== 1) {
+      throw new StoryError('schema-version-mismatch', '只支持从 v1 升级作品库')
+    }
+    const columns = db.prepare('PRAGMA table_info(summaries)').all()
+    if (!columns.some(column => column.name === 'revision')) {
+      db.exec('ALTER TABLE summaries ADD COLUMN revision INTEGER')
+    }
+    db.exec(`UPDATE summaries SET revision = (
+      SELECT CASE WHEN chapters.current_revision > 0 THEN chapters.current_revision END
+      FROM chapters WHERE chapters.number = summaries.number
+    ) WHERE revision IS NULL`)
+    db.exec(`PRAGMA user_version = ${WORK_SCHEMA_VERSION}`)
+  })
+}
+
+/** Best-effort catalog copy of the work schema version; never blocks a write. */
+function syncCatalogSchemaVersion(root, workId) {
+  try {
+    const catalog = openCatalog(root, { create: false, busyTimeout: 0 })
+    if (catalog === undefined) return
+    try {
+      catalog.prepare('UPDATE works SET schema_version = ? WHERE work_id = ?').run(WORK_SCHEMA_VERSION, workId)
+    } finally {
+      catalog.close()
+    }
+  } catch {
+    // The catalog copy is metadata; the work's PRAGMA remains authoritative.
+  }
 }
 
 /**

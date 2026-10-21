@@ -51,7 +51,7 @@ DSH 里的长篇创作编排：三十个动作把立项、章纲、正文、审�
   backups/<workId>-<ts>.db   单作品备份
 ```
 
-`catalog.db` 只存元数据，是 title/form/tags 的权威；作品库的 `meta` 行是导出副本。每部作品独立 `user_version`，升级一部不影响其他。表结构、连接策略、改名/删除/恢复顺序与启动对账的完整设计见 [作品入库 Note](../.agents/notes/implemented/pipeline/2026-10-19-storycraft-sqlite-store.md)。
+`catalog.db` 只存元数据，是 title/form/tags 的权威；作品库的 `meta` 行是导出副本。每部作品独立 `user_version`，升级一部不影响其他；v1→v2 首次打开自动迁移，给摘要加 revision 列，迁移失败返回 `schema-migration-failed`，目录会把该作品标为降级而不是静默跳过。表结构、连接策略、改名/删除/恢复顺序与启动对账的完整设计见 [作品入库 Note](../.agents/notes/implemented/pipeline/2026-10-19-storycraft-sqlite-store.md)。
 
 动作与路由返回的模型可见 artifact 只有 `artifactId` / `revisionId` / `kind`，不含文件路径；正文/章纲/审稿/摘要等内容按 ID 用 `story_read` 或上下文动作读取。UI 与作者导出仍显示路径；实际内容在作品库内。宿主启动及首次读取一个工作区时对账目录与文件：缺失的作品在列表跳过并记入宿主诊断，孤儿文件与回收站文件保留待人工恢复。
 
@@ -65,13 +65,13 @@ bible/characters  人物档案：[{ name, role, want, fear, limit, voice }]
 bible/style       文风基准：人称、时态、句长节奏、禁用词与口头禅
 bible/plan        写作计划与章序规划
 bible/intent      作者意图与当前焦点
-summaries         章节摘要（上限 400 字）
+summaries         章节摘要（上限 400 字；revision 绑定正文版本）
 ```
 
 - `story_bible`：读真值（可指定一份），缺失时指出缺哪几份。
 - `story_bible_write`：校验后写入并返回内容版本；人物档案缺字段或重名会被拒绝，原内容不变。
 - `story_bible_import`：把旧文件作品的世界观收编进真值，并列出仍需作者补的项（不替作者编人物档案）；不导入大纲，大纲只走 `story_outline` + 作者确认。
-- `story_summarize`：手动写章节摘要（超 400 字截断并报告）；正常链路先由 `story_next` 给出 `summarizer` 委派，子代理通过 `story_submit` 提交摘要，主编不读整章。
+- `story_summarize`：手动写章节摘要（超 400 字截断并报告；写入时绑定当前正文版本）；正常链路先由 `story_next` 给出 `summarizer` 委派，子代理通过 `story_submit` 提交摘要，主编不读整章。摘要过期时 `story_next` 会重新要求摘要，`story_state` 返回 `summary-stale`。
 - `story_brief`：装配写某一章前的上下文——意图、本章章纲、涉及人物、未解伏笔、上一章结尾、文风、字数口径；默认 8 KB，超预算按优先级裁剪并报告裁掉的段；同一输入两次结果逐字节一致。
 
 ## 作品操作与导出
@@ -88,10 +88,10 @@ summaries         章节摘要（上限 400 字）
 
 ## 阶段机
 
-每章有一个阶段，只能沿 `已规划 → 已写 → 已审 → 已修订/清稿 → 已定稿` 前进；摘要不是独立阶段，写摘要后才允许定稿。动作在入口校验，缺前置就拒绝并指出下一步：
+每章有一个阶段，只能沿 `已规划 → 已写 → 已审 → 已修订/清稿 → 已定稿` 前进；摘要不是独立阶段，当前正文版本的摘要写好后才能定稿。动作在入口校验，缺前置就拒绝并指出下一步：
 
 - 没有章纲不能写正文（`plan-not-found`）；
-- 没有审稿清单不能定稿（`review-required`）；
+- 没有审稿清单不能定稿（`review-required`）；没有摘要返回 `summary-required`，摘要过期返回 `summary-stale`；
 - 审稿条目没处理完不能定稿，错误里列出条目 id；
 - 审稿只对「它记录的那个正文版本」有效：改过正文后要重新审稿才能再修订；清稿审稿必须针对当前版本；定稿允许「有问题的审稿针对上一版、条目已全处理」；
 - 已定稿章改章纲要先带 `reopen: true` 重写正文回退（`chapter-settled`）；
@@ -108,9 +108,9 @@ summaries         章节摘要（上限 400 字）
 | `story_write` | 写正文并更新字数与版本 | 正文为空；已有正文且未声明 `rewrite`；已定稿且未 `reopen` |
 | `story_review` | 写问题清单（轮次按章独立编号；空清单表示清稿） | 正文不存在；已定稿；**不改正文** |
 | `story_revise` | 生成新版本正文并把条目改为已处理 | 没有审稿清单；未指定条目；条目不存在；正文与当前版本相同；模式与改动幅度不符 |
-| `story_state` | 追加人物事实与伏笔事件，返回新增/已用/已解/未解计数 | 作品或章不存在；伏笔状态非法；「已用」指向未埋的伏笔；未修订完成或未清稿 |
-| `story_status` | 只读汇总进度、阶段、版本、未处理问题、未解伏笔 | 作品不存在 |
-| `story_delegate` | 宿主侧跑一个角色（writer/reviewer/reviser/summarizer）：预检、装配上下文、启动子代理、消费 `story_submit`、落库，返回紧凑回执 | 预检/阶段错误按原码返回；服务缺失 `delegation-unavailable`；无合格提交 `delegation-no-submission`；摘要已存在 `summary-exists` |
+| `story_state` | 追加人物事实与伏笔事件，返回新增/已用/已解/未解计数 | 作品或章不存在；伏笔状态非法；「已用」指向未埋的伏笔；未修订完成或未清稿；无摘要 `summary-required`；摘要过期 `summary-stale` |
+| `story_status` | 只读汇总进度、阶段、版本、未处理问题、未解伏笔；每章带 `hasSummary` / `summaryRevision` / `summaryStale` | 作品不存在；作品库升级失败 `schema-migration-failed` |
+| `story_delegate` | 宿主侧跑一个角色（writer/reviewer/reviser/summarizer）：预检、装配上下文、启动子代理、消费 `story_submit`、落库，返回紧凑回执 | 预检/阶段错误按原码返回；服务缺失 `delegation-unavailable`；无合格提交 `delegation-no-submission`；当前版本已有摘要 `summary-exists` |
 | `story_submit` | 仅子代理调用：提交结构化角色结果，宿主校验字数/mode，失败可重提 | 父代理/非委派 `submit-parent-denied`；超 3 次 `submit-attempts-exhausted` |
 | `story_read` | 只读：按 `artifactId`/`revisionId` 读取当前章可读内容；越界返回 `artifact-not-readable` | 作品不存在；旧章/旧审稿版本 |
 | `story_next` | 只读：下一步动作、章号、原因、缺什么；可委派时带 `delegate.role` | 作品不存在 |
@@ -118,7 +118,7 @@ summaries         章节摘要（上限 400 字）
 
 字数口径只有一套：`domain.countWords`（CJK 字符 + 拉丁词，不含标点）；`story_critique` 的 `words` 用同一函数，标点数量单独放在 `chars`。
 
-返回值统一为 `{ ok: true, artifact: { workId, artifactId, revisionId, kind }, … }` 或 `{ ok: false, error: { code, message } }`；模型输出不含文件路径。
+返回值统一为 `{ ok: true, artifact: { workId, artifactId, revisionId, kind }, … }` 或 `{ ok: false, error: { code, message } }`；模型输出不含文件路径。作品库升级失败返回 `schema-migration-failed`（`work-busy` 可重试），未知版本返回 `schema-version-mismatch`。
 
 ## 工作台
 
@@ -213,6 +213,7 @@ storycraft/
 | 审稿 | 当前章正文、章纲、人物卡、审稿标准 | 其他作品、其他章正文 |
 | 修订 | 当前正文版本、未处理审稿条目、mode | 全库、旧版本正文 |
 | 清稿 | 当前正文、零问题审稿结果 | 其他作品 |
-| 摘要/定稿 | 当前章正文、`state`、摘要 | 其他作品 |
+| 摘要 | 当前章正文、`state`；摘要绑定当前正文版本 | 其他作品、旧摘要当当前 |
+| 定稿 | 当前版本摘要、`state`；过期摘要先重写 | 其他作品 |
 
 内容只通过动作读取；模型只拿 artifact ID，不拿文件路径。

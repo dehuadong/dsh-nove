@@ -11,8 +11,8 @@
 
 import { createHash } from 'node:crypto'
 import {
-  StoryError, chapterNumber, latestReview, readManifest, readPlan, readSummary, reviseChapter, stageOf,
-  summaryAdmissible, writeChapter, writeReview, writeSummary,
+  StoryError, chapterNumber, latestReview, readManifest, readPlan, readSummary, readSummaryState, reviseChapter,
+  stageOf, summaryAdmissible, writeChapter, writeReview, writeSummary,
 } from './storage.js'
 import { loadRoleInput } from './role-input.js'
 import { checkDraft } from './landing.js'
@@ -73,9 +73,9 @@ function preflight(root, input) {
     if (entry === undefined || entry.currentRevision === 0) {
       throw new StoryError('chapter-not-written', `第 ${chapter} 章还没有正文：先写正文，再写摘要`)
     }
-    const summary = readSummary(root, work, chapter)
-    if (summary !== undefined && String(summary).trim() !== '') {
-      throw new StoryError('summary-exists', `第 ${chapter} 章已有摘要：作者的主动重写请走手动 story_summarize`)
+    const summary = readSummaryState(root, work, chapter)
+    if (summary.state === 'current') {
+      throw new StoryError('summary-exists', `第 ${chapter} 章当前版本已有摘要：作者的主动重写请走手动 story_summarize`)
     }
     const latest = latestReview(root, work, chapter)
     if (summaryAdmissible(entry, latest)) return { manifest, entry }

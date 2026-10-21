@@ -16,7 +16,7 @@ import {
 } from './domain.js'
 import {
   readBibleMap, readChapter as readChapterRow, readFoldedState, readManifest, readPlan,
-  readVolumes, readSummary as readSummaryRow, virtualPath,
+  readVolumes, readSummaryState, virtualPath,
 } from './store-db.js'
 
 /** Default budget for one role context, in characters. */
@@ -199,8 +199,8 @@ export async function assembleRoleContext(input) {
     const summaries = []
     const lastNumber = number ?? (manifest.chapters.length === 0 ? 1 : manifest.chapters[manifest.chapters.length - 1].number + 1)
     for (let index = Math.max(1, lastNumber - 3); index < lastNumber; index += 1) {
-      const text = readSummaryRow(root, work, index)
-      if (text !== undefined && text.trim() !== '') summaries.push(`第 ${index} 章：${text.trim()}`)
+      const summary = readSummaryState(root, work, index)
+      if (summary.state === 'current') summaries.push(`第 ${index} 章：${summary.text.trim()}`)
     }
     if (lastNumber > 1) {
       let previousBody

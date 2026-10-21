@@ -17,7 +17,7 @@ const source = await readFile(new URL('../client.js', import.meta.url), 'utf8')
 check('summary instruction states the exact delegate call',
   source.includes('只有返回 delegate.role=summarizer 时才用 story_delegate(role: summarizer)')
   && source.includes('不读正文')
-  && source.includes('摘要已存在或当前阶段不需要摘要'), 'client.js summarize instruction')
+  && source.includes('摘要已存在、已过期或当前阶段不需要摘要'), 'client.js summarize instruction')
 check('summary button exposes the instruction as a tooltip',
   source.includes('title: INSTRUCTIONS.summarize'), 'client.js summary button title')
 check('full-flow instruction forbids an automatic summary fallback',

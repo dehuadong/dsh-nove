@@ -260,7 +260,7 @@ window.__ModuleLoader__.load({
         return `把作品 ${workId} 第 ${chapter} 章的定稿撤销（story_reopen：只作废定稿，不改正文），然后重新审稿、按清单修订、再定稿。`
       },
       summarize(workId, chapter) {
-        return `给作品 ${workId} 第 ${chapter} 章写摘要：先调 story_next；只有返回 delegate.role=summarizer 时才用 story_delegate(role: summarizer)；否则不读正文，回报「摘要已存在或当前阶段不需要摘要，重写请明确要求」。`
+        return `给作品 ${workId} 第 ${chapter} 章写摘要：先调 story_next；只有返回 delegate.role=summarizer 时才用 story_delegate(role: summarizer)；否则不读正文，回报「摘要已存在、已过期或当前阶段不需要摘要，重写请明确要求」。`
       },
       fold(workId, chapter) {
         return `把作品 ${workId} 第 ${chapter} 章已经发生的事实定稿进状态：人物事实与伏笔变化用 story_state 落盘。`
@@ -553,13 +553,18 @@ window.__ModuleLoader__.load({
               key: work.workId,
               type: 'button',
               className: 'sc-project',
+              disabled: work.degraded === true,
               onClick: () => onOpen(work.workId),
             },
               h('span', { className: 'sc-project-title' }, work.title),
               h('span', { className: 'sc-work-meta' },
-                `已写 ${work.writtenChapters}/${work.chapters} 章 · 最新第 ${work.latestChapter} 章`),
+                work.degraded === true
+                  ? `需升级/升级失败：${work.migrationError?.code ?? 'unknown'}`
+                  : `已写 ${work.writtenChapters}/${work.chapters} 章 · 最新第 ${work.latestChapter} 章`),
               h('span', { className: 'sc-work-meta' },
-                `未处理 ${work.openProblems} · 更新 ${String(work.updatedAt ?? '').replace('T', ' ').slice(0, 16)}`),
+                work.degraded === true
+                  ? work.migrationError?.retryable === true ? '库忙，稍后重试' : '请备份后重试或联系维护者'
+                  : `未处理 ${work.openProblems} · 更新 ${String(work.updatedAt ?? '').replace('T', ' ').slice(0, 16)}`),
             )),
           ),
         h('div', { className: 'sc-field', style: { marginTop: 14 } },
@@ -737,9 +742,10 @@ window.__ModuleLoader__.load({
                 className: 'sc-btn',
                 disabled: !(chapter.stage === 'revised' || (chapter.stage === 'reviewed' && chapter.openProblems === 0))
                   || chapter.openProblems > 0
-                  || ((chapter.stage === 'reviewed' && chapter.openProblems === 0) && chapter.hasSummary !== true),
-                title: chapter.stage === 'reviewed' && chapter.openProblems === 0 && chapter.hasSummary !== true
-                  ? '先写摘要，再定稿'
+                  || chapter.hasSummary !== true,
+                title: chapter.hasSummary !== true && chapter.openProblems === 0
+                  && (chapter.stage === 'revised' || chapter.stage === 'reviewed')
+                  ? chapter.summaryStale === true ? '摘要过期：先重写摘要，再定稿' : '先写摘要，再定稿'
                   : chapter.stage !== 'revised' && chapter.stage !== 'reviewed'
                     ? '先审稿、再按清单修订，才能定稿'
                     : chapter.openProblems > 0
@@ -1239,11 +1245,13 @@ window.__ModuleLoader__.load({
                             className: 'sc-btn sc-btn-small',
                             title: INSTRUCTIONS.summarize(manifest.workId, item.number),
                             onClick: () => compose(INSTRUCTIONS.summarize(manifest.workId, item.number)),
-                          }, '摘要')
+                          }, item.summaryStale === true ? '重写摘要' : '摘要')
                           : null,
-                        item.hasSummary === true
-                          ? h('span', { className: 'sc-badge sc-badge-ok' }, '有摘要')
-                          : null,
+                        item.summaryStale === true
+                          ? h('span', { className: 'sc-badge sc-badge-warn' }, '摘要过期')
+                          : item.hasSummary === true
+                            ? h('span', { className: 'sc-badge sc-badge-ok' }, '有摘要')
+                            : null,
                         item.stage === 'settled'
                           ? h('button', {
                             type: 'button',
@@ -1255,7 +1263,9 @@ window.__ModuleLoader__.load({
                             className: 'sc-btn sc-btn-small',
                             disabled: !(item.stage === 'revised' || (item.stage === 'reviewed' && item.openProblems === 0))
                               || item.openProblems > 0 || item.hasSummary !== true,
-                            title: item.hasSummary === true ? '把事实与伏笔记进书里并锁定本章' : '先写摘要，再定稿',
+                            title: item.hasSummary === true
+                              ? '把事实与伏笔记进书里并锁定本章'
+                              : item.summaryStale === true ? '摘要过期：先重写摘要，再定稿' : '先写摘要，再定稿',
                             onClick: () => compose(INSTRUCTIONS.fold(manifest.workId, item.number)),
                           }, '定稿'),
                       )

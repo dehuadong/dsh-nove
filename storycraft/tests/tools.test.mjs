@@ -326,6 +326,12 @@ try {
   check('summary written before settle', preSummary.ok === true, JSON.stringify(preSummary))
   const afterSummaryNext = await byName.get('story_next').execute({ work }, exec)
   check('story_next offers no delegate for state', afterSummaryNext.action === 'story_state' && afterSummaryNext.delegate === undefined, JSON.stringify(afterSummaryNext))
+  const statusWithSummary = await byName.get('story_status').execute({ work }, exec)
+  check('story_status exposes the summary binding',
+    statusWithSummary.ok === true && statusWithSummary.status.chapters[0].hasSummary === true
+    && statusWithSummary.status.chapters[0].summaryStale === false
+    && statusWithSummary.status.chapters[0].summaryRevision === 3,
+    JSON.stringify(statusWithSummary.status?.chapters?.[0]))
   const state = await byName.get('story_state').execute({
     work, chapter: 1,
     entities: [{ name: '林澈', facts: ['拿到假合同'] }],

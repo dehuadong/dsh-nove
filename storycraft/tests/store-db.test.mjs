@@ -89,6 +89,10 @@ try {
   broken.exec('PRAGMA user_version = 99')
   broken.close()
   await rejects('a work with a newer schema is refused', 'schema-version-mismatch', async () => store.readManifest(root, '另一本'))
+  const degraded = store.listWorks(root).find(item => item.workId === '另一本')
+  check('an unopenable work stays in the list as degraded',
+    degraded?.degraded === true && degraded.chapters === null && degraded.writtenChapters === null
+    && degraded.migrationError?.code === 'schema-version-mismatch', JSON.stringify(degraded))
   check('the other work is unaffected', store.readManifest(root, '改名作品').title === '改名作品')
   const repaired = openDatabase(workFile(root, '另一本'))
   repaired.exec(`PRAGMA user_version = ${WORK_SCHEMA_VERSION}`)

@@ -61,6 +61,9 @@ try {
   check('export manifest is the export copy', manifest.title === '导出测试' && manifest.wordRange?.min === 100
     && manifest.planApproval === 'required' && manifest.tags[0] === '短', JSON.stringify(manifest))
   check('manifest carries the settled chapter', manifest.chapters[0].stage === 'settled' && manifest.chapters[0].currentRevision === 2)
+  check('manifest v2 carries the summary binding',
+    manifest.schemaVersion === 2 && manifest.chapters[0].summaryRevision === 2
+    && manifest.chapters[0].summaryStale === false, JSON.stringify(manifest.chapters[0]))
   const chapters = await readdir(join(first.directory, 'chapters'))
   check('r1 keeps the base name and r2 is versioned', chapters.includes('ch-0001.md') && chapters.includes('ch-0001.r2.md'), chapters.join(','))
   const reviews = await readdir(join(first.directory, 'reviews'))

@@ -20,13 +20,13 @@ import { createHash } from 'node:crypto'
 import {
   StoryError, backupWork, deleteWork, exportWork, foldState, initWork, nextStep as nextStepFor,
   planApprovalPolicy,
-  latestReview, readBibleEntry, readChapter, readEvents, readEventsText, readManifest, readPlan, readSessionCurrent, readSummary as readSummaryRow,
+  latestReview, readBibleEntry, readChapter, readEvents, readEventsText, readManifest, readPlan, readSessionCurrent,
+  readSummary as readSummaryRow, readSummaryState,
   reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter, setSessionCurrent,
   status as readStatus, updateSettings, workIdOf, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
 } from './storage.js'
 import {
   assembleBrief as assembleBriefFor, importBible as importFromDesign, readBible as readBibleEntries,
-  readSummary,
   writeBible as writeBibleEntry, writeSummary as writeSummaryEntry,
 } from './bible.js'
 import { readVolumes, writeVolume } from './volumes.js'
@@ -1222,7 +1222,8 @@ function rawDefinitions(ctx) {
       name: 'story_state',
       mutates: true,
       description: '把本章产生的人物事实与伏笔变化定稿进作品状态，并返回折叠后的计数。'
-        + ' 只写变化，不重抄全部设定；「已用」必须指向一条未解伏笔。',
+        + ' 只写变化，不重抄全部设定；「已用」必须指向一条未解伏笔；'
+        + ' 当前正文版本没有摘要返回 summary-required，摘要过期返回 summary-stale。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -1260,10 +1261,14 @@ function rawDefinitions(ctx) {
       },
       async execute(args, exec) {
         const root = workspaceOf(exec)
-        const summary = await readSummary(root, args.work, args.chapter).catch(() => undefined)
-        if (summary === undefined || String(summary).trim() === '') {
+        const summary = readSummaryState(root, args.work, args.chapter)
+        if (summary.state === 'missing') {
           throw new StoryError('summary-required',
             `第 ${args.chapter} 章还没有摘要：先用 story_summarize 写摘要，再定稿`)
+        }
+        if (summary.state === 'stale') {
+          throw new StoryError('summary-stale',
+            `第 ${args.chapter} 章摘要针对旧版本 r${summary.revision ?? '?'}：先重写摘要，再定稿`)
         }
         const result = await foldState(root, args)
         return {
@@ -1779,8 +1784,8 @@ function rawDefinitions(ctx) {
 
     action({
       name: 'story_status',
-      description: '只读查看一部作品的进度：全书计划是否已确认、章数与状态、当前版本、未处理审稿问题、未解伏笔。'
-        + ' 不知道下一步该写什么时先读它。',
+      description: '只读查看一部作品的进度：全书计划是否已确认、章数与状态、当前版本、未处理审稿问题、未解伏笔，'
+        + '以及每章的 hasSummary / summaryRevision / summaryStale。不知道下一步该写什么时先读它。',
       parameters: {
         type: 'object',
         additionalProperties: false,

@@ -11,8 +11,8 @@ import { join } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { StoryError, chapterNumber, chapterStem, contentVersion } from './domain.js'
 import {
-  listSummaries, readBibleEntry, readBibleMap, readChapter as readChapterRow, readFoldedState,
-  readManifest, readPlan, readSummary as readSummaryRow, readVolumes, virtualPath,
+  listSummaries, listSummaryStates, readBibleEntry, readBibleMap, readChapter as readChapterRow, readFoldedState,
+  readManifest, readPlan, readSummary as readSummaryRow, readSummaryState, readVolumes, virtualPath,
   writeBible as writeBibleRow, writeSummary as writeSummaryRow,
 } from './store-db.js'
 
@@ -388,12 +388,12 @@ async function volumeSummarySection(root, manifest, number) {
  */
 async function recentSummariesSection(root, manifest, number) {
   const first = Math.max(1, number - RECENT_SUMMARY_WINDOW)
-  const rows = new Map(listSummaries(root, manifest.workId).map(row => [row.number, row.text]))
+  const rows = new Map(listSummaryStates(root, manifest.workId).map(row => [row.number, row]))
   const lines = []
   for (let chapter = first; chapter < number; chapter += 1) {
-    const text = rows.get(chapter)
-    if (text === undefined || text.trim() === '') continue
-    lines.push(`第 ${chapter} 章：${text.trim()}`)
+    const summary = rows.get(chapter)
+    if (summary?.state !== 'current') continue
+    lines.push(`第 ${chapter} 章：${summary.text.trim()}`)
   }
   return section('recentSummaries', `最近 ${lines.length} 章摘要`, lines.join('\n'), virtualPath(manifest.workId, 'summaries/'), {
     absent: lines.length === 0,
@@ -411,9 +411,9 @@ async function recentSummariesSection(root, manifest, number) {
 async function previousSection(root, manifest, number) {
   if (number === 1) return section('previous', '上一章结尾', '', '', { absent: true })
   const previous = number - 1
-  const summary = readSummaryRow(root, manifest.workId, previous)
-  if (summary !== undefined && summary.trim() !== '') {
-    return section('previous', '上一章结尾', summary.trim(), virtualPath(manifest.workId, `summaries/${chapterStem(previous)}.md`))
+  const summary = readSummaryState(root, manifest.workId, previous)
+  if (summary.state === 'current') {
+    return section('previous', '上一章结尾', summary.text.trim(), virtualPath(manifest.workId, `summaries/${chapterStem(previous)}.md`))
   }
   let body
   try {

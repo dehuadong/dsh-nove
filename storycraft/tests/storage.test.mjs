@@ -99,6 +99,17 @@ try {
   await rejects('hook used before opened rejected', 'hook-not-open', () => s.foldState(root, {
     work, chapter: 1, hooks: [{ text: '合同是假的', state: 'used' }],
   }))
+  let missingSummary
+  try {
+    await s.readChapter(root, { work, chapter: 1, view: 'summary' })
+  } catch (error) {
+    missingSummary = error.code
+  }
+  check('summary read before writing reports summary-not-found', missingSummary === 'summary-not-found', String(missingSummary))
+  await rejects('settle without a summary is refused', 'summary-required', () => s.foldState(root, {
+    work, chapter: 1, entities: [{ name: '林澈', facts: ['拿到假合同'] }],
+  }))
+  await s.writeSummary(root, { work, chapter: 1, text: '林澈拿到假合同，母亲留下旧照片。' })
   const folded = await s.foldState(root, {
     work, chapter: 1,
     entities: [{ name: '林澈', facts: ['欠房东三个月房租', '拿到假合同'] }],
@@ -126,13 +137,8 @@ try {
   check('chapter path is virtual', chapter.path === `works/${work}/chapters/ch-0001.r3.md`, chapter.path)
   const planRead = await s.readChapter(root, { work, chapter: 1, view: 'plan' })
   check('plan read', planRead.content.includes('结尾变化'))
-  let summaryCode
-  try {
-    await s.readChapter(root, { work, chapter: 1, view: 'summary' })
-  } catch (error) {
-    summaryCode = error.code
-  }
-  check('summary read before writing reports summary-not-found', summaryCode === 'summary-not-found', String(summaryCode))
+  const summaryRead = await s.readChapter(root, { work, chapter: 1, view: 'summary' })
+  check('summary read returns the written text', summaryRead.content.includes('假合同'), summaryRead.content.slice(0, 80))
 
   // Unwritable root: creating the work must fail without leaving files behind.
   const blockingFile = join(root, 'not-a-directory')

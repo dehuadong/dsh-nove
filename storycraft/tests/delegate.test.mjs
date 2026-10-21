@@ -168,6 +168,13 @@ try {
     summarizer.submissionAttempts === 1 && !JSON.stringify(summarizer).includes('甲回到屋里。'), JSON.stringify(summarizer))
   check('summarizer wrote the summary', s.readSummary(root, work, 1)?.includes('甲回到屋里'), s.readSummary(root, work, 1))
   check('summary step moves to state', s.nextStep(root, work).action === 'story_state', JSON.stringify(s.nextStep(root, work)))
+  s.writeReview(root, { work, chapter: 1, problems: [{ location: '结尾', problem: '再收一拍', suggestion: '补一句' }] })
+  s.reviseChapter(root, { work, chapter: 1, body: '甲回到屋里，又出门看了一眼。'.repeat(20), problemIds: ['Q1'], mode: 'rewrite' })
+  check('a later revision makes the summary stale', s.readSummaryState(root, work, 1).state === 'stale')
+  const staleService = fakeService([completed({ payload: { summary: '甲回到屋里，又出门看了一眼。' } })])
+  const staleRewrite = await delegateRole(root, { work, chapter: 1, role: 'summarizer' }, { service: staleService, agent, signal })
+  check('summarizer is allowed to rebind a stale summary', staleRewrite.ok === true
+    && s.readSummaryState(root, work, 1).state === 'current', JSON.stringify(staleRewrite))
   await rejects('a second summarizer is refused', 'summary-exists',
     () => delegateRole(root, { work, chapter: 1, role: 'summarizer' }, { service: fakeService([]), agent, signal }))
 

@@ -111,28 +111,31 @@ test.describe('故事工坊工作台', () => {
     await expect(page.getByText(`伏笔 未解 ${facts.hooksOpen}`)).toBeVisible()
   })
 
-  test('有正文且无摘要的章节显示摘要按钮', async ({ page }) => {
+  test('已摘要章节显示有摘要徽标', async ({ page }) => {
     await openWorkbench(page)
     await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())
     const first = page.locator('button.sc-chapter').filter({ hasText: '第 1 章' })
     await expect(first).toBeVisible({ timeout: 15_000 })
     await first.evaluate(node => node.click())
-    const summary = page.locator('button.sc-btn').filter({ hasText: /^摘要$/ })
-    await expect(summary).toBeVisible({ timeout: 15_000 })
-    await expect(summary).toHaveAttribute('title', /delegate\.role=summarizer/)
-    await expect(summary).toHaveAttribute('title', /story_delegate\(role: summarizer\)/)
-    await expect(summary).toHaveAttribute('title', /不读正文/)
+    await expect(page.getByText('有摘要', { exact: true })).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('button.sc-btn').filter({ hasText: /^摘要$/ })).toHaveCount(0)
   })
 
-  test('已摘要章节不显示摘要按钮', async ({ page }) => {
+  test('过期摘要显示徽标和重写按钮', async ({ page }) => {
     const store = await import('../storage.js')
-    store.writeSummary(runtime.fixtureWorkspace, { work: facts.workId, chapter: 1, text: '面板已有摘要。' })
+    store.reopenChapter(runtime.fixtureWorkspace, { work: facts.workId, chapter: 1 })
+    store.writeChapter(runtime.fixtureWorkspace, {
+      work: facts.workId, chapter: 1, title: '灰旗', body: '灰旗在风里翻了一夜。火在渠里烧着。'.repeat(45), rewrite: true,
+    })
     await openWorkbench(page)
     await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())
     const first = page.locator('button.sc-chapter').filter({ hasText: '第 1 章' })
     await expect(first).toBeVisible({ timeout: 15_000 })
     await first.evaluate(node => node.click())
-    await expect(page.locator('button.sc-btn').filter({ hasText: /^摘要$/ })).toHaveCount(0)
+    await expect(page.getByText('摘要过期', { exact: true })).toBeVisible({ timeout: 15_000 })
+    const rewrite = page.locator('button.sc-btn').filter({ hasText: /^重写摘要$/ })
+    await expect(rewrite).toBeVisible()
+    await expect(rewrite).toHaveAttribute('title', /delegate\.role=summarizer/)
   })
 
   test('全书计划可以从面板确认', async ({ page }) => {

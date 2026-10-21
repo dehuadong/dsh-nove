@@ -2,11 +2,13 @@
 title: 故事工坊：作品入库与导出（SQLite，一作品一库）
 status: implemented
 created: 2026-10-19
-updated: 2026-10-20
-verification: 20 个单元测试文件与 7 条页面 spec 全绿；200 章加载 2.35ms、追加 16ms；交付提交 1fa449e
+updated: 2026-10-21
+verification: 20 个单元测试文件与 7 条页面 spec 全绿；200 章加载 2.35ms、追加 16ms；交付提交 1fa449e；v1→v2 摘要 revision 迁移由 #25 覆盖
 ---
 
 # Agent Note：故事工坊：作品入库与导出（SQLite，一作品一库）
+
+> 2026-10-21 部分修订：`db.js:331` 的“任何非当前 `user_version` 都拒绝打开”改为 v1→v2 受控自动迁移；迁移失败新增 `schema-migration-failed`，`work-busy` 仍可重试。迁移细节见 [摘要 revision 绑定](../../proposed/pipeline/2026-10-21-storycraft-summary-revision-binding.md)。
 
 ## 问题
 
@@ -74,7 +76,8 @@ verification: 20 个单元测试文件与 7 条页面 spec 全绿；200 章加�
 
 - 每次操作打开目标库，`journal_mode=WAL`、`busy_timeout=5000`、`foreign_keys=ON`；写事务 `BEGIN IMMEDIATE`；`SQLITE_BUSY` → `work-busy`；
 - 对账与诊断连接用 `busy_timeout=0`，锁定时立即降级，不拖慢列表或宿主启动；
-- 错误码：`sqlite-unavailable`、`db-corrupt`、`schema-version-mismatch`、`backup-failed`、`work-not-found`、`work-exists`；
+- v1→v2：`openWork` 在事务内给 `summaries` 加 `revision`，只回填 `revision IS NULL`，成功后 best-effort 更新 `catalog.works.schema_version`；未知版本仍 `schema-version-mismatch`，迁移失败（非 `work-busy`）返回 `schema-migration-failed`，库保持 v1；
+- 错误码：`sqlite-unavailable`、`db-corrupt`、`schema-version-mismatch`、`schema-migration-failed`、`backup-failed`、`work-not-found`、`work-exists`；
 - 启动探测 `node:sqlite`；缺失时所有动作返回 `sqlite-unavailable`，无文件回退。
 
 ### 虚拟路径与导出

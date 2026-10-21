@@ -75,6 +75,50 @@ function ensureChapter(db, number) {
   return chapterRow(db, number)
 }
 
+/**
+ * Current/stale/missing summary state for one chapter, on the caller's handle.
+ * @param {import('node:sqlite').DatabaseSync} db - open work database.
+ * @param {number} number - chapter number.
+ * @returns {{state: 'current'|'stale'|'missing', text: string|undefined, revision: number|null, currentRevision: number}} state.
+ */
+export function summaryStateOf(db, number) {
+  const row = db.prepare(`SELECT s.text, s.revision, c.current_revision
+    FROM chapters c LEFT JOIN summaries s ON s.number = c.number
+    WHERE c.number = ?`).get(number)
+  return summaryStateOfRow(row)
+}
+
+/** Derive the summary state from one joined row. */
+function summaryStateOfRow(row) {
+  if (row === undefined) {
+    return { state: 'missing', text: undefined, revision: null, currentRevision: 0 }
+  }
+  const text = row.text ?? undefined
+  const revision = row.revision ?? null
+  if (text === undefined || String(text).trim() === '' || revision === null) {
+    return { state: 'missing', text, revision, currentRevision: row.current_revision }
+  }
+  const state = revision === row.current_revision ? 'current' : 'stale'
+  return { state, text, revision, currentRevision: row.current_revision }
+}
+
+/** Summary state for every chapter of one work, keyed by chapter number. */
+function summaryStateMap(db) {
+  const map = new Map()
+  for (const row of db.prepare(`SELECT c.number, s.text, s.revision, c.current_revision
+    FROM chapters c LEFT JOIN summaries s ON s.number = c.number ORDER BY c.number`).all()) {
+    map.set(row.number, summaryStateOfRow(row))
+  }
+  return map
+}
+
+/** Read one chapter's state from a map that covers every chapter row. */
+function summaryStateFrom(map, number) {
+  const state = map.get(number)
+  if (state === undefined) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
+  return state
+}
+
 /** The newest review row of one chapter. */
 function latestReviewRow(db, number) {
   return db.prepare('SELECT * FROM reviews WHERE number = ? ORDER BY round DESC LIMIT 1').get(number)
@@ -355,9 +399,26 @@ export function listWorks(root) {
       try {
         db = openWork(root, row.work_id)
       } catch (error) {
-        // A corrupt or newer-schema work stays diagnosable instead of vanishing
-        // silently; the list itself keeps showing the healthy works.
-        console.warn(`[storycraft] 跳过无法打开的作品 ${row.work_id}：${error?.code ?? error?.message ?? error}`)
+        // Keep a broken or unmigrated work visible so the panel can explain it,
+        // instead of silently dropping it from the list.
+        const code = error?.code ?? 'work-open-failed'
+        works.push({
+          workId: row.work_id,
+          title: row.title,
+          form: formOf(row),
+          chapters: null,
+          writtenChapters: null,
+          latestChapter: null,
+          openProblems: null,
+          updatedAt: row.updated_at,
+          degraded: true,
+          schemaVersion: row.schema_version,
+          migrationError: {
+            code,
+            message: error instanceof Error ? error.message : String(error),
+            retryable: code === 'work-busy',
+          },
+        })
         continue
       }
       try {
@@ -423,9 +484,10 @@ export function readWork(root, work) {
   const db = openWork(root, manifest.workId)
   try {
     const planRows = new Set(db.prepare('SELECT number FROM chapter_plans').all().map(row => row.number))
-    const summaryRows = new Set(db.prepare('SELECT number FROM summaries').all().map(row => row.number))
+    const summaryStates = summaryStateMap(db)
     const chapters = manifest.chapters.map(chapter => {
       const review = latestReviewRow(db, chapter.number)
+      const summary = summaryStateFrom(summaryStates, chapter.number)
       return {
         number: chapter.number,
         id: chapter.id,
@@ -436,7 +498,9 @@ export function readWork(root, work) {
         stage: stageOf(chapter),
         hasPlan: planRows.has(chapter.number),
         planApproved: chapter.planApprovedAt !== undefined,
-        hasSummary: summaryRows.has(chapter.number),
+        hasSummary: summary.state === 'current',
+        summaryRevision: summary.revision,
+        summaryStale: summary.state === 'stale',
         reviewRound: review?.round ?? 0,
         openProblems: review === undefined ? 0 : parseReview(review.text).filter(item => !item.done).length,
         updatedAt: chapter.updatedAt,
@@ -479,6 +543,7 @@ export function status(root, work) {
   const db = openWork(root, manifest.workId)
   try {
     const folded = foldedOf(db)
+    const summaryStates = summaryStateMap(db)
     let openProblems = 0
     for (const review of db.prepare(`SELECT r.text FROM reviews r
       JOIN (SELECT number, max(round) AS round FROM reviews GROUP BY number) newest
@@ -496,13 +561,19 @@ export function status(root, work) {
             ...(manifest.outline.approvedAt === undefined ? {} : { approvedAt: manifest.outline.approvedAt }),
           },
       title: manifest.title,
-      chapters: manifest.chapters.map(chapter => ({
-        number: chapter.number,
-        status: chapter.status,
-        stage: stageOf(chapter),
-        revision: chapter.currentRevision,
-        words: chapter.words,
-      })),
+      chapters: manifest.chapters.map(chapter => {
+        const summary = summaryStateFrom(summaryStates, chapter.number)
+        return {
+          number: chapter.number,
+          status: chapter.status,
+          stage: stageOf(chapter),
+          revision: chapter.currentRevision,
+          words: chapter.words,
+          hasSummary: summary.state === 'current',
+          summaryRevision: summary.revision,
+          summaryStale: summary.state === 'stale',
+        }
+      }),
       form: formOf(manifest),
       writtenChapters: written.length,
       latestChapter: manifest.chapters.length === 0 ? 0 : manifest.chapters[manifest.chapters.length - 1].number,
@@ -556,7 +627,7 @@ export function nextStep(root, work) {
   const db = openWork(root, manifest.workId)
   try {
     const hasPlan = number => db.prepare('SELECT 1 FROM chapter_plans WHERE number = ?').get(number) !== undefined
-    const summaryOf = number => db.prepare('SELECT text FROM summaries WHERE number = ?').get(number)?.text
+    const summaryOf = number => summaryStateOf(db, number)
     const chapters = manifest.chapters
     const last = chapters.length === 0 ? undefined : chapters[chapters.length - 1]
     const chapter = last === undefined ? 1 : last.number
@@ -576,10 +647,13 @@ export function nextStep(root, work) {
       const hasBody = last.currentRevision > 0
       if (stage === 'settled') {
         const summary = summaryOf(last.number)
-        if (summary === undefined || summary.trim() === '') {
+        if (summary.state !== 'current') {
           return {
             chapter: last.number, stage, action: 'story_summarize',
-            reason: `第 ${last.number} 章已定稿但没有摘要：先补摘要，后面几章的写前上下文才用得上`, missing: ['summary'],
+            reason: summary.state === 'stale'
+              ? `第 ${last.number} 章已定稿，但摘要针对旧版本 r${summary.revision ?? '?'}：先重写摘要，后面几章的写前上下文才用得上`
+              : `第 ${last.number} 章已定稿但没有摘要：先补摘要，后面几章的写前上下文才用得上`,
+            missing: ['summary'],
           }
         }
         const closing = db.prepare('SELECT * FROM volumes WHERE to_ch = ?').all(last.number)
@@ -640,12 +714,14 @@ export function nextStep(root, work) {
         return { chapter: last.number, stage, action: 'story_revise', reason: `第 ${last.number} 章审稿条目已处理完，但还没提交修订`, missing: ['revision'] }
       }
       const summary = summaryOf(last.number)
-      if (summary === undefined || summary.trim() === '') {
+      if (summary.state !== 'current') {
         return {
           chapter: last.number, stage, action: 'story_summarize',
-          reason: isCleanReview(candidate)
-            ? `第 ${last.number} 章清稿审稿无问题：先写摘要，再定稿`
-            : `第 ${last.number} 章已修订：先写摘要，再定稿`,
+          reason: summary.state === 'stale'
+            ? `第 ${last.number} 章摘要针对旧版本 r${summary.revision ?? '?'}：先重写摘要，再定稿`
+            : isCleanReview(candidate)
+              ? `第 ${last.number} 章清稿审稿无问题：先写摘要，再定稿`
+              : `第 ${last.number} 章已修订：先写摘要，再定稿`,
           missing: ['summary'],
         }
       }
@@ -1281,7 +1357,7 @@ export function reviseChapter(root, input) {
  * pre-truncation code-point count.
  * @param {string} root - workspace directory.
  * @param {{work: string, chapter: number|string, text: string, ifAbsent?: boolean}} input - summary input.
- * @returns {{workId: string, chapter: number, chars: number, truncated: boolean}} receipt.
+ * @returns {{workId: string, chapter: number, chars: number, truncated: boolean, summaryRevision: number}} receipt.
  */
 export function writeSummary(root, input) {
   const number = chapterNumber(input.chapter)
@@ -1296,20 +1372,23 @@ export function writeSummary(root, input) {
         throw new StoryError('body-not-found', `第 ${number} 章还没有正文，不能写摘要`)
       }
       if (input.ifAbsent === true) {
-        const existing = db.prepare('SELECT text FROM summaries WHERE number = ?').get(number)
-        if (existing !== undefined && String(existing.text).trim() !== '') {
-          throw new StoryError('summary-exists', `第 ${number} 章已有摘要：作者的主动重写请走手动 story_summarize`)
+        const existing = db.prepare('SELECT text, revision FROM summaries WHERE number = ?').get(number)
+        if (existing !== undefined
+          && String(existing.text).trim() !== ''
+          && existing.revision === entry.current_revision) {
+          throw new StoryError('summary-exists', `第 ${number} 章当前版本已有摘要：作者的主动重写请走手动 story_summarize`)
         }
       }
       const points = [...text]
       const truncated = points.length > SUMMARY_MAX_CHARS
       const content = `${truncated ? points.slice(0, SUMMARY_MAX_CHARS).join('') : text}\n`
       const at = now()
-      db.prepare(`INSERT INTO summaries (number, text, written_at) VALUES (?, ?, ?)
-        ON CONFLICT(number) DO UPDATE SET text = excluded.text, written_at = excluded.written_at`).run(number, content, at)
+      db.prepare(`INSERT INTO summaries (number, text, revision, written_at) VALUES (?, ?, ?, ?)
+        ON CONFLICT(number) DO UPDATE SET text = excluded.text, revision = excluded.revision, written_at = excluded.written_at`)
+        .run(number, content, entry.current_revision, at)
       syncSearchDoc(db, `summary:${number}`, 'summary', `summaries/${chapterStem(number)}`, number, content)
       touchMeta(db, at)
-      return { workId, chapter: number, chars: points.length, truncated }
+      return { workId, chapter: number, chars: points.length, truncated, summaryRevision: entry.current_revision }
     })
   } finally {
     db.close()
@@ -1328,6 +1407,33 @@ export function readSummary(root, work, chapter) {
   const db = openWork(root, work)
   try {
     return db.prepare('SELECT text FROM summaries WHERE number = ?').get(number)?.text
+  } finally {
+    db.close()
+  }
+}
+
+/**
+ * Read one chapter's summary state on its own connection.
+ * @param {string} root - workspace directory.
+ * @param {string} work - work identity.
+ * @param {number|string} chapter - chapter number.
+ * @returns {{state: 'current'|'stale'|'missing', text: string|undefined, revision: number|null, currentRevision: number}} state.
+ */
+export function readSummaryState(root, work, chapter) {
+  const number = chapterNumber(chapter)
+  const db = openWork(root, work)
+  try {
+    return summaryStateOf(db, number)
+  } finally {
+    db.close()
+  }
+}
+
+/** Summary states for every chapter of one work, ascending. */
+export function listSummaryStates(root, work) {
+  const db = openWork(root, work)
+  try {
+    return [...summaryStateMap(db)].map(([number, state]) => ({ number, ...state }))
   } finally {
     db.close()
   }
@@ -1399,6 +1505,14 @@ export function foldState(root, input) {
       if (stageOf(entry) !== 'revised' && !isCleanReview(review)) {
         throw new StoryError('review-required',
           `第 ${number} 章还没走完修订（当前阶段：${stageOf(entry)}）：先 story_revise 提交改动，再定稿`)
+      }
+      const summaryState = summaryStateOf(db, number)
+      if (summaryState.state === 'missing') {
+        throw new StoryError('summary-required', `第 ${number} 章还没有摘要：先写摘要，再定稿`)
+      }
+      if (summaryState.state === 'stale') {
+        throw new StoryError('summary-stale',
+          `第 ${number} 章摘要针对旧版本 r${summaryState.revision ?? '?'}：先重写摘要，再定稿`)
       }
       let seq = (db.prepare('SELECT max(seq) AS n FROM events').get()?.n ?? 0) + 1
       const at = now()
@@ -1750,8 +1864,9 @@ export function search(root, work, query, limit = 5) {
 function exportManifest(root, workId, catalogRowValue, db) {
   const meta = metaOf(db)
   const chapters = db.prepare('SELECT * FROM chapters ORDER BY number').all()
+  const summaryStates = summaryStateMap(db)
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     title: catalogRowValue.title,
     form: catalogRowValue.form,
     tags: catalogRowValue.tags === null ? [] : JSON.parse(catalogRowValue.tags),
@@ -1761,15 +1876,20 @@ function exportManifest(root, workId, catalogRowValue, db) {
       writtenAt: meta.outline_written_at,
       approvedAt: meta.outline_approved_at,
     },
-    chapters: chapters.map(chapter => ({
-      number: chapter.number,
-      title: chapter.title,
-      status: chapter.status,
-      stage: chapter.stage,
-      currentRevision: chapter.current_revision,
-      words: chapter.words,
-      planApprovedAt: chapter.plan_approved_at,
-    })),
+    chapters: chapters.map(chapter => {
+      const summary = summaryStateFrom(summaryStates, chapter.number)
+      return {
+        number: chapter.number,
+        title: chapter.title,
+        status: chapter.status,
+        stage: chapter.stage,
+        currentRevision: chapter.current_revision,
+        words: chapter.words,
+        planApprovedAt: chapter.plan_approved_at,
+        summaryRevision: summary.revision,
+        summaryStale: summary.state === 'stale',
+      }
+    }),
   }
 }
 

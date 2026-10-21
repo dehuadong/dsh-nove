@@ -113,6 +113,7 @@ async function buildFixture() {
   })
   const second = '灰旗在风里翻了一夜。火在渠里烧着。'.repeat(45)
   await store.reviseChapter(fixtureWorkspace, { work, chapter: 1, body: second, problemIds: ['Q1', 'Q2'], mode: 'rewrite' })
+  await store.writeSummary(fixtureWorkspace, { work, chapter: 1, text: '甲在渠边丢了半袋粮，灰旗还挂着。' })
   await store.foldState(fixtureWorkspace, {
     work, chapter: 1,
     entities: [{ name: '甲', facts: ['丢了半袋粮'] }],
