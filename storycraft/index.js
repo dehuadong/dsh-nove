@@ -13,7 +13,7 @@
 
 import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, resolve } from 'node:path'
-import { approveChapterPlan, approveOutline, deleteMaterial, ensureReconciled, exportWorkAtomic, importMaterial, listMaterials, listTrash, listWorks, nextStep, readManifest, readChapter, readReview, readWork, renameMaterial, setMaterialPurpose, status as readStatus, StoryError } from './storage.js'
+import { approveChapterPlan, approveOutline, deleteChapter, deleteMaterial, ensureReconciled, exportWorkAtomic, importMaterial, moveChapter, listMaterials, listTrash, listWorks, nextStep, readManifest, readChapter, readReview, readWork, renameMaterial, setMaterialPurpose, status as readStatus, StoryError } from './storage.js'
 import { critique } from './critique.js'
 import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent } from './current.js'
 import { readVolumes } from './volumes.js'
@@ -328,6 +328,26 @@ export function apply(ctx) {
           const approved = await approveChapterPlan(root, { work: workId, chapter: body?.chapter })
           return { workId, chapter: approved.entry.number, planApprovedAt: approved.entry.planApprovedAt }
         })
+      },
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/chapter/delete`,
+      handler: (req, res) => {
+        void postRoute(req, res, async (body) => {
+          const { root, workId } = await writeWorkTarget(body)
+          return deleteChapter(root, workId, Number(body?.chapter), { confirm: body?.confirm === true })
+        }, { maxBytes: 32 * 1024, requireJson: true })
+      },
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/chapter/move`,
+      handler: (req, res) => {
+        void postRoute(req, res, async (body) => {
+          const { root, workId } = await writeWorkTarget(body)
+          return moveChapter(root, workId, Number(body?.from), Number(body?.to))
+        }, { maxBytes: 32 * 1024, requireJson: true })
       },
     }),
     ctx.webServer.register({

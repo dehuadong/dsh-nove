@@ -318,6 +318,35 @@ test.describe('故事工坊工作台', () => {
     await expect(page.getByRole('button', { name: new RegExp(title) })).toBeVisible({ timeout: 15_000 })
   })
 
+  test('章节可以上移和删除', async ({ page }) => {
+    const store = await import('../storage.js')
+    const title = `章节编辑${Date.now()}`
+    const work = store.initWork(runtime.fixtureWorkspace, { title }).workId
+    for (const [number, name] of [[1, '甲章'], [2, '乙章']]) {
+      store.writePlan(runtime.fixtureWorkspace, { work, chapter: number, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+      store.approveChapterPlan(runtime.fixtureWorkspace, { work, chapter: number })
+      store.writeChapter(runtime.fixtureWorkspace, { work, chapter: number, title: name, body: `${name}正文。`.repeat(20) })
+    }
+    store.writeVolume(runtime.fixtureWorkspace, { work, id: 'v1', title: '卷一', from: 1, to: 2, summary: '整卷。' })
+    await openWorkbench(page)
+    await page.getByRole('button', { name: new RegExp(title) }).evaluate(node => node.click())
+    const composer = page.getByRole('textbox', { name: /Describe what/ })
+    const before = await composer.evaluate(node => String(node.value ?? node.textContent ?? ''))
+    await page.getByRole('button', { name: /第 2 章 乙章/ }).evaluate(node => node.click())
+    await expect(page.locator('.sc-chapter-no').first()).toHaveText('第 1 章')
+    await page.locator('.sc-chapter-actions').getByRole('button', { name: '上移', exact: true }).evaluate(node => node.click())
+    await expect(page.locator('.sc-chapter-title').first()).toHaveText('乙章', { timeout: 15_000 })
+    await page.locator('.sc-chapter-actions').getByRole('button', { name: '下移', exact: true }).evaluate(node => node.click())
+    await expect(page.locator('.sc-chapter-title').first()).toHaveText('甲章', { timeout: 15_000 })
+    page.once('dialog', dialog => dialog.accept())
+    await page.locator('.sc-chapter-actions').getByRole('button', { name: '删除', exact: true }).evaluate(node => node.click())
+    await expect(page.getByText(/卷区间需要调整/)).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('.sc-chapter-title')).toHaveCount(1, { timeout: 15_000 })
+    await expect(page.locator('.sc-chapter-title')).toHaveText('甲章')
+    await expect(page.locator('.sc-chapter-no')).toHaveText('第 1 章')
+    expect(await composer.evaluate(node => String(node.value ?? node.textContent ?? ''))).toBe(before)
+  })
+
   test('详情在 focus 后刷新且不重复写当前指针', async ({ page }) => {
     const store = await import('../storage.js')
     const title = `焦点探针${Date.now()}`

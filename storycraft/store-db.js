@@ -20,6 +20,7 @@ import {
   trashDir, trashFile, workFile, worksDir, backupsDir,
 } from './db.js'
 import { MATERIAL_PURPOSES, MATERIAL_TITLE_MAX, materialMetadata, normalizeMaterialPurpose, prepareMaterial } from './materials.js'
+import { chapterRemap } from './chapter-edit.js'
 import { buildEpub } from './epub.js'
 import { snippetFor } from './retrieval.js'
 import { materialIndexText, searchTokens } from './search-text.js'
@@ -2002,6 +2003,152 @@ export function setMaterialPurpose(root, work, id, purpose) {
       if (row === undefined) throw new StoryError('material-not-found', `没有素材：${String(id)}`)
       db.prepare('UPDATE materials SET purpose = ? WHERE id = ?').run(clean, row.id)
       return materialMetadata({ ...row, purpose: clean })
+    })
+  } finally {
+    db.close()
+  }
+}
+
+/** Rewrite chapter/summary/event search documents for one remap. */
+function rewriteChapterDocs(db, mapping) {
+  if (mapping.size === 0) {
+    db.exec("INSERT INTO search_fts(search_fts) VALUES('rebuild')")
+    return
+  }
+  const rows = db.prepare(`SELECT rowid, doc_id, kind, chapter, source FROM search_docs
+    WHERE kind IN ('chapter', 'summary') OR doc_id LIKE 'event:%'`).all()
+  const changed = rows.filter(row => mapping.has(row.chapter))
+  for (const row of changed) {
+    db.prepare('UPDATE search_docs SET doc_id = ? WHERE rowid = ?').run(`tmp:${row.rowid}`, row.rowid)
+  }
+  for (const row of changed) {
+    const next = mapping.get(row.chapter)
+    let docId = row.doc_id
+    let source = row.source
+    if (row.kind === 'chapter') {
+      docId = row.doc_id.replace(/^chapter:\d+:/u, `chapter:${next}:`)
+      source = `chapters/${chapterStem(next)}`
+    } else if (row.kind === 'summary') {
+      docId = `summary:${next}`
+      source = `summaries/${chapterStem(next)}`
+    }
+    db.prepare('UPDATE search_docs SET doc_id = ?, source = ?, chapter = ? WHERE rowid = ?')
+      .run(docId, source, next, row.rowid)
+  }
+  db.exec("INSERT INTO search_fts(search_fts) VALUES('rebuild')")
+}
+
+/** Apply one old→new map to every chapter-number reference. */
+function applyChapterMapping(db, mapping) {
+  if (mapping.size === 0) return
+  db.exec('PRAGMA defer_foreign_keys = ON')
+  for (const table of ['chapters', 'chapter_versions', 'chapter_plans', 'summaries', 'reviews']) {
+    for (const [oldNumber, newNumber] of mapping) {
+      db.prepare(`UPDATE ${table} SET number = ? WHERE number = ?`).run(-newNumber, oldNumber)
+    }
+    db.exec(`UPDATE ${table} SET number = -number WHERE number < 0`)
+  }
+  for (const [oldNumber, newNumber] of mapping) {
+    db.prepare('UPDATE events SET chapter = ? WHERE chapter = ?').run(-newNumber, oldNumber)
+  }
+  db.exec('UPDATE events SET chapter = -chapter WHERE chapter < 0')
+}
+
+/** Volumes whose endpoints no longer exist or whose range is invalid. */
+function staleVolumesOf(db) {
+  const keys = new Set(db.prepare('SELECT number FROM chapters').all().map(row => row.number))
+  return db.prepare('SELECT id, from_ch, to_ch FROM volumes ORDER BY from_ch').all()
+    .filter(row => !keys.has(row.from_ch) || !keys.has(row.to_ch) || row.from_ch > row.to_ch)
+    .map(row => row.id)
+}
+
+/** All existing chapter numbers, sorted. */
+function chapterKeys(db) {
+  return db.prepare('SELECT number FROM chapters ORDER BY number').all().map(row => row.number)
+}
+
+/**
+ * Delete one chapter and renumber survivors by rank.
+ * @param {string} root - workspace.
+ * @param {string} work - work id.
+ * @param {number|string} chapter - chapter number.
+ * @param {{confirm?: boolean, beforeCommit?: Function}} [options] - confirmation/test seam.
+ * @returns {Promise<object>} edit receipt.
+ */
+export async function deleteChapter(root, work, chapter, options = {}) {
+  const number = chapterNumber(chapter)
+  if (options.confirm !== true) throw new StoryError('chapter-delete-unconfirmed', '删除章节需要确认')
+  const probe = openWork(root, work)
+  let keys
+  try {
+    keys = chapterKeys(probe)
+  } finally {
+    probe.close()
+  }
+  if (!keys.includes(number)) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
+  await backupWork(root, work)
+  const db = openWork(root, work)
+  try {
+    return transaction(db, () => {
+      const oldMax = Number(db.prepare('SELECT max(seq) AS seq FROM events').get()?.seq ?? 0)
+      const mapping = chapterRemap(keys, { type: 'delete', chapter: number })
+      db.prepare('DELETE FROM chapters WHERE number = ?').run(number)
+      db.prepare('DELETE FROM events WHERE chapter = ?').run(number)
+      db.prepare("DELETE FROM search_docs WHERE (kind IN ('chapter', 'summary')) AND chapter = ?").run(number)
+      db.prepare("DELETE FROM search_docs WHERE doc_id LIKE 'event:%' AND chapter = ?").run(number)
+      applyChapterMapping(db, mapping)
+      rewriteChapterDocs(db, mapping)
+      const survivors = chapterKeys(db)
+      db.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
+        .run(oldMax + 1, now(), survivors.length === 0 ? 0 : 1, 'chapter-edit', JSON.stringify({ deleted: number }))
+      touchMeta(db)
+      if (typeof options.beforeCommit === 'function') options.beforeCommit(db)
+      return {
+        changed: true,
+        deleted: number,
+        chapters: survivors,
+        staleVolumes: staleVolumesOf(db),
+        backup: true,
+      }
+    })
+  } finally {
+    db.close()
+  }
+}
+
+/**
+ * Move one chapter to its adjacent rank neighbor.
+ * @param {string} root - workspace.
+ * @param {string} work - work id.
+ * @param {number|string} from - chapter number.
+ * @param {number|string} to - adjacent chapter number.
+ * @param {{beforeCommit?: Function}} [options] - test seam.
+ * @returns {Promise<object>} edit receipt.
+ */
+export async function moveChapter(root, work, from, to, options = {}) {
+  const source = chapterNumber(from)
+  const target = chapterNumber(to)
+  const db = openWork(root, work)
+  try {
+    const keys = chapterKeys(db)
+    if (!keys.includes(source) || !keys.includes(target)) throw new StoryError('chapter-not-found', '要移动的章节不存在')
+    if (source === target) return { changed: false, chapters: keys, staleVolumes: [] }
+    const fromIndex = keys.indexOf(source)
+    const toIndex = keys.indexOf(target)
+    if (Math.abs(fromIndex - toIndex) !== 1) {
+      throw new StoryError('chapter-edit-target-invalid', '只能移动到相邻章')
+    }
+    const mapping = chapterRemap(keys, { type: 'move', from: source, to: target })
+    return transaction(db, () => {
+      applyChapterMapping(db, mapping)
+      rewriteChapterDocs(db, mapping)
+      touchMeta(db)
+      if (typeof options.beforeCommit === 'function') options.beforeCommit(db)
+      return {
+        changed: true,
+        chapters: chapterKeys(db),
+        staleVolumes: staleVolumesOf(db),
+      }
     })
   } finally {
     db.close()

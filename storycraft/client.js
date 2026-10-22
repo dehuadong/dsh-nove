@@ -334,6 +334,12 @@ window.__ModuleLoader__.load({
         renameMaterial: (root, sessionId, workId, id, title) => post(ROUTE.materialRename, { root, sessionId, workId, id, title }),
         setMaterialPurpose: (root, sessionId, workId, id, purpose) => post(ROUTE.materialPurpose, { root, sessionId, workId, id, purpose }),
         deleteMaterial: (root, sessionId, workId, id) => post(ROUTE.materialDelete, { root, sessionId, workId, id }),
+        deleteChapter: (root, sessionId, workId, chapter) => post('/api/dsh-storycraft/chapter/delete', {
+          root, sessionId, workId, chapter, confirm: true,
+        }),
+        moveChapter: (root, sessionId, workId, from, to) => post('/api/dsh-storycraft/chapter/move', {
+          root, sessionId, workId, from, to,
+        }),
         exportWork: (root, sessionId, workId) => post(ROUTE.exportWork, { root, sessionId, workId }),
         exports: (root, id) => route(ROUTE.exports, { root, id }),
         backups: (root, id) => route(ROUTE.backups, { root, id }),
@@ -882,6 +888,7 @@ window.__ModuleLoader__.load({
       const [materialBusy, setMaterialBusy] = useState(false)
       const [materialError, setMaterialError] = useState(undefined)
       const [materialEditing, setMaterialEditing] = useState(undefined)
+      const [chapterBusy, setChapterBusy] = useState(false)
       const [materialPurpose, setMaterialPurpose] = useState('reference')
       const [materialFilter, setMaterialFilter] = useState('all')
       const [briefChapter, setBriefChapter] = useState(1)
@@ -912,6 +919,51 @@ window.__ModuleLoader__.load({
           setDetail({ status: 'error', error: error instanceof Error ? error.message : String(error) })
         }
       }, [face, root, workId])
+
+      const moveChapter = async (item, delta) => {
+        if (sessionId === undefined || detail.status !== 'ready' || chapterBusy) return
+        const ordered = [...detail.chapters].sort((left, right) => left.number - right.number)
+        const index = ordered.findIndex(chapter => chapter.number === item.number)
+        const target = ordered[index + delta]
+        if (target === undefined) return
+        setChapterBusy(true)
+        try {
+          const payload = await face.moveChapter(root, sessionId, workId, item.number, target.number)
+          setSelected(target.number)
+          onNotice({ kind: 'ok', text: `已移动：第 ${item.number} 章 → 第 ${target.number} 章` })
+          if ((payload.staleVolumes ?? []).length > 0) {
+            onNotice({ kind: 'error', text: `章序已改；卷区间需要调整：${payload.staleVolumes.join('、')}` })
+          }
+          await load()
+        } catch (error) {
+          onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
+        } finally {
+          setChapterBusy(false)
+        }
+      }
+
+      const removeChapter = async (item) => {
+        if (sessionId === undefined || chapterBusy) return
+        if (typeof window !== 'undefined' && !window.confirm(`删除第 ${item.number} 章？这会删除其正文、章纲、摘要和审稿；删除前会自动备份。`)) return
+        setChapterBusy(true)
+        try {
+          const payload = await face.deleteChapter(root, sessionId, workId, item.number)
+          const remaining = payload.chapters ?? []
+          const nextSelected = remaining.includes(item.number)
+            ? item.number
+            : [...remaining].filter(number => number < item.number).at(-1)
+          setSelected(nextSelected)
+          onNotice({ kind: 'ok', text: `已删除第 ${item.number} 章；删除前已备份。` })
+          if ((payload.staleVolumes ?? []).length > 0) {
+            onNotice({ kind: 'error', text: `卷区间需要调整：${payload.staleVolumes.join('、')}` })
+          }
+          await load()
+        } catch (error) {
+          onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
+        } finally {
+          setChapterBusy(false)
+        }
+      }
 
       const refreshDetail = useCallback(async () => {
         if (refreshInFlight.current) return
@@ -1069,6 +1121,7 @@ window.__ModuleLoader__.load({
       const manifest = detail.manifest
       const chapters = detail.chapters
       const chapter = chapters.find(item => item.number === selected)
+      const orderedChapters = [...chapters].sort((left, right) => left.number - right.number)
       const nextNumber = chapters.length === 0 ? 1 : chapters[chapters.length - 1].number + 1
 
       const send = async (text) => {
@@ -1345,6 +1398,27 @@ window.__ModuleLoader__.load({
                     ),
                     item.number === selected
                       ? h('div', { className: 'sc-chapter-actions' },
+                        h('button', {
+                          type: 'button',
+                          className: 'sc-btn sc-btn-small',
+                          disabled: chapterBusy || item.number === orderedChapters[0]?.number,
+                          title: '与上一章交换章号',
+                          onClick: () => { void moveChapter(item, -1) },
+                        }, '上移'),
+                        h('button', {
+                          type: 'button',
+                          className: 'sc-btn sc-btn-small',
+                          disabled: chapterBusy || item.number === orderedChapters.at(-1)?.number,
+                          title: '与下一章交换章号',
+                          onClick: () => { void moveChapter(item, 1) },
+                        }, '下移'),
+                        h('button', {
+                          type: 'button',
+                          className: 'sc-btn sc-btn-small',
+                          disabled: chapterBusy,
+                          title: '删除本章并前移后续章号；删除前自动备份',
+                          onClick: () => { void removeChapter(item) },
+                        }, '删除'),
                         item.stage === 'settled'
                           ? null
                           : h('button', {

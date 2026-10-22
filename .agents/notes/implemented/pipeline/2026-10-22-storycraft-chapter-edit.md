@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：章节删除与重排
-status: proposed
+status: implemented
 created: 2026-10-22
 updated: 2026-10-22
+verification: 30 单测 + 14 E2E；临时克隆雪线邮路删除/上下移并重新导出，作者库 4 章未动
 ---
 
 # Agent Note：故事工坊：章节删除与重排
@@ -13,7 +14,7 @@ updated: 2026-10-22
 
 现有库不保证章号从 1 连续：`writePlan` 在空作品上可以直接建第 3 章。所以映射必须按**现存章号的排序 rank** 重新编号，而不是简单 ±1。
 
-## 提案
+## 决定
 
 ### 1. 操作与入口
 
@@ -36,7 +37,7 @@ updated: 2026-10-22
 
 ### 3. 事务步骤（顺序固定）
 
-1. **备份先行**：`backupTo` 写 `.storycraft/backups/<workId>-*.db`；备份失败则中止，不进入删除/移动。
+1. **删除备份先行**：`deleteChapter` 先 `backupTo` 写 `.storycraft/backups/<workId>-*.db`；备份失败则中止。移动不备份（不删数据）。
 2. `transaction()` 内 `PRAGMA defer_foreign_keys = ON`；`openWork` 可能触发 v4→v5 迁移，这是打开成本，不属于数据写入。
 3. **删除先行**：删除 `chapters` 行（级联 versions/plans/summaries/reviews），删除该章 events、`chapter:<n>:*`、`summary:<n>` 与该章 `doc_id LIKE 'event:%'` 的搜索文档。重编号完成后，再补一条 `chapter-edit` 标记事件：`seq = 删除前 oldMax+1`、`chapter = K === 0 ? 0 : 1`、不进入映射、不建搜索文档；未知 kind 被 fold 忽略，防止下一事件复用 seq。
 4. 按映射重编号：每张引用表先写 `-new`，再写回 `new`；`chapters`、`chapter_versions`、`chapter_plans`、`summaries`、`reviews`、`events.chapter`。
@@ -77,7 +78,8 @@ updated: 2026-10-22
 | --- | --- |
 | `chapter-not-found` | 章号不存在 |
 | `chapter-delete-unconfirmed` | 删除时 `confirm !== true` |
-| `invalid-body` | 缺少 session/workId 或章号非整数 |
+| `invalid-chapter` | 章号非整数 |
+| `invalid-body` | 缺少 session/workId |
 | `work-mismatch` | 会话当前作品不匹配 |
 | `backup-failed` | 删除前备份失败，未改数据 |
 | `chapter-edit-target-invalid` | 移动目标不是相邻章 |
@@ -98,7 +100,7 @@ updated: 2026-10-22
 - **自动推断卷边界**：不可靠；否决，返回 staleVolumes 让作者调整。
 - **模型动作**：作者直接操作；否决。
 
-## 验收条件
+## 后果
 
 产品验收在 #34；本 Note 检查技术性质：
 
@@ -119,3 +121,10 @@ updated: 2026-10-22
 - 卷区间不自动调整，作者需手动对齐。
 - 事件 seq 不变但章号改变，旧 trace 章号会变；重排的预期。
 - 自动备份占用磁盘；保留策略沿用现有 backups。
+
+## 验证
+
+- `node storycraft/scripts/ci.mjs`：30 个单测文件 + 14 条 E2E 全过。
+- `chapter-edit.test`：空洞 rank、删除中/末/唯一、上下移、同号 no-op、非相邻拒绝、删除/移动回滚（表/索引/事件/meta）、卷 stale、0 章导出。
+- E2E：面板上移/下移/删除、确认、章号/标题刷新、卷区间提示、composer 不变。
+- 真实：临时克隆 `.storycraft` 后删除第 2 章、上移第 3 章；重新导出 manifest 章号 1–3 与标题一致；作者库保持 4 章。
