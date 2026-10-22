@@ -20,6 +20,7 @@ import {
   trashDir, trashFile, workFile, worksDir, backupsDir,
 } from './db.js'
 import { MATERIAL_TITLE_MAX, materialMetadata, prepareMaterial } from './materials.js'
+import { snippetFor } from './retrieval.js'
 import {
   StoryError, SUMMARY_MAX_CHARS, WORK_FORMS, chapterNumber, chapterStem, contentVersion, countWords, foldEvents,
   formOf, now, parseReview, planApprovalPolicy, stageOf, summaryAdmissible, trimSummary, unitOf, workIdOf,
@@ -2055,7 +2056,7 @@ export function search(root, work, query, limit = 5) {
 }
 
 /**
- * Retrieve current summaries, unresolved hooks and closed volumes for context.
+ * Retrieve current summaries, unresolved hooks, closed volumes and material excerpts for context.
  * The SQL ranks first and limits second; post-filters use the same state rules
  * as the rest of the store, so stale summaries and reopened/resolved hooks do
  * not leak into a role context.
@@ -2064,11 +2065,12 @@ export function search(root, work, query, limit = 5) {
  * @param {string} query - query text.
  * @param {object} [options] - retrieval filter.
  * @param {number} [options.beforeChapter] - only material before this chapter.
- * @returns {Array<{id: string, kind: string, source: string, sourceIds: string[], chapter: number, text: string, score: number}>} candidates.
+ * @returns {Array<{id: string, kind: string, source: string, sourceIds: string[], chapter: number, text: string, score: number}>} candidates: current summaries, unresolved hooks, volumes, and bounded material excerpts.
  */
 export function searchMemory(root, work, query, options = {}) {
   const beforeChapter = Number.isInteger(options.beforeChapter) ? options.beforeChapter : undefined
-  const match = matchOf(query)
+  const tokens = queryTokens(query)
+  const match = matchString(tokens)
   if (match === '') return []
   const db = openWork(root, work)
   try {
@@ -2078,6 +2080,14 @@ export function searchMemory(root, work, query, options = {}) {
       beforeChapter,
       limit: 200,
     })
+    const materialTitles = new Map()
+    const materialIds = rows.filter(row => row.kind === 'material').map(row => row.id.slice('material:'.length))
+    if (materialIds.length > 0) {
+      const placeholders = materialIds.map(() => '?').join(', ')
+      for (const row of db.prepare(`SELECT id, title FROM materials WHERE id IN (${placeholders})`).all(...materialIds)) {
+        materialTitles.set(`material:${row.id}`, row.title)
+      }
+    }
     const reopened = new Map(db.prepare("SELECT chapter, max(seq) AS seq FROM events WHERE kind = 'reopen' GROUP BY chapter")
       .all().map(row => [row.chapter, row.seq]))
     const hookStates = new Map()
@@ -2134,6 +2144,22 @@ export function searchMemory(root, work, query, options = {}) {
         candidates.push({
           id: row.id, kind: row.kind, source: row.source, sourceIds: [row.id], chapter, text: row.body, score: -row.score,
         })
+        continue
+      }
+      if (row.kind === 'material') {
+        const title = materialTitles.get(row.id)
+        if (typeof title !== 'string') continue
+        const titleExcerpt = [...title].slice(0, 60).join('')
+        const excerpt = snippetFor(row.body, tokens, Math.max(80, 400 - [...titleExcerpt].length - 1))
+        candidates.push({
+          id: row.id,
+          kind: row.kind,
+          source: row.source,
+          sourceIds: [row.id],
+          chapter: 0,
+          text: `${titleExcerpt}\n${excerpt}`.trim(),
+          score: -row.score,
+        })
       }
     }
     return candidates
@@ -2143,12 +2169,21 @@ export function searchMemory(root, work, query, options = {}) {
 }
 
 /** Document kinds exposed to role context retrieval. */
-const MEMORY_KINDS = ['summary', 'hook', 'volume']
+const MEMORY_KINDS = ['summary', 'hook', 'volume', 'material']
+
+/** Query tokens; shared by search and context retrieval. */
+function queryTokens(query) {
+  return searchTokens(query).split(' ').filter(token => token !== '')
+}
+
+/** Quote and OR-join tokens for one FTS match. */
+function matchString(tokens) {
+  return tokens.map(token => `"${token.replaceAll('"', '""')}"`).join(' OR ')
+}
 
 /** FTS match string for one query, or '' when the query has no tokens. */
 function matchOf(query) {
-  const tokens = searchTokens(query).split(' ').filter(token => token !== '')
-  return tokens.map(token => `"${token.replaceAll('"', '""')}"`).join(' OR ')
+  return matchString(queryTokens(query))
 }
 
 /** One FTS query with the shared projection, ordering and limit. */

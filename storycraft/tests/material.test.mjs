@@ -33,7 +33,15 @@ try {
   const hit = s.search(root, work, '旧井边')
   check('material is searchable', hit.some(item => item.kind === 'material' && item.id === `material:${imported.material.id}`), JSON.stringify(hit))
   const contextMemory = s.searchMemory(root, work, '旧井边')
-  check('searchMemory still excludes materials', contextMemory.every(item => item.kind !== 'material'), JSON.stringify(contextMemory))
+  const materialHit = contextMemory.find(item => item.kind === 'material')
+  check('material title is not searchable in v1', s.searchMemory(root, work, '示例').every(item => item.kind !== 'material'),
+    JSON.stringify(s.searchMemory(root, work, '示例')))
+  check('searchMemory includes a bounded material snippet', materialHit !== undefined
+    && materialHit.sourceIds[0] === `material:${imported.material.id}`
+    && [...materialHit.text].length <= 400
+    && [...materialHit.text.split('\n')[0]].length <= 60
+    && materialHit.text.includes('示例') && !materialHit.text.includes('.storycraft'),
+  JSON.stringify(materialHit))
 
   const duplicate = await s.importMaterial(root, work, { name: 'other.md', contentBase64: b64(body) })
   check('duplicate returns the existing id', duplicate.duplicate === true && duplicate.material.id === imported.material.id, JSON.stringify(duplicate))
@@ -53,6 +61,7 @@ try {
   await s.deleteMaterial(root, work, imported.material.id)
   check('delete removes the list row', (await s.listMaterials(root, work)).length === 0)
   check('delete removes the search document', s.search(root, work, '旧井边').every(item => item.kind !== 'material'))
+  check('delete removes the retrieval candidate', s.searchMemory(root, work, '旧井边').every(item => item.kind !== 'material'))
   check('delete keeps the managed copy', (await readdir(materialsDir(root))).length === 1)
   const again = await s.importMaterial(root, work, { name: '示例.md', contentBase64: b64(body) })
   check('deleted material can be imported again', again.duplicate === false && again.material.id === imported.material.id, JSON.stringify(again))

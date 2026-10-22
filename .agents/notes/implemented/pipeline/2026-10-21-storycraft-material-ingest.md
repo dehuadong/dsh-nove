@@ -8,7 +8,7 @@ verification: 51625bc；29 个单测 + 13 条 E2E；真实雪线邮路导入/删
 
 # Agent Note：故事工坊：素材库（导入 / 列表 / 重命名 / 删除）
 
-> 2026-10-22 待修订（#28 B2）：`searchMemory` 将不再排除 material，素材会进入 `story_context`；交付 #28 时反转本文 §6/AC5 的排除断言并更新测试。
+> 2026-10-22 已修订（#28 B2）：`searchMemory` 已纳入 material，素材正文进入 `story_context`（标题前缀 + ≤400 片段）；本文 §6/AC5 的排除断言已反转。
 
 ## 问题
 
@@ -100,7 +100,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_materials_hash ON materials(hash);
 ### 6. 检索与导出
 
 - material 文档：`kind='material'`、`doc_id='material:<id>'`、`search_docs.source='materials/<id>'`、`chapter=0`；
-- 现有 `search()` 可命中；`searchMemory` 仍只取 `summary/hook/volume`，B1 不改变 `story_context`；
+- 现有 `search()` 可命中；B2 起 `searchMemory` 也纳入 material，素材正文进入 `story_context`（标题不索引，标题只在前缀）；
 - `story_export` manifest 升到 3，新增 `materials: [{id,title,format,bytes,hash,origin}]`，并写 `materials/<id>.<format>`；`origin` 是 bucket-relative 的 `materials/<hash8>-<name>`，实际路径 `.storycraft/materials/<origin>`，不经过 `sanitizeOutput` 的 `source` 改写；备份仍包含整库；
 - #18/#25 的 Note 加 pending 指针，说明 v3 = v2 字段 + 素材。
 
@@ -145,7 +145,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_materials_hash ON materials(hash);
 2. 导入文件、materials 行、search_docs 三者一致；失败回滚文件与库。
 3. 同 hash 并发只留一行；重复导入不新增文件。
 4. 文件名安全、512 KB、UTF-8/NUL/UTF-16/空文件、格式都有测试。
-5. `search()` 命中 material；`searchMemory` 不返回 material；作品隔离。
+5. `search()` 与 `searchMemory` 都能命中 material；`searchMemory` 返回 ≤400 的标题+片段；作品隔离。
 6. API 校验 session 当前作品；面板不发起模型消息；E2E 覆盖导入/重命名/删除/重复导入。
 7. 删除保留文件；重命名不改内容/哈希；导出 manifest v3 带 hash/origin；作品改名后列表/`search` 仍命中（origin 与 workId 无关）。
 8. 新路由/客户端字段不经过 `sanitizeOutput` 的路径改写；模型输出无 path/origin/content。

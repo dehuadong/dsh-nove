@@ -37,6 +37,10 @@ try {
   const raw = openWork(root, work)
   raw.prepare('UPDATE summaries SET revision = 0 WHERE number = 2').run()
   raw.close()
+  await s.importMaterial(root, work, {
+    name: '旧井参考.md',
+    contentBase64: Buffer.from('旧井边的作者参考资料。', 'utf8').toString('base64'),
+  })
 
   const out = await assembleRoleContext({ root, work, chapter: 5, role: 'writer', task: '写第 5 章正文。', instruction: '写旧井' })
   const names = out.trace.sections.map(item => item.name)
@@ -48,6 +52,10 @@ try {
   check('retrieval hits use artifact ids', out.trace.retrieval.hits.every(hit => hit.sourceIds?.length > 0 && !hit.sourceIds.some(id => id.includes('/'))),
     JSON.stringify(out.trace.retrieval.hits))
   check('stale chapter 2 summary is not retrieved', !out.trace.retrieval.hits.some(hit => hit.id === 'summary:2'), JSON.stringify(out.trace.retrieval.hits))
+  check('material is retrieved with a bounded snippet',
+    out.trace.retrieval.hits.some(hit => hit.kind === 'material' && hit.sent === true
+      && hit.sourceIds[0]?.startsWith('material:')), JSON.stringify(out.trace.retrieval.hits))
+  check('retrieval text carries the material title', out.text.includes('旧井参考'), out.text.slice(-800))
   check('recent still carries current summaries', out.text.includes('第 4 章：第4章摘要。'))
   const deduped = await assembleRoleContext({
     root, work, chapter: 5, role: 'writer', task: '写第 5 章正文。', instruction: '第4章摘要',
@@ -69,8 +77,13 @@ try {
   check('dropped retrieval marks all hits unsent', tight.trace.retrieval.hits.every(hit => hit.sent === false), JSON.stringify(tight.trace.retrieval))
   check('dropped retrieval is absent from text', !tight.text.includes('相关往事'))
 
-  const planner = await assembleRoleContext({ root, work, role: 'planner', scope: 'work', task: '出全书计划' })
+  const planner = await assembleRoleContext({ root, work, role: 'planner', scope: 'work', task: '出全书计划 旧井' })
   check('work-scope planner retrieves without a target', planner.trace.retrieval?.enabled === true, JSON.stringify(planner.trace.retrieval))
+  check('work-scope planner can retrieve material',
+    planner.trace.retrieval.hits.some(hit => hit.kind === 'material'), JSON.stringify(planner.trace.retrieval.hits))
+  const early = await assembleRoleContext({ root, work, chapter: 1, role: 'planner', task: '找旧井' })
+  check('material is available at beforeChapter=1', early.trace.retrieval.hits.some(hit => hit.kind === 'material'),
+    JSON.stringify(early.trace.retrieval.hits))
 
   const emptyWork = (await s.initWork(root, { title: '无命中检索', wordRange: { min: 100, max: 200 } })).workId
   await s.writeOutline(root, { work: emptyWork, mainline: '无命中' })

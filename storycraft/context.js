@@ -234,7 +234,7 @@ export async function assembleRoleContext(input, dependencies = {}) {
       const picked = select(candidates, { excludeIds: recentSummaryIds })
       if (picked.text !== '') {
         retrieval = section('retrieval', '相关往事', picked.text, 'compressible',
-          `${virtualPath(work, 'summaries/')} + ${virtualPath(work, 'state/events.jsonl')} + ${virtualPath(work, 'volumes')}`)
+          `${virtualPath(work, 'summaries/')} + ${virtualPath(work, 'state/events.jsonl')} + ${virtualPath(work, 'volumes')} + ${virtualPath(work, 'materials/')}`)
       }
       retrievalTrace = { enabled: true, query, candidateCount: candidates.length, hits: picked.hits }
     } catch (error) {

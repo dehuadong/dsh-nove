@@ -75,11 +75,11 @@ materials         作者素材（txt/md；FTS5 索引；元数据表格 + .story
 - `story_bible_import`：把旧文件作品的世界观收编进真值，并列出仍需作者补的项（不替作者编人物档案）；不导入大纲，大纲只走 `story_outline` + 作者确认。
 - `story_summarize`：手动写章节摘要（超 400 字截断并报告；写入时绑定当前正文版本）；正常链路先由 `story_next` 给出 `summarizer` 委派，子代理通过 `story_submit` 提交摘要，主编不读整章。摘要过期时 `story_next` 会重新要求摘要，`story_state` 返回 `summary-stale`。
 - `story_brief`：装配写某一章前的上下文——意图、本章章纲、涉及人物、未解伏笔、上一章结尾、文风、字数口径；默认 8 KB，超预算按优先级裁剪并报告裁掉的段；同一输入两次结果逐字节一致。
-- `story_context` 的检索段：作品内正文 ≥3 章时，按本章任务从作品库 FTS5 召回 current 摘要、未解/已用伏笔与卷摘要；最多 5 条 / 1200 字，`recent` 已发的摘要去重；过期摘要、已解伏笔、reopen 前事件与目标章之后的材料不进入。`trace.retrieval` 记录 `enabled / query / candidateCount / hits[{id, kind, sourceIds, score, sent}]` 与可选 `error`，整段被预算裁掉时 `sent` 全为 false。
+- `story_context` 的检索段：作品内正文 ≥3 章时，按本章任务从作品库 FTS5 召回 current 摘要、未解/已用伏笔、卷摘要与素材（标题前缀 + ≤400 片段）；最多 5 条 / 1200 字，每类最多 2 条，`recent` 已发的摘要去重。过期摘要、已解伏笔、reopen 前事件与目标章之后的材料不进入。`trace.retrieval` 记录 `enabled / query / candidateCount / hits[{id, kind, sourceIds, score, sent}]` 与可选 `error`；hits 最多 15 条（前 10 ∪ sent），整段被预算裁掉时 `sent` 全为 false。素材标题暂不索引，只能用正文词命中。
 
 ## 素材库
 
-面板“素材”区由宿主直接管理，不经过 LLM：文件选择器导入 `.txt` / `.md`，列表、重命名、删除；单文件 ≤512 KB、UTF-8。素材写入作品库 `materials` 表并同步 FTS5，副本放 `.storycraft/materials/`（模型不可读）；删除只移除库与索引，保留副本。B1 不把素材接入 `story_context`，B2 再接。
+面板“素材”区由宿主直接管理，不经过 LLM：文件选择器导入 `.txt` / `.md`，列表、重命名、删除；单文件 ≤512 KB、UTF-8。素材写入作品库 `materials` 表并同步 FTS5，副本放 `.storycraft/materials/`（模型不可读）；删除只移除库与索引，保留副本。B2 起素材正文进入 `story_context` 检索段（标题前缀 + ≤400 片段），标题本身不建索引。
 
 ## 作品操作与导出
 

@@ -8,7 +8,7 @@ verification: f491ed6；27 个单测 + 11 条 E2E；真实第 4 章 `story_conte
 
 # Agent Note：故事工坊：基于作品库 FTS5 的上下文检索
 
-> 2026-10-22 待修订（#28 B2）：`searchMemory` 增加 material（§1 语料表/kind 列表）；`select` 从“只扫前 10 / sent 前缀”改为“扫全候选 + 每类上限 2 + hits=前10∪sent（≤15）”（§3/§4）；交付时同步代码注释与 `retrieval.test`。
+> 2026-10-22 已修订（#28 B2）：`searchMemory` 增加 material（§1 语料表/kind 列表）；`select` 改为“扫全候选 + 每类上限 2 + hits=前10∪sent（≤15）”（§3/§4）；`retrieval.test` 已同步。
 
 ## 问题
 
@@ -36,16 +36,18 @@ verification: f491ed6；27 个单测 + 11 条 E2E；真实第 4 章 `story_conte
 | 章节摘要 | `summary` | `state === 'current'`（#25）；`chapter < target`（无 target 时全部）；`recent` 已发出的条目不重复 |
 | 未解伏笔事件 | `hook` | 事件 seq 晚于本章最后一次 `reopen`；`chapter < target`（无 target 时全部）；**该伏笔最新 post-reopen 事件状态**不是 resolved |
 | 卷摘要 | `volume` | 关联 `volumes` 表取 `to_ch`；`to_ch < target`（无 target 时全部） |
+| 素材 | `material` | 当前作品；作品级，不受目标章限制；标题前缀 ≤60 + 片段，总候选文本 ≤400 |
 
 排除：整章正文（`kind='chapter'`）、人物卡、人物事实（entity）事件、目标章及之后、过期摘要、已解伏笔、reopen 前的旧事件。
 
 `store-db.searchMemory(root, work, query, { beforeChapter })`：
 
-- 复用 `searchTokens` 与 FTS5 `MATCH`，SQL 限定 `kind IN ('summary','hook','volume')`；
+- 复用 `searchTokens` 与 FTS5 `MATCH`，SQL 限定 `kind IN ('summary','hook','volume','material')`；
 - SQL 先按 `bm25`、`chapter DESC`、`doc_id` 排序再 `LIMIT 200`，避免 LIMIT 前无排序导致的不确定；
 - `summary`：用 `summaryStateOf` 过滤 current；
 - `hook`：事件 id 为 `event:<seq>`，先查 `events` 表得到**该事件所在章**最后一次 `reopen` 的 seq，早于它的不进入候选；**已解判定看同一伏笔文本的最新 post-reopen 事件状态（用 `foldEvents` 的规则折叠），不能只看候选事件自己的 `state`**——否则 ch2 opened、ch5 resolved 的旧 opened 文档会漏过过滤；
 - `volume`：`JOIN volumes` 校验 `to_ch`，不能只看 `search_docs.chapter`（那里存 from）；
+- `material`：`search_docs.body` 已含正文，批量回查 `materials.title`；孤儿索引跳过；`snippetFor` 生成 ≤400 候选文本。
 - 返回内部候选 `{id, kind, source, chapter, text, score}`；`id = search_docs.doc_id`，`source = search_docs.source`（虚拟路径），`score = -bm25`（越高越相关）。`source` 只供内部映射，不进入模型输出。
 
 `search()` 与 `searchMemory()` 共用一个内部 `queryDocs(db, { match, kinds, beforeChapter, limit })`，避免复制 FTS 引号/排序/映射逻辑；`search()` 保持现有签名，目前仅供测试/后续动作，不把 `searchMemory` 的过滤规则塞进它。
@@ -65,12 +67,12 @@ summarizer 不启用检索；空查询（token 为空）直接返回 `enabled:fa
 
 ### 3. 选择与预算
 
-`retrieval.js` 的 `select(candidates, { excludeIds, limit=5, budget=1200 })`：
+`retrieval.js` 的 `select(candidates, { excludeIds, limit=5, budget=1200, perKindLimit=2 })`：
 
 1. 去掉 `excludeIds`（`recent` 已发出的摘要 id）；
 2. 按 `score` 降序、`chapter` 降序、`id` 升序稳定排序；
-3. 从高到低累计 `codePointLength(text)`，≤1200 且 ≤5 条；超出者不进入正文；
-4. 返回 `{ text, hits, chars }`；段文本按 `sent:true` 的顺序逐条换行，每条前加 `〔id〕` 前缀，便于把正文和 trace 对应；`chars` 只计各条 `text` 的 code point 之和，不含段标题、换行与 `〔id〕` 前缀；`hits` 最多记录 10 条，前 5 条中实际进入文本的 `sent:true`，其余 `false`。
+3. 遍历全部候选（不再只扫前 10），每类最多 2 条，累计 `codePointLength(text)` ≤1200 且 ≤5 条；
+4. 返回 `{ text, hits, chars }`；段文本按 `sent:true` 的顺序逐条换行，每条前加 `〔id〕` 前缀，便于把正文和 trace 对应；`chars` 只计各条 `text` 的 code point 之和，不含段标题、换行与 `〔id〕` 前缀；`hits` = 前 10 ∪ sent，最多 15 条、按候选 rank 排序；`sent` 标记实际进入文本的条目。
 
 `recent` 已覆盖前章摘要，检索段不重复加入；不再用 `-1e6` 之类的强制分数。
 
@@ -95,7 +97,7 @@ summarizer 不启用检索；空查询（token 为空）直接返回 `enabled:fa
 
 - `enabled`：正文章数 ≥3 且角色不是 summarizer，由 `context.js` 计算；空查询时 `false`；
 - `candidateCount`：过滤后、取 5 条前的候选数，最多 200（受 SQL LIMIT 限制）；
-- `hits` 最多 10 条，每项为 `{id, kind, sourceIds, score, sent}`；`sourceIds` 只放 artifact ID（summary → `summary:<n>`，hook → `state`，volume → `volume:<id>`），不放虚拟路径，模型输出经 `sanitizeOutput` 不会改写它；
+- `hits` 最多 15 条（前 10 ∪ sent），每项为 `{id, kind, sourceIds, score, sent}`；`sourceIds` 只放 artifact ID（summary → `summary:<n>`，hook → `state`，volume → `volume:<id>`，material → `material:<id>`），不放虚拟路径，模型输出经 `sanitizeOutput` 不会改写它；
 - `sent` 在最终裁剪后统一写；
 - 检索抛错时：不建段，`enabled` 仍按能力为 `true`，`hits: []`、`candidateCount: 0`，并加 `error: <code>`；其余段照常。
 
@@ -128,10 +130,10 @@ summarizer 不启用检索；空查询（token 为空）直接返回 `enabled:fa
 
 本 Note 只证明技术性质；产品验收在 #16。
 
-1. 语料只来自作品库 current 摘要、reopen 后的未解伏笔、`to_ch` 合规的卷摘要；stale/已解/reopen 前/目标章及之后的文档被过滤；`hits` 只含 `id/kind/sourceIds/score/sent`，无路径。
+1. 语料来自作品库 current 摘要、reopen 后的未解伏笔、`to_ch` 合规的卷摘要与当前作品素材（标题前缀 + 片段）；stale/已解/reopen 前/目标章及之后的文档被过滤；`hits` 只含 `id/kind/sourceIds/score/sent`，无路径。
 2. `searchMemory` 的过滤有测试：current/stale、reopen、hook resolved、volume `to_ch`；查询与选择纯函数有测试。
 3. `TRIM_ORDER` 包含 `retrieval` 且跳过字符压缩；整段丢弃后 `sent` 全部为 `false`，有断言。
-4. `trace.retrieval` 在启用、零命中、禁用、检索错误四种情况下都有固定字段；`hits` 最多 10 条。
+4. `trace.retrieval` 在启用、零命中、禁用、检索错误四种情况下都有固定字段；`hits` 最多 15 条。
 5. 同一候选集两次 `select` 结果一致；SQL 的 `ORDER BY` 在 `LIMIT` 前。
 6. 200 章摘要 + 事件 fixture 下，`searchMemory` + `select` 的增量 ≤400ms；测量点与 `store-perf.test` 一致。
 
@@ -145,8 +147,8 @@ summarizer 不启用检索；空查询（token 为空）直接返回 `enabled:fa
 
 ## 验证
 
-- `node storycraft/scripts/ci.mjs`：27 个单测文件 + 11 条 E2E 全过。
-- `retrieval.test`：current/stale、reopen、latest-post-reopen resolved、volume `to_ch`、目标章过滤、5/1200 预算、determinism、10 条 trace。
+- `node storycraft/scripts/ci.mjs`：29 个单测文件 + 13 条 E2E 全过。
+- `retrieval.test`：current/stale、reopen、latest-post-reopen resolved、volume `to_ch`、目标章过滤、5/1200 预算、每类上限、15 条 trace、determinism。
 - `context-retrieval.test`：段位置、`recent` 去重、整段丢弃后 `sent:false`、零命中、fail-open `work-busy`、work-scope planner。
-- `store-perf.test`：200 章摘要 + 20 条 hook 事件 + 一次 reopen，`searchMemory` + `select` < 400ms。
+- `store-perf.test`：200 章摘要 + 20 条 hook 事件 + 一次 reopen + 3 条素材（含 512 KB），`searchMemory` + `select` < 400ms。
 - 真实第 4 章 `story_context`：`trace.retrieval.enabled: true`、`candidateCount` 13–14、5 条 `sent`；临时把第 2 章摘要置 stale 后，`hits` 中没有 `summary:2`；探测后已恢复 revision。

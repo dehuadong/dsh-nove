@@ -53,6 +53,24 @@ try {
   check('200-chapter retrieval fits 400ms', retrieval < 400, `${retrieval.toFixed(1)}ms`)
   check('retrieval returns five bounded hits', picked.hits.filter(hit => hit.sent).length <= 5
     && picked.chars <= 1200 && candidates.length > 0, `${candidates.length}/${picked.chars}`)
+
+  const prefix = Buffer.from('专属素材词\n', 'utf8')
+  const big = Buffer.concat([prefix, Buffer.from('水'.repeat(Math.floor((512 * 1024 - prefix.length) / 3)), 'utf8')])
+  for (let index = 0; index < 3; index += 1) {
+    await store.importMaterial(root, work, {
+      name: `perf-${index}.md`,
+      contentBase64: (index === 0 ? big : Buffer.from(`专属素材词 第${index}份`, 'utf8')).toString('base64'),
+    })
+  }
+  started = performance.now()
+  const materialCandidates = store.searchMemory(root, work, '专属素材词', { beforeChapter: 201 })
+  const materialPicked = select(materialCandidates, { excludeIds: [], limit: 5, budget: 1200 })
+  const materialRetrieval = performance.now() - started
+  check('material retrieval with a 512KB file fits 400ms', materialRetrieval < 400, `${materialRetrieval.toFixed(1)}ms`)
+  check('material snippets stay bounded', materialCandidates.some(item => item.kind === 'material')
+    && materialCandidates.filter(item => item.kind === 'material').every(item => [...item.text].length <= 400)
+    && materialPicked.hits.filter(hit => hit.sent).length <= 2
+    && materialPicked.chars <= 1200, JSON.stringify(materialCandidates.map(item => [item.id, item.text.length])))
 } finally {
   await rm(root, { recursive: true, force: true }).catch(() => {})
 }

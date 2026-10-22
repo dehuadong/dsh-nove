@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../storage.js'
 import { openWork } from '../db.js'
-import { buildQuery, codePointLength, select } from '../retrieval.js'
+import { buildQuery, codePointLength, select, snippetFor } from '../retrieval.js'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -22,6 +22,10 @@ check('query joins task, plan, hooks and instruction',
 check('empty query stays empty', buildQuery({ taskText: ' ', openHooks: [] }) === '')
 check('long instruction is clipped in the query', buildQuery({ instruction: '长'.repeat(800) }).length === 600)
 check('code point length counts astral characters', codePointLength('a😀中') === 3)
+check('snippet anchors on a strong token', snippetFor('开头的话。旧井边有钥匙。结尾。', ['旧井'], 12).includes('旧井'),
+  snippetFor('开头的话。旧井边有钥匙。结尾。', ['旧井'], 12))
+check('snippet is bounded', [...snippetFor('长'.repeat(1000), ['长'], 40)].length <= 40,
+  String([...snippetFor('长'.repeat(1000), ['长'], 40)].length))
 
 const candidates = [
   { id: 'summary:1', kind: 'summary', sourceIds: ['summary:1'], chapter: 1, text: '旧井的水位', score: 3 },
@@ -44,8 +48,27 @@ const many = Array.from({ length: 12 }, (_, index) => ({
   id: `summary:${index + 1}`, kind: 'summary', sourceIds: [`summary:${index + 1}`], chapter: index + 1, text: `第${index + 1}章`, score: 10 - index,
 }))
 const traced = select(many)
-check('trace caps hits at ten while sending five', traced.hits.length === 10 && traced.hits.filter(hit => hit.sent).length === 5,
+check('per-kind cap sends two and trace keeps ten', traced.hits.length === 10 && traced.hits.filter(hit => hit.sent).length === 2,
   JSON.stringify(traced.hits))
+const hooks = Array.from({ length: 10 }, (_, index) => ({
+  id: `event:${index + 1}`, kind: 'hook', sourceIds: ['state'], chapter: index + 1, text: `钩子${index + 1}`, score: 100 - index,
+}))
+const laterMaterial = { id: 'material:mat-1', kind: 'material', sourceIds: ['material:mat-1'], chapter: 0, text: '素材', score: 1 }
+const mixed = select([...hooks, laterMaterial])
+check('scan reaches a later material after the hook cap',
+  mixed.hits.some(hit => hit.id === 'material:mat-1' && hit.sent === true)
+  && mixed.hits.filter(hit => hit.kind === 'hook' && hit.sent).length === 2,
+  JSON.stringify(mixed.hits))
+const capped = select([...hooks, ...Array.from({ length: 2 }, (_, index) => ({
+  id: `summary:${index + 1}`, kind: 'summary', sourceIds: [`summary:${index + 1}`], chapter: 1, text: '摘要', score: 9,
+})), ...Array.from({ length: 2 }, (_, index) => ({
+  id: `volume:${index + 1}`, kind: 'volume', sourceIds: [`volume:${index + 1}`], chapter: 1, text: '卷', score: 9,
+})), ...Array.from({ length: 2 }, (_, index) => ({
+  id: `material:${index + 1}`, kind: 'material', sourceIds: [`material:${index + 1}`], chapter: 0, text: '素材', score: 9,
+}))], { limit: 8 })
+check('limit above five stays within the bounded trace', capped.hits.length <= 15
+  && capped.hits.filter(hit => hit.sent).length <= 5,
+JSON.stringify(capped.hits))
 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-retrieval-'))
 try {
