@@ -8,6 +8,8 @@ verification: 51625bc；29 个单测 + 13 条 E2E；真实雪线邮路导入/删
 
 # Agent Note：故事工坊：素材库（导入 / 列表 / 重命名 / 删除）
 
+> 2026-10-22 部分修订（#30 B3）：作品库升 v4，materials 增加 purpose（默认 reference），导出 manifest 升 v4；B1 的导入/管理/托管副本边界不变。
+
 > 2026-10-22 已修订（#28 B2）：`searchMemory` 已纳入 material，素材正文进入 `story_context`（标题前缀 + ≤400 片段）；本文 §6/AC5 的排除断言已反转。
 
 ## 问题

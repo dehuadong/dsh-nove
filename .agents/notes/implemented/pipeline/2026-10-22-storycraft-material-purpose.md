@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：素材用途与写前筛选
-status: proposed
+status: implemented
 created: 2026-10-22
 updated: 2026-10-22
+verification: 29 单测 + 13 E2E；真实雪线邮路 v3→v4、setting 进 brief、reference 进 context、清理副本
 ---
 
 # Agent Note：故事工坊：素材用途与写前筛选
@@ -13,7 +14,7 @@ B1 的素材已经一作品一库，作者导入的每一份素材天然属于�
 
 跨作品绑定表与全局素材库不在本项；那会推翻 B1 的托管副本与作品作用域。
 
-## 提案
+## 决定
 
 ### 1. 用途枚举
 
@@ -46,7 +47,8 @@ B1 的素材已经一作品一库，作者导入的每一份素材天然属于�
 - **部分替代 B4** [2026-10-22-storycraft-brief-retrieval.md](../../implemented/pipeline/2026-10-22-storycraft-brief-retrieval.md)：brief 只取 setting/character/scene；B4 的 3 条/1200/8KB/位置/丢弃规则不变。B4 的“任意匹配素材”AC 由 #30 的用途筛选取代。
 - **补充 #16** [2026-10-21-storycraft-retrieval-fts.md](../../implemented/pipeline/2026-10-21-storycraft-retrieval-fts.md)：`searchMemory` 增加 purposes，material 候选可被用途过滤；其余 kind/预算不变。
 - **补充 #27/D1** [2026-10-21-storycraft-panel-export.md](../../implemented/pipeline/2026-10-21-storycraft-panel-export.md)：导出 manifest v4 增加 purpose；面板导出的原子替换不变。
-- **补充 #25** [2026-10-21-storycraft-summary-revision-binding.md](../../implemented/pipeline/2026-10-21-storycraft-summary-revision-binding.md)：备份恢复 v3 库时走 v3→v4 迁移；摘要边界不变。\n- **补充 #18** [2026-10-19-storycraft-sqlite-store.md](../../implemented/pipeline/2026-10-19-storycraft-sqlite-store.md)：库版本与 manifest 版本文案改 v4；旧 v3 导出/备份边界不变。
+- **补充 #25** [2026-10-21-storycraft-summary-revision-binding.md](../../implemented/pipeline/2026-10-21-storycraft-summary-revision-binding.md)：备份恢复 v3 库时走 v3→v4 迁移；摘要边界不变。
+- **补充 #18** [2026-10-19-storycraft-sqlite-store.md](../../implemented/pipeline/2026-10-19-storycraft-sqlite-store.md)：库版本与 manifest 版本文案改 v4；旧 v3 导出/备份边界不变。
 
 ### 3. API
 
@@ -84,7 +86,7 @@ B1 的素材已经一作品一库，作者导入的每一份素材天然属于�
 - **把 style 也送进 brief**：与固定文风段重复；否决。
 - **不升 schema，把 purpose 写进 JSON 元数据**：查询/过滤/迁移都变复杂；否决。
 
-## 验收条件
+## 后果
 
 产品验收在 #30；本 Note 检查技术性质：
 
@@ -104,3 +106,13 @@ B1 的素材已经一作品一库，作者导入的每一份素材天然属于�
 - 旧素材默认参考，作者会感觉“导入了却不进 brief”；README 要说明用途语义。
 - 用途是单值，不能一文多用；需要多用途时另立标签。
 - 导出 v4 改变外部消费者；本项按版本号显式升级。
+
+## 验证
+
+- `node storycraft/scripts/ci.mjs`：29 个单测文件 + 13 条 E2E 全过。
+- 迁移：v1/v2→v4、v3→v4（purpose 默认 reference）、坏表拒绝、失败回滚。
+- `material.test`：默认/显式用途、非法用途、空用途、重复导入保留原用途、列表筛选、searchMemory purposes、重命名/删除。
+- `bible.test`：brief 只取 setting/character/scene；reference 在候选层被排除（candidateCount 4）。
+- `export-backup.test`：manifest v4 带 purpose。
+- E2E：导入选用途、列表按用途筛选、行内改用途。
+- 真实 `雪线邮路`：v3→v4；setting 进 brief、reference 只进 context；删除后 0 行，副本已清理。

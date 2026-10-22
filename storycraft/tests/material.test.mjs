@@ -25,6 +25,7 @@ try {
   check('import returns public metadata', imported.duplicate === false && imported.material.title === '示例'
     && imported.material.format === 'md' && imported.material.bytes === Buffer.byteLength(body), JSON.stringify(imported))
   check('metadata has no content or origin', !JSON.stringify(imported).includes('旧井边') && !JSON.stringify(imported).includes('.storycraft'), JSON.stringify(imported))
+  check('material defaults to reference purpose', imported.material.purpose === 'reference', JSON.stringify(imported.material))
   const listed = await s.listMaterials(root, work)
   check('list returns the imported material', listed.length === 1 && listed[0].id === imported.material.id, JSON.stringify(listed))
   const files = await readdir(materialsDir(root))
@@ -48,8 +49,9 @@ try {
     && materialHit.text.includes('示例') && !materialHit.text.includes('.storycraft'),
   JSON.stringify(materialHit))
 
-  const duplicate = await s.importMaterial(root, work, { name: 'other.md', contentBase64: b64(body) })
-  check('duplicate returns the existing id', duplicate.duplicate === true && duplicate.material.id === imported.material.id, JSON.stringify(duplicate))
+  const duplicate = await s.importMaterial(root, work, { name: 'other.md', purpose: 'setting', contentBase64: b64(body) })
+  check('duplicate returns the existing id and purpose', duplicate.duplicate === true
+    && duplicate.material.id === imported.material.id && duplicate.material.purpose === 'reference', JSON.stringify(duplicate))
   check('duplicate adds no file', (await readdir(materialsDir(root))).length === 1)
   const raw = openWork(root, work)
   try {
@@ -58,6 +60,46 @@ try {
   } finally {
     raw.close()
   }
+
+  const purposed = await s.setMaterialPurpose(root, work, imported.material.id, 'scene')
+  check('purpose update is returned and filtered', purposed.purpose === 'scene'
+    && (await s.listMaterials(root, work, 'scene')).some(item => item.id === imported.material.id)
+    && (await s.listMaterials(root, work, 'setting')).length === 0, JSON.stringify(purposed))
+  let invalidPurpose
+  try {
+    await s.setMaterialPurpose(root, work, imported.material.id, 'notes')
+  } catch (error) {
+    invalidPurpose = error.code
+  }
+  check('invalid purpose is rejected', invalidPurpose === 'material-purpose-invalid', String(invalidPurpose))
+  let invalidImport
+  try {
+    await s.importMaterial(root, work, { name: 'bad-purpose.md', purpose: 'notes', contentBase64: b64('坏用途') })
+  } catch (error) {
+    invalidImport = error.code
+  }
+  check('invalid import purpose is rejected before writing', invalidImport === 'material-purpose-invalid'
+    && (await readdir(materialsDir(root))).length === 1, String(invalidImport))
+  check('invalid purpose did not change the row',
+    (await s.listMaterials(root, work, 'scene')).some(item => item.id === imported.material.id))
+  let emptyPurpose
+  try {
+    await s.setMaterialPurpose(root, work, imported.material.id, '')
+  } catch (error) {
+    emptyPurpose = error.code
+  }
+  check('empty purpose is invalid for updates', emptyPurpose === 'material-purpose-invalid', String(emptyPurpose))
+  let emptyFilter
+  try {
+    await s.listMaterials(root, work, '')
+  } catch (error) {
+    emptyFilter = error.code
+  }
+  check('empty purpose filter is invalid', emptyFilter === 'material-purpose-invalid', String(emptyFilter))
+  check('searchMemory purposes filter only materials',
+    s.searchMemory(root, work, '旧井边', { purposes: ['scene'] }).some(item => item.kind === 'material')
+    && s.searchMemory(root, work, '旧井边', { purposes: ['setting'] }).every(item => item.kind !== 'material')
+    && s.searchMemory(root, work, '旧井边', { purposes: [] }).every(item => item.kind !== 'material'))
 
   const renamed = await s.renameMaterial(root, work, imported.material.id, '新标题')
   check('rename changes only the title', renamed.title === '新标题' && renamed.id === imported.material.id, JSON.stringify(renamed))

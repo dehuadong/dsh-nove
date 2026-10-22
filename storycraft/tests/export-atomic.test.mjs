@@ -30,7 +30,7 @@ try {
   const first = await s.exportWorkAtomic(root, work)
   check('atomic export writes the target', first.directory === target && first.files > 0, JSON.stringify(first))
   const manifest = JSON.parse(await readFile(join(target, 'manifest.json'), 'utf8'))
-  check('atomic export writes manifest v3', manifest.schemaVersion === 3, JSON.stringify(manifest))
+  check('atomic export writes manifest v4', manifest.schemaVersion === 4, JSON.stringify(manifest))
   const firstBody = await readFile(join(target, 'chapters', 'ch-0001.md'), 'utf8')
   check('atomic export leaves no staging or backup',
     (await readdir(exportsDir(root))).filter(name => name.startsWith('.tmp-') || name.startsWith('.bak-')).length === 0)

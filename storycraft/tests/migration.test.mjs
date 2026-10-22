@@ -112,6 +112,30 @@ try {
     v2Opened.close()
   }
 
+  const v3 = await fixture(root, 'v3 素材迁移')
+  await s.importMaterial(root, v3, { name: '旧参考.md', contentBase64: Buffer.from('旧参考。', 'utf8').toString('base64') })
+  const v3Db = openDatabase(workFile(root, v3))
+  v3Db.exec('PRAGMA foreign_keys = OFF')
+  v3Db.exec(`CREATE TABLE materials_v3 (
+    id TEXT PRIMARY KEY, title TEXT NOT NULL, format TEXT NOT NULL, origin TEXT NOT NULL,
+    bytes INTEGER NOT NULL, hash TEXT NOT NULL, created_at TEXT NOT NULL, content TEXT NOT NULL
+  )`)
+  v3Db.exec(`INSERT INTO materials_v3 (id, title, format, origin, bytes, hash, created_at, content)
+    SELECT id, title, format, origin, bytes, hash, created_at, content FROM materials`)
+  v3Db.exec('DROP TABLE materials')
+  v3Db.exec('ALTER TABLE materials_v3 RENAME TO materials')
+  v3Db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_materials_hash ON materials(hash)')
+  v3Db.exec('PRAGMA user_version = 3')
+  v3Db.close()
+  const v3Opened = openWork(root, v3)
+  try {
+    check('v3 migration adds purpose and stamps v4', rawVersion(v3Opened) === WORK_SCHEMA_VERSION
+      && v3Opened.prepare('PRAGMA table_info(materials)').all().some(column => column.name === 'purpose')
+      && v3Opened.prepare('SELECT purpose FROM materials').get().purpose === 'reference')
+  } finally {
+    v3Opened.close()
+  }
+
   const bad = await fixture(root, '坏素材表')
   downgrade(root, bad, { dropRevision: false, dropMaterials: true })
   const badDb = openDatabase(workFile(root, bad))

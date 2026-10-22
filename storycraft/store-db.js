@@ -19,7 +19,7 @@ import {
   materialsDir, moveDatabaseFiles, openCatalog, openDatabase, openWork, removeDatabaseFiles, transaction,
   trashDir, trashFile, workFile, worksDir, backupsDir,
 } from './db.js'
-import { MATERIAL_TITLE_MAX, materialMetadata, prepareMaterial } from './materials.js'
+import { MATERIAL_PURPOSES, MATERIAL_TITLE_MAX, materialMetadata, normalizeMaterialPurpose, prepareMaterial } from './materials.js'
 import { snippetFor } from './retrieval.js'
 import {
   StoryError, SUMMARY_MAX_CHARS, WORK_FORMS, chapterNumber, chapterStem, contentVersion, countWords, foldEvents,
@@ -1912,9 +1912,9 @@ export function importMaterial(root, work, input) {
         const id = `mat-${prepared.hash.slice(0, 16)}`
         const at = now()
         try {
-          db.prepare(`INSERT INTO materials (id, title, format, origin, bytes, hash, created_at, content)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-            .run(id, prepared.title, prepared.format, copy.origin, prepared.bytes, prepared.hash, at, prepared.content)
+          db.prepare(`INSERT INTO materials (id, title, format, origin, bytes, hash, created_at, content, purpose)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+            .run(id, prepared.title, prepared.format, copy.origin, prepared.bytes, prepared.hash, at, prepared.content, prepared.purpose)
         } catch (error) {
           const raced = db.prepare('SELECT * FROM materials WHERE hash = ?').get(prepared.hash)
           if (raced !== undefined) {
@@ -1957,12 +1957,17 @@ export function importMaterial(root, work, input) {
  * List material metadata for one work.
  * @param {string} root - workspace directory.
  * @param {string} work - work identity.
+ * @param {string} [purpose] - optional purpose filter.
  * @returns {object[]} metadata rows.
  */
-export function listMaterials(root, work) {
+export function listMaterials(root, work, purpose) {
+  const clean = purpose === undefined ? undefined : normalizeMaterialPurpose(purpose)
   const db = openWork(root, work)
   try {
-    return db.prepare('SELECT * FROM materials ORDER BY created_at, id').all().map(materialMetadata)
+    const rows = clean === undefined
+      ? db.prepare('SELECT * FROM materials ORDER BY created_at, id').all()
+      : db.prepare('SELECT * FROM materials WHERE purpose = ? ORDER BY created_at, id').all(clean)
+    return rows.map(materialMetadata)
   } finally {
     db.close()
   }
@@ -1985,6 +1990,29 @@ export function renameMaterial(root, work, id, title) {
       if (row === undefined) throw new StoryError('material-not-found', `没有素材：${String(id)}`)
       db.prepare('UPDATE materials SET title = ? WHERE id = ?').run(clean, row.id)
       return materialMetadata({ ...row, title: clean })
+    })
+  } finally {
+    db.close()
+  }
+}
+
+/**
+ * Change one material purpose; content, hash, origin and index stay unchanged.
+ * @param {string} root - workspace directory.
+ * @param {string} work - work identity.
+ * @param {string} id - material id.
+ * @param {string} purpose - new purpose.
+ * @returns {object} updated metadata.
+ */
+export function setMaterialPurpose(root, work, id, purpose) {
+  const clean = normalizeMaterialPurpose(purpose)
+  const db = openWork(root, work)
+  try {
+    return transaction(db, () => {
+      const row = db.prepare('SELECT * FROM materials WHERE id = ?').get(String(id))
+      if (row === undefined) throw new StoryError('material-not-found', `没有素材：${String(id)}`)
+      db.prepare('UPDATE materials SET purpose = ? WHERE id = ?').run(clean, row.id)
+      return materialMetadata({ ...row, purpose: clean })
     })
   } finally {
     db.close()
@@ -2084,14 +2112,17 @@ export function searchMemory(root, work, query, options = {}) {
       beforeChapter,
       limit: 200,
     })
-    const materialTitles = new Map()
+    const materialRows = new Map()
     const materialIds = rows.filter(row => row.kind === 'material').map(row => row.id.slice('material:'.length))
     if (materialIds.length > 0) {
       const placeholders = materialIds.map(() => '?').join(', ')
-      for (const row of db.prepare(`SELECT id, title FROM materials WHERE id IN (${placeholders})`).all(...materialIds)) {
-        materialTitles.set(`material:${row.id}`, row.title)
+      for (const row of db.prepare(`SELECT id, title, purpose FROM materials WHERE id IN (${placeholders})`).all(...materialIds)) {
+        materialRows.set(`material:${row.id}`, row)
       }
     }
+    const purposeFilter = Array.isArray(options.purposes)
+      ? options.purposes.filter(purpose => MATERIAL_PURPOSES.includes(purpose))
+      : undefined
     const reopened = new Map(db.prepare("SELECT chapter, max(seq) AS seq FROM events WHERE kind = 'reopen' GROUP BY chapter")
       .all().map(row => [row.chapter, row.seq]))
     const hookStates = new Map()
@@ -2151,9 +2182,10 @@ export function searchMemory(root, work, query, options = {}) {
         continue
       }
       if (row.kind === 'material') {
-        const title = materialTitles.get(row.id)
-        if (typeof title !== 'string') continue
-        const titleExcerpt = [...title].slice(0, 60).join('')
+        const material = materialRows.get(row.id)
+        if (material === undefined) continue
+        if (purposeFilter !== undefined && !purposeFilter.includes(material.purpose)) continue
+        const titleExcerpt = [...material.title].slice(0, 60).join('')
         const excerpt = snippetFor(row.body, tokens, Math.max(80, 400 - [...titleExcerpt].length - 1))
         candidates.push({
           id: row.id,
@@ -2213,6 +2245,9 @@ function queryDocs(db, { match, kinds, beforeChapter, limit }) {
 // Export and backup
 // ---------------------------------------------------------------------------
 
+/** Export format version, independent of the work database schema version. */
+const EXPORT_SCHEMA_VERSION = 4
+
 /** Render the export manifest from the catalog row and the work database. */
 function exportManifest(root, workId, catalogRowValue, db) {
   const meta = metaOf(db)
@@ -2220,7 +2255,7 @@ function exportManifest(root, workId, catalogRowValue, db) {
   const summaryStates = summaryStateMap(db)
   const materials = db.prepare('SELECT * FROM materials ORDER BY created_at, id').all()
   return {
-    schemaVersion: 3,
+    schemaVersion: EXPORT_SCHEMA_VERSION,
     title: catalogRowValue.title,
     form: catalogRowValue.form,
     tags: catalogRowValue.tags === null ? [] : JSON.parse(catalogRowValue.tags),
@@ -2248,6 +2283,7 @@ function exportManifest(root, workId, catalogRowValue, db) {
       id: row.id,
       title: row.title,
       format: row.format,
+      purpose: row.purpose,
       bytes: row.bytes,
       hash: row.hash,
       origin: row.origin,

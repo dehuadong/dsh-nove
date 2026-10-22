@@ -15,6 +15,29 @@ export const MATERIAL_MAX_BYTES = 512 * 1024
 /** Maximum title length, in code points. */
 export const MATERIAL_TITLE_MAX = 200
 
+/** Material purposes; `reference` is the default for old imports. */
+export const MATERIAL_PURPOSES = ['setting', 'character', 'scene', 'style', 'reference']
+export const MATERIAL_PURPOSE_DEFAULT = 'reference'
+
+/**
+ * Validate one explicitly supplied material purpose; empty is invalid.
+ * @param {unknown} value - proposed purpose.
+ * @returns {string} one of MATERIAL_PURPOSES.
+ */
+export function normalizeMaterialPurpose(value) {
+  const purpose = String(value ?? '').trim()
+  if (!MATERIAL_PURPOSES.includes(purpose)) {
+    throw new StoryError('material-purpose-invalid', `素材用途必须是 ${MATERIAL_PURPOSES.join(' / ')}`)
+  }
+  return purpose
+}
+
+/** Import default: absent/empty becomes reference. */
+export function materialPurposeOrDefault(value) {
+  const purpose = String(value ?? '').trim()
+  return purpose === '' ? MATERIAL_PURPOSE_DEFAULT : normalizeMaterialPurpose(purpose)
+}
+
 const WINDOWS_RESERVED = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu
 const UNSAFE_NAME = /[\u0000-\u001f<>:"/\\|?*]/u
 
@@ -96,6 +119,7 @@ export function prepareMaterial(input) {
     format,
     title,
     fileName,
+    purpose: materialPurposeOrDefault(input?.purpose),
   }
 }
 
@@ -109,6 +133,7 @@ export function materialMetadata(row) {
     id: row.id,
     title: row.title,
     format: row.format,
+    purpose: row.purpose,
     bytes: row.bytes,
     hashPrefix: String(row.hash).slice(0, 12),
     createdAt: row.created_at,

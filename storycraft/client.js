@@ -24,9 +24,14 @@ window.__ModuleLoader__.load({
       materialImport: '/api/dsh-storycraft/materials/import',
       materialRename: '/api/dsh-storycraft/materials/rename',
       materialDelete: '/api/dsh-storycraft/materials/delete',
+      materialPurpose: '/api/dsh-storycraft/materials/purpose',
       exportWork: '/api/dsh-storycraft/export',
       exports: '/api/dsh-storycraft/exports',
       backups: '/api/dsh-storycraft/backups',
+    }
+
+    const MATERIAL_PURPOSE_LABELS = {
+      setting: '设定', character: '人物', scene: '场景', style: '文风', reference: '参考',
     }
 
     /** How long one Host answer may take before the page stops waiting. */
@@ -318,11 +323,16 @@ window.__ModuleLoader__.load({
         review: (root, id, chapter) => route(ROUTE.review, { root, id, chapter }),
         bible: (root, id) => route(ROUTE.bible, { root, id }),
         brief: (root, id, chapter) => route(ROUTE.brief, { root, id, chapter }),
-        materials: (root, workId) => route(ROUTE.materials, { root, workId }, { cache: 'no-store' }),
-        importMaterial: (root, sessionId, workId, name, contentBase64, title) => post(ROUTE.materialImport, {
-          root, sessionId, workId, name, contentBase64, ...(title === undefined ? {} : { title }),
+        materials: (root, workId, purpose) => route(ROUTE.materials, {
+          root, workId, ...(purpose === undefined ? {} : { purpose }),
+        }, { cache: 'no-store' }),
+        importMaterial: (root, sessionId, workId, name, contentBase64, title, purpose) => post(ROUTE.materialImport, {
+          root, sessionId, workId, name, contentBase64,
+          ...(title === undefined ? {} : { title }),
+          ...(purpose === undefined ? {} : { purpose }),
         }),
         renameMaterial: (root, sessionId, workId, id, title) => post(ROUTE.materialRename, { root, sessionId, workId, id, title }),
+        setMaterialPurpose: (root, sessionId, workId, id, purpose) => post(ROUTE.materialPurpose, { root, sessionId, workId, id, purpose }),
         deleteMaterial: (root, sessionId, workId, id) => post(ROUTE.materialDelete, { root, sessionId, workId, id }),
         exportWork: (root, sessionId, workId) => post(ROUTE.exportWork, { root, sessionId, workId }),
         exports: (root, id) => route(ROUTE.exports, { root, id }),
@@ -872,6 +882,8 @@ window.__ModuleLoader__.load({
       const [materialBusy, setMaterialBusy] = useState(false)
       const [materialError, setMaterialError] = useState(undefined)
       const [materialEditing, setMaterialEditing] = useState(undefined)
+      const [materialPurpose, setMaterialPurpose] = useState('reference')
+      const [materialFilter, setMaterialFilter] = useState('all')
       const [briefChapter, setBriefChapter] = useState(1)
       const materialFileRef = useRef(null)
       const materialTitleInputRef = useRef(null)
@@ -950,13 +962,13 @@ window.__ModuleLoader__.load({
 
       const loadMaterials = useCallback(async () => {
         try {
-          const payload = await face.materials(root, workId)
+          const payload = await face.materials(root, workId, materialFilter === 'all' ? undefined : materialFilter)
           setMaterials(payload.materials ?? [])
           setMaterialError(undefined)
         } catch (error) {
           setMaterialError(error instanceof Error ? error.message : String(error))
         }
-      }, [face, root, workId])
+      }, [face, root, workId, materialFilter])
 
       useEffect(() => { void loadMaterials() }, [loadMaterials])
 
@@ -972,7 +984,21 @@ window.__ModuleLoader__.load({
           for (let index = 0; index < bytes.length; index += 0x8000) {
             binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000))
           }
-          await face.importMaterial(root, sessionId, workId, file.name, btoa(binary))
+          await face.importMaterial(root, sessionId, workId, file.name, btoa(binary), undefined, materialPurpose)
+          await loadMaterials()
+        } catch (error) {
+          setMaterialError(error instanceof Error ? error.message : String(error))
+        } finally {
+          setMaterialBusy(false)
+        }
+      }
+
+      const changeMaterialPurpose = async (material, purpose) => {
+        if (sessionId === undefined) return
+        setMaterialBusy(true)
+        setMaterialError(undefined)
+        try {
+          await face.setMaterialPurpose(root, sessionId, workId, material.id, purpose)
           await loadMaterials()
         } catch (error) {
           setMaterialError(error instanceof Error ? error.message : String(error))
@@ -1469,6 +1495,13 @@ window.__ModuleLoader__.load({
               disabled: materialBusy || sessionId === undefined,
               onClick: () => materialFileRef.current?.click(),
             }, materialBusy ? '处理中…' : '导入素材'),
+            h('select', {
+              className: 'sc-input',
+              'aria-label': '导入素材用途',
+              value: materialPurpose,
+              disabled: materialBusy,
+              onChange: event => setMaterialPurpose(event.target.value),
+            }, ...Object.entries(MATERIAL_PURPOSE_LABELS).map(([value, label]) => h('option', { value }, label))),
             h('input', {
               type: 'file',
               accept: '.txt,.md',
@@ -1478,6 +1511,13 @@ window.__ModuleLoader__.load({
               onChange: event => { void importMaterialFile(event) },
             }),
             h('span', { className: 'sc-muted' }, `素材库：${materials.length} 份`),
+            h('select', {
+              className: 'sc-input',
+              'aria-label': '按用途筛选素材',
+              value: materialFilter,
+              onChange: event => setMaterialFilter(event.target.value),
+            }, h('option', { value: 'all' }, '全部用途'),
+            ...Object.entries(MATERIAL_PURPOSE_LABELS).map(([value, label]) => h('option', { value }, label))),
           ),
           materialError === undefined
             ? null
@@ -1488,6 +1528,13 @@ window.__ModuleLoader__.load({
               h('div', { className: 'sc-item-head' },
                 h('span', { className: 'sc-item-name' }, material.title),
                 h('span', { className: 'sc-badge' }, material.format),
+                h('select', {
+                  className: 'sc-input',
+                  'aria-label': `素材「${material.title}」的用途`,
+                  value: material.purpose ?? 'reference',
+                  disabled: materialBusy,
+                  onChange: event => { void changeMaterialPurpose(material, event.target.value) },
+                }, ...Object.entries(MATERIAL_PURPOSE_LABELS).map(([value, label]) => h('option', { value }, label))),
                 h('span', { className: 'sc-badge' }, `${material.bytes} B`),
                 h('span', { className: 'sc-item-id' }, `${material.id} · ${String(material.createdAt ?? '').replace('T', ' ').slice(0, 16)}`),
                 materialEditing?.id === material.id

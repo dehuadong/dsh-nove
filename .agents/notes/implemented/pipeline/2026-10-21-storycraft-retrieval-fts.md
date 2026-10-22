@@ -8,6 +8,8 @@ verification: f491ed6；27 个单测 + 11 条 E2E；真实第 4 章 `story_conte
 
 # Agent Note：故事工坊：基于作品库 FTS5 的上下文检索
 
+> 2026-10-22 补充（#30 B3）：searchMemory 增加 purposes，material 候选可按用途过滤；其他 kind/预算不变。
+
 > 2026-10-22 已修订（#28 B2）：`searchMemory` 增加 material（§1 语料表/kind 列表）；`select` 改为“扫全候选 + 每类上限 2 + hits=前10∪sent（≤15）”（§3/§4）；`retrieval.test` 已同步。
 
 ## 问题

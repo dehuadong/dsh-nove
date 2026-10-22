@@ -65,6 +65,7 @@ try {
   for (let index = 0; index < 3; index += 1) {
     await store.importMaterial(root, work, {
       name: `perf-${index}.md`,
+      purpose: 'setting',
       contentBase64: (index === 0 ? big : Buffer.from(`专属素材词 第${index}份`, 'utf8')).toString('base64'),
     })
   }

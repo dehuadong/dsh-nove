@@ -53,7 +53,7 @@ try {
   const proposal = store.createProposal(root, { title: '提案一', premise: '一句话' })
   store.markProposalUsed(root, proposal.id, work)
   const material = await store.importMaterial(root, work, {
-    name: '参考.md', contentBase64: Buffer.from('作者的参考资料。', 'utf8').toString('base64'),
+    name: '参考.md', purpose: 'setting', contentBase64: Buffer.from('作者的参考资料。', 'utf8').toString('base64'),
   })
 
   const defaulted = store.exportWork(root, work)
@@ -64,10 +64,10 @@ try {
   check('export manifest is the export copy', manifest.title === '导出测试' && manifest.wordRange?.min === 100
     && manifest.planApproval === 'required' && manifest.tags[0] === '短', JSON.stringify(manifest))
   check('manifest carries the settled chapter', manifest.chapters[0].stage === 'settled' && manifest.chapters[0].currentRevision === 2)
-  check('manifest v3 carries the summary binding and materials',
-    manifest.schemaVersion === 3 && manifest.chapters[0].summaryRevision === 2
+  check('manifest v4 carries the summary binding, material purpose and hash',
+    manifest.schemaVersion === 4 && manifest.chapters[0].summaryRevision === 2
     && manifest.chapters[0].summaryStale === false
-    && manifest.materials.some(item => item.id === material.material.id && item.hash.length === 64),
+    && manifest.materials.some(item => item.id === material.material.id && item.hash.length === 64 && item.purpose === 'setting'),
     JSON.stringify({ chapter: manifest.chapters[0], materials: manifest.materials }))
   const materialFile = await readFile(join(first.directory, 'materials', `${material.material.id}.md`), 'utf8')
   check('export carries the material content', materialFile === '作者的参考资料。', materialFile)

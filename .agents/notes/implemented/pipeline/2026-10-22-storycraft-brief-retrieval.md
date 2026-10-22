@@ -8,6 +8,8 @@ verification: 4e5396b；29 单测 + 13 E2E；真实雪线邮路第 4 章 brief �
 
 # Agent Note：故事工坊：写前装配接入素材检索
 
+> 2026-10-22 部分修订（#30 B3）：story_brief 只取 setting/character/scene 素材；3 条/1200/8KB/位置/裁剪规则不变。
+
 ## 问题
 
 > 与 A7 的关系：本文部分替代 `implemented/pipeline/2026-10-17-storycraft-bible-and-brief.md` 的“固定段”描述；A7 的 9 段结构不变（`BRIEF_SECTION_ORDER` 当前只有 7 项，交付时补全 recent/volume/retrieval），只在末尾追加可选 material 段。

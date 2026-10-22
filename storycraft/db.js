@@ -29,10 +29,10 @@ export const STORE_DIR = '.storycraft'
 export const CATALOG_SCHEMA_VERSION = 1
 
 /** Schema version of one work database. */
-export const WORK_SCHEMA_VERSION = 3
+export const WORK_SCHEMA_VERSION = 4
 
-/** Material table; shared by new databases and the v2→v3 step. */
-const MATERIALS_SCHEMA = `
+/** Material table without purpose, created by the v2→v3 step. */
+const MATERIALS_SCHEMA_V3 = `
 CREATE TABLE IF NOT EXISTS materials (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
@@ -42,6 +42,22 @@ CREATE TABLE IF NOT EXISTS materials (
   hash TEXT NOT NULL,
   created_at TEXT NOT NULL,
   content TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_materials_hash ON materials(hash);
+`
+
+/** Final material table with purpose, used by new databases and v3→v4. */
+const MATERIALS_SCHEMA_V4 = `
+CREATE TABLE IF NOT EXISTS materials (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  format TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  bytes INTEGER NOT NULL,
+  hash TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  content TEXT NOT NULL,
+  purpose TEXT NOT NULL DEFAULT 'reference' CHECK (purpose IN ('setting','character','scene','style','reference'))
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_materials_hash ON materials(hash);
 `
@@ -169,7 +185,7 @@ CREATE TABLE IF NOT EXISTS bible (
   updated_at TEXT NOT NULL
 );
 
-${MATERIALS_SCHEMA}
+${MATERIALS_SCHEMA_V4}
 
 CREATE TABLE IF NOT EXISTS search_docs (
   doc_id TEXT PRIMARY KEY,
@@ -351,7 +367,7 @@ export function openWork(root, workId) {
   const db = openDatabase(file)
   try {
     const version = userVersion(db)
-    if (version === 1 || version === 2) {
+    if (version === 1 || version === 2 || version === 3) {
       try {
         migrateWorkSchema(db)
       } catch (error) {
@@ -371,21 +387,22 @@ export function openWork(root, workId) {
   return db
 }
 
-/** Column names declared by the shared material table fragment. */
-const MATERIAL_COLUMNS = [...MATERIALS_SCHEMA.matchAll(/^\s{2}([a-z_]+)\s/gmu)].map(match => match[1])
+/** Column names declared by each material table shape. */
+const MATERIAL_COLUMNS_V3 = [...MATERIALS_SCHEMA_V3.matchAll(/^\s{2}([a-z_]+)\s/gmu)].map(match => match[1])
+const MATERIAL_COLUMNS_V4 = [...MATERIALS_SCHEMA_V4.matchAll(/^\s{2}([a-z_]+)\s/gmu)].map(match => match[1])
 
 /**
- * Upgrade a v1/v2 work database in place. Idempotent: a concurrent opener that
+ * Upgrade a v1–v3 work database in place. Idempotent: a concurrent opener that
  * already committed the current version is a no-op, and existing columns are
  * reused only when their shape still matches the shared schema.
- * @param {import('node:sqlite').DatabaseSync} db - open v1/v2 work database.
+ * @param {import('node:sqlite').DatabaseSync} db - open v1–v3 work database.
  */
 function migrateWorkSchema(db) {
   transaction(db, () => {
     let version = userVersion(db)
     if (version === WORK_SCHEMA_VERSION) return
-    if (version !== 1 && version !== 2) {
-      throw new StoryError('schema-version-mismatch', '只支持从 v1/v2 升级作品库')
+    if (version !== 1 && version !== 2 && version !== 3) {
+      throw new StoryError('schema-version-mismatch', '只支持从 v1–v3 升级作品库')
     }
     if (version === 1) {
       const columns = db.prepare('PRAGMA table_info(summaries)').all()
@@ -400,11 +417,23 @@ function migrateWorkSchema(db) {
       db.exec('PRAGMA user_version = 2')
     }
     if (version === 2) {
-      const columns = db.prepare('PRAGMA table_info(materials)').all()
-      if (columns.length > 0 && columns.map(column => column.name).join(',') !== MATERIAL_COLUMNS.join(',')) {
+      const columns = db.prepare('PRAGMA table_info(materials)').all().map(column => column.name)
+      if (columns.length > 0
+        && columns.join(',') !== MATERIAL_COLUMNS_V3.join(',')
+        && columns.join(',') !== MATERIAL_COLUMNS_V4.join(',')) {
         throw new StoryError('schema-migration-failed', 'materials 表已存在但列不匹配，拒绝复用')
       }
-      db.exec(MATERIALS_SCHEMA)
+      db.exec(MATERIALS_SCHEMA_V3)
+      version = 3
+      db.exec('PRAGMA user_version = 3')
+    }
+    if (version === 3) {
+      const columns = db.prepare('PRAGMA table_info(materials)').all().map(column => column.name)
+      if (columns.length === 0) db.exec(MATERIALS_SCHEMA_V4)
+      else if (!columns.includes('purpose')) db.exec('ALTER TABLE materials ADD COLUMN purpose TEXT NOT NULL DEFAULT \'reference\' CHECK (purpose IN (\'setting\',\'character\',\'scene\',\'style\',\'reference\'))')
+      else if (columns.join(',') !== MATERIAL_COLUMNS_V4.join(',')) {
+        throw new StoryError('schema-migration-failed', 'materials 表列不匹配 v4，拒绝复用')
+      }
       db.exec(`PRAGMA user_version = ${WORK_SCHEMA_VERSION}`)
     }
   })

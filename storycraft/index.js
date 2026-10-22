@@ -13,7 +13,7 @@
 
 import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, resolve } from 'node:path'
-import { approveChapterPlan, approveOutline, deleteMaterial, ensureReconciled, exportWorkAtomic, importMaterial, listMaterials, listTrash, listWorks, nextStep, readManifest, readChapter, readReview, readWork, renameMaterial, status as readStatus, StoryError } from './storage.js'
+import { approveChapterPlan, approveOutline, deleteMaterial, ensureReconciled, exportWorkAtomic, importMaterial, listMaterials, listTrash, listWorks, nextStep, readManifest, readChapter, readReview, readWork, renameMaterial, setMaterialPurpose, status as readStatus, StoryError } from './storage.js'
 import { critique } from './critique.js'
 import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent } from './current.js'
 import { readVolumes } from './volumes.js'
@@ -361,7 +361,8 @@ export function apply(ctx) {
       handler: (req, res) => readRoute(req, res, async (query) => {
         const root = await rootOf(ctx, query)
         const workId = query.get('workId') ?? workOf(query)
-        return { materials: await listMaterials(root, workId) }
+        const purpose = query.get('purpose') ?? undefined
+        return { materials: await listMaterials(root, workId, purpose) }
       }),
     }),
     ctx.webServer.register({
@@ -376,6 +377,7 @@ export function apply(ctx) {
             name,
             contentBase64,
             ...(typeof body?.title === 'string' ? { title: body.title } : {}),
+            ...(body?.purpose === undefined ? {} : { purpose: body.purpose }),
           })
         }, { maxBytes: 1024 * 1024, requireJson: true })
       },
@@ -387,6 +389,17 @@ export function apply(ctx) {
         void postRoute(req, res, async (body) => {
           const { root, workId } = await writeWorkTarget(body)
           const material = await renameMaterial(root, workId, String(body?.id ?? ''), String(body?.title ?? ''))
+          return { material }
+        }, { maxBytes: 32 * 1024, requireJson: true })
+      },
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/materials/purpose`,
+      handler: (req, res) => {
+        void postRoute(req, res, async (body) => {
+          const { root, workId } = await writeWorkTarget(body)
+          const material = await setMaterialPurpose(root, workId, String(body?.id ?? ''), String(body?.purpose ?? ''))
           return { material }
         }, { maxBytes: 32 * 1024, requireJson: true })
       },

@@ -112,22 +112,32 @@ try {
   const material = await s.importMaterial(root, b4, {
     name: '旧井参考.md',
     title: '旧井参考',
+    purpose: 'setting',
     contentBase64: Buffer.from('旧井边的作者参考资料。'.repeat(30), 'utf8').toString('base64'),
   })
   const extraOne = await s.importMaterial(root, b4, {
     name: '旧井参考二.md',
     title: '旧井参考二',
+    purpose: 'scene',
     contentBase64: Buffer.from('旧井边的第二份资料。', 'utf8').toString('base64'),
   })
   const extraTwo = await s.importMaterial(root, b4, {
     name: '旧井参考三.md',
     title: '旧井参考三',
+    purpose: 'character',
     contentBase64: Buffer.from('旧井边的第三份资料。', 'utf8').toString('base64'),
   })
   const extraThree = await s.importMaterial(root, b4, {
     name: '旧井参考四.md',
     title: '旧井参考四',
+    purpose: 'setting',
     contentBase64: Buffer.from('旧井边的第四份资料。', 'utf8').toString('base64'),
+  })
+  const referenceMaterial = await s.importMaterial(root, b4, {
+    name: '旧井参考五.md',
+    title: '旧井参考五',
+    purpose: 'reference',
+    contentBase64: Buffer.from('旧井边的第五份参考资料。', 'utf8').toString('base64'),
   })
   const withMaterial = await b.assembleBrief(root, b4, 3)
   const retrievalSection = withMaterial.sections.find(section => section.name === 'retrieval')
@@ -140,8 +150,10 @@ try {
     && retrievalSection.source === undefined && !retrievalSection.content.includes('.storycraft'), JSON.stringify(retrievalSection))
   check('brief retrieval stays bounded', withMaterial.retrieval.chars <= 1200 && withMaterial.budget.used <= 8192,
     JSON.stringify({ chars: withMaterial.retrieval.chars, budget: withMaterial.budget }))
-  check('brief retrieval sends exactly three of four materials', withMaterial.retrieval.hits.filter(hit => hit.sent).length === 3,
+  check('brief retrieval sends exactly three of four eligible materials', withMaterial.retrieval.hits.filter(hit => hit.sent).length === 3,
     JSON.stringify(withMaterial.retrieval.hits))
+  check('brief excludes reference material before selection', !withMaterial.retrieval.hits.some(hit => hit.id === `material:${referenceMaterial.material.id}`)
+    && withMaterial.retrieval.candidateCount === 4, JSON.stringify(withMaterial.retrieval))
   const delta = JSON.stringify(withMaterial).length - JSON.stringify(baseline).length
   check('brief retrieval is deterministic and adds bounded bytes', JSON.stringify(withMaterial) === JSON.stringify(await b.assembleBrief(root, b4, 3))
     && delta > 0 && delta < 4096, `${JSON.stringify(baseline).length}->${JSON.stringify(withMaterial).length}`)
@@ -159,7 +171,7 @@ try {
     && trimmedB4.retrieval.hits.every(hit => hit.sent === false), JSON.stringify(trimmedB4.dropped))
   await b.writeBible(root, b4, 'style', '# 文风\n\n短句。\n')
 
-  for (const item of [material, extraOne, extraTwo, extraThree]) await s.deleteMaterial(root, b4, item.material.id)
+  for (const item of [material, extraOne, extraTwo, extraThree, referenceMaterial]) await s.deleteMaterial(root, b4, item.material.id)
   const deleted = await b.assembleBrief(root, b4, 3)
   check('deleted material disappears from the brief', !deleted.sections.some(section => section.name === 'retrieval')
     && deleted.retrieval.candidateCount === 0, JSON.stringify(deleted.retrieval))

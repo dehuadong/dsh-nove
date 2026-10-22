@@ -330,7 +330,10 @@ export async function assembleBrief(root, workId, chapter, dependencies = {}) {
   let retrieval = { enabled: false, query: '', candidateCount: 0, chars: 0, hits: [] }
   if (query.trim() !== '') {
     try {
-      const candidates = retrieve(root, work, query, { kinds: ['material'] })
+      const candidates = retrieve(root, work, query, {
+        kinds: ['material'],
+        purposes: ['setting', 'character', 'scene'],
+      })
       const picked = select(candidates, { limit: 3, budget: 1200, perKindLimit: 3 })
       retrieval = {
         enabled: true,
