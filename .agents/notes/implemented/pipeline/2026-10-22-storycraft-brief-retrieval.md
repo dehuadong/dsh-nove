@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：写前装配接入素材检索
-status: proposed
+status: implemented
 created: 2026-10-22
 updated: 2026-10-22
+verification: 4e5396b；29 单测 + 13 E2E；真实雪线邮路第 4 章 brief 素材段 198 字/预算 8150，删除后消失
 ---
 
 # Agent Note：故事工坊：写前装配接入素材检索
@@ -15,7 +16,7 @@ B2 已让素材进入 `story_context`，但写正文前的 `story_brief` 仍是�
 
 `story_brief` 已经覆盖全部未解伏笔、卷摘要与最近摘要；把 B2 的全部 kind 再灌一遍会重复并挤占 8 KB。因此本项只补**素材**。
 
-## 提案
+## 决定
 
 ### 1. 段
 
@@ -63,7 +64,7 @@ B2 已让素材进入 `story_context`，但写正文前的 `story_brief` 仍是�
 - **检索失败让 brief 报错**：写前装配应可降级；否决，fail-open。
 - **section source 用 materials/ 目录**：`sourceIdsOf` 没有目录分支，会得到空 ID；否决，直接用 hits 的 ID。
 
-## 验收条件
+## 后果
 
 产品验收在 #29；本 Note 检查技术性质：
 
@@ -80,3 +81,12 @@ B2 已让素材进入 `story_context`，但写正文前的 `story_brief` 仍是�
 - 素材片段可能截断句子；沿用 B2 的省略号行为。
 - 查询只用章纲/伏笔，作者额外意图若没写进章纲可能不命中。
 - 素材占 8KB 预算时会被先丢；这是“补充段”的优先级取舍。
+
+## 验证
+
+- `node storycraft/scripts/ci.mjs`：29 个单测文件 + 13 条 E2E 全过。
+- `bible.test`：4 条素材只发 3 条、无命中不 push、空 query 关闭、fail-open、删除后消失、预算丢弃 `sent:false`、determinism、序列化增量有界。
+- `tools.test`：`story_brief` 回执带 `retrieval`，schema 允许该字段。
+- `material.test`：`searchMemory.kinds` 只取 material；空/未知 kind 返回空。
+- `store-perf.test`：200 章 + 512KB 素材，完整 `assembleBrief` <400ms。
+- 真实 `雪线邮路` 第 4 章：素材段 198 字、`budget.used 8150`、`sourceIds:['material:…']`、无路径；删除后段消失；副本已清理。
