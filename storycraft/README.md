@@ -133,8 +133,8 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 侧栏入口「故事工坊」打开一个面板：
 
 - 左侧：当前工作区的作品列表（标题、形态、已写/总章数、最新章号、最近更新时间、未处理问题数）；底部显示当前工作区路径与是否有可下发指令的会话。
-- 右侧：作品详情——header 有「抽取文风」「导出」「导出目录」，章节列表（状态、有无章纲、版本、字数、未处理问题）→ 章节点开后可切「正文 / 章纲」两视图、看审稿清单；「写第 N 章」「审稿」「按清单修订」「定稿」把固定指令投递给当前会话。
-- 「真值」与「写前上下文」：真值列出五件的路径、版本与内容，world/characters/style/intent 可就地编辑保存（plan 仍走全书计划确认）；写前上下文只读，按章显示装配结果、字节占用、被裁项与草稿标记。
+- 右侧：作品详情——顶部作品栏 + 四个标签「章节 / 真值 / 素材 / 导出」；章节列表倒序、20 章/页，可翻页，选中旧章自动跳页；章节行可「前移/后移」；章节点开后可切「正文 / 章纲」两视图、看审稿清单。
+- 「真值」：五张中文卡片（世界观/人物档案/文风基准/全书计划/作者意图），world/characters/style/intent 用右侧抽屉编辑保存，plan 只读；写前上下文在真值页底部，只读显示装配结果、字节占用、被裁项与草稿标记。
 
 `style` 真值里的 `<!-- storycraft:style-samples:start -->` / `<!-- storycraft:style-samples:end -->` 是「抽取文风」的受管区块：重新抽取会替换整块，作者不要把保留标记写进正文；块外文字保留。若 style 编辑器里有未保存内容，重新抽取会覆盖它；先保存或取消。
 
@@ -219,7 +219,7 @@ storycraft/
   Get-ChildItem storycraft/tests -Filter *.test.mjs | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { exit 1 } }
   ```
 
-- 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑 17 条页面 spec（工作台 15 + 预设 2）——侧栏入口、页面读数、作者确认、摘要徽标、素材导入/重命名/删除、面板导出、章节上移/删除、文风样例、真值编辑、指令门禁、预设声明与刷新。不调用模型，零额度；需要本机装有 Playwright（可用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装它的目录）。
+- 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑 19 条页面 spec（工作台 17 + 预设 2）——侧栏入口、页面读数、作者确认、摘要徽标、素材导入/重命名/删除、面板导出、章节倒序分页/前移后移、文风样例、真值抽屉、指令门禁、预设声明与刷新。不调用模型，零额度；需要本机装有 Playwright（可用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装它的目录）。
 - 端到端验收、评审与证据记录在 issue `dehuadong/dsh-nove#18`。
 
 ## 改动与生效

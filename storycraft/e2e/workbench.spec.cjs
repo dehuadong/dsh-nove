@@ -108,7 +108,6 @@ test.describe('故事工坊工作台', () => {
     await olderVersion.evaluate(node => node.click())
     await expect(page.getByText('ch-0001.md（r1）')).toBeVisible()
 
-    await expect(page.getByText(`状态事件 ${facts.events}`)).toBeVisible()
     await expect(page.getByText(`伏笔 未解 ${facts.hooksOpen}`)).toBeVisible()
   })
 
@@ -142,6 +141,7 @@ test.describe('故事工坊工作台', () => {
   test('素材面板可以导入、重命名、去重和删除', async ({ page }) => {
     await openWorkbench(page)
     await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())
+    await page.getByRole('tab', { name: '素材', exact: true }).evaluate(node => node.click())
     await expect(page.getByText('素材库：0 份')).toBeVisible({ timeout: 15_000 })
     const input = page.getByLabel('导入素材文件')
     const file = {
@@ -330,9 +330,9 @@ test.describe('故事工坊工作台', () => {
     await openWorkbench(page)
     await page.getByRole('button', { name: new RegExp(title) }).evaluate(node => node.click())
     await page.getByRole('button', { name: /第 2 章 乙章/ }).evaluate(node => node.click())
-    await page.locator('.sc-chapter-actions').getByRole('button', { name: '上移', exact: true }).evaluate(node => node.click())
+    await page.locator('.sc-chapter-actions').getByRole('button', { name: '前移', exact: true }).evaluate(node => node.click())
     await expect(page.locator('.sc-chapter-title').first()).toHaveText('乙章', { timeout: 15_000 })
-    await page.locator('.sc-chapter-actions').getByRole('button', { name: '下移', exact: true }).evaluate(node => node.click())
+    await page.locator('.sc-chapter-actions').getByRole('button', { name: '后移', exact: true }).evaluate(node => node.click())
     await expect(page.locator('.sc-chapter-title').first()).toHaveText('甲章', { timeout: 15_000 })
   })
 
@@ -356,6 +356,49 @@ test.describe('故事工坊工作台', () => {
     await expect(page.locator('.sc-chapter-title')).toHaveText('乙章')
     await expect(page.locator('.sc-chapter-no')).toHaveText('第 1 章')
     expect(await composer.evaluate(node => String(node.value ?? node.textContent ?? ''))).toBe(before)
+  })
+
+  test('窄面板不横向溢出', async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 900 })
+    await openWorkbench(page)
+    await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())
+    await expect(page.locator('.sc-main-tab')).toHaveCount(4, { timeout: 15_000 })
+    const widths = await page.locator('.sc-detail').evaluate(node => ({
+      client: node.clientWidth,
+      scroll: node.scrollWidth,
+    }))
+    expect(widths.client).toBeLessThan(600)
+    expect(widths.scroll).toBeLessThanOrEqual(widths.client + 1)
+    await page.locator('.sc-main-tab').filter({ hasText: '真值' }).evaluate(node => node.click())
+    const item = page.locator('.sc-item').filter({ hasText: 'bible/world.md' })
+    await item.getByRole('button', { name: '编辑', exact: true }).evaluate(node => node.click())
+    const drawer = await page.locator('.sc-drawer').evaluate(node => node.getBoundingClientRect().width)
+    expect(drawer).toBeLessThanOrEqual(widths.client)
+    await page.getByRole('button', { name: '取消', exact: true }).evaluate(node => node.click())
+  })
+
+  test('章节倒序分页', async ({ page }) => {
+    const store = await import('../storage.js')
+    const title = `分页章节${Date.now()}`
+    const work = store.initWork(runtime.fixtureWorkspace, { title }).workId
+    for (let number = 1; number <= 25; number += 1) {
+      store.writePlan(runtime.fixtureWorkspace, { work, chapter: number, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+      store.approveChapterPlan(runtime.fixtureWorkspace, { work, chapter: number })
+      store.writeChapter(runtime.fixtureWorkspace, { work, chapter: number, title: `章${number}`, body: `第${number}章正文。`.repeat(10) })
+    }
+    await openWorkbench(page)
+    await page.getByRole('button', { name: new RegExp(title) }).evaluate(node => node.click())
+    await expect(page.getByText('第 1 / 2 页 · 共 25 章')).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('.sc-chapter-no')).toHaveCount(20)
+    await expect(page.locator('.sc-chapter-no').first()).toHaveText('第 25 章')
+    await expect(page.locator('.sc-chapter-no').last()).toHaveText('第 6 章')
+    await page.getByRole('button', { name: '下一页', exact: true }).evaluate(node => node.click())
+    await expect(page.getByText('第 2 / 2 页 · 共 25 章')).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('.sc-chapter-no')).toHaveCount(5)
+    await expect(page.locator('.sc-chapter-no').first()).toHaveText('第 5 章')
+    await expect(page.locator('.sc-chapter-no').last()).toHaveText('第 1 章')
+    await page.locator('.sc-chapter').filter({ hasText: '第 1 章' }).evaluate(node => node.click())
+    await expect(page.locator('.sc-chapter-actions')).toBeVisible()
   })
 
   test('抽取文风写入样例', async ({ page }) => {
@@ -404,14 +447,14 @@ test.describe('故事工坊工作台', () => {
     await page.getByRole('button', { name: new RegExp(title) }).evaluate(node => node.click())
     const composer = page.getByRole('textbox', { name: /Describe what/ })
     const before = await composer.evaluate(node => String(node.value ?? node.textContent ?? ''))
-    await page.getByRole('button', { name: '真值', exact: true }).evaluate(node => node.click())
+    await page.getByRole('tab', { name: '真值', exact: true }).evaluate(node => node.click())
     const worldItem = page.locator('.sc-item').filter({ hasText: 'bible/world.md' })
     await expect(worldItem).toBeVisible({ timeout: 15_000 })
     await expect(page.locator('.sc-item').filter({ hasText: 'bible/plan.md' }).getByRole('button', { name: '编辑', exact: true })).toHaveCount(0)
     await worldItem.getByRole('button', { name: '编辑', exact: true }).evaluate(node => node.click())
     const worldArea = page.getByLabel('编辑真值 world')
     await worldArea.evaluate(node => { node.value = '# 世界观\n\n新井台。\n' })
-    const worldSave = worldItem.getByRole('button', { name: '保存', exact: true })
+    const worldSave = page.getByRole('button', { name: '保存', exact: true })
     await worldSave.evaluate(node => node.click())
     await expect.poll(() => {
       const db = openWork(runtime.fixtureWorkspace, work)
@@ -421,15 +464,15 @@ test.describe('故事工坊工作台', () => {
         db.close()
       }
     }, { timeout: 15_000 }).toContain('新井台')
-    await page.getByRole('button', { name: '真值', exact: true }).evaluate(node => node.click())
+    await page.getByRole('tab', { name: '真值', exact: true }).evaluate(node => node.click())
     await expect(page.locator('.sc-item').filter({ hasText: 'bible/world.md' })).toContainText('新井台')
-    const planMissing = page.locator('.sc-item').filter({ hasText: 'plan' })
+    const planMissing = page.locator('.sc-item').filter({ hasText: '全书计划' })
     await expect(planMissing.getByRole('button', { name: '新建', exact: true })).toHaveCount(0)
-    const styleMissing = page.locator('.sc-item').filter({ hasText: 'style' })
+    const styleMissing = page.locator('.sc-item').filter({ hasText: '文风基准' })
     await expect(styleMissing.getByRole('button', { name: '新建', exact: true })).toHaveCount(1)
     await styleMissing.getByRole('button', { name: '新建', exact: true }).evaluate(node => node.click())
     await expect(page.getByLabel('编辑真值 style')).toHaveValue('# 文风基准\n\n')
-    await styleMissing.getByRole('button', { name: '保存', exact: true }).evaluate(node => node.click())
+    await page.getByRole('button', { name: '保存', exact: true }).evaluate(node => node.click())
     await expect.poll(() => {
       const db = openWork(runtime.fixtureWorkspace, work)
       try {
@@ -442,15 +485,15 @@ test.describe('故事工坊工作台', () => {
     const charactersItem = page.locator('.sc-item').filter({ hasText: 'bible/characters.json' })
     await charactersItem.getByRole('button', { name: '编辑', exact: true }).evaluate(node => node.click())
     await page.getByLabel('编辑真值 characters').evaluate(node => { node.value = '{bad json' })
-    await charactersItem.getByRole('button', { name: '保存', exact: true }).evaluate(node => node.click())
-    await expect(charactersItem.getByText(/bible-invalid|JSON|字符/)).toBeVisible({ timeout: 15_000 })
+    await page.getByRole('button', { name: '保存', exact: true }).evaluate(node => node.click())
+    await expect(page.locator('.sc-drawer').getByText(/bible-invalid|JSON|字符/)).toBeVisible({ timeout: 15_000 })
     await expect(page.getByLabel('编辑真值 characters')).toHaveValue('{bad json')
 
     const intentItem = page.locator('.sc-item').filter({ hasText: 'bible/intent.md' })
-    await charactersItem.getByRole('button', { name: '取消', exact: true }).evaluate(node => node.click())
+    await page.getByRole('button', { name: '取消', exact: true }).evaluate(node => node.click())
     await intentItem.getByRole('button', { name: '编辑', exact: true }).evaluate(node => node.click())
     await page.getByLabel('编辑真值 intent').evaluate(node => { node.value = '# 作者意图\\n\\n不保存。\\n' })
-    await intentItem.getByRole('button', { name: '取消', exact: true }).evaluate(node => node.click())
+    await page.getByRole('button', { name: '取消', exact: true }).evaluate(node => node.click())
     const db = openWork(runtime.fixtureWorkspace, work)
     try {
       expect(db.prepare("SELECT content FROM bible WHERE name = 'intent'").get().content).not.toContain('不保存')

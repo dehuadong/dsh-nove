@@ -78,7 +78,7 @@ verification: 32 单测 + 17 E2E；临时克隆雪线邮路编辑 world、plan �
 
 - **补充 E3** #4：只读面板已交付，本项补编辑入口。
 - **补充 A7** [bible-and-brief](../../implemented/pipeline/2026-10-17-storycraft-bible-and-brief.md)：写入沿用 `writeBible`。
-- **呈现被 [面板重设计](../../proposed/pipeline/2026-10-22-storycraft-panel-redesign.md) 部分替代**：API/行为不变，就地编辑改为卡片+抽屉；未保存禁止切换仍保留。
+- **呈现被 [面板重设计](2026-10-22-storycraft-panel-redesign.md) 部分替代**：API/行为不变，就地编辑改为卡片+抽屉；未保存禁止切换仍保留。
 - 更新 README/API/#4 E3。
 
 ## 备选方案

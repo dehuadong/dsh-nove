@@ -34,6 +34,9 @@ window.__ModuleLoader__.load({
       setting: '设定', character: '人物', scene: '场景', style: '文风', reference: '参考',
     }
 
+    const BIBLE_LABELS = { world: '世界观', characters: '人物档案', style: '文风基准', plan: '全书计划', intent: '作者意图' }
+    const CHAPTER_PAGE_SIZE = 20
+
     /** How long one Host answer may take before the page stops waiting. */
     const READ_TIMEOUT_MS = 8000
 
@@ -42,7 +45,7 @@ window.__ModuleLoader__.load({
 .sc-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:18px 24px 14px;border-bottom:1px solid var(--dsw-alias-border-l1)}
 .sc-title{margin:0;font-size:16px;font-weight:600;letter-spacing:.01em}
 .sc-subtitle{margin:4px 0 0;color:var(--dsw-alias-label-secondary);font-size:12px}
-.sc-header-actions{display:flex;gap:8px;flex-shrink:0}
+.sc-header-actions{display:flex;gap:8px;flex-shrink:1;flex-wrap:wrap;min-width:0;max-width:100%}
 .sc-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(230px,290px) minmax(0,1fr)}
 .sc-list{min-height:0;overflow:auto;padding:14px 12px 24px;border-right:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);display:flex;flex-direction:column;gap:8px}
 .sc-list-label{margin:10px 6px 2px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dsw-alias-label-secondary)}
@@ -51,7 +54,7 @@ window.__ModuleLoader__.load({
 .sc-work[aria-current="true"]{background:var(--dsw-alias-bg-layer-2);border-color:var(--dsw-alias-border-l2)}
 .sc-work-title{font-weight:600}
 .sc-work-meta{color:var(--dsw-alias-label-secondary);font-size:12px}
-.sc-detail{min-height:0;overflow:auto;padding:20px 24px 40px}
+.sc-detail{min-height:0;overflow:auto;overflow-x:hidden;padding:20px 24px 40px}
 .sc-body-detail{grid-template-columns:minmax(0,1fr)}
 .sc-back{margin:0 0 6px;padding:0;border:0;background:none;color:var(--dsw-alias-brand-primary);font:inherit;font-size:12px;cursor:pointer}
 .sc-rename{display:flex;gap:8px;align-items:center;margin:8px 0}
@@ -122,7 +125,25 @@ window.__ModuleLoader__.load({
 .sc-help{margin-top:28px;padding-top:12px;border-top:1px solid var(--dsw-alias-border-l1)}
 .sc-help summary{cursor:pointer;color:var(--dsw-alias-label-secondary);font-size:12px}
 .sc-help ol{margin:8px 0 0;padding-left:18px;color:var(--dsw-alias-label-secondary);font-size:12px}
-.sc-help li{margin:3px 0}
+.sc-root{position:relative;container-type:inline-size}
+.sc-main-tabs{display:flex;gap:4px;margin:14px 0 6px;padding:3px;border-radius:10px;background:var(--dsw-alias-bg-layer-2);width:fit-content;max-width:100%;overflow:auto}
+.sc-main-tab{padding:5px 14px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
+.sc-main-tab:hover{color:var(--dsw-alias-label-primary)}
+.sc-main-tab[aria-selected="true"]{background:var(--dsw-alias-bg-base);border-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-weight:600}
+.sc-tab-panel[hidden]{display:none}
+.sc-page[hidden]{display:none}
+.sc-page{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:10px 0 4px;padding-top:8px;border-top:1px solid var(--dsw-alias-border-l1)}
+.sc-bible-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}
+.sc-bible-card{display:flex;flex-direction:column;gap:6px;margin:0}
+.sc-bible-card .sc-item-id{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sc-bible-card .sc-yaml{max-height:150px;overflow:auto;margin:0;padding:8px 10px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);font-size:11px;overscroll-behavior:contain}
+.sc-detail{position:relative}
+.sc-drawer-mask{position:absolute;inset:0;z-index:20;display:flex;justify-content:flex-end;background:var(--dsw-alias-bg-mask-1)}
+.sc-drawer{display:flex;flex-direction:column;gap:10px;width:min(440px,100%);max-width:100%;box-sizing:border-box;height:100%;padding:18px;background:var(--dsw-alias-bg-base);border-left:1px solid var(--dsw-alias-border-l1);box-shadow:var(--dsw-alias-shadow-l2);overflow:auto}
+.sc-drawer-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sc-drawer-input{flex:1;min-height:280px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.sc-drawer-foot{display:flex;justify-content:flex-end;gap:8px;position:sticky;bottom:0;padding-top:10px;background:var(--dsw-alias-bg-base)}
+@container (max-width:600px){.sc-two-col{grid-template-columns:minmax(0,1fr)}.sc-bible-grid{grid-template-columns:minmax(0,1fr)}.sc-header-actions{flex-wrap:wrap}}.sc-help li{margin:3px 0}
 .sc-help code{padding:1px 5px;border-radius:4px;background:var(--dsw-alias-bg-layer-2);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 @media (max-width:760px){.sc-body{grid-template-columns:minmax(0,1fr)}.sc-list{border-right:none;border-bottom:1px solid var(--dsw-alias-border-l1);max-height:34vh}}
 `
@@ -888,6 +909,11 @@ window.__ModuleLoader__.load({
       const [bible, setBible] = useState({ status: 'idle' })
       const [bibleEditor, setBibleEditor] = useState(undefined)
       const bibleTextareaRef = useRef(undefined)
+      const bibleTriggerRef = useRef(undefined)
+      const [tab, setTab] = useState('chapters')
+      const [chapterPage, setChapterPage] = useState(1)
+      const [exportInfo, setExportInfo] = useState(undefined)
+      const [backupCount, setBackupCount] = useState(undefined)
       const [brief, setBrief] = useState({ status: 'idle' })
       const [materials, setMaterials] = useState([])
       const [exporting, setExporting] = useState(false)
@@ -1040,6 +1066,7 @@ window.__ModuleLoader__.load({
 
       const openBibleEditor = (file) => {
         if (bibleEditor !== undefined) return
+        bibleTriggerRef.current = typeof document === 'undefined' ? undefined : document.activeElement
         setBibleEditor({
           name: file.name,
           content: file.content,
@@ -1052,10 +1079,11 @@ window.__ModuleLoader__.load({
 
       const openMissingBible = (name) => {
         if (bibleEditor !== undefined || !editableTemplates[name]) return
+        bibleTriggerRef.current = typeof document === 'undefined' ? undefined : document.activeElement
         setBibleEditor({
           name,
           content: editableTemplates[name],
-          original: '',
+          original: editableTemplates[name],
           version: undefined,
           saving: false,
           error: undefined,
@@ -1065,6 +1093,7 @@ window.__ModuleLoader__.load({
       const cancelBibleEditor = () => {
         if (bibleEditor?.saving === true) return
         setBibleEditor(undefined)
+        setTimeout(() => bibleTriggerRef.current?.focus?.(), 0)
       }
 
       const saveBibleEditor = async () => {
@@ -1075,6 +1104,7 @@ window.__ModuleLoader__.load({
           const saved = await face.writeBible(root, sessionId, workId, bibleEditor.name, content, bibleEditor.version)
           onNotice({ kind: 'ok', text: `已保存 v${saved.version}` })
           setBibleEditor(undefined)
+          setTimeout(() => bibleTriggerRef.current?.focus?.(), 0)
           await loadBible()
         } catch (error) {
           setBibleEditor(current => current === undefined ? current : {
@@ -1084,6 +1114,79 @@ window.__ModuleLoader__.load({
           })
         }
       }
+
+      const bibleLabel = name => BIBLE_LABELS[name] ?? name
+      const isBibleDirty = () => bibleEditor !== undefined
+        && (bibleTextareaRef.current?.value ?? bibleEditor.content) !== bibleEditor.original
+
+      const requestCloseBible = () => {
+        if (bibleEditor?.saving === true) return
+        if (isBibleDirty()) {
+          onNotice({ kind: 'error', text: '真值还有未保存内容：先保存或取消' })
+          return
+        }
+        setBibleEditor(undefined)
+        setTimeout(() => bibleTriggerRef.current?.focus?.(), 0)
+      }
+
+      useEffect(() => {
+        if (bibleEditor === undefined) return undefined
+        const timer = setTimeout(() => bibleTextareaRef.current?.focus(), 0)
+        const onKey = event => {
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            requestCloseBible()
+            return
+          }
+          if (event.key !== 'Tab') return
+          const drawer = document.querySelector('.sc-drawer')
+          const focusables = drawer === null ? [] : [...drawer.querySelectorAll('button:not(:disabled), textarea:not(:disabled)')]
+          if (focusables.length === 0) return
+          const first = focusables[0]
+          const last = focusables.at(-1)
+          if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault()
+            last.focus()
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault()
+            first.focus()
+          }
+        }
+        window.addEventListener('keydown', onKey)
+        return () => {
+          clearTimeout(timer)
+          window.removeEventListener('keydown', onKey)
+        }
+      }, [bibleEditor])
+
+      const switchTab = next => {
+        if (next === tab) return false
+        if (isBibleDirty()) {
+          onNotice({ kind: 'error', text: '真值还有未保存内容：先保存或取消' })
+          return false
+        }
+        setTab(next)
+        if (next === 'truth' && bible.status === 'idle') void loadBible()
+        return true
+      }
+
+      useEffect(() => {
+        if (detail.status !== 'ready') return
+        const index = [...detail.chapters].sort((left, right) => right.number - left.number)
+          .findIndex(chapter => chapter.number === selected)
+        if (index >= 0) setChapterPage(Math.floor(index / CHAPTER_PAGE_SIZE) + 1)
+      }, [selected])
+
+      useEffect(() => {
+        if (tab !== 'exports') return
+        Promise.all([
+          face.exports(root, workId).catch(() => ({ exists: false })),
+          face.backups(root, workId).catch(() => ({ backups: [] })),
+        ]).then(([exports, backups]) => {
+          setExportInfo(exports)
+          setBackupCount((backups.backups ?? []).length)
+        })
+      }, [tab, face, root, workId])
 
       const loadBrief = async (chapter) => {
         setBrief({ status: 'loading', chapter })
@@ -1205,6 +1308,14 @@ window.__ModuleLoader__.load({
       const chapters = detail.chapters
       const chapter = chapters.find(item => item.number === selected)
       const orderedChapters = [...chapters].sort((left, right) => left.number - right.number)
+      const reversedChapters = [...chapters].sort((left, right) => right.number - left.number)
+      const pageCount = Math.max(1, Math.ceil(reversedChapters.length / CHAPTER_PAGE_SIZE))
+      const safePage = Math.min(Math.max(1, chapterPage), pageCount)
+      const pageChapters = reversedChapters.slice((safePage - 1) * CHAPTER_PAGE_SIZE, safePage * CHAPTER_PAGE_SIZE)
+      const pageGroups = chapterGroups(pageChapters, volumes)
+        .map(group => ({ ...group, chapters: [...group.chapters].sort((left, right) => right.number - left.number) }))
+        .filter(group => group.chapters.length > 0)
+        .sort((left, right) => Math.max(...right.chapters.map(chapter => chapter.number)) - Math.max(...left.chapters.map(chapter => chapter.number)))
       const nextNumber = chapters.length === 0 ? 1 : chapters[chapters.length - 1].number + 1
 
       const send = async (text) => {
@@ -1222,7 +1333,7 @@ window.__ModuleLoader__.load({
               type: 'button',
               className: 'sc-back',
               onClick: () => {
-                if (bibleEditor !== undefined) {
+                if (isBibleDirty()) {
                   onNotice({ kind: 'error', text: '先保存或取消当前真值编辑' })
                   return
                 }
@@ -1236,13 +1347,15 @@ window.__ModuleLoader__.load({
             h('button', {
               type: 'button',
               className: 'sc-btn sc-btn-primary',
-              title: '写下一章：章纲 → 取上下文 → 正文 → 质检 → 审稿 → 按清单修订，停在修订，之后可润色/去 AI 味再定稿',
+              disabled: manifest.outline?.approvedAt === undefined,
+              title: manifest.outline?.approvedAt === undefined ? '先确认全书计划' : '写下一章：章纲 → 取上下文 → 正文 → 质检 → 审稿 → 按清单修订，停在修订，之后可润色/去 AI 味再定稿',
               onClick: () => compose(INSTRUCTIONS.flowToRevision(manifest.workId, next === undefined ? nextNumber : next.chapter)),
             }, `写第 ${next === undefined ? nextNumber : next.chapter} ${unitOf(manifest.form)}（写到修订）`),
             h('button', {
               type: 'button',
               className: 'sc-btn',
-              title: '写下一章并一次做完：章纲 → 正文 → 质检 → 审稿 → 修订/清稿 → 摘要 → 定稿',
+              disabled: manifest.outline?.approvedAt === undefined,
+              title: manifest.outline?.approvedAt === undefined ? '先确认全书计划' : '写下一章并一次做完：章纲 → 正文 → 质检 → 审稿 → 修订/清稿 → 摘要 → 定稿',
               onClick: () => compose(INSTRUCTIONS.flowFull(manifest.workId, next === undefined ? nextNumber : next.chapter)),
             }, `写第 ${next === undefined ? nextNumber : next.chapter} ${unitOf(manifest.form)}（一次做完）`),
             h('button', {
@@ -1447,20 +1560,45 @@ window.__ModuleLoader__.load({
           ),
         h('div', { className: 'sc-badges' },
           chapters.some(item => item.openProblems > 0)
-            ? h('span', { className: 'sc-badge sc-badge-warn' }, `有 ${chapters.reduce((sum, item) => sum + item.openProblems, 0)} 条未处理审稿问题`)
-            : h('span', { className: 'sc-badge sc-badge-ok' }, '没有未处理审稿问题'),
-          h('span', { className: 'sc-badge' }, `状态事件 ${detail.state.events}`),
+            ? h('span', { className: 'sc-badge sc-badge-warn' }, `未处理问题 ${chapters.filter(item => item.openProblems > 0).length} 章 · ${chapters.reduce((sum, item) => sum + item.openProblems, 0)} 条`)
+            : h('span', { className: 'sc-badge sc-badge-ok' }, '没有未处理问题'),
           h('span', { className: 'sc-badge' }, `伏笔 未解 ${detail.state.hooks.filter(hook => hook.state !== 'resolved').length}`),
+        ),
+        h('div', { className: 'sc-main-tabs', role: 'tablist', 'aria-label': '作品面板' },
+          ...['chapters', 'truth', 'materials', 'exports'].map((name, index) => h('button', {
+            key: name,
+            type: 'button',
+            role: 'tab',
+            id: `sc-tab-${name}`,
+            'aria-selected': tab === name ? 'true' : 'false',
+            'aria-controls': `sc-panel-${name}`,
+            tabIndex: tab === name ? 0 : -1,
+            className: 'sc-main-tab',
+            onClick: () => switchTab(name),
+            onKeyDown: event => {
+              const order = ['chapters', 'truth', 'materials', 'exports']
+              if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+              event.preventDefault()
+              const next = event.key === 'Home' ? 0 : event.key === 'End' ? order.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + order.length) % order.length
+              if (switchTab(order[next])) document.getElementById(`sc-tab-${order[next]}`)?.focus()
+            },
+          }, name === 'chapters' ? '章节' : name === 'truth' ? '真值' : name === 'materials' ? '素材' : '导出')),
         ),
         notice === undefined ? null : h('p', { className: `sc-notice sc-notice-${notice.kind}`, style: { marginTop: 12 } }, notice.text),
 
-        h('div', { className: 'sc-two-col' },
+        h('div', {
+          className: 'sc-two-col sc-tab-panel',
+          id: 'sc-panel-chapters',
+          role: 'tabpanel',
+          'aria-labelledby': 'sc-tab-chapters',
+          hidden: tab !== 'chapters',
+        },
           h('div', { className: 'sc-col' },
             h('h3', { className: 'sc-section-title' }, '章节'),
             chapters.length === 0
               ? h('p', { className: 'sc-muted' }, '还没有章节。点「写第 1 章」让模型出章纲并写正文。')
               : h('div', null,
-                ...chapterGroups(chapters, volumes).map(group => h('div', { key: group.key, className: 'sc-volume' },
+                ...pageGroups.map(group => h('div', { key: group.key, className: 'sc-volume' },
                   h('div', { className: 'sc-volume-head' },
                     h('span', { className: 'sc-volume-title' }, group.title),
                     h('span', { className: 'sc-badge' }, `${group.chapters.length} ${unitOf(manifest.form)}`),
@@ -1500,14 +1638,14 @@ window.__ModuleLoader__.load({
                           disabled: chapterBusy || item.number === orderedChapters[0]?.number,
                           title: '与上一章交换章号',
                           onClick: () => { void moveChapter(item, -1) },
-                        }, '上移'),
+                        }, '前移'),
                         h('button', {
                           type: 'button',
                           className: 'sc-btn sc-btn-small',
                           disabled: chapterBusy || item.number === orderedChapters.at(-1)?.number,
                           title: '与下一章交换章号',
                           onClick: () => { void moveChapter(item, 1) },
-                        }, '下移'),
+                        }, '后移'),
                         h('button', {
                           type: 'button',
                           className: 'sc-btn sc-btn-small',
@@ -1598,7 +1736,29 @@ window.__ModuleLoader__.load({
           ),
         ),
 
-        h('div', { className: 'sc-section' },
+        h('div', { className: 'sc-page', hidden: tab !== 'chapters' },
+          h('button', {
+            type: 'button',
+            className: 'sc-btn sc-btn-small',
+            disabled: safePage <= 1,
+            onClick: () => setChapterPage(page => Math.max(1, page - 1)),
+          }, '上一页'),
+          h('span', { className: 'sc-muted' }, `第 ${safePage} / ${pageCount} 页 · 共 ${chapters.length} 章`),
+          h('button', {
+            type: 'button',
+            className: 'sc-btn sc-btn-small',
+            disabled: safePage >= pageCount,
+            onClick: () => setChapterPage(page => Math.min(pageCount, page + 1)),
+          }, '下一页'),
+        ),
+
+        h('div', {
+          className: 'sc-section sc-tab-panel',
+          id: 'sc-panel-truth',
+          role: 'tabpanel',
+          'aria-labelledby': 'sc-tab-truth',
+          hidden: tab !== 'truth',
+        },
           h('div', { className: 'sc-actions' },
             h('button', {
               type: 'button',
@@ -1626,80 +1786,42 @@ window.__ModuleLoader__.load({
           bible.status === 'loading' ? h('p', { className: 'sc-muted' }, '读取真值…') : null,
           bible.status === 'error' ? h('p', { className: 'sc-notice sc-notice-info' }, bible.error) : null,
           bible.status === 'ready'
-            ? h('div', { style: { marginTop: 10 } },
-              ...(bible.missing ?? []).map(name => h('div', { className: 'sc-item', key: name },
+            ? h('div', { className: 'sc-bible-grid' },
+              ...(bible.missing ?? []).map(name => h('div', { className: 'sc-item sc-bible-card', key: name },
                 h('div', { className: 'sc-item-head' },
-                  h('span', { className: 'sc-item-name' }, name),
+                  h('span', { className: 'sc-item-name' }, bibleLabel(name)),
                   h('span', { className: 'sc-badge sc-badge-warn' }, '缺失'),
                   name === 'plan' ? h('span', { className: 'sc-badge' }, '只读') : null,
-                  bibleEditor?.name === name
+                  name === 'plan' || !(bible.editable ?? []).includes(name)
                     ? null
-                    : name === 'plan' || !(bible.editable ?? []).includes(name)
-                      ? null
-                      : h('button', {
-                        type: 'button',
-                        className: 'sc-btn sc-btn-small',
-                        disabled: sessionId === undefined,
-                        title: sessionId === undefined ? '先打开一个会话再编辑真值' : '新建这份真值',
-                        onClick: () => openMissingBible(name),
-                      }, '新建'),
+                    : h('button', {
+                      type: 'button',
+                      className: 'sc-btn sc-btn-small',
+                      disabled: sessionId === undefined,
+                      title: sessionId === undefined ? '先打开一个会话再编辑真值' : '新建这份真值',
+                      onClick: () => openMissingBible(name),
+                    }, '新建'),
                 ),
-                bibleEditor?.name === name
-                  ? h('div', null,
-                    h('textarea', {
-                      className: 'sc-input',
-                      'aria-label': `编辑真值 ${name}`,
-                      rows: 10,
-                      key: name,
-                      ref: node => { bibleTextareaRef.current = node },
-                      defaultValue: bibleEditor.content,
-                      disabled: bibleEditor.saving,
-                    }),
-                    bibleEditor.error === undefined ? null : h('p', { className: 'sc-notice sc-notice-info' }, bibleEditor.error),
-                    h('div', { className: 'sc-actions' },
-                      h('button', { type: 'button', className: 'sc-btn sc-btn-primary', disabled: bibleEditor.saving || sessionId === undefined, title: sessionId === undefined ? '先打开一个会话再保存' : undefined, onClick: () => { void saveBibleEditor() } }, bibleEditor.saving ? '保存中…' : '保存'),
-                      h('button', { type: 'button', className: 'sc-btn', disabled: bibleEditor.saving, onClick: cancelBibleEditor }, '取消'),
-                    ),
-                  )
-                  : h('p', { className: 'sc-item-body' }, name === 'plan' ? '用全书计划确认流程创建。' : '用「新建」补建这份真值。'),
+                h('p', { className: 'sc-item-body' }, name === 'plan' ? '用全书计划确认流程创建。' : '用「新建」补建这份真值。'),
               )),
-              ...bible.files.map(file => h('div', { className: 'sc-item', key: file.name },
+              ...bible.files.map(file => h('div', { className: 'sc-item sc-bible-card', key: file.name },
                 h('div', { className: 'sc-item-head' },
-                  h('span', { className: 'sc-item-name' }, file.name),
+                  h('span', { className: 'sc-item-name' }, bibleLabel(file.name)),
                   h('span', { className: 'sc-item-id' }, file.path),
                   h('span', { className: 'sc-badge' }, `v${file.version}`),
                   file.draft ? h('span', { className: 'sc-badge sc-badge-warn' }, '草稿') : null,
                   file.name === 'plan' ? h('span', { className: 'sc-badge' }, '只读') : null,
-                  bibleEditor?.name === file.name
+                  file.name === 'plan' || !(bible.editable ?? []).includes(file.name)
                     ? null
-                    : file.name === 'plan' || !(bible.editable ?? []).includes(file.name)
-                      ? null
-                      : h('button', {
-                        type: 'button',
-                        className: 'sc-btn sc-btn-small',
-                        disabled: sessionId === undefined,
-                        title: sessionId === undefined ? '先打开一个会话再编辑真值' : '编辑这份真值',
-                        onClick: () => openBibleEditor(file),
-                      }, '编辑'),
+                    : h('button', {
+                      type: 'button',
+                      className: 'sc-btn sc-btn-small',
+                      disabled: sessionId === undefined,
+                      title: sessionId === undefined ? '先打开一个会话再编辑真值' : '编辑这份真值',
+                      onClick: () => openBibleEditor(file),
+                    }, '编辑'),
                 ),
-                bibleEditor?.name === file.name
-                  ? h('div', null,
-                    h('textarea', {
-                      className: 'sc-input',
-                      'aria-label': `编辑真值 ${file.name}`,
-                      rows: 10,
-                      key: file.name,
-                      ref: node => { bibleTextareaRef.current = node },
-                      defaultValue: bibleEditor.content,
-                      disabled: bibleEditor.saving,
-                    }),
-                    bibleEditor.error === undefined ? null : h('p', { className: 'sc-notice sc-notice-info' }, bibleEditor.error),
-                    h('div', { className: 'sc-actions' },
-                      h('button', { type: 'button', className: 'sc-btn sc-btn-primary', disabled: bibleEditor.saving || sessionId === undefined, title: sessionId === undefined ? '先打开一个会话再保存' : undefined, onClick: () => { void saveBibleEditor() } }, bibleEditor.saving ? '保存中…' : '保存'),
-                      h('button', { type: 'button', className: 'sc-btn', disabled: bibleEditor.saving, onClick: cancelBibleEditor }, '取消'),
-                    ),
-                  )
-                  : h('pre', { className: 'sc-yaml' }, file.content),
+                h('pre', { className: 'sc-yaml' }, file.content),
               )))
             : null,
           brief.status === 'loading' ? h('p', { className: 'sc-muted' }, '装配写前上下文…') : null,
@@ -1725,7 +1847,13 @@ window.__ModuleLoader__.load({
             : null,
         ),
 
-        h('div', { className: 'sc-section' },
+        h('div', {
+          className: 'sc-section sc-tab-panel',
+          id: 'sc-panel-materials',
+          role: 'tabpanel',
+          'aria-labelledby': 'sc-tab-materials',
+          hidden: tab !== 'materials',
+        },
           h('div', { className: 'sc-actions' },
             h('button', {
               type: 'button',
@@ -1807,7 +1935,7 @@ window.__ModuleLoader__.load({
             ))),
         ),
 
-        h('div', { className: 'sc-section' },
+        h('div', { className: 'sc-section', hidden: tab !== 'chapters' },
           h('button', {
             type: 'button',
             className: 'sc-btn',
@@ -1840,9 +1968,68 @@ window.__ModuleLoader__.load({
             : null,
         ),
 
+        h('div', {
+          className: 'sc-section sc-tab-panel',
+          id: 'sc-panel-exports',
+          role: 'tabpanel',
+          'aria-labelledby': 'sc-tab-exports',
+          hidden: tab !== 'exports',
+        },
+          h('h3', { className: 'sc-section-title' }, '导出'),
+          h('p', { className: 'sc-item-body' }, '由宿主直接写 TXT/EPUB 到 .storycraft/exports；目录只读显示，不把路径交给模型。'),
+          h('p', { className: 'sc-item-body' }, exportInfo === undefined ? '读取导出目录…' : exportInfo.exists === true ? `已导出：${exportInfo.directory}` : '还没有导出。'),
+          h('p', { className: 'sc-item-body' }, backupCount === undefined ? '读取备份…' : `备份 ${backupCount} 份（.storycraft/backups）`),
+          h('div', { className: 'sc-actions' },
+            h('button', {
+              type: 'button',
+              className: 'sc-btn sc-btn-primary',
+              disabled: exporting || sessionId === undefined,
+              onClick: () => {
+                void runExport().then(() => face.exports(root, workId).then(setExportInfo).catch(() => {}))
+              },
+            }, exporting ? '导出中…' : '导出 TXT / EPUB'),
+            h('button', { type: 'button', className: 'sc-btn', onClick: () => { void showExportDirectory() } }, '查看导出目录'),
+          ),
+        ),
+
+        bibleEditor === undefined
+          ? null
+          : h('div', { className: 'sc-drawer-mask', onClick: requestCloseBible },
+            h('aside', {
+              className: 'sc-drawer',
+              role: 'dialog',
+              'aria-modal': 'true',
+              'aria-labelledby': 'sc-drawer-title',
+              onClick: event => event.stopPropagation(),
+            },
+              h('div', { className: 'sc-drawer-head' },
+                h('h3', { id: 'sc-drawer-title', className: 'sc-section-title' }, `编辑${bibleLabel(bibleEditor.name)}`),
+                h('span', { className: 'sc-item-id' }, bibleEditor.version === undefined ? '新建' : `v${bibleEditor.version}`),
+              ),
+              h('textarea', {
+                className: 'sc-input sc-drawer-input',
+                'aria-label': `编辑真值 ${bibleEditor.name}`,
+                ref: node => { bibleTextareaRef.current = node },
+                defaultValue: bibleEditor.content,
+                disabled: bibleEditor.saving,
+              }),
+              bibleEditor.error === undefined ? null : h('p', { className: 'sc-notice sc-notice-info' }, bibleEditor.error),
+              h('div', { className: 'sc-drawer-foot' },
+                h('button', { type: 'button', className: 'sc-btn', disabled: bibleEditor.saving, onClick: cancelBibleEditor }, '取消'),
+                h('button', {
+                  type: 'button',
+                  className: 'sc-btn sc-btn-primary',
+                  disabled: bibleEditor.saving || sessionId === undefined,
+                  onClick: () => { void saveBibleEditor() },
+                }, bibleEditor.saving ? '保存中…' : '保存'),
+              ),
+            ),
+          ),
+
         h('details', { className: 'sc-help' },
           h('summary', null, '这一页怎么工作'),
           h('ol', null,
+            h('li', null, '顶部有「章节 / 真值 / 素材 / 导出」四个标签；章节默认倒序、20 章/页。'),
             h('li', null, '页面只读：作品、章节、审稿与状态都从作品目录读取，不另存一份。'),
             h('li', null, '按钮不写文件：它把一条固定指令投递给当前会话，由模型调用 story_init / story_plan / story_write / story_review / story_revise / story_state 落盘。'),
             h('li', null, '所以写完一章后点「刷新」，或重新进入本页，就能看到新章节与新字数。'),
