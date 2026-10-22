@@ -8,6 +8,8 @@ verification: 29 单测 + 13 E2E；真实雪线邮路 book.txt 4 章、manifest 
 
 # Agent Note：故事工坊：TXT 单文件导出
 
+> 2026-10-22 补充（#33）：manifest 再升 v6，新增 `book.epub`；TXT 字节不变。
+
 ## 问题
 
 D1 的目录导出已有逐章 md/json，但没有可直接阅读、转发的单文件。TXT 是无依赖的最小补充；EPUB 需要打包与 XHTML，另行规划。

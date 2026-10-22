@@ -1,12 +1,55 @@
 // Per-work export and backup: single-file units, fixed mtimes, integrity check.
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { crc32, inflateRawSync } from 'node:zlib'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { openDatabase } from '../db.js'
 import * as store from '../store-db.js'
 
 let failures = 0
+/** Test-local ZIP reader: enough to validate the EPUB container. */
+function readZip(buffer) {
+  const end = buffer.length - 22
+  if (buffer.readUInt32LE(end) !== 0x06054b50) throw new Error('no EOCD')
+  const count = buffer.readUInt16LE(end + 10)
+  let offset = buffer.readUInt32LE(end + 16)
+  const entries = []
+  for (let index = 0; index < count; index += 1) {
+    if (buffer.readUInt32LE(offset) !== 0x02014b50) throw new Error('bad central header')
+    const method = buffer.readUInt16LE(offset + 10)
+    const checksum = buffer.readUInt32LE(offset + 16)
+    const compressedSize = buffer.readUInt32LE(offset + 20)
+    const uncompressedSize = buffer.readUInt32LE(offset + 24)
+    const nameLength = buffer.readUInt16LE(offset + 28)
+    const extraLength = buffer.readUInt16LE(offset + 30)
+    const localOffset = buffer.readUInt32LE(offset + 42)
+    const name = buffer.subarray(offset + 46, offset + 46 + nameLength).toString('utf8')
+    const localNameLength = buffer.readUInt16LE(localOffset + 26)
+    const localExtraLength = buffer.readUInt16LE(localOffset + 28)
+    const start = localOffset + 30 + localNameLength + localExtraLength
+    const raw = buffer.subarray(start, start + compressedSize)
+    const data = method === 8 ? inflateRawSync(raw) : raw
+    entries.push({ name, method, localExtraLength, localOffset, checksum, uncompressedSize, data })
+    offset += 46 + nameLength + extraLength + buffer.readUInt16LE(offset + 32)
+  }
+  return entries
+}
+
+/** Minimal well-formedness check: balanced tags and escaped ampersands. */
+function assertXml(text) {
+  const stack = []
+  for (const match of text.matchAll(/<\/?([A-Za-z][\w:.-]*)[^>]*>/gu)) {
+    const [tag, name] = match
+    if (tag.startsWith('</')) {
+      if (stack.pop() !== name) return false
+    } else if (!tag.endsWith('/>')) {
+      stack.push(name)
+    }
+  }
+  return stack.length === 0 && !/&(?!amp;|lt;|gt;|quot;|apos;|#)/u.test(text)
+}
+
 function check(name, condition, detail) {
   if (condition) console.log(`ok   ${name}`)
   else {
@@ -65,12 +108,36 @@ try {
   check('export manifest is the export copy', manifest.title === '导出测试' && manifest.wordRange?.min === 100
     && manifest.planApproval === 'required' && manifest.tags[0] === '短', JSON.stringify(manifest))
   check('manifest carries the settled chapter', manifest.chapters[0].stage === 'settled' && manifest.chapters[0].currentRevision === 2)
-  check('manifest v5 carries the summary binding, material purpose and book',
-    manifest.schemaVersion === 5 && manifest.chapters[0].summaryRevision === 2
+  check('manifest v6 carries the summary binding, material purpose, book and epub',
+    manifest.schemaVersion === 6 && manifest.chapters[0].summaryRevision === 2
     && manifest.chapters[0].summaryStale === false
     && manifest.materials.some(item => item.id === material.material.id && item.hash.length === 64 && item.purpose === 'setting')
-    && manifest.book?.file === 'book.txt' && manifest.book?.format === 'txt',
-  JSON.stringify({ chapter: manifest.chapters[0], materials: manifest.materials, book: manifest.book }))
+    && manifest.book?.file === 'book.txt' && manifest.book?.format === 'txt'
+    && manifest.epub?.file === 'book.epub' && manifest.epub?.format === 'epub',
+  JSON.stringify({ chapter: manifest.chapters[0], materials: manifest.materials, book: manifest.book, epub: manifest.epub }))
+  const epub = await readFile(join(first.directory, 'book.epub'))
+  const entries = readZip(epub)
+  check('EPUB mimetype is first, stored and has no extra field',
+    entries[0].name === 'mimetype' && entries[0].localOffset === 0 && entries[0].method === 0
+    && entries[0].localExtraLength === 0 && entries[0].data.toString('utf8') === 'application/epub+zip',
+  JSON.stringify(entries[0]))
+  check('EPUB entries have valid CRC and sizes',
+    entries.every(entry => entry.checksum === crc32(entry.data) && entry.uncompressedSize === entry.data.length),
+    JSON.stringify(entries.map(entry => [entry.name, entry.checksum])))
+  const container = entries.find(entry => entry.name === 'META-INF/container.xml')?.data.toString('utf8') ?? ''
+  const opf = entries.find(entry => entry.name === 'OEBPS/content.opf')?.data.toString('utf8') ?? ''
+  const nav = entries.find(entry => entry.name === 'OEBPS/nav.xhtml')?.data.toString('utf8') ?? ''
+  check('EPUB container points at the OPF', assertXml(container) && container.includes('full-path="OEBPS/content.opf"')
+    && container.includes('media-type="application/oebps-package+xml"'), container)
+  check('OPF carries identifiers, modified, nav and spine',
+    assertXml(opf) && opf.includes('unique-identifier="bookid"') && opf.includes('id="bookid"')
+    && opf.includes('<dc:title>导出测试</dc:title>') && opf.includes('2000-01-01T00:00:00Z')
+    && opf.includes('properties="nav"') && opf.includes('<itemref idref="title"/>')
+    && opf.includes('<itemref idref="ch1"/>'), opf)
+  check('EPUB has title and one chapter', entries.some(entry => entry.name === 'OEBPS/title.xhtml')
+    && entries.some(entry => entry.name === 'OEBPS/ch-0001.xhtml') && assertXml(nav) && nav.includes('epub:type="toc"'), nav)
+  const epubAgain = store.exportWork(root, work, join(root, 'out', 'epub-two'))
+  check('EPUB bytes are deterministic', (await readFile(join(epubAgain.directory, 'book.epub'))).equals(epub))
   const book = await readFile(join(first.directory, 'book.txt'), 'utf8')
   const expectedBook = `导出测试\n\n第 1 章 第一章\n\n${'正文二。'.repeat(20)}\n`
   check('book.txt is byte-exact and current-revision only', book === expectedBook, JSON.stringify(book))
@@ -78,6 +145,11 @@ try {
   const empty = store.initWork(root, { title: '空书' }).workId
   const emptyExport = store.exportWork(root, empty)
   check('empty work writes a title-only book', await readFile(join(emptyExport.directory, 'book.txt'), 'utf8') === '空书\n')
+  const emptyEpub = readZip(await readFile(join(emptyExport.directory, 'book.epub')))
+  const emptyOpf = emptyEpub.find(entry => entry.name === 'OEBPS/content.opf')?.data.toString('utf8') ?? ''
+  check('empty work EPUB has a title page and non-empty spine',
+    emptyEpub.some(entry => entry.name === 'OEBPS/title.xhtml')
+    && emptyOpf.includes('<itemref idref="title"/>') && !emptyOpf.includes('idref="ch1"'), emptyOpf)
   const planned = store.initWork(root, { title: '只有计划' }).workId
   store.writePlan(root, { work: planned, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   const plannedExport = store.exportWork(root, planned)
@@ -99,6 +171,22 @@ try {
   check('multiple chapters stay ordered and blank titles fall back',
     await readFile(join(multiExport.directory, 'book.txt'), 'utf8')
       === '多章\n\n第 1 章 一\n\n第1章正文。\n\n第 2 章\n\n第2章正文。\n')
+  const multiEpub = readZip(await readFile(join(multiExport.directory, 'book.epub')))
+  const multiOpf = multiEpub.find(entry => entry.name === 'OEBPS/content.opf')?.data.toString('utf8') ?? ''
+  const multiChapter = multiEpub.find(entry => entry.name === 'OEBPS/ch-0002.xhtml')?.data.toString('utf8') ?? ''
+  check('EPUB keeps chapter order and blank headings', assertXml(multiOpf) && assertXml(multiChapter)
+    && multiOpf.indexOf('idref="title"') < multiOpf.indexOf('idref="ch1"')
+    && multiOpf.indexOf('idref="ch1"') < multiOpf.indexOf('idref="ch2"')
+    && multiChapter.includes('<h1>第 2 章</h1>'), multiChapter)
+  const escaping = store.initWork(root, { title: 'A & <B>' }).workId
+  store.writePlan(root, { work: escaping, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+  store.approveChapterPlan(root, { work: escaping, chapter: 1 })
+  store.writeChapter(root, { work: escaping, chapter: 1, title: 'x & <y>', body: 'a & <b>' })
+  const escapingEpub = readZip(await readFile(join(store.exportWork(root, escaping).directory, 'book.epub')))
+  const escapingChapter = escapingEpub.find(entry => entry.name === 'OEBPS/ch-0001.xhtml')?.data.toString('utf8') ?? ''
+  const escapingOpf = escapingEpub.find(entry => entry.name === 'OEBPS/content.opf')?.data.toString('utf8') ?? ''
+  check('EPUB escapes titles and bodies', assertXml(escapingChapter) && assertXml(escapingOpf)
+    && escapingChapter.includes('x &amp; &lt;y&gt;') && escapingChapter.includes('a &amp; &lt;b&gt;'), escapingChapter)
   const mixed = store.initWork(root, { title: '混合' }).workId
   for (const number of [1, 2]) {
     store.writePlan(root, { work: mixed, chapter: number, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
@@ -113,8 +201,8 @@ try {
   await writeFile(join(legacy, 'legacy.txt'), 'old\n')
   check('legacy export is not backfilled', !existsSync(join(legacy, 'book.txt')))
   store.exportWork(root, work, legacy)
-  check('re-export replaces legacy with v5 and book',
-    JSON.parse(await readFile(join(legacy, 'manifest.json'), 'utf8')).schemaVersion === 5
+  check('re-export replaces legacy with v6 and book.epub',
+    JSON.parse(await readFile(join(legacy, 'manifest.json'), 'utf8')).schemaVersion === 6
     && existsSync(join(legacy, 'book.txt')))
   const materialFile = await readFile(join(first.directory, 'materials', `${material.material.id}.md`), 'utf8')
   check('export carries the material content', materialFile === '作者的参考资料。', materialFile)

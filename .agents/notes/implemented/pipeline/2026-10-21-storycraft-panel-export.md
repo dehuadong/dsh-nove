@@ -8,7 +8,7 @@ verification: 7ad654b；29 个单测 + 13 条 E2E；真实雪线邮路连续两�
 
 # Agent Note：故事工坊：面板导出入口与原子导出
 
-> 2026-10-22 补充（#30 B3）：导出 manifest 升 v5，新增 book.txt 与 materials[] purpose；原子替换不变。
+> 2026-10-22 补充（#30 B3）：导出 manifest 升 v6，新增 book.txt/book.epub 与 materials[] purpose；原子替换不变。
 
 ## 问题
 

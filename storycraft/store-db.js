@@ -20,6 +20,7 @@ import {
   trashDir, trashFile, workFile, worksDir, backupsDir,
 } from './db.js'
 import { MATERIAL_PURPOSES, MATERIAL_TITLE_MAX, materialMetadata, normalizeMaterialPurpose, prepareMaterial } from './materials.js'
+import { buildEpub } from './epub.js'
 import { snippetFor } from './retrieval.js'
 import { materialIndexText, searchTokens } from './search-text.js'
 
@@ -2234,7 +2235,7 @@ function queryDocs(db, { match, kinds, beforeChapter, limit }) {
 // ---------------------------------------------------------------------------
 
 /** Export format version, independent of the work database schema version. */
-const EXPORT_SCHEMA_VERSION = 5
+const EXPORT_SCHEMA_VERSION = 6
 
 /** Render the export manifest from the catalog row and the work database. */
 function exportManifest(root, workId, catalogRowValue, db) {
@@ -2277,6 +2278,7 @@ function exportManifest(root, workId, catalogRowValue, db) {
       origin: row.origin,
     })),
     book: { file: 'book.txt', format: 'txt' },
+    epub: { file: 'book.epub', format: 'epub' },
   }
 }
 
@@ -2285,17 +2287,25 @@ function oneLine(value) {
   return String(value ?? '').replace(/\r\n?|\n/gu, ' ').replace(/\s+/gu, ' ').trim()
 }
 
-/** Render the single-file readable book from current chapter revisions. */
-function bookText(title, db) {
+/** One snapshot of current chapter revisions, shared by TXT and EPUB. */
+function currentChapters(db) {
+  return db.prepare('SELECT * FROM chapters WHERE current_revision > 0 ORDER BY number').all()
+    .map(chapter => {
+      const version = currentVersion(db, chapter)
+      if (version === undefined) {
+        throw new StoryError('export-failed', `第 ${chapter.number} 章缺少当前正文版本，无法导出`)
+      }
+      return { number: chapter.number, title: chapter.title, body: version.body }
+    })
+}
+
+/** Render the single-file readable book from a chapter snapshot. */
+function bookText(title, chapters) {
   const parts = [oneLine(title) || '未命名']
-  for (const chapter of db.prepare('SELECT * FROM chapters WHERE current_revision > 0 ORDER BY number').all()) {
-    const version = currentVersion(db, chapter)
-    if (version === undefined) {
-      throw new StoryError('export-failed', `第 ${chapter.number} 章缺少当前正文版本，无法导出 TXT`)
-    }
+  for (const chapter of chapters) {
     const heading = oneLine(chapter.title)
     parts.push(`第 ${chapter.number} 章${heading === '' ? '' : ` ${heading}`}`)
-    parts.push(String(version.body ?? '').replace(/\r\n?|\n/gu, '\n').replace(/\n+$/u, ''))
+    parts.push(String(chapter.body ?? '').replace(/\r\n?|\n/gu, '\n').replace(/\n+$/u, ''))
   }
   return `${parts.join('\n\n')}\n`
 }
@@ -2324,14 +2334,21 @@ export function exportWork(root, work, destination) {
       const target = destination ?? join(exportsDir(root), row.work_id)
       if (destination === undefined && existsSync(target)) rmSync(target, { recursive: true, force: true })
       const files = []
-      const put = (relative, text) => {
+      const put = (relative, data) => {
         const file = join(target, relative)
         mkdirSync(join(file, '..'), { recursive: true })
-        writeFileSync(file, text, 'utf8')
+        if (typeof data === 'string') writeFileSync(file, data, 'utf8')
+        else writeFileSync(file, data)
         files.push(relative)
       }
+      const chapters = currentChapters(db)
       put('manifest.json', `${JSON.stringify(exportManifest(root, row.work_id, row, db), null, 2)}\n`)
-      put('book.txt', bookText(row.title, db))
+      put('book.txt', bookText(row.title, chapters))
+      put('book.epub', buildEpub({
+        title: row.title,
+        identifier: `urn:storycraft:${Buffer.from(row.work_id, 'utf8').toString('hex')}`,
+        chapters,
+      }))
       for (const version of db.prepare('SELECT * FROM chapter_versions ORDER BY number, revision').all()) {
         put(join('chapters', `${versionStem(version.number, version.revision)}.md`),
           version.body.endsWith('\n') ? version.body : `${version.body}\n`)

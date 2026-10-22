@@ -38,9 +38,12 @@ try {
   const first = await s.exportWorkAtomic(root, work)
   check('atomic export writes the target', first.directory === target && first.files > 0, JSON.stringify(first))
   const manifest = JSON.parse(await readFile(join(target, 'manifest.json'), 'utf8'))
-  check('atomic export writes manifest v5 and book', manifest.schemaVersion === 5
-    && manifest.book?.file === 'book.txt' && first.files === await countFiles(target), JSON.stringify(manifest.book))
-  check('atomic export writes book.txt', (await readFile(join(target, 'book.txt'), 'utf8')).startsWith('原子导出\n\n第 1 章 一'))
+  check('atomic export writes manifest v6, book and epub', manifest.schemaVersion === 6
+    && manifest.book?.file === 'book.txt' && manifest.epub?.file === 'book.epub'
+    && first.files === await countFiles(target), JSON.stringify(manifest.epub))
+  check('atomic export writes book.txt and book.epub',
+    (await readFile(join(target, 'book.txt'), 'utf8')).startsWith('原子导出\n\n第 1 章 一')
+    && (await readFile(join(target, 'book.epub'))).subarray(0, 2).toString() === 'PK')
   const firstBody = await readFile(join(target, 'chapters', 'ch-0001.md'), 'utf8')
   check('atomic export leaves no staging or backup',
     (await readdir(exportsDir(root))).filter(name => name.startsWith('.tmp-') || name.startsWith('.bak-')).length === 0)

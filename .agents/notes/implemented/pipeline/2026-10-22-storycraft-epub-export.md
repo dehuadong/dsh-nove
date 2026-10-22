@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：EPUB 导出
-status: proposed
+status: implemented
 created: 2026-10-22
 updated: 2026-10-22
+verification: 29 单测 + 13 E2E；真实雪线邮路 book.epub 4 章 + title 页、ZIP/OPF 可解析、files 34
 ---
 
 # Agent Note：故事工坊：EPUB 导出
@@ -11,7 +12,7 @@ updated: 2026-10-22
 
 D1 只差 EPUB。现有导出有 md/json 与 #32 的 `book.txt`，但没有阅读器可打开的单文件电子书。EPUB 需要 ZIP 容器、OPF、nav 与 XHTML；本项用纯 Node 实现，不引入第三方依赖。
 
-## 提案
+## 决定
 
 ### 1. 模块与文件结构
 
@@ -89,7 +90,7 @@ OEBPS/ch-0001.xhtml
 - **把 md 直接塞进 XHTML**：Markdown 标记会显示；否决。
 - **人工阅读器验收**：代理无法保证环境；结构测试 + 用户自选阅读器；D1 保持部分。
 
-## 验收条件
+## 后果
 
 产品验收在 #33；本 Note 检查技术性质：
 
@@ -106,4 +107,11 @@ OEBPS/ch-0001.xhtml
 - 纯 Node ZIP 需自保证 CRC/central directory；测试解析每个 entry。
 - 不渲染 Markdown；可后续。
 - 固定 ZIP 时间可复现；阅读器兼容性需真实抽查，D1 仍部分。
+
+## 验证
+
+- `node storycraft/scripts/ci.mjs`：29 个单测文件 + 13 条 E2E 全过。
+- `export-backup`：ZIP CRC/尺寸、mimetype 第一/stored/无 extra、XML 平衡、章序/空白标题/转义、空作品 title 页、Buffer 确定性。
+- `export-atomic`：manifest v6/epub、book.epub、files 计数、缺失版本 `export-failed`。
+- 真实 `雪线邮路`：`book.epub` 4 章 + title 页，Python `zipfile.testzip()` 干净，OPF XML 可解析，spine 5 项，`files` 34。
 - 大书一次性内存构建；本项接受。

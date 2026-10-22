@@ -48,7 +48,7 @@ B1 的素材已经一作品一库，作者导入的每一份素材天然属于�
 - **部分替代 B1** [2026-10-21-storycraft-material-ingest.md](../../implemented/pipeline/2026-10-21-storycraft-material-ingest.md)：schema v3→v4、materials 增加 purpose、导出 v3→v4；B1 的导入/管理/托管副本边界不变。
 - **部分替代 B4** [2026-10-22-storycraft-brief-retrieval.md](../../implemented/pipeline/2026-10-22-storycraft-brief-retrieval.md)：brief 只取 setting/character/scene；B4 的 3 条/1200/8KB/位置/丢弃规则不变。B4 的“任意匹配素材”AC 由 #30 的用途筛选取代。
 - **补充 #16** [2026-10-21-storycraft-retrieval-fts.md](../../implemented/pipeline/2026-10-21-storycraft-retrieval-fts.md)：`searchMemory` 增加 purposes，material 候选可被用途过滤；其余 kind/预算不变。
-- **补充 #27/D1** [2026-10-21-storycraft-panel-export.md](../../implemented/pipeline/2026-10-21-storycraft-panel-export.md)：导出 manifest 后续升 v5 并增加 purpose/book；面板导出的原子替换不变。
+- **补充 #27/D1** [2026-10-21-storycraft-panel-export.md](../../implemented/pipeline/2026-10-21-storycraft-panel-export.md)：导出 manifest 后续升 v6（purpose + book + epub）；面板导出的原子替换不变。
 - **补充 #25** [2026-10-21-storycraft-summary-revision-binding.md](../../implemented/pipeline/2026-10-21-storycraft-summary-revision-binding.md)：备份恢复 v3 库时走 v3→v4 迁移；摘要边界不变。
 - **补充 #18** [2026-10-19-storycraft-sqlite-store.md](../../implemented/pipeline/2026-10-19-storycraft-sqlite-store.md)：库版本与 manifest 版本文案改 v4；旧 v3 导出/备份边界不变。
 
