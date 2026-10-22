@@ -8,7 +8,7 @@ verification: 交付时 20 个单元测试文件与 7 条页面 spec 全绿；20
 
 # Agent Note：故事工坊：作品入库与导出（SQLite，一作品一库）
 
-> 2026-10-21 部分修订：`db.js:331` 的“任何非当前 `user_version` 都拒绝打开”改为 v1→v2→v3 受控自动迁移；v3 新增 `materials` 表，导出 manifest 升到 3 并带素材文件。迁移失败新增 `schema-migration-failed`，`work-busy` 仍可重试。迁移细节见 [摘要 revision 绑定](2026-10-21-storycraft-summary-revision-binding.md) 与 [素材库](../../proposed/pipeline/2026-10-21-storycraft-material-ingest.md)。
+> 2026-10-21 部分修订：`db.js:331` 的“任何非当前 `user_version` 都拒绝打开”改为 v1→v2→v3 受控自动迁移；v3 新增 `materials` 表，导出 manifest 升到 3 并带素材文件。迁移失败新增 `schema-migration-failed`，`work-busy` 仍可重试。迁移细节见 [摘要 revision 绑定](2026-10-21-storycraft-summary-revision-binding.md) 与 [素材库](2026-10-21-storycraft-material-ingest.md)。
 
 ## 问题
 
@@ -78,7 +78,7 @@ verification: 交付时 20 个单元测试文件与 7 条页面 spec 全绿；20
 - 每次操作打开目标库，`journal_mode=WAL`、`busy_timeout=5000`、`foreign_keys=ON`；写事务 `BEGIN IMMEDIATE`；`SQLITE_BUSY` → `work-busy`；
 - 对账与诊断连接用 `busy_timeout=0`，锁定时立即降级，不拖慢列表或宿主启动；
 - v1→v3：`openWork` 对 v1/v2 在事务内按 step 表迁移；v1→v2 给 `summaries` 加 `revision` 并回填，v2→v3 建 `materials`；成功后 best-effort 更新 `catalog.works.schema_version`；未知版本仍 `schema-version-mismatch`，迁移失败返回 `schema-migration-failed`，库保持进入时版本；
-- 错误码：`sqlite-unavailable`、`db-corrupt`、`schema-version-mismatch`、`schema-migration-failed`、`backup-failed`、`work-not-found`、`work-exists`；素材错误码见 [素材库](../../proposed/pipeline/2026-10-21-storycraft-material-ingest.md)；
+- 错误码：`sqlite-unavailable`、`db-corrupt`、`schema-version-mismatch`、`schema-migration-failed`、`backup-failed`、`work-not-found`、`work-exists`；素材错误码见 [素材库](2026-10-21-storycraft-material-ingest.md)；
 - 启动探测 `node:sqlite`；缺失时所有动作返回 `sqlite-unavailable`，无文件回退。
 
 ### 虚拟路径与导出

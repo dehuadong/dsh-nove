@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：素材库（导入 / 列表 / 重命名 / 删除）
-status: proposed
+status: implemented
 created: 2026-10-21
-updated: 2026-10-21
+updated: 2026-10-22
+verification: 51625bc；29 个单测 + 13 条 E2E；真实雪线邮路导入/删除后面板列表为空，materials/search_docs/search_fts 均无行，.storycraft/materials 副本保留
 ---
 
 # Agent Note：故事工坊：素材库（导入 / 列表 / 重命名 / 删除）
@@ -13,7 +14,7 @@ updated: 2026-10-21
 
 epub/pdf 需要额外解析、分页与依赖，不应和 txt/md 的首版绑在一起。
 
-## 提案
+## 决定
 
 ### 1. 存储：作品库 `materials`
 
@@ -134,7 +135,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_materials_hash ON materials(hash);
 - **一次支持 epub/pdf**：解析、分页、编码复杂，拖大 B1；否决，后置。
 - **删除时连文件一起删**：误删风险高；否决，只删库与索引。
 
-## 验收条件
+## 后果
 
 产品验收在 #26；本 Note 检查技术性质：
 
@@ -155,3 +156,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_materials_hash ON materials(hash);
 - 删除保留文件，`materials/` 会积累孤儿文件；B1 接受，后续可加清理。
 - `mat-<hash16>` 理论碰撞极低；碰撞返回 `material-id-conflict`，不覆盖。
 - 素材暂不参与 `story_context`，作者会感觉“导入了但写作时用不上”；B2 紧接着做。
+
+## 验证
+
+- `node storycraft/scripts/ci.mjs`：29 个单测文件 + 13 条 E2E 全过。
+- `material.test`：导入/去重/列表/重命名/删除/隔离/作品改名/错误矩阵/BOM/写失败清理。
+- 迁移：v1→v2→v3、v2→v3、坏表拒绝、失败回滚。
+- E2E：面板导入、重复导入、重命名、删除、非法格式错误。
+- 真实 `雪线邮路`：导入后在面板删除；库中 `materials`/`search_docs`/`search_fts` 均为空，`.storycraft/materials/2bf06491-雪线邮路.md` 副本保留。

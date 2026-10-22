@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：面板导出入口与原子导出
-status: proposed
+status: implemented
 created: 2026-10-21
 updated: 2026-10-22
+verification: 7ad654b；29 个单测 + 13 条 E2E；真实雪线邮路连续两次原子导出 32 文件、manifest v3、无 .tmp/.bak 残留
 ---
 
 # Agent Note：故事工坊：面板导出入口与原子导出
@@ -13,7 +14,7 @@ updated: 2026-10-22
 
 现有 `exportWork` 在默认目录上先删旧目录再写，失败会丢旧导出；面板按钮可重复点击，不能沿用这条破坏性路径。
 
-## 提案
+## 决定
 
 ### 1. 面板入口
 
@@ -75,7 +76,7 @@ updated: 2026-10-22
 - **每次导出到时间戳目录**：保留历史但“当前导出”不固定；否决。
 - **zip 下载**：D1 非范围。
 
-## 验收条件
+## 后果
 
 产品验收在 #27；本 Note 检查技术性质：
 
@@ -91,3 +92,10 @@ updated: 2026-10-22
 - `.tmp` / `.bak` 可能残留；本项不自动清理，错误信息带路径。
 - 跨进程并发未加锁；面板单实例使用可接受。
 - 导出仍不是 zip，作者需要从目录取文件。
+
+## 验证
+
+- `node storycraft/scripts/ci.mjs`：29 个单测文件 + 13 条 E2E 全过。
+- `export-atomic.test` 15 项：首次/重复、写失败、备份失败、替换失败、恢复、`export-rollback-failed`、清理失败、并发。
+- E2E：header 导出、提示、manifest v3、重复导出、接口错误矩阵、没有新增会话消息。
+- 真实 `雪线邮路`：连续两次 `exportWorkAtomic`，每次 32 个文件，manifest v3，`.storycraft/exports` 无 `.tmp`/`.bak` 残留。

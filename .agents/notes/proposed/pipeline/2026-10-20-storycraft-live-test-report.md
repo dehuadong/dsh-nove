@@ -47,6 +47,8 @@ updated: 2026-10-21
 | #24 摘要窗口（第 4 章） | — | 591 字符；整轮 2,735；`summaryChars` 317；摘要前 `story_read` 0 次 |
 | #25 摘要 revision 绑定（第 4 章） | — | 重写 r4 1,203；摘要 399 字 / 2 次提交；`summaryRevision 4`、`summaryStale false` |
 | #16 上下文检索（第 4 章） | — | `candidateCount 14`、5 条 sent、段 311 字；stale summary:2 不在 hits |
+| #26 素材库 | — | 面板导入/删除；DB 三处为空，副本保留 |
+| #27 面板导出 | — | 原子导出 32 文件、manifest v3、无 tmp/bak |
 
 主会话字符分布（第 1 章整轮）：
 
@@ -114,6 +116,17 @@ updated: 2026-10-21
 2. 检索段 `retrieval` 进入 `sections`，311 字；`recent` 仍是单独的「最近脉络」段。
 3. 临时把第 2 章摘要 revision 置 0 后再查 `task="第2章摘要"`：`hits` 为 `event:*`，没有 `summary:2`，`candidateCount` 13；探测后已把 revision 恢复为 2。
 4. 结果以伏笔事件为主：FTS 词法排序把同一任务关键词命中的 hook 事件排在摘要前；这是第一版“不做语义重排”的已知取舍，后续可按 trace 评估。
+
+### #26 素材库（面板）
+
+- 作者在面板导入 `.md`，列表出现；重命名、删除后列表消失。
+- 删除后 DB 查询：`materials []`、`search_docs []`、`search_fts material []`；`.storycraft/materials/2bf06491-雪线邮路.md` 副本保留。
+- 导出 manifest v3 带 `materials` 元数据与 `hash/origin`。
+
+### #27 面板导出
+
+- 真实 `雪线邮路` 连续两次 `exportWorkAtomic`：每次 32 个文件，`manifest.json schemaVersion:3`；`.storycraft/exports` 无 `.tmp`/`.bak` 残留。
+- E2E：header「导出」→ 提示 → manifest v3；删除目标后再次导出成功；错误矩阵与 composer 不变。
 
 ### 本轮遗留
 
