@@ -2,7 +2,7 @@
 title: 故事工坊：面板导出入口与原子导出
 status: proposed
 created: 2026-10-21
-updated: 2026-10-21
+updated: 2026-10-22
 ---
 
 # Agent Note：故事工坊：面板导出入口与原子导出
@@ -28,20 +28,20 @@ updated: 2026-10-21
 
 新增 `exportWorkAtomic(root, work)`，不改 `story_export` 的现有行为：
 
-1. 在 `.storycraft/exports/` 写临时目录 `.tmp-<workId>-<random>`；
+1. 在 `.storycraft/exports/` 写临时目录 `.tmp-<hash(workId) 前 12 位>-<timestamp>-<random>`；
 2. 用现有 `exportWork(root, work, stage)` 写入完整导出；该调用抛出的 fs 错误在这里包装为 `export-failed`，路由不会收到 raw error；
-3. 若目标存在，rename 目标到 `.bak-<workId>-<random>`：
+3. 若目标存在，rename 目标到 `.bak-<hash(workId) 前 12 位>-<timestamp>-<random>`：
    - 失败：删除临时目录，旧导出不动；
 4. rename 临时目录到目标：这是**提交点**；成功后导出已生效。
    - 失败：删除临时目录；有 `.bak` 时 rename 回目标，恢复失败抛 `export-rollback-failed` 并带备份路径；首次导出没有 `.bak` 时抛 `export-failed`；
 5. 提交后删除 `.bak`；删除失败不报错，也不能把成功导出报成失败，残留由作者/后续清理处理；
-6. 任一步失败都不得先删除旧目标；若目标缺失且存在 `.bak`，下一次导出/启动恢复备份。
+6. 任一步失败都不得先删除旧目标；若目标缺失且存在 `.bak`，下一次导出/启动按名称中的 timestamp 取最新备份恢复。
 
 `exportWork` 本身保持现有签名/行为（显式目标直接写；默认目标仍由 `story_export` 使用）；原子行为只由面板路由使用。
 
 并发：`exportWorkAtomic` 用进程内 per-(root,workId) promise mutex 串行；跨进程并发不在本项范围。
 
-故障注入：`exportWorkAtomic(root, work, { rename = renameSync, remove = rmSync } = {})`；测试注入 rename/remove 失败；`exportWork` 本身不注入。
+故障注入：`exportWorkAtomic(root, work, { rename = renameSync, remove = rmSync, exportTree = exportWork } = {})`；测试注入 rename/remove/exportTree 失败；`exportWork` 本身不注入。
 
 ### 3. 错误码
 
@@ -64,9 +64,9 @@ updated: 2026-10-21
 - 注入 `rename` 失败：第一次 rename 失败旧目标不动；第二次 rename 失败恢复 `.bak`；首次导出（无 `.bak`）第二次 rename 失败返回 `export-failed`；
 - 注入 `.bak` 删除失败：仍返回成功并保留备份；
 - 默认导出 mtime/文件集合与现有导出测试一致；
-- API 失败：`invalid-body`、`work-mismatch`、`invalid-root`、`unknown-workspace`、`work-not-found` 各一条；
+- API 失败：`invalid-body`、`work-mismatch`、`invalid-root`、`unknown-workspace`、`work-not-found` 各一条；`writeWorkTarget` 先查作品存在，再比当前作品；
 - E2E：header「导出」→ 提示 → 目录存在；再次导出；没有新增会话消息；
-- README/API 表/D1 行/#18 导出说明同步。
+- README/API 表/D1 行/#18 导出说明同步；README 页面 spec 数量按 13（工作台 11 + 预设 2）。
 
 ## 备选方案
 

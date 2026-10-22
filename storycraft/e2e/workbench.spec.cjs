@@ -4,6 +4,7 @@
 // The fixture is built by the host through the same actions a session uses, so
 // every asserted number comes from runtime.json instead of a moving sample.
 const fs = require('node:fs')
+const { join } = require('node:path')
 const { test, expect } = require('@playwright/test')
 
 const runtimePath = process.env.STORYCRAFT_E2E_RUNTIME
@@ -186,6 +187,75 @@ test.describe('故事工坊工作台', () => {
     page.once('dialog', dialog => dialog.accept())
     await page.getByRole('button', { name: '删除' }).last().evaluate(node => node.click())
     await expect(page.getByText('素材库：0 份')).toBeVisible({ timeout: 15_000 })
+  })
+
+  test('作品 header 可以直接导出', async ({ page }) => {
+    await openWorkbench(page)
+    await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())
+    const composer = page.getByRole('textbox', { name: /Describe what/ })
+    expect(await composer.count()).toBeGreaterThan(0)
+    const before = await composer.evaluate(node => String(node.value ?? node.textContent ?? ''))
+    await page.getByRole('button', { name: '导出', exact: true }).evaluate(node => node.click())
+    await expect(page.getByText(/已导出 \d+ 个文件/)).toBeVisible({ timeout: 15_000 })
+    const manifestPath = join(runtime.fixtureWorkspace, '.storycraft', 'exports', facts.workId, 'manifest.json')
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+    expect(manifest.schemaVersion).toBe(3)
+    expect(await composer.evaluate(node => String(node.value ?? node.textContent ?? ''))).toBe(before)
+    fs.rmSync(join(runtime.fixtureWorkspace, '.storycraft', 'exports', facts.workId), { recursive: true, force: true })
+    await page.getByRole('button', { name: '导出', exact: true }).evaluate(node => node.click())
+    await expect(page.getByText(/已导出 \d+ 个文件/)).toBeVisible({ timeout: 15_000 })
+    await expect.poll(() => fs.existsSync(manifestPath), { timeout: 5_000 }).toBe(true)
+
+    const rejected = await page.evaluate(async ({ root, workId }) => {
+      const response = await fetch('/api/dsh-storycraft/export', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ root, sessionId: 'not-this-session', workId }),
+      })
+      return response.json()
+    }, { root: runtime.fixtureWorkspace, workId: facts.workId })
+    expect(rejected.ok).toBe(false)
+    expect(rejected.error.code).toBe('work-mismatch')
+    const invalid = await page.evaluate(async () => {
+      const response = await fetch('/api/dsh-storycraft/export', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      })
+      return response.json()
+    })
+    expect(invalid.ok).toBe(false)
+    expect(invalid.error.code).toBe('invalid-body')
+    const unknown = await page.evaluate(async () => {
+      const response = await fetch('/api/dsh-storycraft/export', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ root: 'C:\\\\definitely-not-a-workspace', sessionId: 'x', workId: 'y' }),
+      })
+      return response.json()
+    })
+    expect(unknown.ok).toBe(false)
+    expect(['unknown-workspace', 'invalid-root']).toContain(unknown.error.code)
+    const missing = await page.evaluate(async ({ root }) => {
+      const response = await fetch('/api/dsh-storycraft/export', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ root, sessionId: 'x', workId: 'no-such-work' }),
+      })
+      return response.json()
+    }, { root: runtime.fixtureWorkspace })
+    expect(missing.ok).toBe(false)
+    expect(missing.error.code).toBe('work-not-found')
+    const relative = await page.evaluate(async () => {
+      const response = await fetch('/api/dsh-storycraft/export', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ root: 'relative', sessionId: 'x', workId: 'y' }),
+      })
+      return response.json()
+    })
+    expect(relative.ok).toBe(false)
+    expect(relative.error.code).toBe('invalid-root')
   })
 
   test('全书计划可以从面板确认', async ({ page }) => {

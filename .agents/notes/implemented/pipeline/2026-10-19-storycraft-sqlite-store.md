@@ -2,8 +2,8 @@
 title: 故事工坊：作品入库与导出（SQLite，一作品一库）
 status: implemented
 created: 2026-10-19
-updated: 2026-10-21
-verification: 28 个单元测试文件与 12 条页面 spec 全绿；200 章加载 2.35ms、追加 16ms；交付提交 1fa449e；v1→v3 迁移由 #25/#26 覆盖
+updated: 2026-10-22
+verification: 交付时 20 个单元测试文件与 7 条页面 spec 全绿；200 章加载 2.35ms、追加 16ms；交付提交 1fa449e；当前 29/13 由 #26/#27 扩展，v1→v3 迁移由 #25/#26 覆盖
 ---
 
 # Agent Note：故事工坊：作品入库与导出（SQLite，一作品一库）
@@ -85,7 +85,8 @@ verification: 28 个单元测试文件与 12 条页面 spec 全绿；200 章加�
 
 - 动作与路由返回的 `artifact.path`：`works/<workId>/chapters/ch-0007.md`（虚拟，不对应磁盘文件）；
 - `story_export(work)` 产出：`manifest.json`（schemaVersion 3、title/form/tags/wordRange/planApproval、outline 时间、章节状态、素材元数据）、`chapters/ch-0007.md`=r1、`ch-0007.rN.md`=第 N 版、`outline/*.plan.md`、`summaries/*.md`、`reviews/*.rN.md`（全部轮次）、`bible/{intent,characters.json,style,plan,world}`、`volumes.json`、`proposals/<id>.json`（仅 `used_work_id` 指向该作品的提案）、`state/events.jsonl`、`materials/<id>.<format>`；顺序与 mtime 固定；
-- `story_backup(work)` 用 `backup()`/`VACUUM INTO`，返回 `integrity_check`。
+- `story_backup(work)` 用 `backup()`/`VACUUM INTO`，返回 `integrity_check`；
+- 面板「导出」走 `exportWorkAtomic`：临时目录 → 旧目标备份 → rename 提交，失败保留旧导出；`story_export` 的默认/显式目标行为不变。
 
 ### 与 #17 / #16 的关系
 

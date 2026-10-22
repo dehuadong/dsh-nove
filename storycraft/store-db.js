@@ -9,9 +9,9 @@
  * catalog write and the move in an order that can be rolled back.
  */
 
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import {
-  closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, unlinkSync, utimesSync, writeFileSync, writeSync,
+  closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, rmSync, unlinkSync, utimesSync, writeFileSync, writeSync,
 } from 'node:fs'
 import { join } from 'node:path'
 import {
@@ -31,6 +31,9 @@ export const PROPOSAL_TTL_MS = 30 * 24 * 60 * 60 * 1000
 
 /** Fixed mtime of export files, so directory copies stay reproducible. */
 const EXPORT_MTIME = new Date('2000-01-01T00:00:00.000Z')
+
+/** In-process export queues, keyed by workspace + work id. */
+const exportLocks = new Map()
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -2288,6 +2291,106 @@ export function exportWork(root, work, destination) {
     }
   } finally {
     catalog.close()
+  }
+}
+
+/**
+ * Export through a staging directory and swap it into place. The default
+ * `exportWork` path stays untouched; this is the panel-only atomic route.
+ * @param {string} root - workspace directory.
+ * @param {string} work - work identity.
+ * @param {object} [options] - test seam for rename/remove/export tree.
+ * @returns {Promise<{directory: string, files: number}>} export result.
+ */
+export async function exportWorkAtomic(root, work, options = {}) {
+  const rename = typeof options.rename === 'function' ? options.rename : renameSync
+  const remove = typeof options.remove === 'function' ? options.remove : rmSync
+  const write = typeof options.exportTree === 'function' ? options.exportTree : exportWork
+  const key = `${root}\0${work}`
+  const previous = exportLocks.get(key) ?? Promise.resolve()
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  const tail = previous.then(() => gate)
+  exportLocks.set(key, tail)
+  await previous
+  try {
+    const directory = exportsDir(root)
+    try {
+      mkdirSync(directory, { recursive: true })
+    } catch (error) {
+      throw new StoryError('export-failed', `导出目录无法创建：${error instanceof Error ? error.message : String(error)}`)
+    }
+    const token = createHash('sha256').update(String(work)).digest('hex').slice(0, 12)
+    const target = join(directory, String(work))
+    const stamp = Date.now()
+    const stage = join(directory, `.tmp-${token}-${stamp}-${randomUUID().slice(0, 8)}`)
+    const backup = join(directory, `.bak-${token}-${stamp}-${randomUUID().slice(0, 8)}`)
+    const cleanup = path => {
+      try {
+        remove(path, { recursive: true, force: true })
+      } catch {
+        // Cleanup is best effort; it must not mask the original error.
+      }
+    }
+    const fail = (message, cause) => new StoryError('export-failed', `${message}${cause === undefined ? '' : `：${cause}`}`)
+
+    // A previous swap may have crashed between target→backup and stage→target.
+    if (!existsSync(target)) {
+      let entries
+      try {
+        entries = readdirSync(directory)
+      } catch (error) {
+        throw fail('导出目录无法读取', error instanceof Error ? error.message : String(error))
+      }
+      const backups = entries.filter(name => name.startsWith(`.bak-${token}-`)).sort()
+      const last = backups.at(-1)
+      if (last !== undefined) {
+        try {
+          rename(join(directory, last), target)
+        } catch (error) {
+          throw fail('恢复上次导出备份失败', error instanceof Error ? error.message : String(error))
+        }
+      }
+    }
+
+    let result
+    try {
+      result = write(root, work, stage)
+    } catch (error) {
+      cleanup(stage)
+      if (error instanceof StoryError) throw error
+      throw fail('导出写入失败', error instanceof Error ? error.message : String(error))
+    }
+
+    let movedOld = false
+    if (existsSync(target)) {
+      try {
+        rename(target, backup)
+        movedOld = true
+      } catch (error) {
+        cleanup(stage)
+        throw fail('导出替换前备份旧目录失败', error instanceof Error ? error.message : String(error))
+      }
+    }
+    try {
+      rename(stage, target)
+    } catch (error) {
+      cleanup(stage)
+      if (movedOld) {
+        try {
+          rename(backup, target)
+        } catch (restoreError) {
+          throw new StoryError('export-rollback-failed',
+            `导出替换失败且旧导出恢复失败，备份保留在 ${backup}：${restoreError instanceof Error ? restoreError.message : String(restoreError)}`)
+        }
+      }
+      throw fail('导出替换失败', error instanceof Error ? error.message : String(error))
+    }
+    if (movedOld) cleanup(backup)
+    return { directory: target, files: result.files }
+  } finally {
+    release()
+    if (exportLocks.get(key) === tail) exportLocks.delete(key)
   }
 }
 

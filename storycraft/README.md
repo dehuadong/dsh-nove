@@ -133,10 +133,10 @@ materials         作者素材（txt/md；FTS5 索引；元数据表格 + .story
 侧栏入口「故事工坊」打开一个面板：
 
 - 左侧：当前工作区的作品列表（标题、形态、已写/总章数、最新章号、最近更新时间、未处理问题数）；底部显示当前工作区路径与是否有可下发指令的会话。
-- 右侧：作品详情——章节列表（状态、有无章纲、版本、字数、未处理问题）→ 章节点开后可切「正文 / 章纲」两视图、看审稿清单；「写第 N 章」「审稿」「按清单修订」「定稿」把固定指令投递给当前会话。
+- 右侧：作品详情——header 有「导出」「导出目录」，章节列表（状态、有无章纲、版本、字数、未处理问题）→ 章节点开后可切「正文 / 章纲」两视图、看审稿清单；「写第 N 章」「审稿」「按清单修订」「定稿」把固定指令投递给当前会话。
 - 「真值」与「写前上下文」两个只读视图：真值列出五件的路径、版本与内容；写前上下文按章显示装配结果、字节占用、被裁项与草稿标记。
 
-页面读取作品内容；写操作只有作者直接触发的管理动作：章纲/全书计划确认（`POST /chapter/approve`、`POST /outline/approve`），以及素材库的导入/重命名/删除（`POST /api/dsh-storycraft/materials/*`）。它们都不碰正文，也不会自动发送写正文指令；确认后由作者点动作按钮，把指令填入输入框，补充信息后发送。指令按钮在被点击时才校验——没有会话、或当前会话不是故事工坊时只显示原因不投递；故事工坊预设装载失败时，页面顶部直接显示宿主给出的失败原因。
+页面读取作品内容；写操作只有作者直接触发的管理动作：章纲/全书计划确认（`POST /chapter/approve`、`POST /outline/approve`）、素材库的导入/重命名/删除（`POST /api/dsh-storycraft/materials/*`），以及面板导出（`POST /api/dsh-storycraft/export`）。它们都不碰正文，也不会自动发送写正文指令；确认后由作者点动作按钮，把指令填入输入框，补充信息后发送。指令按钮在被点击时才校验——没有会话、或当前会话不是故事工坊时只显示原因不投递；故事工坊预设装载失败时，页面顶部直接显示宿主给出的失败原因。
 
 ## 读取作用域
 
@@ -166,6 +166,7 @@ materials         作者素材（txt/md；FTS5 索引；元数据表格 + .story
 | `POST /api/dsh-storycraft/materials/import` | 上传 txt/md 导入（JSON + base64） |
 | `POST /api/dsh-storycraft/materials/rename` | 重命名素材标题 |
 | `POST /api/dsh-storycraft/materials/delete` | 删除素材库记录与索引（保留副本） |
+| `POST /api/dsh-storycraft/export` | 面板直接导出（原子替换，返回目录与文件数） |
 | `GET /api/dsh-storycraft/exports?root=&id=` | 作者导出目录状态（只读） |
 | `GET /api/dsh-storycraft/backups?root=&id=` | 作者备份文件列表（只读） |
 | `GET /api/dsh-storycraft/roster` | 预设名册（含装载失败原因） |
@@ -179,7 +180,7 @@ materials         作者素材（txt/md；FTS5 索引；元数据表格 + .story
 storycraft/
   package.json                 # bundle 清单：dsh.bundle.patch + dsh.client
   cordis.patch.yml             # 入口行 + 一条预设声明（故事工坊，技能行 mode: all）
-  index.js                     # Host 半边：只读路由 + 作者确认/素材管理
+  index.js                     # Host 半边：只读路由 + 作者确认/素材管理/面板导出
   db.js                        # SQLite 目录库 / 作品库 schema、连接、检查点与备份
   store-db.js                  # 全部读写：作品、章节、真值、卷、素材、检索、生命周期、导出备份
   materials.js                 # 素材上传字节校验、文件名、哈希与元数据
@@ -210,7 +211,7 @@ storycraft/
   Get-ChildItem storycraft/tests -Filter *.test.mjs | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { exit 1 } }
   ```
 
-- 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑 12 条页面 spec——侧栏入口、页面读数、作者确认、摘要徽标、素材导入/重命名/删除、指令门禁、预设声明与刷新。不调用模型，零额度；需要本机装有 Playwright（可用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装它的目录）。
+- 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑 13 条页面 spec（工作台 11 + 预设 2）——侧栏入口、页面读数、作者确认、摘要徽标、素材导入/重命名/删除、面板导出、指令门禁、预设声明与刷新。不调用模型，零额度；需要本机装有 Playwright（可用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装它的目录）。
 - 端到端验收、评审与证据记录在 issue `dehuadong/dsh-nove#18`。
 
 ## 改动与生效

@@ -13,7 +13,7 @@
 
 import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, resolve } from 'node:path'
-import { approveChapterPlan, approveOutline, deleteMaterial, ensureReconciled, importMaterial, listMaterials, listTrash, listWorks, nextStep, readManifest, readChapter, readReview, readWork, renameMaterial, status as readStatus, StoryError } from './storage.js'
+import { approveChapterPlan, approveOutline, deleteMaterial, ensureReconciled, exportWorkAtomic, importMaterial, listMaterials, listTrash, listWorks, nextStep, readManifest, readChapter, readReview, readWork, renameMaterial, status as readStatus, StoryError } from './storage.js'
 import { critique } from './critique.js'
 import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent } from './current.js'
 import { readVolumes } from './volumes.js'
@@ -218,15 +218,16 @@ export function apply(ctx) {
   } catch {
     // Reconciliation is diagnostic; it never blocks the host surfaces.
   }
-  const materialTarget = async (body) => {
+  const writeWorkTarget = async (body) => {
     const sessionId = typeof body?.sessionId === 'string' ? body.sessionId : ''
     const workId = typeof body?.workId === 'string' ? body.workId : ''
-    if (sessionId === '' || workId === '') throw new StoryError('invalid-body', '素材操作需要 sessionId 与 workId')
+    if (sessionId === '' || workId === '') throw new StoryError('invalid-body', '操作需要 sessionId 与 workId')
     const root = await rootOf(ctx, new URLSearchParams({ root: String(body?.root ?? '') }))
+    await readManifest(root, workId)
     if (getCurrent(sessionId) !== workId) {
       hydrateCurrent(await readCurrentFile(root))
       if (getCurrent(sessionId) !== workId) {
-        throw new StoryError('work-mismatch', '只在面板当前作品里管理素材')
+        throw new StoryError('work-mismatch', '只在面板当前作品里操作')
       }
     }
     return { root, workId }
@@ -368,7 +369,7 @@ export function apply(ctx) {
       path: `${BASE}/materials/import`,
       handler: (req, res) => {
         void postRoute(req, res, async (body) => {
-          const { root, workId } = await materialTarget(body)
+          const { root, workId } = await writeWorkTarget(body)
           const name = typeof body?.name === 'string' ? body.name : ''
           const contentBase64 = typeof body?.contentBase64 === 'string' ? body.contentBase64 : ''
           return importMaterial(root, workId, {
@@ -384,7 +385,7 @@ export function apply(ctx) {
       path: `${BASE}/materials/rename`,
       handler: (req, res) => {
         void postRoute(req, res, async (body) => {
-          const { root, workId } = await materialTarget(body)
+          const { root, workId } = await writeWorkTarget(body)
           const material = await renameMaterial(root, workId, String(body?.id ?? ''), String(body?.title ?? ''))
           return { material }
         }, { maxBytes: 32 * 1024, requireJson: true })
@@ -395,8 +396,18 @@ export function apply(ctx) {
       path: `${BASE}/materials/delete`,
       handler: (req, res) => {
         void postRoute(req, res, async (body) => {
-          const { root, workId } = await materialTarget(body)
+          const { root, workId } = await writeWorkTarget(body)
           return deleteMaterial(root, workId, String(body?.id ?? ''))
+        }, { maxBytes: 32 * 1024, requireJson: true })
+      },
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/export`,
+      handler: (req, res) => {
+        void postRoute(req, res, async (body) => {
+          const { root, workId } = await writeWorkTarget(body)
+          return exportWorkAtomic(root, workId)
         }, { maxBytes: 32 * 1024, requireJson: true })
       },
     }),

@@ -24,6 +24,7 @@ window.__ModuleLoader__.load({
       materialImport: '/api/dsh-storycraft/materials/import',
       materialRename: '/api/dsh-storycraft/materials/rename',
       materialDelete: '/api/dsh-storycraft/materials/delete',
+      exportWork: '/api/dsh-storycraft/export',
       exports: '/api/dsh-storycraft/exports',
       backups: '/api/dsh-storycraft/backups',
     }
@@ -323,6 +324,7 @@ window.__ModuleLoader__.load({
         }),
         renameMaterial: (root, sessionId, workId, id, title) => post(ROUTE.materialRename, { root, sessionId, workId, id, title }),
         deleteMaterial: (root, sessionId, workId, id) => post(ROUTE.materialDelete, { root, sessionId, workId, id }),
+        exportWork: (root, sessionId, workId) => post(ROUTE.exportWork, { root, sessionId, workId }),
         exports: (root, id) => route(ROUTE.exports, { root, id }),
         backups: (root, id) => route(ROUTE.backups, { root, id }),
 
@@ -728,19 +730,6 @@ window.__ModuleLoader__.load({
                 }
               },
             }, '质检'),
-            h('button', {
-              type: 'button',
-              className: 'sc-btn',
-              title: '显示作者导出目录（只读路由，不把路径交给模型）',
-              onClick: async () => {
-                try {
-                  const payload = await face.exports(root, workId)
-                  onNotice({ kind: 'ok', text: payload.exists === true ? `导出目录：${payload.directory}` : '还没有导出：让模型调用 story_export。' })
-                } catch (error) {
-                  onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
-                }
-              },
-            }, '导出目录'),
             chapter.stage === 'settled'
               ? h('button', {
                 type: 'button',
@@ -879,6 +868,7 @@ window.__ModuleLoader__.load({
       const [bible, setBible] = useState({ status: 'idle' })
       const [brief, setBrief] = useState({ status: 'idle' })
       const [materials, setMaterials] = useState([])
+      const [exporting, setExporting] = useState(false)
       const [materialBusy, setMaterialBusy] = useState(false)
       const [materialError, setMaterialError] = useState(undefined)
       const [materialEditing, setMaterialEditing] = useState(undefined)
@@ -1022,6 +1012,31 @@ window.__ModuleLoader__.load({
         }
       }
 
+      const runExport = async () => {
+        if (sessionId === undefined || exporting) return
+        setExporting(true)
+        try {
+          const payload = await face.exportWork(root, sessionId, workId)
+          onNotice({ kind: 'ok', text: `已导出 ${payload.files} 个文件：${payload.directory}` })
+        } catch (error) {
+          onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
+        } finally {
+          setExporting(false)
+        }
+      }
+
+      const showExportDirectory = async () => {
+        try {
+          const payload = await face.exports(root, workId)
+          onNotice({
+            kind: 'ok',
+            text: payload.exists === true ? `导出目录：${payload.directory}` : '还没有导出：点「导出」生成。',
+          })
+        } catch (error) {
+          onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
+        }
+      }
+
       if (detail.status === 'loading') return h('p', { className: 'sc-muted' }, '读取作品…')
       if (detail.status === 'error') return h('p', { className: 'sc-notice sc-notice-error' }, detail.error)
 
@@ -1062,6 +1077,19 @@ window.__ModuleLoader__.load({
               title: '写下一章并一次做完：章纲 → 正文 → 质检 → 审稿 → 修订/清稿 → 摘要 → 定稿',
               onClick: () => compose(INSTRUCTIONS.flowFull(manifest.workId, next === undefined ? nextNumber : next.chapter)),
             }, `写第 ${next === undefined ? nextNumber : next.chapter} ${unitOf(manifest.form)}（一次做完）`),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn',
+              disabled: exporting || sessionId === undefined,
+              title: '由宿主直接导出到 .storycraft/exports；不经过模型',
+              onClick: () => { void runExport() },
+            }, exporting ? '导出中…' : '导出'),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn',
+              title: '显示作者导出目录（只读路由，不把路径交给模型）',
+              onClick: () => { void showExportDirectory() },
+            }, '导出目录'),
             manifest.outline?.writtenAt !== undefined && manifest.outline?.approvedAt === undefined
               ? h('button', {
                 type: 'button',
