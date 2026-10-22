@@ -2234,7 +2234,7 @@ function queryDocs(db, { match, kinds, beforeChapter, limit }) {
 // ---------------------------------------------------------------------------
 
 /** Export format version, independent of the work database schema version. */
-const EXPORT_SCHEMA_VERSION = 4
+const EXPORT_SCHEMA_VERSION = 5
 
 /** Render the export manifest from the catalog row and the work database. */
 function exportManifest(root, workId, catalogRowValue, db) {
@@ -2276,7 +2276,28 @@ function exportManifest(root, workId, catalogRowValue, db) {
       hash: row.hash,
       origin: row.origin,
     })),
+    book: { file: 'book.txt', format: 'txt' },
   }
+}
+
+/** Collapse a title to one trimmed line. */
+function oneLine(value) {
+  return String(value ?? '').replace(/\r\n?|\n/gu, ' ').replace(/\s+/gu, ' ').trim()
+}
+
+/** Render the single-file readable book from current chapter revisions. */
+function bookText(title, db) {
+  const parts = [oneLine(title) || '未命名']
+  for (const chapter of db.prepare('SELECT * FROM chapters WHERE current_revision > 0 ORDER BY number').all()) {
+    const version = currentVersion(db, chapter)
+    if (version === undefined) {
+      throw new StoryError('export-failed', `第 ${chapter.number} 章缺少当前正文版本，无法导出 TXT`)
+    }
+    const heading = oneLine(chapter.title)
+    parts.push(`第 ${chapter.number} 章${heading === '' ? '' : ` ${heading}`}`)
+    parts.push(String(version.body ?? '').replace(/\r\n?|\n/gu, '\n').replace(/\n+$/u, ''))
+  }
+  return `${parts.join('\n\n')}\n`
 }
 
 /** `ch-0007` / `ch-0007.r2`. */
@@ -2310,6 +2331,7 @@ export function exportWork(root, work, destination) {
         files.push(relative)
       }
       put('manifest.json', `${JSON.stringify(exportManifest(root, row.work_id, row, db), null, 2)}\n`)
+      put('book.txt', bookText(row.title, db))
       for (const version of db.prepare('SELECT * FROM chapter_versions ORDER BY number, revision').all()) {
         put(join('chapters', `${versionStem(version.number, version.revision)}.md`),
           version.body.endsWith('\n') ? version.body : `${version.body}\n`)

@@ -8,7 +8,7 @@ verification: 交付时 20 个单元测试文件与 7 条页面 spec 全绿；20
 
 # Agent Note：故事工坊：作品入库与导出（SQLite，一作品一库）
 
-> 2026-10-22 补充（#30 B3）：作品库升 v5（素材 purpose + 标题索引），导出 manifest 仍 v4；v3 导出/备份仍有效，恢复时走迁移。
+> 2026-10-22 补充（#30 B3）：作品库升 v5（素材 purpose + 标题索引），导出 manifest 升 v5（book.txt）；v3/v4 导出/备份仍有效，恢复时走迁移。
 
 > 2026-10-21 部分修订：`db.js:331` 的“任何非当前 `user_version` 都拒绝打开”改为 v1→v2→v3 受控自动迁移；v3 新增 `materials` 表，导出 manifest 升到 3 并带素材文件。迁移失败新增 `schema-migration-failed`，`work-busy` 仍可重试。迁移细节见 [摘要 revision 绑定](2026-10-21-storycraft-summary-revision-binding.md) 与 [素材库](2026-10-21-storycraft-material-ingest.md)。
 

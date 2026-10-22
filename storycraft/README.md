@@ -88,7 +88,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 | `story_rename` | 改标题或作品 id；改 id 时库文件一起移，冲突拒绝 |
 | `story_delete` | 移入 `.storycraft/trash/`，不再出现在列表 |
 | `story_restore` | 恢复回收站里最近一次的同名作品 |
-| `story_export` | 导出为 `export:<workId>`；作者从只读 `/exports` 路由取目录，内容含 manifest v4、各版正文、章纲、摘要、各轮审稿、真值、卷、事件、提案与 `materials/<id>.<format>` |
+| `story_export` | 导出为 `export:<workId>`；作者从只读 `/exports` 路由取目录，内容含 manifest v5、`book.txt` 单文件、各版正文、章纲、摘要、各轮审稿、真值、卷、事件、提案与 `materials/<id>.<format>` |
 | `story_backup` | 用 SQLite 备份 API 生成单作品文件，返回 `integrity_check` |
 
 导出是给作者在系统文件管理器里取用的，不是让模型读库；`.storycraft` 仍整体拒绝工具直接访问。

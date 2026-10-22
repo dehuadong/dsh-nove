@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：TXT 单文件导出
-status: proposed
+status: implemented
 created: 2026-10-22
 updated: 2026-10-22
+verification: 29 单测 + 13 E2E；真实雪线邮路 book.txt 4 章、manifest v5、33 文件
 ---
 
 # Agent Note：故事工坊：TXT 单文件导出
@@ -11,7 +12,7 @@ updated: 2026-10-22
 
 D1 的目录导出已有逐章 md/json，但没有可直接阅读、转发的单文件。TXT 是无依赖的最小补充；EPUB 需要打包与 XHTML，另行规划。
 
-## 提案
+## 决定
 
 ### 1. 文件内容
 
@@ -64,7 +65,7 @@ D1 的目录导出已有逐章 md/json，但没有可直接阅读、转发的单
 - **每个历史版本都拼进 txt**：作者拿到重复正文；否决。
 - **manifest 不升版本**：新增格式属于导出契约变化；否决。
 
-## 验收条件
+## 后果
 
 产品验收在 #32；本 Note 检查技术性质：
 
@@ -81,3 +82,10 @@ D1 的目录导出已有逐章 md/json，但没有可直接阅读、转发的单
 - 大书 `book.txt` 可能很大；导出仍一次性内存拼接，本项接受，后续可流式。
 - 书名/章节标题可能含换行，需要规范为单行。
 - v5 改变外部消费者；按版本号显式升级。
+
+## 验证
+
+- `node storycraft/scripts/ci.mjs`：29 个单测文件 + 13 条 E2E 全过。
+- `export-backup`：字节模板、章序、空白/多行标题、只有计划、旧 v4 目录、`files` 计数。
+- `export-atomic`：manifest `book`、book.txt、递归文件计数、缺失当前版本 `export-failed`。
+- 真实 `雪线邮路`：`book.txt` 4 章、当前 revision、manifest v5、`files` 33（原 32+book）。

@@ -1,5 +1,6 @@
 // Per-work export and backup: single-file units, fixed mtimes, integrity check.
-import { mkdir, mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { openDatabase } from '../db.js'
@@ -64,11 +65,57 @@ try {
   check('export manifest is the export copy', manifest.title === '导出测试' && manifest.wordRange?.min === 100
     && manifest.planApproval === 'required' && manifest.tags[0] === '短', JSON.stringify(manifest))
   check('manifest carries the settled chapter', manifest.chapters[0].stage === 'settled' && manifest.chapters[0].currentRevision === 2)
-  check('manifest v4 carries the summary binding, material purpose and hash',
-    manifest.schemaVersion === 4 && manifest.chapters[0].summaryRevision === 2
+  check('manifest v5 carries the summary binding, material purpose and book',
+    manifest.schemaVersion === 5 && manifest.chapters[0].summaryRevision === 2
     && manifest.chapters[0].summaryStale === false
-    && manifest.materials.some(item => item.id === material.material.id && item.hash.length === 64 && item.purpose === 'setting'),
-    JSON.stringify({ chapter: manifest.chapters[0], materials: manifest.materials }))
+    && manifest.materials.some(item => item.id === material.material.id && item.hash.length === 64 && item.purpose === 'setting')
+    && manifest.book?.file === 'book.txt' && manifest.book?.format === 'txt',
+  JSON.stringify({ chapter: manifest.chapters[0], materials: manifest.materials, book: manifest.book }))
+  const book = await readFile(join(first.directory, 'book.txt'), 'utf8')
+  const expectedBook = `导出测试\n\n第 1 章 第一章\n\n${'正文二。'.repeat(20)}\n`
+  check('book.txt is byte-exact and current-revision only', book === expectedBook, JSON.stringify(book))
+  check('book.txt is counted in the exported files', first.files === (await readTree(first.directory)).length, `${first.files}`)
+  const empty = store.initWork(root, { title: '空书' }).workId
+  const emptyExport = store.exportWork(root, empty)
+  check('empty work writes a title-only book', await readFile(join(emptyExport.directory, 'book.txt'), 'utf8') === '空书\n')
+  const planned = store.initWork(root, { title: '只有计划' }).workId
+  store.writePlan(root, { work: planned, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+  const plannedExport = store.exportWork(root, planned)
+  check('planned-only work writes a title-only book', await readFile(join(plannedExport.directory, 'book.txt'), 'utf8') === '只有计划\n')
+  const titled = store.initWork(root, { title: '标题测试' }).workId
+  store.writePlan(root, { work: titled, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+  store.approveChapterPlan(root, { work: titled, chapter: 1 })
+  store.writeChapter(root, { work: titled, chapter: 1, title: '一\n章', body: '正文\r\n第二行。' })
+  const titledExport = store.exportWork(root, titled)
+  check('multiline title and CRLF body normalize',
+    await readFile(join(titledExport.directory, 'book.txt'), 'utf8') === '标题测试\n\n第 1 章 一 章\n\n正文\n第二行。\n')
+  const multi = store.initWork(root, { title: '多章' }).workId
+  for (const number of [1, 2]) {
+    store.writePlan(root, { work: multi, chapter: number, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+    store.approveChapterPlan(root, { work: multi, chapter: number })
+    store.writeChapter(root, { work: multi, chapter: number, title: number === 1 ? '一' : '   ', body: `第${number}章正文。` })
+  }
+  const multiExport = store.exportWork(root, multi)
+  check('multiple chapters stay ordered and blank titles fall back',
+    await readFile(join(multiExport.directory, 'book.txt'), 'utf8')
+      === '多章\n\n第 1 章 一\n\n第1章正文。\n\n第 2 章\n\n第2章正文。\n')
+  const mixed = store.initWork(root, { title: '混合' }).workId
+  for (const number of [1, 2]) {
+    store.writePlan(root, { work: mixed, chapter: number, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+  }
+  store.approveChapterPlan(root, { work: mixed, chapter: 1 })
+  store.writeChapter(root, { work: mixed, chapter: 1, body: '已写。' })
+  const mixedExport = store.exportWork(root, mixed)
+  check('planned-only chapters do not appear', await readFile(join(mixedExport.directory, 'book.txt'), 'utf8') === '混合\n\n第 1 章\n\n已写。\n')
+  const legacy = join(root, 'out', 'legacy')
+  await mkdir(legacy, { recursive: true })
+  await writeFile(join(legacy, 'manifest.json'), '{"schemaVersion":4}\n')
+  await writeFile(join(legacy, 'legacy.txt'), 'old\n')
+  check('legacy export is not backfilled', !existsSync(join(legacy, 'book.txt')))
+  store.exportWork(root, work, legacy)
+  check('re-export replaces legacy with v5 and book',
+    JSON.parse(await readFile(join(legacy, 'manifest.json'), 'utf8')).schemaVersion === 5
+    && existsSync(join(legacy, 'book.txt')))
   const materialFile = await readFile(join(first.directory, 'materials', `${material.material.id}.md`), 'utf8')
   check('export carries the material content', materialFile === '作者的参考资料。', materialFile)
   const chapters = await readdir(join(first.directory, 'chapters'))

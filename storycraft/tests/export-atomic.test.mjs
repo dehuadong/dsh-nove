@@ -5,7 +5,7 @@ import { renameSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../storage.js'
-import { exportsDir } from '../db.js'
+import { exportsDir, openWork } from '../db.js'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -14,6 +14,14 @@ function check(name, condition, detail) {
     failures += 1
     console.log(`FAIL ${name}${detail === undefined ? '' : ` — ${detail}`}`)
   }
+}
+
+async function countFiles(dir) {
+  let count = 0
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    count += entry.isDirectory() ? await countFiles(join(dir, entry.name)) : 1
+  }
+  return count
 }
 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-atomic-'))
@@ -30,7 +38,9 @@ try {
   const first = await s.exportWorkAtomic(root, work)
   check('atomic export writes the target', first.directory === target && first.files > 0, JSON.stringify(first))
   const manifest = JSON.parse(await readFile(join(target, 'manifest.json'), 'utf8'))
-  check('atomic export writes manifest v4', manifest.schemaVersion === 4, JSON.stringify(manifest))
+  check('atomic export writes manifest v5 and book', manifest.schemaVersion === 5
+    && manifest.book?.file === 'book.txt' && first.files === await countFiles(target), JSON.stringify(manifest.book))
+  check('atomic export writes book.txt', (await readFile(join(target, 'book.txt'), 'utf8')).startsWith('原子导出\n\n第 1 章 一'))
   const firstBody = await readFile(join(target, 'chapters', 'ch-0001.md'), 'utf8')
   check('atomic export leaves no staging or backup',
     (await readdir(exportsDir(root))).filter(name => name.startsWith('.tmp-') || name.startsWith('.bak-')).length === 0)
@@ -72,6 +82,21 @@ try {
   const afterSwap = await readFile(join(target, 'manifest.json'), 'utf8')
   check('a failed swap restores the old export', swapFailed === 'export-failed'
     && afterSwap === JSON.stringify(manifest, null, 2) + '\n', String(swapFailed))
+
+  const broken = (await s.initWork(root, { title: '缺正文版本' })).workId
+  s.writePlan(root, { work: broken, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+  s.approveChapterPlan(root, { work: broken, chapter: 1 })
+  s.writeChapter(root, { work: broken, chapter: 1, body: '正文。' })
+  const brokenDb = openWork(root, broken)
+  brokenDb.prepare('DELETE FROM chapter_versions WHERE number = 1').run()
+  brokenDb.close()
+  let missingVersion
+  try {
+    await s.exportWorkAtomic(root, broken)
+  } catch (error) {
+    missingVersion = error.code
+  }
+  check('missing current version fails as export-failed', missingVersion === 'export-failed', String(missingVersion))
 
   const fresh = (await s.initWork(root, { title: '首次失败' })).workId
   let freshFailed
