@@ -360,6 +360,8 @@ try {
   const brief = await byName.get('story_brief').execute({ work, chapter: 1 }, exec)
   check('story_brief returns nine sections', brief.ok === true && brief.sections.length === 9, JSON.stringify(brief.sections?.map(section => section.name)))
   check('story_brief reports budget', brief.ok === true && brief.budget.limit > 0)
+  check('story_brief declares retrieval', brief.ok === true && brief.retrieval.enabled === false
+    && byName.get('story_brief').output.schema.properties.retrieval !== undefined, JSON.stringify(brief.retrieval))
   const briefSectionProps = Object.keys(byName.get('story_brief').output.schema.properties.sections.items.properties ?? {})
   check('story_brief sections use only declared fields',
     brief.ok === true && brief.sections.every(section => Object.keys(section).every(key => briefSectionProps.includes(key))),

@@ -136,6 +136,42 @@ function failureOf(error) {
   return { ok: false, error: { code: 'internal', message } }
 }
 
+const RETRIEVAL_TRACE = {
+  type: 'object',
+  additionalProperties: false,
+  description: 'FTS retrieval trace for one role context or brief.',
+  properties: {
+    enabled: { type: 'boolean' },
+    query: { type: 'string' },
+    candidateCount: { type: 'integer' },
+    error: { type: 'string' },
+    hits: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          id: { type: 'string' },
+          kind: { type: 'string' },
+          sourceIds: { type: 'array', items: { type: 'string' } },
+          score: { type: 'number' },
+          sent: { type: 'boolean' },
+        },
+        required: ['id', 'kind', 'sourceIds', 'score', 'sent'],
+      },
+    },
+  },
+  required: ['enabled', 'query', 'candidateCount', 'hits'],
+}
+
+const BRIEF_RETRIEVAL_TRACE = {
+  ...RETRIEVAL_TRACE,
+  properties: {
+    ...RETRIEVAL_TRACE.properties,
+    chars: { type: 'integer' },
+  },
+}
+
 /** Output properties shared by every action. */
 const OUTPUT_PROPERTIES = {
   ok: { type: 'boolean', description: 'Whether the action completed.' },
@@ -184,6 +220,7 @@ const OUTPUT_PROPERTIES = {
   resolved: { type: 'array', description: 'Review item ids marked as addressed.', items: { type: 'string' } },
   warnings: { type: 'array', description: 'Consistency warnings that did not block the write.', items: { type: 'string' } },
   role: { type: 'string' },
+  retrieval: BRIEF_RETRIEVAL_TRACE,
   planApproval: { type: 'string', enum: ['required', 'off'] },
   trace: {
     type: 'object',
@@ -225,33 +262,7 @@ const OUTPUT_PROPERTIES = {
         properties: { round: { type: 'integer' }, revision: { type: 'integer' } },
         required: ['round', 'revision'],
       },
-      retrieval: {
-        type: 'object',
-        additionalProperties: false,
-        description: 'FTS retrieval trace for one role context.',
-        properties: {
-          enabled: { type: 'boolean' },
-          query: { type: 'string' },
-          candidateCount: { type: 'integer' },
-          error: { type: 'string' },
-          hits: {
-            type: 'array',
-            items: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                id: { type: 'string' },
-                kind: { type: 'string' },
-                sourceIds: { type: 'array', items: { type: 'string' } },
-                score: { type: 'number' },
-                sent: { type: 'boolean' },
-              },
-              required: ['id', 'kind', 'sourceIds', 'score', 'sent'],
-            },
-          },
-        },
-        required: ['enabled', 'query', 'candidateCount', 'hits'],
-      },
+      retrieval: RETRIEVAL_TRACE,
     },
     required: ['budget'],
   },
@@ -1466,7 +1477,7 @@ function rawDefinitions(ctx) {
 
     action({
       name: 'story_brief',
-      description: '装配写这一章前的上下文：作者意图、本章章纲、涉及人物、未解伏笔、上一章结尾、文风、字数口径。'
+      description: '装配写这一章前的上下文：作者意图、本章章纲、涉及人物、未解伏笔、卷摘要、最近摘要、上一章结尾、文风、字数口径；已写 ≥3 章时追加相关素材。'
         + ' 动笔前先读它，而不是通读前文；超预算会说明裁掉了哪几段。',
       parameters: {
         type: 'object',
@@ -1481,7 +1492,7 @@ function rawDefinitions(ctx) {
         const root = workspaceOf(exec)
         assertCurrentChapter(readManifest(root, args.work), Number(args.chapter))
         const brief = await assembleBriefFor(root, args.work, args.chapter)
-        return { ok: true, workId: args.work, sections: brief.sections, budget: brief.budget, missing: brief.missing, dropped: brief.dropped }
+        return { ok: true, workId: args.work, sections: brief.sections, budget: brief.budget, missing: brief.missing, dropped: brief.dropped, retrieval: brief.retrieval }
       },
     }),
 

@@ -32,6 +32,11 @@ try {
 
   const hit = s.search(root, work, '旧井边')
   check('material is searchable', hit.some(item => item.kind === 'material' && item.id === `material:${imported.material.id}`), JSON.stringify(hit))
+  const materialOnly = s.searchMemory(root, work, '旧井边', { kinds: ['material'] })
+  check('searchMemory kinds narrows to material', materialOnly.length > 0 && materialOnly.every(item => item.kind === 'material'),
+    JSON.stringify(materialOnly))
+  check('searchMemory empty kinds returns nothing', s.searchMemory(root, work, '旧井边', { kinds: [] }).length === 0)
+  check('searchMemory unknown kinds returns nothing', s.searchMemory(root, work, '旧井边', { kinds: ['nope'] }).length === 0)
   const contextMemory = s.searchMemory(root, work, '旧井边')
   const materialHit = contextMemory.find(item => item.kind === 'material')
   check('material title is not searchable in v1', s.searchMemory(root, work, '示例').every(item => item.kind !== 'material'),

@@ -2065,10 +2065,14 @@ export function search(root, work, query, limit = 5) {
  * @param {string} query - query text.
  * @param {object} [options] - retrieval filter.
  * @param {number} [options.beforeChapter] - only material before this chapter.
+ * @param {string[]} [options.kinds] - restrict kinds; unknown entries are ignored.
  * @returns {Array<{id: string, kind: string, source: string, sourceIds: string[], chapter: number, text: string, score: number}>} candidates: current summaries, unresolved hooks, volumes, and bounded material excerpts.
  */
 export function searchMemory(root, work, query, options = {}) {
   const beforeChapter = Number.isInteger(options.beforeChapter) ? options.beforeChapter : undefined
+  const requested = Array.isArray(options.kinds) ? options.kinds.filter(kind => MEMORY_KINDS.includes(kind)) : MEMORY_KINDS
+  const kinds = [...new Set(requested)]
+  if (kinds.length === 0) return []
   const tokens = queryTokens(query)
   const match = matchString(tokens)
   if (match === '') return []
@@ -2076,7 +2080,7 @@ export function searchMemory(root, work, query, options = {}) {
   try {
     const rows = queryDocs(db, {
       match,
-      kinds: MEMORY_KINDS,
+      kinds,
       beforeChapter,
       limit: 200,
     })

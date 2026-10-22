@@ -10,9 +10,10 @@
 import { join } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { StoryError, chapterNumber, chapterStem, contentVersion } from './domain.js'
+import { buildQuery, select } from './retrieval.js'
 import {
   listSummaries, listSummaryStates, readBibleEntry, readBibleMap, readChapter as readChapterRow, readFoldedState,
-  readManifest, readPlan, readSummary as readSummaryRow, readSummaryState, readVolumes, virtualPath,
+  readManifest, readPlan, readSummary as readSummaryRow, readSummaryState, readVolumes, searchMemory, virtualPath,
   writeBible as writeBibleRow, writeSummary as writeSummaryRow,
 } from './store-db.js'
 
@@ -26,7 +27,7 @@ export const BIBLE_FILES = {
 }
 
 /** Names in the order the brief presents them (highest priority first). */
-export const BRIEF_SECTION_ORDER = ['intent', 'plan', 'characters', 'hooks', 'previous', 'style', 'wordPolicy']
+export const BRIEF_SECTION_ORDER = ['intent', 'plan', 'characters', 'hooks', 'volumeSummary', 'recentSummaries', 'previous', 'style', 'wordPolicy', 'retrieval']
 
 /** Byte budget of one assembled brief. */
 export const BRIEF_BUDGET_BYTES = 8192
@@ -270,9 +271,10 @@ export async function writeSummary(root, workId, chapter, text) {
  * @param {string} root - workspace directory.
  * @param {string} workId - work identity.
  * @param {number|string} chapter - chapter number.
- * @returns {Promise<{sections: object[], budget: object, missing: string[], dropped: object[]}>} brief.
+ * @param {object} [dependencies] - injectable `searchMemory` for fail-open tests.
+ * @returns {Promise<{sections: object[], budget: object, missing: string[], dropped: object[], retrieval: object}>} brief.
  */
-export async function assembleBrief(root, workId, chapter) {
+export async function assembleBrief(root, workId, chapter, dependencies = {}) {
   const number = chapterNumber(chapter)
   const manifest = readManifest(root, workId)
   const entry = manifest.chapters.find(item => item.number === number)
@@ -322,6 +324,38 @@ export async function assembleBrief(root, workId, chapter) {
       virtualPath(work, 'manifest')),
   ]
 
+  const retrieve = typeof dependencies.searchMemory === 'function' ? dependencies.searchMemory : searchMemory
+  const written = manifest.chapters.filter(item => Number(item.currentRevision) > 0).length
+  const query = written >= 3 ? buildQuery({ chapterPlan: planText, openHooks: hooks.slice(0, 8) }) : ''
+  let retrieval = { enabled: false, query: '', candidateCount: 0, chars: 0, hits: [] }
+  if (query.trim() !== '') {
+    try {
+      const candidates = retrieve(root, work, query, { kinds: ['material'] })
+      const picked = select(candidates, { limit: 3, budget: 1200, perKindLimit: 3 })
+      retrieval = {
+        enabled: true,
+        query,
+        candidateCount: candidates.length,
+        chars: picked.chars,
+        hits: picked.hits,
+      }
+      if (picked.text !== '' && picked.hits.some(hit => hit.sent)) {
+        sections.push(section('retrieval', '相关素材', picked.text, undefined, {
+          sourceIds: picked.hits.filter(hit => hit.sent).map(hit => hit.id),
+        }))
+      }
+    } catch (error) {
+      retrieval = {
+        enabled: true,
+        query,
+        candidateCount: 0,
+        chars: 0,
+        hits: [],
+        error: typeof error?.code === 'string' ? error.code : 'retrieval-failed',
+      }
+    }
+  }
+
   const budget = { limit: BRIEF_BUDGET_BYTES, used: 0, overBudget: false }
   const dropped = []
   const kept = [...sections]
@@ -334,8 +368,11 @@ export async function assembleBrief(root, workId, chapter) {
   }
   budget.used = total()
   budget.overBudget = budget.used > BRIEF_BUDGET_BYTES
+  if (dropped.some(item => item.name === 'retrieval')) {
+    retrieval = { ...retrieval, hits: retrieval.hits.map(hit => ({ ...hit, sent: false })) }
+  }
   const rendered = kept.map(item => (item.absent ? { ...item, content: '', bytes: 0 } : item))
-  return { sections: rendered, budget, missing, dropped }
+  return { sections: rendered, budget, missing, dropped, retrieval }
 }
 
 /**
@@ -348,7 +385,8 @@ function section(name, title, content, source, options = {}) {
   return {
     name,
     title,
-    source,
+    ...(source !== undefined ? { source } : {}),
+    ...(Array.isArray(options.sourceIds) ? { sourceIds: options.sourceIds } : {}),
     content: text,
     bytes: byteLength(text),
     absent,

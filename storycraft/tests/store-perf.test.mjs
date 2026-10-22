@@ -2,6 +2,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import * as bible from '../bible.js'
 import * as store from '../store-db.js'
 import { select } from '../retrieval.js'
 
@@ -13,6 +14,11 @@ const check = (name, ok, detail) => {
 }
 try {
   const { workId: work } = store.initWork(root, { title: '性能夹具' })
+  await bible.writeBible(root, work, 'world', '# 世界观\n\n井台。\n')
+  await bible.writeBible(root, work, 'style', '# 文风\n\n短句。\n')
+  await bible.writeBible(root, work, 'intent', '# 意图\n\n找钥匙。\n')
+  await bible.writeBible(root, work, 'plan', '# 计划\n\n长篇。\n')
+  await bible.writeBible(root, work, 'characters', '[]')
   for (let number = 1; number <= 200; number += 1) {
     store.writePlan(root, {
       work, chapter: number, perspective: '周砚', goal: `目标${number}`,
@@ -71,6 +77,15 @@ try {
     && materialCandidates.filter(item => item.kind === 'material').every(item => [...item.text].length <= 400)
     && materialPicked.hits.filter(hit => hit.sent).length <= 2
     && materialPicked.chars <= 1200, JSON.stringify(materialCandidates.map(item => [item.id, item.text.length])))
+
+  store.writePlan(root, { work, chapter: 200, perspective: '周砚', goal: '专属素材词', obstacle: 'o', cost: 'c', turn: 't' })
+  started = performance.now()
+  const brief = await bible.assembleBrief(root, work, 200)
+  const briefTime = performance.now() - started
+  check('full brief with 512KB material fits 400ms', briefTime < 400, `${briefTime.toFixed(1)}ms`)
+  check('brief includes material within budget', brief.retrieval.enabled === true
+    && brief.retrieval.hits.some(hit => hit.kind === 'material' && hit.sent === true)
+    && brief.budget.used <= 8192, JSON.stringify(brief.retrieval))
 } finally {
   await rm(root, { recursive: true, force: true }).catch(() => {})
 }

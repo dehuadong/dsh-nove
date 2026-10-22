@@ -2,11 +2,13 @@
 title: 故事工坊：真值文件与写前上下文的技术设计
 status: implemented
 created: 2026-10-17
-updated: 2026-10-17
-verification: 交付于 P1（真值五件 + story_brief）；14 套断言覆盖预算与裁剪，页面 spec 覆盖读数。
+updated: 2026-10-22
+verification: 交付于 P1（真值五件 + story_brief）；#29 后 29 个单测 + 13 条 E2E，brief 增加可选素材段。
 ---
 
 # Agent Note：故事工坊：真值文件与写前上下文的技术设计
+
+> 2026-10-22 部分修订（#29 B4）：`story_brief` 增加可选 `retrieval` 素材段（≥3 已写章，段在最后，预算先丢）；段序补全卷摘要/最近摘要/retrieval。
 
 ## 问题
 
@@ -41,7 +43,7 @@ verification: 交付于 P1（真值五件 + story_brief）；14 套断言覆盖�
 | `story_bible` | 作品 id、文件名（`world`/`characters`/`style`/`plan`/`intent`，可省略以读全部） | `files[]`（name、path、version、content、draft 标记） | 文件缺失返回 `bible-missing` 并列出缺失项 |
 | `story_bible_write` | 作品 id、文件名、内容 | `artifact { path }`、`version` | 结构不合法返回 `bible-invalid`（附失败的字段），文件与版本不变 |
 | `story_bible_import` | 作品 id | `imported[]`（来源→目标、version）、`pending[]`（仍需作者补的结构化项）、`names[]`（从 `design/cast.md` 抽出的人名）、`skipped[]`（已有内容、未覆盖的文件） | 作品不存在、或 `design/` 无可用内容时返回 `nothing-to-import` |
-| `story_brief` | 作品 id、章号 | `sections[]`、`budget`、`missing[]`、`dropped[]` | 真值缺失返回 `bible-missing`；章不存在返回 `chapter-not-found` |
+| `story_brief` | 作品 id、章号 | `sections[]`、`budget`、`missing[]`、`dropped[]`、`retrieval` | 真值缺失返回 `bible-missing`；章不存在返回 `chapter-not-found` |
 | `story_summarize` | 作品 id、章号（正文可选由动作读取） | `artifact { path }`、`words` | 正文不存在返回 `body-not-found` |
 
 `story_summarize` 以进度清单的当前版本作为存在性依据（不读正文内容），写 `summaries/ch-0001.md` 并重建 `summaries/index.json`，长度上限 400 字（超出截断并在结果中报告 `truncated: true`），不修改正文与 manifest 的章状态。
@@ -50,9 +52,9 @@ verification: 交付于 P1（真值五件 + story_brief）；14 套断言覆盖�
 
 纯函数 `assembleBrief(work, chapter)`，输入全部来自磁盘，无副作用：
 
-1. **取料**：`bible/intent.md`、目标章章纲、`bible/characters.json`、`state/events.jsonl` 折叠出的未解伏笔、上一章摘要与结尾、`bible/style.md`、字数口径常量。
+1. **取料**：`bible/intent.md`、目标章章纲、`bible/characters.json`、`state/events.jsonl` 折叠出的未解伏笔、卷摘要、最近摘要、上一章摘要与结尾、`bible/style.md`、字数口径常量；≥3 已写章时再加相关素材。
 2. **选人物**：按章纲全文做名字匹配（`name` 出现在章纲里即入选）；章纲一个都没命中时退化为「档案全部入选」并在 `sections` 标注 `fallback: true`。
-3. **分段排序**（高→低）：意图与焦点 → 章纲 → 入选人物档案（按章纲中出现的先后排序；一个都没命中时取全部并标 `fallback: true`）→ 未解伏笔 → 上一章结尾（末尾 800 字节，按行边界截；回退正文时标 `bodyFallback: true`）→ 文风要点 → 字数口径。
+3. **分段排序**（高→低）：意图与焦点 → 章纲 → 入选人物档案（按章纲中出现的先后排序；一个都没命中时取全部并标 `fallback: true`）→ 未解伏笔 → 卷摘要 → 最近摘要 → 上一章结尾（末尾 800 字节，按行边界截；回退正文时标 `bodyFallback: true`）→ 文风要点 → 字数口径 → 相关素材。
    - 第一章或上一章不存在：该段记为 `absent`，不算失败。
    - 上一章有摘要时用摘要；摘要缺失时回退为正文末尾 800 字节，并在该段标注 `source: body`。
 4. **预算**：上限 8192 字节。逐段整段纳入；剩余不足时从最低优先级段开始整段丢弃，记入 `dropped[]`（名称、字节数、原因 `budget`）；高优先级段即使超预算也保留，并记 `overBudget: true`。
@@ -79,13 +81,13 @@ verification: 交付于 P1（真值五件 + story_brief）；14 套断言覆盖�
 - **把设定塞进人设提示词**：改一次设定就要重启会话，且无法按章裁剪；放弃。
 - **把真值放进 manifest（结构化 JSON 单文件）**：作者无法直接读改，MD 与 JSON 混在一个文件里，版本粒度也退化；放弃。
 - **让模型每次自己读全部设定**：无预算、不可复现，长书直接爆上下文；放弃。
-- **用检索（FTS）代替装配**：中文分词与切块成本高，且写前需要的恰好是固定几类事实，硬装配更可控；检索留待材料库（后续阶段）。
+- **用检索（FTS）代替装配**：中文分词与切块成本高，且写前需要的恰好是固定几类事实，硬装配更可控；B4 只把素材作为可选补充段，不替代固定段。
 - **摘要写进 manifest**：会让进度清单承担内容，页面与 git 都不好读；放弃。
 
 ## 验证
 
 - `characters.json` 校验：缺字段、重复人名、非数组都被拒绝且版本不变；合法写入后版本变化、旧内容不再可读。
-- 装配：字段齐备的输入产出七段；章纲无人物命中时走 fallback；超预算时按低优先级丢弃并报告；两次调用逐字节一致。
+- 装配：字段齐备的输入产出 9 段（≥3 已写章时再加 1 段素材）；章纲无人物命中时走 fallback；超预算时按低优先级丢弃并报告；两次调用逐字节一致。
 - 摘要：超 400 字截断并报告；正文缺失时拒绝；摘要落盘后装配使用的是摘要而非正文。
 - 导入：对《开国工程队》产出 world/plan 两份目标文件与 `pending`（人物结构化、文风、意图），不写入半成品 characters。
 - 路由：`/bible`、`/brief` 与动作返回同一份装配结果；`root` 仍受工作区校验；缺失/不存在返回结构化错误而不是 500。

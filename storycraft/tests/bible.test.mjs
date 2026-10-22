@@ -91,6 +91,94 @@ try {
   check('budget trims sections', trimmed.dropped.some(item => item.name === 'style') || trimmed.dropped.some(item => item.name === 'wordPolicy'), JSON.stringify(trimmed.dropped))
   check('budget reports usage', trimmed.budget.used <= trimmed.budget.limit || trimmed.budget.overBudget === true, JSON.stringify(trimmed.budget))
 
+  // B4: material is a supplement for a work with at least three written chapters.
+  const b4 = (await s.initWork(root, { title: '素材装配' })).workId
+  await b.writeBible(root, b4, 'world', '# 世界观\n\n荒原。\n')
+  await b.writeBible(root, b4, 'style', '# 文风\n\n短句。\n')
+  await b.writeBible(root, b4, 'intent', '# 意图\n\n找旧井。\n')
+  await b.writeBible(root, b4, 'plan', '# 计划\n\n三章。\n')
+  await b.writeBible(root, b4, 'characters', '[]')
+  for (const number of [1, 2, 3]) {
+    await s.writePlan(root, { work: b4, chapter: number, perspective: '甲', goal: number === 3 ? '找旧井' : 'g', obstacle: 'o', cost: 'c', turn: 't' })
+    await s.approveChapterPlan(root, { work: b4, chapter: number })
+    await s.writeChapter(root, { work: b4, chapter: number, body: '正文。'.repeat(30) })
+    if (number === 2) {
+      const early = await b.assembleBrief(root, b4, 2)
+      check('brief retrieval is off before three written chapters', early.retrieval.enabled === false
+        && !early.sections.some(section => section.name === 'retrieval'), JSON.stringify(early.retrieval))
+    }
+  }
+  const baseline = await b.assembleBrief(root, b4, 3)
+  const material = await s.importMaterial(root, b4, {
+    name: '旧井参考.md',
+    title: '旧井参考',
+    contentBase64: Buffer.from('旧井边的作者参考资料。'.repeat(30), 'utf8').toString('base64'),
+  })
+  const extraOne = await s.importMaterial(root, b4, {
+    name: '旧井参考二.md',
+    title: '旧井参考二',
+    contentBase64: Buffer.from('旧井边的第二份资料。', 'utf8').toString('base64'),
+  })
+  const extraTwo = await s.importMaterial(root, b4, {
+    name: '旧井参考三.md',
+    title: '旧井参考三',
+    contentBase64: Buffer.from('旧井边的第三份资料。', 'utf8').toString('base64'),
+  })
+  const extraThree = await s.importMaterial(root, b4, {
+    name: '旧井参考四.md',
+    title: '旧井参考四',
+    contentBase64: Buffer.from('旧井边的第四份资料。', 'utf8').toString('base64'),
+  })
+  const withMaterial = await b.assembleBrief(root, b4, 3)
+  const retrievalSection = withMaterial.sections.find(section => section.name === 'retrieval')
+  check('brief appends material retrieval last', withMaterial.sections.at(-1)?.name === 'retrieval', withMaterial.sections.map(section => section.name).join(','))
+  const sentMaterial = withMaterial.retrieval.hits.find(hit => hit.kind === 'material' && hit.sent === true)
+  check('brief retrieval carries material ids', withMaterial.retrieval.enabled === true
+    && sentMaterial !== undefined && sentMaterial.sourceIds[0]?.startsWith('material:'), JSON.stringify(withMaterial.retrieval))
+  check('brief retrieval section has ids and no path', retrievalSection?.sourceIds?.length === 3
+    && retrievalSection.sourceIds.every(id => id.startsWith('material:'))
+    && retrievalSection.source === undefined && !retrievalSection.content.includes('.storycraft'), JSON.stringify(retrievalSection))
+  check('brief retrieval stays bounded', withMaterial.retrieval.chars <= 1200 && withMaterial.budget.used <= 8192,
+    JSON.stringify({ chars: withMaterial.retrieval.chars, budget: withMaterial.budget }))
+  check('brief retrieval sends exactly three of four materials', withMaterial.retrieval.hits.filter(hit => hit.sent).length === 3,
+    JSON.stringify(withMaterial.retrieval.hits))
+  const delta = JSON.stringify(withMaterial).length - JSON.stringify(baseline).length
+  check('brief retrieval is deterministic and adds bounded bytes', JSON.stringify(withMaterial) === JSON.stringify(await b.assembleBrief(root, b4, 3))
+    && delta > 0 && delta < 4096, `${JSON.stringify(baseline).length}->${JSON.stringify(withMaterial).length}`)
+  check('brief section order declares retrieval', b.BRIEF_SECTION_ORDER.at(-1) === 'retrieval', b.BRIEF_SECTION_ORDER.join(','))
+
+  const failed = await b.assembleBrief(root, b4, 3, {
+    searchMemory: () => { const error = new Error('busy'); error.code = 'work-busy'; throw error },
+  })
+  check('brief retrieval fails open', failed.retrieval.enabled === true && failed.retrieval.error === 'work-busy'
+    && !failed.sections.some(section => section.name === 'retrieval'), JSON.stringify(failed.retrieval))
+
+  await b.writeBible(root, b4, 'style', `# 文风\n\n${'长'.repeat(9000)}`)
+  const trimmedB4 = await b.assembleBrief(root, b4, 3)
+  check('budget drops retrieval first', trimmedB4.dropped.some(item => item.name === 'retrieval')
+    && trimmedB4.retrieval.hits.every(hit => hit.sent === false), JSON.stringify(trimmedB4.dropped))
+  await b.writeBible(root, b4, 'style', '# 文风\n\n短句。\n')
+
+  for (const item of [material, extraOne, extraTwo, extraThree]) await s.deleteMaterial(root, b4, item.material.id)
+  const deleted = await b.assembleBrief(root, b4, 3)
+  check('deleted material disappears from the brief', !deleted.sections.some(section => section.name === 'retrieval')
+    && deleted.retrieval.candidateCount === 0, JSON.stringify(deleted.retrieval))
+  const unrelated = await s.importMaterial(root, b4, {
+    name: '无关.md',
+    title: '无关',
+    contentBase64: Buffer.from('完全无关的参考。', 'utf8').toString('base64'),
+  })
+  const noMatch = await b.assembleBrief(root, b4, 3)
+  check('unmatched material is not pushed', !noMatch.sections.some(section => section.name === 'retrieval')
+    && noMatch.retrieval.candidateCount === 0, JSON.stringify(noMatch.retrieval))
+  await s.deleteMaterial(root, b4, unrelated.material.id)
+  const noPlan = openWork(root, b4)
+  noPlan.prepare('DELETE FROM chapter_plans WHERE number = 3').run()
+  noPlan.close()
+  const emptyQuery = await b.assembleBrief(root, b4, 3)
+  check('empty query disables brief retrieval', emptyQuery.retrieval.enabled === false
+    && emptyQuery.retrieval.query === '', JSON.stringify(emptyQuery.retrieval))
+
   // Missing truth is an error, not an invented section.
   const dropStyle = openWork(root, work)
   dropStyle.prepare("DELETE FROM bible WHERE name = 'style'").run()
