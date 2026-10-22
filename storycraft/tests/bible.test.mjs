@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import * as s from '../storage.js'
 import * as b from '../bible.js'
 import { openWork } from '../db.js'
+import { writeBible as writeBibleRow } from '../store-db.js'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -55,7 +56,7 @@ try {
   await b.writeBible(root, work, 'world', '# 世界观\n\n荒原上以前有过城与人。\n')
   await b.writeBible(root, work, 'style', '# 文风基准\n\n第三人称、短句、少形容词。\n')
   await b.writeBible(root, work, 'intent', '# 作者意图\n\n写工程队如何在荒原立国。\n')
-  await b.writeBible(root, work, 'plan', '# 写作计划\n\n第一章塌方，第二章找水。\n')
+  writeBibleRow(root, { work, name: 'plan', content: '# 写作计划\n\n第一章塌方，第二章找水。\n' })
 
   // Plan + chapter + summary.
   await s.writePlan(root, { work, chapter: 1, perspective: '林澈', goal: '救人', obstacle: '塌方', cost: '设备受损', turn: '决定北上' })
@@ -96,7 +97,7 @@ try {
   await b.writeBible(root, b4, 'world', '# 世界观\n\n荒原。\n')
   await b.writeBible(root, b4, 'style', '# 文风\n\n短句。\n')
   await b.writeBible(root, b4, 'intent', '# 意图\n\n找旧井。\n')
-  await b.writeBible(root, b4, 'plan', '# 计划\n\n三章。\n')
+  writeBibleRow(root, { work: b4, name: 'plan', content: '# 计划\n\n三章。\n' })
   await b.writeBible(root, b4, 'characters', '[]')
   for (const number of [1, 2, 3]) {
     await s.writePlan(root, { work: b4, chapter: number, perspective: '甲', goal: number === 3 ? '找旧井' : 'g', obstacle: 'o', cost: 'c', turn: 't' })
@@ -248,7 +249,7 @@ try {
   check('characters follow plan order', characters.content.indexOf('乙') < characters.content.indexOf('甲'), characters.content.slice(0, 40))
 
   // Fallback marker when no name appears in the plan.
-  await b.writeBible(root, work, 'plan', '# 写作计划\n\n与人物无关。\n')
+  writeBibleRow(root, { work, name: 'plan', content: '# 写作计划\n\n与人物无关。\n' })
   await s.writePlan(root, { work, chapter: 4, perspective: '路人', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   const fallback = await b.assembleBrief(root, work, 4)
   check('fallback section is marked', fallback.sections.find(section => section.name === 'characters').fallback === true)

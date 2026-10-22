@@ -18,7 +18,7 @@ import { critique } from './critique.js'
 import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent } from './current.js'
 import { readVolumes } from './volumes.js'
 import { clearSessionCurrent, readSessionCurrent, setSessionCurrent } from './store-db.js'
-import { assembleBrief, extractStyleSamples, readBible } from './bible.js'
+import { assembleBrief, extractStyleSamples, readBible, writeBible } from './bible.js'
 import { backupsDir, exportsDir } from './db.js'
 
 /** Requires the host web server; without it the browser surface has no data. */
@@ -521,6 +521,21 @@ export function apply(ctx) {
         const file = query.get('file') ?? undefined
         return { ...(await readBible(root, workOf(query), file === null ? undefined : file)) }
       }),
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/bible/write`,
+      handler: (req, res) => {
+        void postRoute(req, res, async (body) => {
+          const { root, workId } = await writeWorkTarget(body)
+          if (typeof body?.file !== 'string' || typeof body?.content !== 'string') {
+            throw new StoryError('invalid-body', '写入真值需要 file 与 content')
+          }
+          const expectedVersion = typeof body?.expectedVersion === 'string' ? body.expectedVersion : undefined
+          const written = await writeBible(root, workId, body.file, body.content, { expectedVersion })
+          return { name: written.name, path: written.path, version: written.version }
+        }, { maxBytes: 64 * 1024, requireJson: true })
+      },
     }),
     ctx.webServer.register({
       kind: 'exact',

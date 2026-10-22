@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：真值编辑入口
-status: proposed
+status: implemented
 created: 2026-10-22
 updated: 2026-10-22
+verification: 32 单测 + 17 E2E；临时克隆雪线邮路编辑 world、plan 拒绝；作者库未动
 ---
 
 # Agent Note：故事工坊：真值编辑入口
@@ -13,7 +14,7 @@ updated: 2026-10-22
 
 `plan` 是全书计划，走 `story_outline` + 作者确认；不能借真值编辑器绕过闸门。
 
-## 提案
+## 决定
 
 ### 1. 可编辑范围
 
@@ -86,7 +87,7 @@ updated: 2026-10-22
 - **客户端只校验 JSON**：服务端才是唯一真相；否决。
 - **自动合并冲突**：单写者，无必要；最后写入者胜。
 
-## 验收条件
+## 后果
 
 1. 编辑四件保存后内容/版本更新；plan 无入口；路由拒绝 plan。
 2. characters 非法 JSON/缺字段返回 `bible-invalid` 且不写；world/style 空内容拒绝，world 拒绝 TODO/待定；intent 允许空；非 string content 拒绝。
@@ -102,3 +103,10 @@ updated: 2026-10-22
 - 覆盖式保存会丢未保存的他人编辑；单写者面板，文档说明最后写入者胜。
 - 64KB 对超大人物档案可能不够；先按现有面板规模，超限有明确错误。
 - 作者手改真值可能让旧摘要/上下文口径变化；这是作者意图，brief 下次装配生效。
+
+## 验证
+
+- `node storycraft/scripts/ci.mjs`：32 个单测文件 + 17 条 E2E 全过。
+- `bible-edit.test`：四件可编辑、plan/未知拒绝、content 类型、六字段 characters、空 world/style、intent 空、版本冲突。
+- E2E：保存 world 后重开可见；坏 characters 报错且输入保留；style 缺失新建；plan 缺失无新建；取消不写；64KB、`work-mismatch`、无 composer。
+- 真实：临时克隆 `.storycraft` 后编辑 `雪线邮路` world、版本变化；plan 拒绝；作者库未动。

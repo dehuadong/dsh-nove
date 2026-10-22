@@ -134,11 +134,11 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 
 - 左侧：当前工作区的作品列表（标题、形态、已写/总章数、最新章号、最近更新时间、未处理问题数）；底部显示当前工作区路径与是否有可下发指令的会话。
 - 右侧：作品详情——header 有「抽取文风」「导出」「导出目录」，章节列表（状态、有无章纲、版本、字数、未处理问题）→ 章节点开后可切「正文 / 章纲」两视图、看审稿清单；「写第 N 章」「审稿」「按清单修订」「定稿」把固定指令投递给当前会话。
-- 「真值」与「写前上下文」两个只读视图：真值列出五件的路径、版本与内容；写前上下文按章显示装配结果、字节占用、被裁项与草稿标记。
+- 「真值」与「写前上下文」：真值列出五件的路径、版本与内容，world/characters/style/intent 可就地编辑保存（plan 仍走全书计划确认）；写前上下文只读，按章显示装配结果、字节占用、被裁项与草稿标记。
 
-`style` 真值里的 `<!-- storycraft:style-samples:start -->` / `<!-- storycraft:style-samples:end -->` 是「抽取文风」的受管区块：重新抽取会替换整块，作者不要把保留标记写进正文；块外文字保留。
+`style` 真值里的 `<!-- storycraft:style-samples:start -->` / `<!-- storycraft:style-samples:end -->` 是「抽取文风」的受管区块：重新抽取会替换整块，作者不要把保留标记写进正文；块外文字保留。若 style 编辑器里有未保存内容，重新抽取会覆盖它；先保存或取消。
 
-页面读取作品内容；写操作只有作者直接触发的管理动作：章纲/全书计划确认（`POST /chapter/approve`、`POST /outline/approve`）、章节删除/上下移（`POST /chapter/delete|move`）、文风样例抽取（`POST /style/extract`）、素材库的导入/重命名/删除（`POST /api/dsh-storycraft/materials/*`），以及面板导出（`POST /api/dsh-storycraft/export`）。它们不改正文或只做章号重排，也不会自动发送写正文指令；确认后由作者点动作按钮，把指令填入输入框，补充信息后发送。指令按钮在被点击时才校验——没有会话、或当前会话不是故事工坊时只显示原因不投递；故事工坊预设装载失败时，页面顶部直接显示宿主给出的失败原因。
+页面读取作品内容；写操作只有作者直接触发的管理动作：章纲/全书计划确认（`POST /chapter/approve`、`POST /outline/approve`）、章节删除/上下移（`POST /chapter/delete|move`）、文风样例抽取（`POST /style/extract`）、真值编辑（`POST /bible/write`）、素材库的导入/重命名/删除（`POST /api/dsh-storycraft/materials/*`），以及面板导出（`POST /api/dsh-storycraft/export`）。它们不改正文或只做章号重排，也不会自动发送写正文指令；确认后由作者点动作按钮，把指令填入输入框，补充信息后发送。指令按钮在被点击时才校验——没有会话、或当前会话不是故事工坊时只显示原因不投递；故事工坊预设装载失败时，页面顶部直接显示宿主给出的失败原因。
 
 ## 读取作用域
 
@@ -164,6 +164,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 | `POST /api/dsh-storycraft/chapter/delete` | 删除章节并前移后续章号（需确认，自动备份） |
 | `POST /api/dsh-storycraft/chapter/move` | 相邻章上移/下移并重排章号 |
 | `POST /api/dsh-storycraft/style/extract` | 从当前正文抽取文风样例到 style 受管区块 |
+| `POST /api/dsh-storycraft/bible/write` | 保存可编辑真值（world/characters/style/intent；plan 拒绝；64KB；可选 `expectedVersion`） |
 | `GET /api/dsh-storycraft/state?root=&id=` | 一个作品的进度摘要 |
 | `GET /api/dsh-storycraft/bible?root=&id=&file=` | 真值文件与内容版本 |
 | `GET /api/dsh-storycraft/brief?root=&id=&chapter=` | 写前上下文装配结果 |
@@ -218,7 +219,7 @@ storycraft/
   Get-ChildItem storycraft/tests -Filter *.test.mjs | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { exit 1 } }
   ```
 
-- 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑 16 条页面 spec（工作台 14 + 预设 2）——侧栏入口、页面读数、作者确认、摘要徽标、素材导入/重命名/删除、面板导出、章节上移/删除、文风样例、指令门禁、预设声明与刷新。不调用模型，零额度；需要本机装有 Playwright（可用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装它的目录）。
+- 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑 17 条页面 spec（工作台 15 + 预设 2）——侧栏入口、页面读数、作者确认、摘要徽标、素材导入/重命名/删除、面板导出、章节上移/删除、文风样例、真值编辑、指令门禁、预设声明与刷新。不调用模型，零额度；需要本机装有 Playwright（可用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装它的目录）。
 - 端到端验收、评审与证据记录在 issue `dehuadong/dsh-nove#18`。
 
 ## 改动与生效

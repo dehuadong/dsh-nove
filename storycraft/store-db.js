@@ -1649,7 +1649,7 @@ export function readVolumes(root, work) {
 /**
  * Write one bible entry; character cards also feed the search projection.
  * @param {string} root - workspace directory.
- * @param {{work: string, name: string, content: string}} input - entry input.
+ * @param {{work: string, name: string, content: string, expectedVersion?: string}} input - entry input.
  * @returns {{workId: string, name: string, version: string}} receipt.
  */
 export function writeBible(root, input) {
@@ -1660,6 +1660,12 @@ export function writeBible(root, input) {
   const db = openWork(root, workId)
   try {
     return transaction(db, () => {
+      if (input.expectedVersion !== undefined) {
+        const current = db.prepare('SELECT version FROM bible WHERE name = ?').get(name)
+        if (current?.version !== input.expectedVersion) {
+          throw new StoryError('bible-conflict', '真值已被修改；请刷新后再保存')
+        }
+      }
       const version = contentVersion(content)
       const at = now()
       db.prepare(`INSERT INTO bible (name, content, version, updated_at) VALUES (?, ?, ?, ?)

@@ -392,6 +392,92 @@ test.describe('故事工坊工作台', () => {
     expect(await composer.evaluate(node => String(node.value ?? node.textContent ?? ''))).toBe(before)
   })
 
+  test('真值可以编辑、取消并拒绝坏人物', async ({ page }) => {
+    const store = await import('../storage.js')
+    const { openWork } = await import('../db.js')
+    const title = `真值编辑${Date.now()}`
+    const work = store.initWork(runtime.fixtureWorkspace, { title }).workId
+    const seedDb = openWork(runtime.fixtureWorkspace, work)
+    seedDb.prepare("DELETE FROM bible WHERE name IN ('plan', 'style')").run()
+    seedDb.close()
+    await openWorkbench(page)
+    await page.getByRole('button', { name: new RegExp(title) }).evaluate(node => node.click())
+    const composer = page.getByRole('textbox', { name: /Describe what/ })
+    const before = await composer.evaluate(node => String(node.value ?? node.textContent ?? ''))
+    await page.getByRole('button', { name: '真值', exact: true }).evaluate(node => node.click())
+    const worldItem = page.locator('.sc-item').filter({ hasText: 'bible/world.md' })
+    await expect(worldItem).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('.sc-item').filter({ hasText: 'bible/plan.md' }).getByRole('button', { name: '编辑', exact: true })).toHaveCount(0)
+    await worldItem.getByRole('button', { name: '编辑', exact: true }).evaluate(node => node.click())
+    const worldArea = page.getByLabel('编辑真值 world')
+    await worldArea.evaluate(node => { node.value = '# 世界观\n\n新井台。\n' })
+    const worldSave = worldItem.getByRole('button', { name: '保存', exact: true })
+    await worldSave.evaluate(node => node.click())
+    await expect.poll(() => {
+      const db = openWork(runtime.fixtureWorkspace, work)
+      try {
+        return db.prepare("SELECT content FROM bible WHERE name = 'world'").get()?.content ?? ''
+      } finally {
+        db.close()
+      }
+    }, { timeout: 15_000 }).toContain('新井台')
+    await page.getByRole('button', { name: '真值', exact: true }).evaluate(node => node.click())
+    await expect(page.locator('.sc-item').filter({ hasText: 'bible/world.md' })).toContainText('新井台')
+    const planMissing = page.locator('.sc-item').filter({ hasText: 'plan' })
+    await expect(planMissing.getByRole('button', { name: '新建', exact: true })).toHaveCount(0)
+    const styleMissing = page.locator('.sc-item').filter({ hasText: 'style' })
+    await expect(styleMissing.getByRole('button', { name: '新建', exact: true })).toHaveCount(1)
+    await styleMissing.getByRole('button', { name: '新建', exact: true }).evaluate(node => node.click())
+    await expect(page.getByLabel('编辑真值 style')).toHaveValue('# 文风基准\n\n')
+    await styleMissing.getByRole('button', { name: '保存', exact: true }).evaluate(node => node.click())
+    await expect.poll(() => {
+      const db = openWork(runtime.fixtureWorkspace, work)
+      try {
+        return db.prepare("SELECT content FROM bible WHERE name = 'style'").get()?.content ?? ''
+      } finally {
+        db.close()
+      }
+    }, { timeout: 15_000 }).toContain('# 文风基准')
+
+    const charactersItem = page.locator('.sc-item').filter({ hasText: 'bible/characters.json' })
+    await charactersItem.getByRole('button', { name: '编辑', exact: true }).evaluate(node => node.click())
+    await page.getByLabel('编辑真值 characters').evaluate(node => { node.value = '{bad json' })
+    await charactersItem.getByRole('button', { name: '保存', exact: true }).evaluate(node => node.click())
+    await expect(charactersItem.getByText(/bible-invalid|JSON|字符/)).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByLabel('编辑真值 characters')).toHaveValue('{bad json')
+
+    const intentItem = page.locator('.sc-item').filter({ hasText: 'bible/intent.md' })
+    await charactersItem.getByRole('button', { name: '取消', exact: true }).evaluate(node => node.click())
+    await intentItem.getByRole('button', { name: '编辑', exact: true }).evaluate(node => node.click())
+    await page.getByLabel('编辑真值 intent').evaluate(node => { node.value = '# 作者意图\\n\\n不保存。\\n' })
+    await intentItem.getByRole('button', { name: '取消', exact: true }).evaluate(node => node.click())
+    const db = openWork(runtime.fixtureWorkspace, work)
+    try {
+      expect(db.prepare("SELECT content FROM bible WHERE name = 'intent'").get().content).not.toContain('不保存')
+    } finally {
+      db.close()
+    }
+    const tooLarge = await page.evaluate(async () => {
+      const response = await fetch('/api/dsh-storycraft/bible/write', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ root: '', sessionId: '', workId: '', file: 'world', content: 'x'.repeat(70_000) }),
+      })
+      return response.text()
+    })
+    expect(tooLarge).toContain('body-too-large')
+    const mismatched = await page.evaluate(async ({ root, workId }) => {
+      const response = await fetch('/api/dsh-storycraft/bible/write', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ root, sessionId: 'not-this-session', workId, file: 'world', content: '# x\n' }),
+      })
+      return response.text()
+    }, { root: runtime.fixtureWorkspace, workId: work })
+    expect(mismatched).toContain('work-mismatch')
+    expect(await composer.evaluate(node => String(node.value ?? node.textContent ?? ''))).toBe(before)
+  })
+
   test('详情在 focus 后刷新且不重复写当前指针', async ({ page }) => {
     const store = await import('../storage.js')
     const title = `焦点探针${Date.now()}`

@@ -322,6 +322,9 @@ window.__ModuleLoader__.load({
         approveOutline: (root, sessionId, workId) => post(ROUTE.outlineApprove, { root, sessionId, workId }),
         review: (root, id, chapter) => route(ROUTE.review, { root, id, chapter }),
         bible: (root, id) => route(ROUTE.bible, { root, id }),
+        writeBible: (root, sessionId, workId, file, content, expectedVersion) => post('/api/dsh-storycraft/bible/write', {
+          root, sessionId, workId, file, content, expectedVersion,
+        }),
         brief: (root, id, chapter) => route(ROUTE.brief, { root, id, chapter }),
         materials: (root, workId, purpose) => route(ROUTE.materials, {
           root, workId, ...(purpose === undefined ? {} : { purpose }),
@@ -883,6 +886,8 @@ window.__ModuleLoader__.load({
       const [selected, setSelected] = useState(undefined)
       const [stateOpen, setStateOpen] = useState(false)
       const [bible, setBible] = useState({ status: 'idle' })
+      const [bibleEditor, setBibleEditor] = useState(undefined)
+      const bibleTextareaRef = useRef(undefined)
       const [brief, setBrief] = useState({ status: 'idle' })
       const [materials, setMaterials] = useState([])
       const [exporting, setExporting] = useState(false)
@@ -1015,9 +1020,68 @@ window.__ModuleLoader__.load({
         setBible({ status: 'loading' })
         try {
           const payload = await face.bible(root, workId)
-          setBible({ status: 'ready', files: payload.files ?? [], missing: payload.missing ?? [] })
+          setBible({
+            status: 'ready',
+            files: payload.files ?? [],
+            missing: payload.missing ?? [],
+            editable: payload.editable ?? [],
+          })
         } catch (error) {
           setBible({ status: 'error', error: error instanceof Error ? error.message : String(error) })
+        }
+      }
+
+      const editableTemplates = {
+        world: '# 世界观\n\n',
+        style: '# 文风基准\n\n',
+        intent: '# 作者意图\n\n',
+        characters: '[]',
+      }
+
+      const openBibleEditor = (file) => {
+        if (bibleEditor !== undefined) return
+        setBibleEditor({
+          name: file.name,
+          content: file.content,
+          original: file.content,
+          version: file.version,
+          saving: false,
+          error: undefined,
+        })
+      }
+
+      const openMissingBible = (name) => {
+        if (bibleEditor !== undefined || !editableTemplates[name]) return
+        setBibleEditor({
+          name,
+          content: editableTemplates[name],
+          original: '',
+          version: undefined,
+          saving: false,
+          error: undefined,
+        })
+      }
+
+      const cancelBibleEditor = () => {
+        if (bibleEditor?.saving === true) return
+        setBibleEditor(undefined)
+      }
+
+      const saveBibleEditor = async () => {
+        if (bibleEditor === undefined || bibleEditor.saving || sessionId === undefined) return
+        setBibleEditor(current => current === undefined ? current : { ...current, saving: true, error: undefined })
+        const content = bibleTextareaRef.current?.value ?? bibleEditor.content
+        try {
+          const saved = await face.writeBible(root, sessionId, workId, bibleEditor.name, content, bibleEditor.version)
+          onNotice({ kind: 'ok', text: `已保存 v${saved.version}` })
+          setBibleEditor(undefined)
+          await loadBible()
+        } catch (error) {
+          setBibleEditor(current => current === undefined ? current : {
+            ...current,
+            saving: false,
+            error: error instanceof Error ? error.message : String(error),
+          })
         }
       }
 
@@ -1157,7 +1221,13 @@ window.__ModuleLoader__.load({
             h('button', {
               type: 'button',
               className: 'sc-back',
-              onClick: () => { onBack() },
+              onClick: () => {
+                if (bibleEditor !== undefined) {
+                  onNotice({ kind: 'error', text: '先保存或取消当前真值编辑' })
+                  return
+                }
+                onBack()
+              },
             }, '← 全部作品'),
             h('h2', { className: 'sc-detail-title' }, manifest.title),
             h('p', { className: 'sc-detail-tagline' }, `${manifest.form} · ${manifest.workId} · ${chapters.length} ${unitOf(manifest.form)} · 已写 ${chapters.filter(item => item.revision > 0).length} ${unitOf(manifest.form)}`),
@@ -1530,7 +1600,17 @@ window.__ModuleLoader__.load({
 
         h('div', { className: 'sc-section' },
           h('div', { className: 'sc-actions' },
-            h('button', { type: 'button', className: 'sc-btn', onClick: () => { void loadBible() } }, '真值'),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn',
+              onClick: () => {
+                if (bibleEditor !== undefined) {
+                  onNotice({ kind: 'error', text: '先保存或取消当前真值编辑' })
+                  return
+                }
+                void loadBible()
+              },
+            }, '真值'),
             h('select', {
               className: 'sc-input',
               'aria-label': '写前上下文目标章',
@@ -1551,8 +1631,31 @@ window.__ModuleLoader__.load({
                 h('div', { className: 'sc-item-head' },
                   h('span', { className: 'sc-item-name' }, name),
                   h('span', { className: 'sc-badge sc-badge-warn' }, '缺失'),
+                  name === 'plan' ? h('span', { className: 'sc-badge' }, '只读') : null,
+                  bibleEditor?.name === name
+                    ? null
+                    : name === 'plan' || !(bible.editable ?? []).includes(name) || sessionId === undefined
+                      ? null
+                      : h('button', { type: 'button', className: 'sc-btn sc-btn-small', onClick: () => openMissingBible(name) }, '新建'),
                 ),
-                h('p', { className: 'sc-item-body' }, '用 story_bible_write 补建这份真值。'),
+                bibleEditor?.name === name
+                  ? h('div', null,
+                    h('textarea', {
+                      className: 'sc-input',
+                      'aria-label': `编辑真值 ${name}`,
+                      rows: 10,
+                      key: name,
+                      ref: node => { bibleTextareaRef.current = node },
+                      defaultValue: bibleEditor.content,
+                      disabled: bibleEditor.saving,
+                    }),
+                    bibleEditor.error === undefined ? null : h('p', { className: 'sc-notice sc-notice-info' }, bibleEditor.error),
+                    h('div', { className: 'sc-actions' },
+                      h('button', { type: 'button', className: 'sc-btn sc-btn-primary', disabled: bibleEditor.saving, onClick: () => { void saveBibleEditor() } }, bibleEditor.saving ? '保存中…' : '保存'),
+                      h('button', { type: 'button', className: 'sc-btn', disabled: bibleEditor.saving, onClick: cancelBibleEditor }, '取消'),
+                    ),
+                  )
+                  : h('p', { className: 'sc-item-body' }, name === 'plan' ? '用全书计划确认流程创建。' : '用「新建」补建这份真值。'),
               )),
               ...bible.files.map(file => h('div', { className: 'sc-item', key: file.name },
                 h('div', { className: 'sc-item-head' },
@@ -1560,8 +1663,31 @@ window.__ModuleLoader__.load({
                   h('span', { className: 'sc-item-id' }, file.path),
                   h('span', { className: 'sc-badge' }, `v${file.version}`),
                   file.draft ? h('span', { className: 'sc-badge sc-badge-warn' }, '草稿') : null,
+                  file.name === 'plan' ? h('span', { className: 'sc-badge' }, '只读') : null,
+                  bibleEditor?.name === file.name
+                    ? null
+                    : file.name === 'plan' || !(bible.editable ?? []).includes(file.name) || sessionId === undefined
+                      ? null
+                      : h('button', { type: 'button', className: 'sc-btn sc-btn-small', onClick: () => openBibleEditor(file) }, '编辑'),
                 ),
-                h('pre', { className: 'sc-yaml' }, file.content),
+                bibleEditor?.name === file.name
+                  ? h('div', null,
+                    h('textarea', {
+                      className: 'sc-input',
+                      'aria-label': `编辑真值 ${file.name}`,
+                      rows: 10,
+                      key: file.name,
+                      ref: node => { bibleTextareaRef.current = node },
+                      defaultValue: bibleEditor.content,
+                      disabled: bibleEditor.saving,
+                    }),
+                    bibleEditor.error === undefined ? null : h('p', { className: 'sc-notice sc-notice-info' }, bibleEditor.error),
+                    h('div', { className: 'sc-actions' },
+                      h('button', { type: 'button', className: 'sc-btn sc-btn-primary', disabled: bibleEditor.saving, onClick: () => { void saveBibleEditor() } }, bibleEditor.saving ? '保存中…' : '保存'),
+                      h('button', { type: 'button', className: 'sc-btn', disabled: bibleEditor.saving, onClick: cancelBibleEditor }, '取消'),
+                    ),
+                  )
+                  : h('pre', { className: 'sc-yaml' }, file.content),
               )))
             : null,
           brief.status === 'loading' ? h('p', { className: 'sc-muted' }, '装配写前上下文…') : null,

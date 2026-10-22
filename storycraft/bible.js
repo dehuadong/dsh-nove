@@ -27,6 +27,16 @@ export const BIBLE_FILES = {
   intent: { file: 'bible/intent.md', kind: 'markdown' },
 }
 
+/** Truth files an author may edit directly; plan stays behind outline approval. */
+export const EDITABLE_BIBLE_FILES = Object.keys(BIBLE_FILES).filter(name => name !== 'plan')
+
+/** Reject plan or unknown truth names before a direct write. */
+export function assertEditableBible(name) {
+  if (name === 'plan') throw new StoryError('approval-moved', '全书计划只能通过 story_outline 写入')
+  if (!EDITABLE_BIBLE_FILES.includes(name)) throw new StoryError('bible-invalid', `未知的真值文件：${String(name)}`)
+  return name
+}
+
 /** Names in the order the brief presents them (highest priority first). */
 export const BRIEF_SECTION_ORDER = ['intent', 'plan', 'characters', 'hooks', 'volumeSummary', 'recentSummaries', 'previous', 'style', 'wordPolicy', 'retrieval']
 
@@ -138,7 +148,7 @@ export async function readBible(root, workId, only) {
   if (missing.length > 0 && only !== undefined) {
     throw new StoryError('bible-missing', `真值文件缺失：${missing.join('、')}（可用 story_bible_write 补建）`)
   }
-  return { files, missing }
+  return { files, missing, editable: EDITABLE_BIBLE_FILES }
 }
 
 /**
@@ -149,10 +159,17 @@ export async function readBible(root, workId, only) {
  * @param {string} content - new content.
  * @returns {Promise<{name: string, path: string, version: string}>} the written file.
  */
-export async function writeBible(root, workId, name, content) {
+export async function writeBible(root, workId, name, content, options = {}) {
+  assertEditableBible(name)
+  if (typeof content !== 'string') throw new StoryError('bible-invalid', '真值内容必须是字符串')
   validateBibleContent(name, content)
   const manifest = readManifest(root, workId)
-  writeBibleRow(root, { work: manifest.workId, name, content })
+  writeBibleRow(root, {
+    work: manifest.workId,
+    name,
+    content,
+    ...(options.expectedVersion === undefined ? {} : { expectedVersion: options.expectedVersion }),
+  })
   return { name, path: biblePath(manifest.workId, name), version: contentVersion(content) }
 }
 
