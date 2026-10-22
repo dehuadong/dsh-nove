@@ -1634,9 +1634,15 @@ window.__ModuleLoader__.load({
                   name === 'plan' ? h('span', { className: 'sc-badge' }, '只读') : null,
                   bibleEditor?.name === name
                     ? null
-                    : name === 'plan' || !(bible.editable ?? []).includes(name) || sessionId === undefined
+                    : name === 'plan' || !(bible.editable ?? []).includes(name)
                       ? null
-                      : h('button', { type: 'button', className: 'sc-btn sc-btn-small', onClick: () => openMissingBible(name) }, '新建'),
+                      : h('button', {
+                        type: 'button',
+                        className: 'sc-btn sc-btn-small',
+                        disabled: sessionId === undefined,
+                        title: sessionId === undefined ? '先打开一个会话再编辑真值' : '新建这份真值',
+                        onClick: () => openMissingBible(name),
+                      }, '新建'),
                 ),
                 bibleEditor?.name === name
                   ? h('div', null,
@@ -1651,7 +1657,7 @@ window.__ModuleLoader__.load({
                     }),
                     bibleEditor.error === undefined ? null : h('p', { className: 'sc-notice sc-notice-info' }, bibleEditor.error),
                     h('div', { className: 'sc-actions' },
-                      h('button', { type: 'button', className: 'sc-btn sc-btn-primary', disabled: bibleEditor.saving, onClick: () => { void saveBibleEditor() } }, bibleEditor.saving ? '保存中…' : '保存'),
+                      h('button', { type: 'button', className: 'sc-btn sc-btn-primary', disabled: bibleEditor.saving || sessionId === undefined, title: sessionId === undefined ? '先打开一个会话再保存' : undefined, onClick: () => { void saveBibleEditor() } }, bibleEditor.saving ? '保存中…' : '保存'),
                       h('button', { type: 'button', className: 'sc-btn', disabled: bibleEditor.saving, onClick: cancelBibleEditor }, '取消'),
                     ),
                   )
@@ -1666,9 +1672,15 @@ window.__ModuleLoader__.load({
                   file.name === 'plan' ? h('span', { className: 'sc-badge' }, '只读') : null,
                   bibleEditor?.name === file.name
                     ? null
-                    : file.name === 'plan' || !(bible.editable ?? []).includes(file.name) || sessionId === undefined
+                    : file.name === 'plan' || !(bible.editable ?? []).includes(file.name)
                       ? null
-                      : h('button', { type: 'button', className: 'sc-btn sc-btn-small', onClick: () => openBibleEditor(file) }, '编辑'),
+                      : h('button', {
+                        type: 'button',
+                        className: 'sc-btn sc-btn-small',
+                        disabled: sessionId === undefined,
+                        title: sessionId === undefined ? '先打开一个会话再编辑真值' : '编辑这份真值',
+                        onClick: () => openBibleEditor(file),
+                      }, '编辑'),
                 ),
                 bibleEditor?.name === file.name
                   ? h('div', null,
@@ -1683,7 +1695,7 @@ window.__ModuleLoader__.load({
                     }),
                     bibleEditor.error === undefined ? null : h('p', { className: 'sc-notice sc-notice-info' }, bibleEditor.error),
                     h('div', { className: 'sc-actions' },
-                      h('button', { type: 'button', className: 'sc-btn sc-btn-primary', disabled: bibleEditor.saving, onClick: () => { void saveBibleEditor() } }, bibleEditor.saving ? '保存中…' : '保存'),
+                      h('button', { type: 'button', className: 'sc-btn sc-btn-primary', disabled: bibleEditor.saving || sessionId === undefined, title: sessionId === undefined ? '先打开一个会话再保存' : undefined, onClick: () => { void saveBibleEditor() } }, bibleEditor.saving ? '保存中…' : '保存'),
                       h('button', { type: 'button', className: 'sc-btn', disabled: bibleEditor.saving, onClick: cancelBibleEditor }, '取消'),
                     ),
                   )
