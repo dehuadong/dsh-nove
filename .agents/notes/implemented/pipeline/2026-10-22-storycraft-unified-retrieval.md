@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：素材与故事记忆的统一检索
-status: proposed
+status: implemented
 created: 2026-10-22
 updated: 2026-10-22
+verification: ad61be4；29 个单测 + 13 条 E2E；真实雪线邮路 material 命中 ≤400、无路径、删除后 0 命中
 ---
 
 # Agent Note：故事工坊：素材与故事记忆的统一检索
@@ -23,7 +24,7 @@ B1 已把素材写入作品库并同步 `search_docs`（`kind='material'`），�
 
 `searchMemory` 的片段 token 来自现有 `searchTokens`，不引入第二套分词。
 
-## 提案
+## 决定
 
 ### 1. 素材候选
 
@@ -78,7 +79,7 @@ B1 已把素材写入作品库并同步 `search_docs`（`kind='material'`），�
 - **素材摘要化（再调模型）**：增加模型调用/成本；否决，先用可解释片段。
 - **技能参考一起检索**：插件资源不在作品库，路径与权限不同；否决混入本项。
 
-## 验收条件
+## 后果
 
 产品验收在 #28；本 Note 检查技术性质：
 
@@ -96,3 +97,12 @@ B1 已把素材写入作品库并同步 `search_docs`（`kind='material'`），�
 - 素材正文仍存两份（materials.content + search_docs.body）；本项不优化。
 - 标题检索缺失；作者用标题词搜索时可能不命中，需在 README 说明。
 - 200 条候选被素材占满时，摘要/伏笔可能被挤出候选；这是 FTS LIMIT 的既有边界。
+
+## 验证
+
+- `node storycraft/scripts/ci.mjs`：29 个单测文件 + 13 条 E2E 全过。
+- `retrieval.test`：material 后置仍被扫到、每类上限、sent/hits、limit>5。
+- `material.test`：searchMemory 命中 material、文本 ≤400、标题前缀 ≤60、标题不可搜、删除后消失。
+- `context-retrieval.test`：material 段、`beforeChapter=1`、work-scope planner。
+- `store-perf.test`：200 章 + 3 条素材（含 512 KB）检索 <400ms。
+- 真实 `雪线邮路`：导入 `B2 验收素材` 后 planner work-scope 命中 `material:<id>`、`sent:true`、标题+片段无路径；删除后 0 命中；副本已清理。
