@@ -149,7 +149,7 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
   - `workId`、`artifactId`、`revisionId`、`kind`；
 - `story_bible.files` 删除 path；
 - `story_brief` / `story_context` 的 `sections[].source` 与 `trace.sections[].source` 改为 `sourceIds: string[]`；
-  - artifact：`outline`、`plan:<n>`、`chapter:<n>`、`review:<n>:...`、`summary:<n>`、`state`、`bible:<file>`、`volume:<id>`；
+  - artifact：`outline`、`plan:<n>`、`chapter:<n>`、`review:<n>:...`、`summary:<n>`、`state`、`bible:<file>`、`volume:<id>`、`material:<id>`；
   - 非 artifact：`context:<section>`（装配段）、`skill:<name>`（技能文本）、`manifest`（作品元数据）；
   - 不出现任何文件路径或路径拼接；
 - `story_export` / `story_backup` 的模型回执只含 `exportId` / `backupId`；作者目录由 UI 路由返回，不进入工具输出；

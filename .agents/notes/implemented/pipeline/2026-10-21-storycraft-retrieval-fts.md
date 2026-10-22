@@ -2,11 +2,13 @@
 title: 故事工坊：基于作品库 FTS5 的上下文检索
 status: implemented
 created: 2026-10-21
-updated: 2026-10-21
+updated: 2026-10-22
 verification: f491ed6；27 个单测 + 11 条 E2E；真实第 4 章 `story_context` 返回 retrieval 5 条 / candidateCount 13–14，stale summary:2 不进入 hits
 ---
 
 # Agent Note：故事工坊：基于作品库 FTS5 的上下文检索
+
+> 2026-10-22 待修订（#28 B2）：`searchMemory` 增加 material（§1 语料表/kind 列表）；`select` 从“只扫前 10 / sent 前缀”改为“扫全候选 + 每类上限 2 + hits=前10∪sent（≤15）”（§3/§4）；交付时同步代码注释与 `retrieval.test`。
 
 ## 问题
 
