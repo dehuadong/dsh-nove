@@ -40,8 +40,9 @@ try {
   check('searchMemory unknown kinds returns nothing', s.searchMemory(root, work, '旧井边', { kinds: ['nope'] }).length === 0)
   const contextMemory = s.searchMemory(root, work, '旧井边')
   const materialHit = contextMemory.find(item => item.kind === 'material')
-  check('material title is not searchable in v1', s.searchMemory(root, work, '示例').every(item => item.kind !== 'material'),
-    JSON.stringify(s.searchMemory(root, work, '示例')))
+  check('material title is searchable', s.searchMemory(root, work, '示例').some(item => item.id === `material:${imported.material.id}`)
+    && s.search(root, work, '示例').some(item => item.id === `material:${imported.material.id}`),
+  JSON.stringify({ memory: s.searchMemory(root, work, '示例'), search: s.search(root, work, '示例') }))
   check('searchMemory includes a bounded material snippet', materialHit !== undefined
     && materialHit.sourceIds[0] === `material:${imported.material.id}`
     && [...materialHit.text].length <= 400
@@ -102,8 +103,12 @@ try {
     && s.searchMemory(root, work, '旧井边', { purposes: [] }).every(item => item.kind !== 'material'))
 
   const renamed = await s.renameMaterial(root, work, imported.material.id, '新标题')
-  check('rename changes only the title', renamed.title === '新标题' && renamed.id === imported.material.id, JSON.stringify(renamed))
+  check('rename changes only the title', renamed.title === '新标题' && renamed.id === imported.material.id
+    && renamed.hashPrefix === imported.material.hashPrefix && renamed.purpose === 'scene', JSON.stringify(renamed))
   check('rename does not change search content', s.search(root, work, '旧井边').some(item => item.kind === 'material'), JSON.stringify(s.search(root, work, '旧井边')))
+  check('rename reindexes the title', s.search(root, work, '新标题').some(item => item.kind === 'material')
+    && s.search(root, work, '示例').every(item => item.kind !== 'material'),
+  JSON.stringify({ newTitle: s.search(root, work, '新标题'), oldTitle: s.search(root, work, '示例') }))
 
   await s.deleteMaterial(root, work, imported.material.id)
   check('delete removes the list row', (await s.listMaterials(root, work)).length === 0)

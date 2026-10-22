@@ -8,6 +8,8 @@ verification: ad61be4；29 个单测 + 13 条 E2E；真实雪线邮路 material 
 
 # Agent Note：故事工坊：素材与故事记忆的统一检索
 
+> 2026-10-22 补充（#31）：material 的 FTS tokens 现在含标题；正文片段/每类上限不变。
+
 ## 问题
 
 B1 已把素材写入作品库并同步 `search_docs`（`kind='material'`），但 #16 的 `searchMemory` 只取 `summary/hook/volume`，所以作者导入的素材不会进入 `story_context`。素材正文可达 512 KB，不能整篇塞进 1200 字预算；BM25 又会按长度归一化，长素材天然排不到前 10，单靠 top-K 永远轮不到素材。

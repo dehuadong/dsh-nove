@@ -25,6 +25,7 @@
     "domain.js",
     "storage.js",
     "materials.js",
+    "search-text.js",
     "store-db.js",
     "bible.js",
     "volumes.js",

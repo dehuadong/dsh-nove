@@ -52,7 +52,7 @@ DSH 里的长篇创作编排：三十个动作把立项、章纲、正文、审�
   backups/<workId>-<ts>.db   单作品备份
 ```
 
-`catalog.db` 只存元数据，是 title/form/tags 的权威；作品库的 `meta` 行是导出副本。每部作品独立 `user_version`，升级一部不影响其他；v1/v2/v3 首次打开自动迁移到 v4（摘要 revision + `materials` 表 + 素材用途），迁移失败返回 `schema-migration-failed`，目录会把该作品标为降级而不是静默跳过。表结构、连接策略、改名/删除/恢复顺序与启动对账的完整设计见 [作品入库 Note](../.agents/notes/implemented/pipeline/2026-10-19-storycraft-sqlite-store.md)。
+`catalog.db` 只存元数据，是 title/form/tags 的权威；作品库的 `meta` 行是导出副本。每部作品独立 `user_version`，升级一部不影响其他；v1–v4 首次打开自动迁移到 v5（摘要 revision + `materials` 表 + 素材用途 + 标题索引），迁移失败返回 `schema-migration-failed`，目录会把该作品标为降级而不是静默跳过。表结构、连接策略、改名/删除/恢复顺序与启动对账的完整设计见 [作品入库 Note](../.agents/notes/implemented/pipeline/2026-10-19-storycraft-sqlite-store.md)。
 
 动作与路由返回的模型可见 artifact 只有 `artifactId` / `revisionId` / `kind`，不含文件路径；正文/章纲/审稿/摘要等内容按 ID 用 `story_read` 或上下文动作读取。UI 与作者导出仍显示路径；实际内容在作品库内。宿主启动及首次读取一个工作区时对账目录与文件：缺失的作品在列表跳过并记入宿主诊断，孤儿文件与回收站文件保留待人工恢复。
 
@@ -75,11 +75,11 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 - `story_bible_import`：把旧文件作品的世界观收编进真值，并列出仍需作者补的项（不替作者编人物档案）；不导入大纲，大纲只走 `story_outline` + 作者确认。
 - `story_summarize`：手动写章节摘要（超 400 字截断并报告；写入时绑定当前正文版本）；正常链路先由 `story_next` 给出 `summarizer` 委派，子代理通过 `story_submit` 提交摘要，主编不读整章。摘要过期时 `story_next` 会重新要求摘要，`story_state` 返回 `summary-stale`。
 - `story_brief`：装配写某一章前的上下文——意图、本章章纲、涉及人物、未解伏笔、卷摘要、最近摘要、上一章结尾、文风、字数口径；已写 ≥3 章时追加「相关素材」段（只取 setting/character/scene；最多 3 条、`select.chars ≤1200`），素材段在最后、预算不足时最先被裁。默认 8 KB，超预算按优先级裁剪并报告裁掉的段；同一输入两次结果逐字节一致。
-- `story_context` 的检索段：作品内正文 ≥3 章时，按本章任务从作品库 FTS5 召回 current 摘要、未解/已用伏笔、卷摘要与素材（标题前缀 + ≤400 片段）；最多 5 条 / 1200 字，每类最多 2 条，`recent` 已发的摘要去重。过期摘要、已解伏笔、reopen 前事件与目标章之后的材料不进入。`trace.retrieval` 记录 `enabled / query / candidateCount / hits[{id, kind, sourceIds, score, sent}]` 与可选 `error`；hits 最多 15 条（前 10 ∪ sent），整段被预算裁掉时 `sent` 全为 false。素材标题暂不索引，只能用正文词命中。
+- `story_context` 的检索段：作品内正文 ≥3 章时，按本章任务从作品库 FTS5 召回 current 摘要、未解/已用伏笔、卷摘要与素材（标题前缀 + ≤400 片段）；最多 5 条 / 1200 字，每类最多 2 条，`recent` 已发的摘要去重。过期摘要、已解伏笔、reopen 前事件与目标章之后的材料不进入。`trace.retrieval` 记录 `enabled / query / candidateCount / hits[{id, kind, sourceIds, score, sent}]` 与可选 `error`；hits 最多 15 条（前 10 ∪ sent），整段被预算裁掉时 `sent` 全为 false。素材标题与正文都参与 FTS 命中，标题仍显示在片段前缀。
 
 ## 素材库
 
-面板“素材”区由宿主直接管理，不经过 LLM：文件选择器导入 `.txt` / `.md`，列表、重命名、删除；单文件 ≤512 KB、UTF-8。素材写入作品库 `materials` 表并同步 FTS5，副本放 `.storycraft/materials/`（模型不可读）；每份素材有用途（设定/人物/场景/文风/参考，默认参考），导入时可选、列表可改、可按用途筛选。删除只移除库与索引，保留副本。B2 起素材正文进入 `story_context` 检索段（标题前缀 + ≤400 片段）；B3 起 `story_brief` 只取设定/人物/场景，文风/参考仍可被 `story_context` 命中。标题本身不建索引。
+面板“素材”区由宿主直接管理，不经过 LLM：文件选择器导入 `.txt` / `.md`，列表、重命名、删除；单文件 ≤512 KB、UTF-8。素材写入作品库 `materials` 表并同步 FTS5，副本放 `.storycraft/materials/`（模型不可读）；每份素材有用途（设定/人物/场景/文风/参考，默认参考），导入时可选、列表可改、可按用途筛选。删除只移除库与索引，保留副本。B2 起素材正文进入 `story_context` 检索段（标题前缀 + ≤400 片段）；B3 起 `story_brief` 只取设定/人物/场景，文风/参考仍可被 `story_context` 命中；标题与正文都参与 FTS。
 
 ## 作品操作与导出
 
@@ -185,6 +185,7 @@ storycraft/
   db.js                        # SQLite 目录库 / 作品库 schema、连接、检查点与备份
   store-db.js                  # 全部读写：作品、章节、真值、卷、素材、检索、生命周期、导出备份
   materials.js                 # 素材上传字节校验、文件名、哈希与元数据
+  search-text.js               # FTS 分词与素材标题/正文索引文本
   storage.js                   # 稳定门面：动作与路由从这里取领域函数与存储函数
   domain.js                    # 共享词汇：错误码、id、阶段、审稿文本、事件折叠
   facts.js                     # 白名单唯一派生入口：只读已落库资料，正文与任务不参与

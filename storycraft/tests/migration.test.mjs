@@ -129,11 +129,58 @@ try {
   v3Db.close()
   const v3Opened = openWork(root, v3)
   try {
-    check('v3 migration adds purpose and stamps v4', rawVersion(v3Opened) === WORK_SCHEMA_VERSION
+    check('v3 migration adds purpose and stamps v5', rawVersion(v3Opened) === WORK_SCHEMA_VERSION
       && v3Opened.prepare('PRAGMA table_info(materials)').all().some(column => column.name === 'purpose')
       && v3Opened.prepare('SELECT purpose FROM materials').get().purpose === 'reference')
   } finally {
     v3Opened.close()
+  }
+
+  const v4 = await fixture(root, 'v4 标题索引')
+  const oldMaterial = await s.importMaterial(root, v4, {
+    name: '旧标题.md',
+    title: '紫电河',
+    contentBase64: Buffer.from('旧井边的正文。', 'utf8').toString('base64'),
+  })
+  const bigMaterial = await s.importMaterial(root, v4, {
+    name: '大标题.md',
+    title: '大标题词',
+    contentBase64: Buffer.from('水'.repeat(174_700), 'utf8').toString('base64'),
+  })
+  const v4Db = openDatabase(workFile(root, v4))
+  v4Db.prepare('DELETE FROM search_docs WHERE doc_id = ?').run(`material:${oldMaterial.material.id}`)
+  v4Db.exec("INSERT INTO search_fts(search_fts) VALUES('rebuild')")
+  for (const doc of v4Db.prepare("SELECT doc_id, body FROM search_docs WHERE kind = 'material'").all()) {
+    v4Db.prepare('UPDATE search_docs SET tokens = ? WHERE doc_id = ?').run(s.searchTokens(doc.body), doc.doc_id)
+  }
+  v4Db.exec("INSERT INTO search_fts(search_fts) VALUES('rebuild')")
+  v4Db.exec('PRAGMA user_version = 4')
+  v4Db.close()
+  const migrationStarted = performance.now()
+  const v4Opened = openWork(root, v4)
+  const migrationMs = performance.now() - migrationStarted
+  try {
+    check('v4 migration stamps v5 and indexes the title', rawVersion(v4Opened) === WORK_SCHEMA_VERSION
+      && s.search(root, v4, '紫电河').some(item => item.id === `material:${oldMaterial.material.id}`)
+      && s.search(root, v4, '旧井边').some(item => item.id === `material:${oldMaterial.material.id}`))
+    check('v4 migration with 512KB material fits 400ms', migrationMs < 400
+      && s.search(root, v4, '大标题词').some(item => item.id === `material:${bigMaterial.material.id}`), `${migrationMs.toFixed(1)}ms`)
+  } finally {
+    v4Opened.close()
+  }
+
+  const failV5 = await fixture(root, 'v5 回滚')
+  await s.importMaterial(root, failV5, { name: '回滚.md', contentBase64: Buffer.from('回滚正文。', 'utf8').toString('base64') })
+  const failDb = openDatabase(workFile(root, failV5))
+  failDb.exec('DROP TABLE search_fts')
+  failDb.exec('PRAGMA user_version = 4')
+  failDb.close()
+  throwsCode('v5 migration failure is reported', 'schema-migration-failed', () => openWork(root, failV5))
+  const failAfter = openDatabase(workFile(root, failV5))
+  try {
+    check('failed v5 migration keeps version 4', rawVersion(failAfter) === 4, String(rawVersion(failAfter)))
+  } finally {
+    failAfter.close()
   }
 
   const bad = await fixture(root, '坏素材表')

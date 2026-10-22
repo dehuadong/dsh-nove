@@ -12,6 +12,7 @@
 import { existsSync, mkdirSync, renameSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { StoryError, isWorkId } from './domain.js'
+import { materialIndexText, searchTokens } from './search-text.js'
 
 let DatabaseSync
 try {
@@ -29,7 +30,7 @@ export const STORE_DIR = '.storycraft'
 export const CATALOG_SCHEMA_VERSION = 1
 
 /** Schema version of one work database. */
-export const WORK_SCHEMA_VERSION = 4
+export const WORK_SCHEMA_VERSION = 5
 
 /** Material table without purpose, created by the v2→v3 step. */
 const MATERIALS_SCHEMA_V3 = `
@@ -367,7 +368,7 @@ export function openWork(root, workId) {
   const db = openDatabase(file)
   try {
     const version = userVersion(db)
-    if (version === 1 || version === 2 || version === 3) {
+    if (version === 1 || version === 2 || version === 3 || version === 4) {
       try {
         migrateWorkSchema(db)
       } catch (error) {
@@ -392,17 +393,17 @@ const MATERIAL_COLUMNS_V3 = [...MATERIALS_SCHEMA_V3.matchAll(/^\s{2}([a-z_]+)\s/
 const MATERIAL_COLUMNS_V4 = [...MATERIALS_SCHEMA_V4.matchAll(/^\s{2}([a-z_]+)\s/gmu)].map(match => match[1])
 
 /**
- * Upgrade a v1–v3 work database in place. Idempotent: a concurrent opener that
+ * Upgrade a v1–v4 work database in place. Idempotent: a concurrent opener that
  * already committed the current version is a no-op, and existing columns are
  * reused only when their shape still matches the shared schema.
- * @param {import('node:sqlite').DatabaseSync} db - open v1–v3 work database.
+ * @param {import('node:sqlite').DatabaseSync} db - open v1–v4 work database.
  */
 function migrateWorkSchema(db) {
   transaction(db, () => {
     let version = userVersion(db)
     if (version === WORK_SCHEMA_VERSION) return
-    if (version !== 1 && version !== 2 && version !== 3) {
-      throw new StoryError('schema-version-mismatch', '只支持从 v1–v3 升级作品库')
+    if (version !== 1 && version !== 2 && version !== 3 && version !== 4) {
+      throw new StoryError('schema-version-mismatch', '只支持从 v1–v4 升级作品库')
     }
     if (version === 1) {
       const columns = db.prepare('PRAGMA table_info(summaries)').all()
@@ -434,6 +435,25 @@ function migrateWorkSchema(db) {
       else if (columns.join(',') !== MATERIAL_COLUMNS_V4.join(',')) {
         throw new StoryError('schema-migration-failed', 'materials 表列不匹配 v4，拒绝复用')
       }
+      version = 4
+      db.exec('PRAGMA user_version = 4')
+    }
+    if (version === 4) {
+      const rows = db.prepare(`SELECT m.id, m.title, m.content, d.rowid AS rowid
+        FROM materials m LEFT JOIN search_docs d ON d.doc_id = 'material:' || m.id
+        ORDER BY m.id`).all()
+      for (const row of rows) {
+        const tokens = searchTokens(materialIndexText(row.title, row.content))
+        if (row.rowid === null) {
+          db.prepare('INSERT INTO search_docs (doc_id, kind, source, chapter, body, tokens) VALUES (?, ?, ?, ?, ?, ?)')
+            .run(`material:${row.id}`, 'material', `materials/${row.id}`, 0, row.content, tokens)
+          const inserted = db.prepare('SELECT rowid FROM search_docs WHERE doc_id = ?').get(`material:${row.id}`)
+          db.prepare('INSERT INTO search_fts (rowid, tokens) VALUES (?, ?)').run(inserted.rowid, tokens)
+        } else {
+          db.prepare('UPDATE search_docs SET tokens = ? WHERE rowid = ?').run(tokens, row.rowid)
+        }
+      }
+      db.exec("INSERT INTO search_fts(search_fts) VALUES('rebuild')")
       db.exec(`PRAGMA user_version = ${WORK_SCHEMA_VERSION}`)
     }
   })

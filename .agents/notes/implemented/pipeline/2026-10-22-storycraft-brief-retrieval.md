@@ -8,7 +8,7 @@ verification: 4e5396b；29 单测 + 13 E2E；真实雪线邮路第 4 章 brief �
 
 # Agent Note：故事工坊：写前装配接入素材检索
 
-> 2026-10-22 部分修订（#30 B3）：story_brief 只取 setting/character/scene 素材；3 条/1200/8KB/位置/裁剪规则不变。
+> 2026-10-22 部分修订（#30 B3）：story_brief 只取 setting/character/scene 素材；3 条/1200/8KB/位置/裁剪规则不变；#31 后标题命中也会进入候选。
 
 ## 问题
 

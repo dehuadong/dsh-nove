@@ -8,7 +8,7 @@ verification: 51625bc；29 个单测 + 13 条 E2E；真实雪线邮路导入/删
 
 # Agent Note：故事工坊：素材库（导入 / 列表 / 重命名 / 删除）
 
-> 2026-10-22 部分修订（#30 B3）：作品库升 v4，materials 增加 purpose（默认 reference），导出 manifest 升 v4；B1 的导入/管理/托管副本边界不变。
+> 2026-10-22 部分修订（#30 B3）：作品库升 v4，materials 增加 purpose（默认 reference），导出 manifest 升 v4；B1 的导入/管理/托管副本边界不变；#31 再升 v5（标题索引）。
 
 > 2026-10-22 已修订（#28 B2）：`searchMemory` 已纳入 material，素材正文进入 `story_context`（标题前缀 + ≤400 片段）；本文 §6/AC5 的排除断言已反转。
 
@@ -102,13 +102,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_materials_hash ON materials(hash);
 ### 6. 检索与导出
 
 - material 文档：`kind='material'`、`doc_id='material:<id>'`、`search_docs.source='materials/<id>'`、`chapter=0`；
-- 现有 `search()` 可命中；B2 起 `searchMemory` 也纳入 material，素材正文进入 `story_context`（标题不索引，标题只在前缀）；
+- 现有 `search()` 可命中；B2 起 `searchMemory` 也纳入 material，素材正文进入 `story_context`；#31 后标题也进入 FTS，标题仍只在前缀；
 - `story_export` manifest 升到 3，新增 `materials: [{id,title,format,bytes,hash,origin}]`，并写 `materials/<id>.<format>`；`origin` 是 bucket-relative 的 `materials/<hash8>-<name>`，实际路径 `.storycraft/materials/<origin>`，不经过 `sanitizeOutput` 的 `source` 改写；备份仍包含整库；
 - #18/#25 的 Note 加 pending 指针，说明 v3 = v2 字段 + 素材。
 
 ### 7. 删除与重命名
 
-- 重命名只更新 `materials.title`；material body 是正文，标题不在 body，无需重建索引；`title` 只用于列表/导出；
+- 重命名更新 `materials.title` 并重建该素材的搜索文档（#31 标题索引）；body/哈希不变；
 - 删除：`DELETE FROM materials` + `dropSearchDoc('material:<id>')`，同一事务；`materials/` 文件保留；
 - 重复导入已删除内容：hash 查询不到，复用现有文件（若同名）或新写副本，重新入库。
 

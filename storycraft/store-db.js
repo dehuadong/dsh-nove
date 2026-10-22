@@ -21,6 +21,9 @@ import {
 } from './db.js'
 import { MATERIAL_PURPOSES, MATERIAL_TITLE_MAX, materialMetadata, normalizeMaterialPurpose, prepareMaterial } from './materials.js'
 import { snippetFor } from './retrieval.js'
+import { materialIndexText, searchTokens } from './search-text.js'
+
+export { searchTokens }
 import {
   StoryError, SUMMARY_MAX_CHARS, WORK_FORMS, chapterNumber, chapterStem, contentVersion, countWords, foldEvents,
   formOf, now, parseReview, planApprovalPolicy, stageOf, summaryAdmissible, trimSummary, unitOf, workIdOf,
@@ -1800,24 +1803,6 @@ export function reopenChapter(root, input) {
 // ---------------------------------------------------------------------------
 
 /**
- * Tokenize text for FTS5: CJK bigrams + unigrams, latin words.
- * @param {string} text - source text.
- * @returns {string} space-separated tokens.
- */
-export function searchTokens(text) {
-  const tokens = []
-  for (const match of String(text).matchAll(/[\u4e00-\u9fa5]+/gu)) {
-    const run = match[0]
-    for (let index = 0; index < run.length; index += 1) {
-      if (index + 1 < run.length) tokens.push(run.slice(index, index + 2))
-      tokens.push(run[index])
-    }
-  }
-  for (const match of String(text).matchAll(/[A-Za-z][A-Za-z0-9_-]+/gu)) tokens.push(match[0].toLowerCase())
-  return tokens.join(' ')
-}
-
-/**
  * Write one managed material copy, reusing an identical existing file.
  * @param {string} root - workspace directory.
  * @param {object} prepared - result of `prepareMaterial`.
@@ -1932,7 +1917,8 @@ export function importMaterial(root, work, input) {
           }
           throw error
         }
-        syncSearchDoc(db, `material:${id}`, 'material', `materials/${id}`, 0, prepared.content)
+        syncSearchDoc(db, `material:${id}`, 'material', `materials/${id}`, 0, prepared.content,
+          materialIndexText(prepared.title, prepared.content))
         return {
           material: materialMetadata(db.prepare('SELECT * FROM materials WHERE id = ?').get(id)),
           duplicate: false,
@@ -1974,7 +1960,7 @@ export function listMaterials(root, work, purpose) {
 }
 
 /**
- * Rename one material title; content, hash, origin and index stay unchanged.
+ * Rename one material title and rebuild its search index; content, hash and origin stay unchanged.
  * @param {string} root - workspace directory.
  * @param {string} work - work identity.
  * @param {string} id - material id.
@@ -1989,6 +1975,8 @@ export function renameMaterial(root, work, id, title) {
       const row = db.prepare('SELECT * FROM materials WHERE id = ?').get(String(id))
       if (row === undefined) throw new StoryError('material-not-found', `没有素材：${String(id)}`)
       db.prepare('UPDATE materials SET title = ? WHERE id = ?').run(clean, row.id)
+      syncSearchDoc(db, `material:${row.id}`, 'material', `materials/${row.id}`, 0,
+        row.content, materialIndexText(clean, row.content))
       return materialMetadata({ ...row, title: clean })
     })
   } finally {
@@ -2054,8 +2042,8 @@ export function dropSearchDoc(db, docId) {
 }
 
 /** Upsert one search document and its FTS row. */
-function syncSearchDoc(db, docId, kind, source, chapter, body) {
-  const tokens = searchTokens(body)
+function syncSearchDoc(db, docId, kind, source, chapter, body, indexText = body) {
+  const tokens = searchTokens(indexText)
   dropSearchDoc(db, docId)
   db.prepare('INSERT INTO search_docs (doc_id, kind, source, chapter, body, tokens) VALUES (?, ?, ?, ?, ?, ?)')
     .run(docId, kind, source, chapter, body, tokens)
