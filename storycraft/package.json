@@ -27,6 +27,7 @@
     "materials.js",
     "search-text.js",
     "chapter-edit.js",
+    "style.js",
     "epub.js",
     "store-db.js",
     "bible.js",

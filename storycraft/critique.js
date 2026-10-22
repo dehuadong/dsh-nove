@@ -30,7 +30,7 @@ const AI_PHRASES = [
   '一时间',
 ]
 
-const SENTENCE_BREAK = /[。！？…；\n]+/u
+export const SENTENCE_BREAK = /[。！？…；\n]+/u
 const DIALOGUE_MARKS = /[「」『』“”"]/u
 
 /** Characters used for equality in repetition checks (letters and digits only). */

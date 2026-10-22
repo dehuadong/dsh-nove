@@ -11,8 +11,9 @@ import { join } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { StoryError, chapterNumber, chapterStem, contentVersion } from './domain.js'
 import { buildQuery, select } from './retrieval.js'
+import { mergeBlock, styleBlock, styleProfile } from './style.js'
 import {
-  listSummaries, listSummaryStates, readBibleEntry, readBibleMap, readChapter as readChapterRow, readFoldedState,
+  listBodies, listSummaries, listSummaryStates, readBibleEntry, readBibleMap, readChapter as readChapterRow, readFoldedState,
   readManifest, readPlan, readSummary as readSummaryRow, readSummaryState, readVolumes, searchMemory, virtualPath,
   writeBible as writeBibleRow, writeSummary as writeSummaryRow,
 } from './store-db.js'
@@ -153,6 +154,37 @@ export async function writeBible(root, workId, name, content) {
   const manifest = readManifest(root, workId)
   writeBibleRow(root, { work: manifest.workId, name, content })
   return { name, path: biblePath(manifest.workId, name), version: contentVersion(content) }
+}
+
+/**
+ * Append deterministic style samples from current chapter revisions.
+ * @param {string} root - workspace.
+ * @param {string} workId - work identity.
+ * @returns {Promise<object>} metrics, counts and version.
+ */
+export async function extractStyleSamples(root, workId) {
+  const manifest = readManifest(root, workId)
+  const current = new Map(manifest.chapters.filter(chapter => chapter.currentRevision > 0).map(chapter => [chapter.number, chapter.currentRevision]))
+  const bodies = listBodies(root, manifest.workId)
+    .filter(row => current.get(row.number) === row.revision)
+    .map(row => ({ number: row.number, body: row.body }))
+  if (bodies.length === 0) throw new StoryError('style-no-source', '还没有可抽取的正文')
+  const raw = readBibleMap(root, manifest.workId)
+  const authorStyle = raw.get('style')
+  if (authorStyle === undefined) throw new StoryError('bible-missing', '作品缺少 style 真值')
+  const profile = styleProfile(bodies)
+  const block = styleBlock(profile.metrics, profile.samples)
+  const content = mergeBlock(authorStyle, block)
+  const version = content === authorStyle
+    ? contentVersion(content)
+    : (await writeBible(root, manifest.workId, 'style', content)).version
+  return {
+    metrics: profile.metrics,
+    sampleCount: profile.samples.length,
+    sampleChars: profile.sampleChars,
+    chapters: bodies.map(row => row.number),
+    version,
+  }
 }
 
 /**

@@ -18,7 +18,7 @@ import { critique } from './critique.js'
 import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent } from './current.js'
 import { readVolumes } from './volumes.js'
 import { clearSessionCurrent, readSessionCurrent, setSessionCurrent } from './store-db.js'
-import { assembleBrief, readBible } from './bible.js'
+import { assembleBrief, extractStyleSamples, readBible } from './bible.js'
 import { backupsDir, exportsDir } from './db.js'
 
 /** Requires the host web server; without it the browser surface has no data. */
@@ -328,6 +328,16 @@ export function apply(ctx) {
           const approved = await approveChapterPlan(root, { work: workId, chapter: body?.chapter })
           return { workId, chapter: approved.entry.number, planApprovedAt: approved.entry.planApprovedAt }
         })
+      },
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/style/extract`,
+      handler: (req, res) => {
+        void postRoute(req, res, async (body) => {
+          const { root, workId } = await writeWorkTarget(body)
+          return extractStyleSamples(root, workId)
+        }, { maxBytes: 32 * 1024, requireJson: true })
       },
     }),
     ctx.webServer.register({

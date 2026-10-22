@@ -334,6 +334,7 @@ window.__ModuleLoader__.load({
         renameMaterial: (root, sessionId, workId, id, title) => post(ROUTE.materialRename, { root, sessionId, workId, id, title }),
         setMaterialPurpose: (root, sessionId, workId, id, purpose) => post(ROUTE.materialPurpose, { root, sessionId, workId, id, purpose }),
         deleteMaterial: (root, sessionId, workId, id) => post(ROUTE.materialDelete, { root, sessionId, workId, id }),
+        extractStyle: (root, sessionId, workId) => post('/api/dsh-storycraft/style/extract', { root, sessionId, workId }),
         deleteChapter: (root, sessionId, workId, chapter) => post('/api/dsh-storycraft/chapter/delete', {
           root, sessionId, workId, chapter, confirm: true,
         }),
@@ -889,6 +890,7 @@ window.__ModuleLoader__.load({
       const [materialError, setMaterialError] = useState(undefined)
       const [materialEditing, setMaterialEditing] = useState(undefined)
       const [chapterBusy, setChapterBusy] = useState(false)
+      const [styleBusy, setStyleBusy] = useState(false)
       const [materialPurpose, setMaterialPurpose] = useState('reference')
       const [materialFilter, setMaterialFilter] = useState('all')
       const [briefChapter, setBriefChapter] = useState(1)
@@ -962,6 +964,23 @@ window.__ModuleLoader__.load({
           onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
         } finally {
           setChapterBusy(false)
+        }
+      }
+
+      const extractStyle = async () => {
+        if (sessionId === undefined || styleBusy) return
+        setStyleBusy(true)
+        try {
+          const payload = await face.extractStyle(root, sessionId, workId)
+          onNotice({
+            kind: 'ok',
+            text: `已抽取 ${payload.sampleCount} 段文风样例（${payload.sampleChars} 字）；句数 ${payload.metrics?.sentences ?? 0}，平均句长 ${payload.metrics?.avgSentence ?? 0}`,
+          })
+          await load()
+        } catch (error) {
+          onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
+        } finally {
+          setStyleBusy(false)
         }
       }
 
@@ -1156,6 +1175,13 @@ window.__ModuleLoader__.load({
               title: '写下一章并一次做完：章纲 → 正文 → 质检 → 审稿 → 修订/清稿 → 摘要 → 定稿',
               onClick: () => compose(INSTRUCTIONS.flowFull(manifest.workId, next === undefined ? nextNumber : next.chapter)),
             }, `写第 ${next === undefined ? nextNumber : next.chapter} ${unitOf(manifest.form)}（一次做完）`),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn',
+              disabled: styleBusy || sessionId === undefined,
+              title: '从当前正文确定性地抽取文风样例，写入 style 的受管区块',
+              onClick: () => { void extractStyle() },
+            }, styleBusy ? '抽取中…' : '抽取文风'),
             h('button', {
               type: 'button',
               className: 'sc-btn',

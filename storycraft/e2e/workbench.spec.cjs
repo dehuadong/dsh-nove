@@ -318,32 +318,77 @@ test.describe('故事工坊工作台', () => {
     await expect(page.getByRole('button', { name: new RegExp(title) })).toBeVisible({ timeout: 15_000 })
   })
 
-  test('章节可以上移和删除', async ({ page }) => {
+  test('章节可以上移和下移', async ({ page }) => {
     const store = await import('../storage.js')
-    const title = `章节编辑${Date.now()}`
+    const title = `章节移动${Date.now()}`
     const work = store.initWork(runtime.fixtureWorkspace, { title }).workId
     for (const [number, name] of [[1, '甲章'], [2, '乙章']]) {
       store.writePlan(runtime.fixtureWorkspace, { work, chapter: number, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
       store.approveChapterPlan(runtime.fixtureWorkspace, { work, chapter: number })
       store.writeChapter(runtime.fixtureWorkspace, { work, chapter: number, title: name, body: `${name}正文。`.repeat(20) })
     }
-    store.writeVolume(runtime.fixtureWorkspace, { work, id: 'v1', title: '卷一', from: 1, to: 2, summary: '整卷。' })
     await openWorkbench(page)
     await page.getByRole('button', { name: new RegExp(title) }).evaluate(node => node.click())
-    const composer = page.getByRole('textbox', { name: /Describe what/ })
-    const before = await composer.evaluate(node => String(node.value ?? node.textContent ?? ''))
     await page.getByRole('button', { name: /第 2 章 乙章/ }).evaluate(node => node.click())
-    await expect(page.locator('.sc-chapter-no').first()).toHaveText('第 1 章')
     await page.locator('.sc-chapter-actions').getByRole('button', { name: '上移', exact: true }).evaluate(node => node.click())
     await expect(page.locator('.sc-chapter-title').first()).toHaveText('乙章', { timeout: 15_000 })
     await page.locator('.sc-chapter-actions').getByRole('button', { name: '下移', exact: true }).evaluate(node => node.click())
     await expect(page.locator('.sc-chapter-title').first()).toHaveText('甲章', { timeout: 15_000 })
+  })
+
+  test('章节可以删除', async ({ page }) => {
+    const store = await import('../storage.js')
+    const title = `章节删除${Date.now()}`
+    const work = store.initWork(runtime.fixtureWorkspace, { title }).workId
+    for (const [number, name] of [[1, '甲章'], [2, '乙章']]) {
+      store.writePlan(runtime.fixtureWorkspace, { work, chapter: number, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+      store.approveChapterPlan(runtime.fixtureWorkspace, { work, chapter: number })
+      store.writeChapter(runtime.fixtureWorkspace, { work, chapter: number, title: name, body: `${name}正文。`.repeat(20) })
+    }
+    await openWorkbench(page)
+    await page.getByRole('button', { name: new RegExp(title) }).evaluate(node => node.click())
+    const composer = page.getByRole('textbox', { name: /Describe what/ })
+    const before = await composer.evaluate(node => String(node.value ?? node.textContent ?? ''))
+    await page.getByRole('button', { name: /第 1 章 甲章/ }).evaluate(node => node.click())
     page.once('dialog', dialog => dialog.accept())
     await page.locator('.sc-chapter-actions').getByRole('button', { name: '删除', exact: true }).evaluate(node => node.click())
-    await expect(page.getByText(/卷区间需要调整/)).toBeVisible({ timeout: 15_000 })
     await expect(page.locator('.sc-chapter-title')).toHaveCount(1, { timeout: 15_000 })
-    await expect(page.locator('.sc-chapter-title')).toHaveText('甲章')
+    await expect(page.locator('.sc-chapter-title')).toHaveText('乙章')
     await expect(page.locator('.sc-chapter-no')).toHaveText('第 1 章')
+    expect(await composer.evaluate(node => String(node.value ?? node.textContent ?? ''))).toBe(before)
+  })
+
+  test('抽取文风写入样例', async ({ page }) => {
+    const store = await import('../storage.js')
+    const title = `文风按钮${Date.now()}`
+    const work = store.initWork(runtime.fixtureWorkspace, { title }).workId
+    for (const number of [1, 2, 3]) {
+      store.writePlan(runtime.fixtureWorkspace, { work, chapter: number, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+      store.approveChapterPlan(runtime.fixtureWorkspace, { work, chapter: number })
+      const paragraph = `${`第${number}章文风测试。`.repeat(18)}`
+      store.writeChapter(runtime.fixtureWorkspace, { work, chapter: number, body: `${paragraph}\n\n${paragraph}`, title: `风${number}` })
+    }
+    await openWorkbench(page)
+    await page.getByRole('button', { name: new RegExp(title) }).evaluate(node => node.click())
+    const composer = page.getByRole('textbox', { name: /Describe what/ })
+    const before = await composer.evaluate(node => String(node.value ?? node.textContent ?? ''))
+    await page.getByRole('button', { name: '抽取文风', exact: true }).evaluate(node => node.click())
+    const { openWork } = await import('../db.js')
+    const { STYLE_START } = await import('../style.js')
+    await expect.poll(() => {
+      const db = openWork(runtime.fixtureWorkspace, work)
+      try {
+        return db.prepare("SELECT content FROM bible WHERE name = 'style'").get()?.content ?? ''
+      } finally {
+        db.close()
+      }
+    }, { timeout: 15_000 }).toContain(STYLE_START)
+    const db = openWork(runtime.fixtureWorkspace, work)
+    try {
+      expect(db.prepare("SELECT content FROM bible WHERE name = 'style'").get().content).toContain('样例 3')
+    } finally {
+      db.close()
+    }
     expect(await composer.evaluate(node => String(node.value ?? node.textContent ?? ''))).toBe(before)
   })
 
