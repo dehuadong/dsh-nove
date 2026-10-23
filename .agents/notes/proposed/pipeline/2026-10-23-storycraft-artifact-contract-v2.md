@@ -76,7 +76,7 @@ updated: 2026-10-23
 | 全书计划 | `outline` | 内容哈希 |
 | 章纲 | `plan:<n>` | 内容哈希 |
 | 正文 | `chapter:<n>` | `r1/r2…` |
-| 审稿 | `review:<n>:<bodyRev>:<round>` | 内容哈希 |
+| 审稿 | `review:<n>:r<bodyRev>:<round>` | 内容哈希 |
 | 摘要 | `summary:<n>` | 内容哈希 |
 | 状态 | `state` | `seq:<n>` |
 | 世界/文风/意图/焦点 | `bible:world` / `bible:style` / `bible:intent` / `bible:current_focus` | 内容哈希 |
@@ -288,6 +288,7 @@ updated: 2026-10-23
 - hooks/facts 是 `state` 投影，不各自占 artifact kind：hook 用 `hookId` 寻址，fact 用 `subject/predicate/object` + 有效期寻址；`ChapterMemo.threadRefs` 引用 `hookId`。
 - `fact` 的当前状态由 `fact.upsert`/`expire` 投影；`validFrom/validUntil/source` 由投影生成。
 - 新库不接收旧 text-hook/string-fact 事件；测试作品重建，不做兼容解析。
+- **运行边界（A0）**：v2 事件操作与投影由 `state-events.js` 拥有；现有 `state-validation`/`state-check`/`state-settle` 仍消费旧 text-hook/string-fact，直到 L 迁移；两者不互相翻译。
 
 ### 6. 上下文
 

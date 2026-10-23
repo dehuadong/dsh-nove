@@ -221,10 +221,10 @@ try {
     cleared.planApprovedAt === undefined && cleared.planRevision === undefined, JSON.stringify(cleared))
   check('chapter meta lists review observation artifacts', (() => {
     putArtifact(root, {
-      workId: work, artifactId: 'review:1:1:1', kind: 'review', scope: { chapter: 1 },
+      workId: work, artifactId: 'review:1:r1:1', kind: 'review', scope: { chapter: 1 },
       revisionId: 'review-hash', content: { observations: [] }, provenance: 'generated', createdAt: 'now',
     })
-    return readChapterMeta(root, { work, chapter: 1 }).chapterMeta.observationIds.includes('review:1:1:1')
+    return readChapterMeta(root, { work, chapter: 1 }).chapterMeta.observationIds.includes('review:1:r1:1')
   })())
 
   // WorkConfig gates: planApproval and outline are readable and writable.

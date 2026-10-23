@@ -250,6 +250,9 @@ export function foldEvents(text) {
     } catch {
       continue
     }
+    // v2 hook/fact events carry `op` and belong to state-events.js; the legacy
+    // fold must ignore them instead of reading them as text hooks.
+    if (typeof event?.op === 'string') continue
     const reopenedAt = reopenAt.get(event?.chapter)
     if (reopenedAt !== undefined && index < reopenedAt) continue
     if (event?.kind === 'entity') {

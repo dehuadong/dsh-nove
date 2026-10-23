@@ -27,9 +27,12 @@ export function putArtifact(root, input) {
   try {
     return transaction(db, () => {
       const chapter = envelope.scope?.chapter
-      if (chapter !== undefined
-        && db.prepare('SELECT 1 FROM chapters WHERE number = ?').get(chapter) === undefined) {
-        throw new StoryError('chapter-not-found', `没有第 ${chapter} 章：不能写章节 artifact`)
+      if (chapter !== undefined) {
+        const row = db.prepare('SELECT stage FROM chapters WHERE number = ?').get(chapter)
+        if (row === undefined) throw new StoryError('chapter-not-found', `没有第 ${chapter} 章：不能写章节 artifact`)
+        if (row.stage === 'settled') {
+          throw new StoryError('chapter-settled', `第 ${chapter} 章已定稿：先 reopen 再写章节 artifact`)
+        }
       }
       const existing = db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ? AND revision_id = ?')
         .get(envelope.artifactId, envelope.revisionId)
@@ -246,6 +249,85 @@ export function writeChapterSummary(root, input) {
 export function readChapterSummary(root, input) {
   const chapter = chapterNumber(input.chapter)
   return readTyped(root, input, { artifactId: `summary:${chapter}`, kind: 'summary' })
+}
+
+function positiveInteger(value, label) {
+  const number = Number(value)
+  if (!Number.isInteger(number) || number < 1) {
+    throw new StoryError('artifact-invalid', `${label} 必须是正整数`)
+  }
+  return number
+}
+
+function compactText(value) {
+  return String(value ?? '').replace(/\s+/gu, '')
+}
+
+/** Refuse an observation whose quote is not in the reviewed body or plan. */
+function verifyObservationSources(root, work, chapter, bodyRevision, observations) {
+  if (!Array.isArray(observations)) return
+  const db = openWork(root, String(work))
+  try {
+    if (db.prepare('SELECT 1 FROM chapters WHERE number = ?').get(chapter) === undefined) {
+      throw new StoryError('chapter-not-found', `没有第 ${chapter} 章`)
+    }
+    const body = db.prepare('SELECT body FROM chapter_versions WHERE number = ? AND revision = ?')
+      .get(chapter, bodyRevision)?.body
+    if (body === undefined) throw new StoryError('body-not-found', `第 ${chapter} 章没有正文版本 r${bodyRevision}`)
+    const planRow = db.prepare('SELECT text FROM chapter_plans WHERE number = ?').get(chapter)
+    const memoRow = db.prepare(`SELECT content FROM artifacts
+      WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1`).get(`plan:${chapter}`)
+    const bodyText = compactText(body)
+    const planText = compactText(`${planRow?.text ?? ''}\n${memoRow?.content ?? ''}`)
+    for (const [index, observation] of observations.entries()) {
+      for (const [refIndex, ref] of (Array.isArray(observation?.sourceRefs) ? observation.sourceRefs : []).entries()) {
+        const source = String(ref.sourceId)
+        const haystack = source === `chapter:${chapter}` || source === `chapter:${chapter}:r${bodyRevision}`
+          ? bodyText
+          : source === `plan:${chapter}` ? planText : undefined
+        if (haystack === undefined) {
+          throw new StoryError('artifact-invalid', `observation[${index}].sourceRefs[${refIndex}] 引用未知来源：${source}`)
+        }
+        if (!haystack.includes(compactText(ref.quote))) {
+          throw new StoryError('observation-source-unverified',
+            `observation[${index}].sourceRefs[${refIndex}] 的引文不在 ${source} 中`)
+        }
+      }
+    }
+  } finally {
+    db.close()
+  }
+}
+
+/**
+ * Write one review round's observations as `review:<n>:r<bodyRev>:<round>`.
+ * Each observation is validated, including its source refs.
+ */
+export function writeChapterObservations(root, input) {
+  const chapter = chapterNumber(input.chapter)
+  const bodyRevision = positiveInteger(input.bodyRevision, 'bodyRevision')
+  const round = positiveInteger(input.round, 'round')
+  verifyObservationSources(root, input.work, chapter, bodyRevision, input.observations)
+  return writeTyped(root, {
+    work: input.work,
+    artifactId: `review:${chapter}:r${bodyRevision}:${round}`,
+    kind: 'review',
+    scope: { chapter },
+    content: { observations: input.observations },
+    provenance: input.provenance,
+    createdAt: input.createdAt,
+  })
+}
+
+/** Read one review round's observations by chapter, body revision and round. */
+export function readChapterObservations(root, input) {
+  const chapter = chapterNumber(input.chapter)
+  const bodyRevision = positiveInteger(input.bodyRevision, 'bodyRevision')
+  const round = positiveInteger(input.round, 'round')
+  return readTyped(root, input, {
+    artifactId: `review:${chapter}:r${bodyRevision}:${round}`,
+    kind: 'review',
+  })
 }
 
 /**

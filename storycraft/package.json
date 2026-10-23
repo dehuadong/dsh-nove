@@ -33,6 +33,7 @@
     "epub.js",
     "store-db.js",
     "state-validation.js",
+    "state-events.js",
     "state-check.js",
     "state-settle.js",
     "bible.js",

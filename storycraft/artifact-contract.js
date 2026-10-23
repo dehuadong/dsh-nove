@@ -347,10 +347,18 @@ export function validateObservation(value) {
     text(ref.sourceId, `${label}.sourceId`)
     text(ref.quote, `${label}.quote`)
     return ref
-  })
+  }, { min: 1 })
   if (input.severity !== undefined) oneOf(input.severity, OBSERVATION_SEVERITIES, 'observation.severity')
   if (input.fix !== undefined) text(input.fix, 'observation.fix')
   if (input.mode !== undefined) oneOf(input.mode, REVISE_MODES, 'observation.mode')
+  return input
+}
+
+/** Validate one review artifact: its observations carry bounded source refs. */
+export function validateReviewObservations(value) {
+  const input = object(value, 'review')
+  keys(input, ['observations'], 'review')
+  list(input.observations, 'review.observations', validateObservation)
   return input
 }
 
@@ -555,6 +563,7 @@ export const ARTIFACT_CONTENT_VALIDATORS = {
   book_rules: validateBookRules,
   role_index: validateRolesIndex,
   role_card: validateRoleCard,
+  review: validateReviewObservations,
 }
 
 /** Canonical artifact IDs, or the chapter-scoped pattern, for typed kinds. */
@@ -566,6 +575,7 @@ export const ARTIFACT_IDENTITY = {
   role_card: { pattern: /^role:[^\s:]+$/u },
   plan: { pattern: /^plan:([1-9]\d*)$/u, chapterScoped: true },
   summary: { pattern: /^summary:([1-9]\d*)$/u, chapterScoped: true },
+  review: { pattern: /^review:([1-9]\d*):r([1-9]\d*):([1-9]\d*)$/u, chapterScoped: true },
 }
 
 /**

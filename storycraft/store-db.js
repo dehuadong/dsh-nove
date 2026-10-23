@@ -1560,6 +1560,47 @@ function assertStateGate(db, number, options = {}) {
 }
 
 /**
+ * Append one raw v2 state event (hook/fact op). The event is the source;
+ * projections are rebuilt by `state-events.js`, which also owns op validation.
+ * This is the low-level writer behind `appendHookOp`/`appendFactOp`.
+ * @param {string} root - workspace directory.
+ * @param {{work: string, chapter: number, kind: string, payload: object}} input - event.
+ * @returns {{seq: number}} appended event sequence.
+ */
+export function appendStateEvent(root, input) {
+  const chapter = Number(input.chapter)
+  if (!Number.isInteger(chapter) || chapter < 0) {
+    throw new StoryError('invalid-chapter', `状态事件的章号必须是非负整数：${String(input.chapter)}`)
+  }
+  const kind = String(input.kind ?? '').trim()
+  if (kind !== 'hook' && kind !== 'fact') {
+    throw new StoryError('state-op-invalid', `v2 状态事件只接受 hook/fact：${kind}`)
+  }
+  const workId = String(input.work)
+  const db = openWork(root, workId)
+  try {
+    return transaction(db, () => {
+      if (chapter > 0) {
+        const row = db.prepare('SELECT stage FROM chapters WHERE number = ?').get(chapter)
+        if (row === undefined) throw new StoryError('chapter-not-found', `没有第 ${chapter} 章：不能追加状态事件`)
+        if (row.stage === 'settled') {
+          throw new StoryError('chapter-settled', `第 ${chapter} 章已定稿：先 reopen 再追加状态事件`)
+        }
+      }
+      const seq = (db.prepare('SELECT max(seq) AS n FROM events').get()?.n ?? 0) + 1
+      const payload = JSON.stringify(input.payload)
+      db.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
+        .run(seq, now(), chapter, kind, payload)
+      syncSearchDoc(db, `event:${seq}`, kind, 'state/events', chapter, payload)
+      touchMeta(db)
+      return { seq }
+    })
+  } finally {
+    db.close()
+  }
+}
+
+/**
  * Append state events and return the folded counts.
  * @param {string} root - workspace directory.
  * @param {{work: string, chapter: number|string, entities?: Array<{name: string, facts: string|string[]}>, hooks?: Array<{text: string, state: 'opened'|'used'|'resolved'}>, allowEmpty?: boolean}} input - state input.

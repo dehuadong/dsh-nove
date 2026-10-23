@@ -65,7 +65,7 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
 | 全书计划 | `outline` | 内容哈希（前 12 位） | `outline` |
 | 章纲 | `plan:<n>` | 内容哈希（前 12 位） | `plan` |
 | 正文 | `chapter:<n>` | `r1`、`r2` …（真实版本） | `chapter` |
-| 审稿 | `review:<n>:<bodyRev>:<round>` | 审稿内容哈希 | `review` |
+| 审稿 | `review:<n>:r<bodyRev>:<round>` | 审稿内容哈希 | `review` |
 | 摘要 | `summary:<n>` | 内容哈希（前 12 位） | `summary` |
 | 状态 | `state` | 事件序号 `seq:<n>` | `state` |
 | 真值 | `bible:<file>` | 内容哈希（前 12 位） | `bible` |

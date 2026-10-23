@@ -2,11 +2,11 @@
 
 import {
   ARTIFACT_CONTRACT_VERSION, ARTIFACT_KINDS, FORM_PIPELINES, HOOK_TRANSITIONS,
-  assertHookTransition, validateArtifactEnvelope, validateBookRules, validateChapterMemo,
+  assertHookTransition, validateArtifactEnvelope, validateArtifactRecord, validateBookRules, validateChapterMemo,
   validateChapterMeta, validateChapterSummary, validateChapterTrace, validateContextPackage,
-  validateContextSource, validateFact, validateHook, validateObservation, validateRoleCard,
-  validateRolesIndex, validateScript, validateShortStory, validateStoryFrame, validateVolumeMap,
-  validateWorkConfig,
+  validateContextSource, validateFact, validateHook, validateObservation, validateReviewObservations,
+  validateRoleCard, validateRolesIndex, validateScript, validateShortStory, validateStoryFrame,
+  validateVolumeMap, validateWorkConfig,
 } from '../artifact-contract.js'
 
 let failures = 0
@@ -111,8 +111,25 @@ rejects('summary needs bodyRevision', 'artifact-invalid', () => validateChapterS
 check('observation valid', validateObservation(observation).sourceRefs.length === 1)
 rejects('observation needs source quote', 'artifact-invalid',
   () => validateObservation({ ...observation, sourceRefs: [{ sourceId: 'chapter:1' }] }))
+rejects('observation needs at least one source ref', 'artifact-invalid',
+  () => validateObservation({ ...observation, sourceRefs: [] }))
 rejects('observation rejects unknown severity', 'artifact-invalid',
   () => validateObservation({ ...observation, severity: 'critical' }))
+check('review observations valid', validateReviewObservations({ observations: [observation] }).observations.length === 1)
+rejects('review observations reject a missing quote', 'artifact-invalid',
+  () => validateReviewObservations({ observations: [{ ...observation, sourceRefs: [{ sourceId: 'chapter:1' }] }] }))
+check('review envelope valid', validateArtifactEnvelope({
+  workId: '书', artifactId: 'review:1:r2:1', kind: 'review', scope: { chapter: 1 },
+  revisionId: 'hash', content: { observations: [observation] }, provenance: 'generated', createdAt: 'now',
+}).artifactId === 'review:1:r2:1')
+rejects('review identity needs matching scope', 'artifact-invalid', () => validateArtifactRecord({
+  workId: '书', artifactId: 'review:1:r2:1', kind: 'review', scope: { chapter: 2 },
+  revisionId: 'hash', content: { observations: [] }, provenance: 'generated', createdAt: 'now',
+}))
+rejects('review identity rejects an incomplete ID', 'artifact-invalid', () => validateArtifactRecord({
+  workId: '书', artifactId: 'review:1', kind: 'review', scope: { chapter: 1 },
+  revisionId: 'hash', content: { observations: [] }, provenance: 'generated', createdAt: 'now',
+}))
 
 check('hook valid', validateHook(hook).hookId === 'h_1')
 rejects('hook rejects bad transition helper', 'hook-transition-invalid', () => assertHookTransition('resolved', 'open'))
