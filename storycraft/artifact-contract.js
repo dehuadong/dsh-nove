@@ -1,0 +1,512 @@
+/**
+ * Artifact contract v2: canonical shapes for story artifacts.
+ *
+ * This module is the single validation surface for the A0 contract. It does
+ * not read or write a work database; stores and consumers validate at their
+ * boundary with these functions.
+ */
+
+import { StoryError } from './domain.js'
+
+/** Contract version carried by new works. */
+export const ARTIFACT_CONTRACT_VERSION = 2
+
+/** Artifact kinds that can appear in an envelope or artifact registry. */
+export const ARTIFACT_KINDS = [
+  'outline', 'plan', 'chapter', 'summary', 'review', 'state', 'context', 'trace',
+  'world', 'style', 'intent', 'current_focus', 'story_frame', 'volume_map', 'book_rules',
+  'role_index', 'role_card', 'volume', 'material', 'export', 'backup',
+  'short_story', 'script', 'storyboard', 'interactive_film', 'play_world', 'cover', 'translation',
+]
+
+/** Form-specific pipelines. Short/script do not share the longform stage machine. */
+export const FORM_PIPELINES = {
+  longform: ['foundation', 'plan', 'compose', 'write', 'review', 'revise', 'summary', 'settle'],
+  short: ['outline', 'draft', 'review', 'revise', 'package'],
+  script: ['spec', 'script', 'episodes', 'review'],
+}
+
+/** Hook lifecycle states. */
+export const HOOK_STATUSES = ['open', 'progressing', 'deferred', 'resolved', 'superseded']
+
+/** Allowed hook transitions; the transition is applied by a hook op, never by upsert. */
+export const HOOK_TRANSITIONS = {
+  open: ['progressing', 'deferred', 'resolved', 'superseded'],
+  progressing: ['deferred', 'resolved', 'superseded'],
+  deferred: ['progressing', 'resolved', 'superseded'],
+  resolved: ['superseded'],
+  superseded: [],
+}
+
+export const OBSERVATION_CATEGORIES = ['execution', 'quality', 'scope']
+export const OBSERVATION_ASSESSMENTS = ['issue', 'resolved', 'unavailable', 'observation']
+export const OBSERVATION_SEVERITIES = ['blocking', 'major', 'minor']
+export const REVISE_MODES = ['patch', 'polish', 'rewrite', 'deslop']
+export const CHAPTER_STAGES = ['planned', 'written', 'reviewed', 'revised', 'settled']
+export const ARTIFACT_PROVENANCE = ['generated', 'imported', 'edited']
+export const SCRIPT_FORMATS = ['vertical_short_drama', 'screenplay', 'audio_drama', 'interactive_script', 'general_script']
+
+const ID_PATTERN = /^[a-z][a-z0-9_]*(?::[^\s:]+)*$/u
+
+/** Throw one contract error with a stable code. */
+function invalid(message, code = 'artifact-invalid') {
+  throw new StoryError(code, message)
+}
+
+function object(value, label) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) invalid(`${label} 必须是对象`)
+  return value
+}
+
+function keys(value, allowed, label) {
+  for (const key of Object.keys(value)) {
+    if (!allowed.includes(key)) invalid(`${label} 含未知字段：${key}`)
+  }
+}
+
+function text(value, label, optional = false) {
+  if (value === undefined && optional) return undefined
+  if (typeof value !== 'string' || value.trim() === '') invalid(`${label} 必须是非空字符串`)
+  return value
+}
+
+function textAllowEmpty(value, label, optional = false) {
+  if (value === undefined && optional) return undefined
+  if (typeof value !== 'string') invalid(`${label} 必须是字符串`)
+  return value
+}
+
+function integer(value, label, min = 0) {
+  if (!Number.isInteger(value) || value < min) invalid(`${label} 必须是 >= ${min} 的整数`)
+  return value
+}
+
+function optionalInteger(value, label, min = 0) {
+  if (value === undefined) return undefined
+  return integer(value, label, min)
+}
+
+function boolean(value, label) {
+  if (typeof value !== 'boolean') invalid(`${label} 必须是布尔值`)
+  return value
+}
+
+function oneOf(value, allowed, label) {
+  if (!allowed.includes(value)) invalid(`${label} 只能是 ${allowed.join(' / ')}`)
+  return value
+}
+
+function strings(value, label, { min = 0, max = Infinity } = {}) {
+  if (!Array.isArray(value)) invalid(`${label} 必须是数组`)
+  if (value.length < min) invalid(`${label} 至少 ${min} 项`)
+  if (value.length > max) invalid(`${label} 最多 ${max} 项`)
+  for (const [index, item] of value.entries()) text(item, `${label}[${index}]`)
+  return value
+}
+
+function list(value, label, validator, { min = 0, max = Infinity } = {}) {
+  if (!Array.isArray(value)) invalid(`${label} 必须是数组`)
+  if (value.length < min) invalid(`${label} 至少 ${min} 项`)
+  if (value.length > max) invalid(`${label} 最多 ${max} 项`)
+  return value.map((item, index) => validator(object(item, `${label}[${index}]`), `${label}[${index}]`))
+}
+
+/** Validate an artifact ID; IDs are lowercase, colon-separated, no paths. */
+export function validateArtifactId(value) {
+  const id = text(value, 'artifactId')
+  if (!ID_PATTERN.test(id)) invalid(`artifactId 不合法：${id}`)
+  return id
+}
+
+/** Validate an artifact envelope. */
+export function validateArtifactEnvelope(value) {
+  const input = object(value, 'artifact')
+  keys(input, ['workId', 'artifactId', 'kind', 'scope', 'revisionId', 'content', 'provenance', 'createdAt'], 'artifact')
+  text(input.workId, 'workId')
+  const artifactId = validateArtifactId(input.artifactId)
+  oneOf(input.kind, ARTIFACT_KINDS, 'kind')
+  text(input.revisionId, 'revisionId')
+  oneOf(input.provenance, ARTIFACT_PROVENANCE, 'provenance')
+  if (input.scope !== undefined) {
+    const scope = object(input.scope, 'scope')
+    keys(scope, ['chapter'], 'scope')
+    optionalInteger(scope.chapter, 'scope.chapter', 1)
+  }
+  if (['chapter', 'plan', 'summary', 'review', 'context', 'trace'].includes(input.kind)
+    && input.scope?.chapter === undefined) {
+    invalid(`${input.kind} 必须带 scope.chapter`)
+  }
+  if (input.content === undefined) invalid('artifact.content 缺失')
+  text(input.createdAt, 'createdAt')
+  return { ...input, artifactId }
+}
+
+/** Validate a WorkConfig projection. */
+export function validateWorkConfig(value) {
+  const input = object(value, 'work')
+  keys(input, ['workId', 'title', 'form', 'platform', 'genre', 'status', 'targetChapters',
+    'chapterWordCount', 'language', 'parentWorkId', 'fanficMode', 'tags', 'planApproval',
+    'outline', 'createdAt', 'updatedAt'], 'work')
+  text(input.workId, 'workId')
+  text(input.title, 'title')
+  oneOf(input.form, ['longform', 'short', 'script'], 'form')
+  oneOf(input.language, ['zh', 'en'], 'language')
+  if (input.platform !== undefined) text(input.platform, 'platform')
+  if (input.genre !== undefined) text(input.genre, 'genre')
+  if (input.status !== undefined) {
+    oneOf(input.status, ['incubating', 'outlining', 'active', 'paused', 'completed', 'dropped'], 'status')
+  }
+  optionalInteger(input.targetChapters, 'targetChapters', 1)
+  if (input.chapterWordCount !== undefined) {
+    const range = object(input.chapterWordCount, 'chapterWordCount')
+    keys(range, ['min', 'max', 'target'], 'chapterWordCount')
+    integer(range.min, 'chapterWordCount.min', 1)
+    integer(range.max, 'chapterWordCount.max', 1)
+    if (range.max < range.min) invalid('chapterWordCount.max 不能小于 min')
+    optionalInteger(range.target, 'chapterWordCount.target', 1)
+  }
+  if (input.planApproval !== undefined) oneOf(input.planApproval, ['required', 'off'], 'planApproval')
+  if (input.outline !== undefined) {
+    const outline = object(input.outline, 'outline')
+    keys(outline, ['writtenAt', 'approvedAt'], 'outline')
+    if (outline.writtenAt !== undefined) text(outline.writtenAt, 'outline.writtenAt')
+    if (outline.approvedAt !== undefined) text(outline.approvedAt, 'outline.approvedAt')
+  }
+  if (input.tags !== undefined) strings(input.tags, 'tags')
+  return input
+}
+
+/** Validate a readable story_frame Markdown document. */
+export function validateStoryFrame(value) {
+  const content = text(value, 'story_frame')
+  for (const heading of ['## 前提', '## 核心冲突', '## 主角动机', '## 约束', '## 因果解决']) {
+    if (!content.includes(heading)) invalid(`story_frame 缺少 ${heading}`)
+  }
+  return content
+}
+
+/** Validate a readable volume_map Markdown document. */
+export function validateVolumeMap(value) {
+  const content = text(value, 'volume_map')
+  if (!/^##\s+/mu.test(content)) invalid('volume_map 至少需要一个卷标题')
+  return content
+}
+
+/** Validate book_rules.json plus its readable markdown. */
+export function validateBookRules(value) {
+  const input = object(value, 'book_rules')
+  keys(input, ['version', 'narrativePerson', 'prohibitions', 'protagonist', 'genreLock',
+    'enableFullCastTracking', 'fanficMode', 'allowedDeviations', 'markdown'], 'book_rules')
+  if (input.version !== '2') invalid('book_rules.version 必须是 2')
+  text(input.narrativePerson, 'book_rules.narrativePerson')
+  strings(input.prohibitions, 'book_rules.prohibitions')
+  const protagonist = object(input.protagonist, 'book_rules.protagonist')
+  keys(protagonist, ['name', 'personalityLock', 'behavioralConstraints'], 'book_rules.protagonist')
+  text(protagonist.name, 'book_rules.protagonist.name')
+  strings(protagonist.personalityLock, 'book_rules.protagonist.personalityLock')
+  strings(protagonist.behavioralConstraints, 'book_rules.protagonist.behavioralConstraints')
+  const genre = object(input.genreLock, 'book_rules.genreLock')
+  keys(genre, ['primary', 'forbidden'], 'book_rules.genreLock')
+  text(genre.primary, 'book_rules.genreLock.primary')
+  strings(genre.forbidden, 'book_rules.genreLock.forbidden')
+  boolean(input.enableFullCastTracking, 'book_rules.enableFullCastTracking')
+  if (input.fanficMode !== undefined) text(input.fanficMode, 'book_rules.fanficMode')
+  strings(input.allowedDeviations, 'book_rules.allowedDeviations')
+  text(input.markdown, 'book_rules.markdown')
+  return input
+}
+
+/** Validate roles index; six display fields live only here. */
+export function validateRolesIndex(value) {
+  const input = object(value, 'roles')
+  keys(input, ['roles'], 'roles')
+  list(input.roles, 'roles.roles', (role, label) => {
+    keys(role, ['name', 'tier', 'role', 'want', 'fear', 'limit', 'voice'], label)
+    text(role.name, `${label}.name`)
+    oneOf(role.tier, ['major', 'minor'], `${label}.tier`)
+    for (const field of ['role', 'want', 'fear', 'limit', 'voice']) text(role[field], `${label}.${field}`)
+    return role
+  }, { min: 1, max: 20 })
+  const names = new Set(input.roles.map(role => role.name))
+  if (names.size !== input.roles.length) invalid('roles.roles 姓名重复')
+  return input
+}
+
+/** Validate a role card; it does not duplicate the index's six fields. */
+export function validateRoleCard(value) {
+  const input = object(value, 'role_card')
+  keys(input, ['name', 'tier', 'motivation', 'knowledge', 'relationshipPressure', 'limits', 'arc', 'markdown'], 'role_card')
+  text(input.name, 'role_card.name')
+  oneOf(input.tier, ['major', 'minor'], 'role_card.tier')
+  for (const field of ['motivation', 'knowledge', 'relationshipPressure', 'limits']) text(input[field], `role_card.${field}`)
+  if (input.arc !== undefined) text(input.arc, 'role_card.arc')
+  if (input.markdown !== undefined) text(input.markdown, 'role_card.markdown')
+  return input
+}
+
+/** Validate a chapter memo (stored as plan:<n>). */
+export function validateChapterMemo(value) {
+  const input = object(value, 'chapter_memo')
+  keys(input, ['chapter', 'goal', 'body', 'threadRefs', 'perspective', 'obstacle', 'cost', 'turn'], 'chapter_memo')
+  integer(input.chapter, 'chapter_memo.chapter', 1)
+  text(input.goal, 'chapter_memo.goal')
+  text(input.body, 'chapter_memo.body')
+  strings(input.threadRefs, 'chapter_memo.threadRefs')
+  for (const field of ['perspective', 'obstacle', 'cost', 'turn']) {
+    if (input[field] !== undefined) text(input[field], `chapter_memo.${field}`)
+  }
+  return input
+}
+
+/** Validate chapter metadata (a projection of chapter:<n>). */
+export function validateChapterMeta(value) {
+  const input = object(value, 'chapter_meta')
+  keys(input, ['number', 'title', 'wordCount', 'stage', 'planApprovedAt', 'planRevision',
+    'provenance', 'lengthTelemetry', 'tokenUsage', 'observationIds'], 'chapter_meta')
+  integer(input.number, 'chapter_meta.number', 1)
+  textAllowEmpty(input.title, 'chapter_meta.title')
+  integer(input.wordCount, 'chapter_meta.wordCount')
+  oneOf(input.stage, CHAPTER_STAGES, 'chapter_meta.stage')
+  if (input.planApprovedAt !== undefined) text(input.planApprovedAt, 'chapter_meta.planApprovedAt')
+  if (input.planRevision !== undefined) text(input.planRevision, 'chapter_meta.planRevision')
+  if (input.provenance !== undefined) oneOf(input.provenance, ARTIFACT_PROVENANCE, 'chapter_meta.provenance')
+  if (input.lengthTelemetry !== undefined) {
+    const telemetry = object(input.lengthTelemetry, 'lengthTelemetry')
+    keys(telemetry, ['target', 'actual', 'unit'], 'lengthTelemetry')
+    integer(telemetry.target, 'lengthTelemetry.target')
+    integer(telemetry.actual, 'lengthTelemetry.actual')
+    oneOf(telemetry.unit, ['words', 'non-whitespace-characters'], 'lengthTelemetry.unit')
+  }
+  if (input.tokenUsage !== undefined) {
+    const usage = object(input.tokenUsage, 'tokenUsage')
+    keys(usage, ['promptTokens', 'completionTokens', 'totalTokens'], 'tokenUsage')
+    for (const field of ['promptTokens', 'completionTokens', 'totalTokens']) integer(usage[field], `tokenUsage.${field}`)
+  }
+  if (input.observationIds !== undefined) strings(input.observationIds, 'chapter_meta.observationIds')
+  return input
+}
+
+/** Validate a structured chapter summary. */
+export function validateChapterSummary(value) {
+  const input = object(value, 'summary')
+  keys(input, ['chapter', 'title', 'characters', 'events', 'stateChanges', 'hookActivity',
+    'mood', 'chapterType', 'bodyRevision', 'rawText'], 'summary')
+  integer(input.chapter, 'summary.chapter', 1)
+  for (const field of ['title', 'characters', 'events', 'stateChanges', 'hookActivity', 'mood', 'chapterType']) {
+    textAllowEmpty(input[field], `summary.${field}`)
+  }
+  integer(input.bodyRevision, 'summary.bodyRevision', 1)
+  textAllowEmpty(input.rawText, 'summary.rawText')
+  return input
+}
+
+/** Validate an observation. */
+export function validateObservation(value) {
+  const input = object(value, 'observation')
+  keys(input, ['code', 'summary', 'evidence', 'category', 'assessment', 'scope', 'target',
+    'sourceRefs', 'severity', 'fix', 'mode'], 'observation')
+  text(input.code, 'observation.code')
+  text(input.summary, 'observation.summary')
+  strings(input.evidence, 'observation.evidence')
+  oneOf(input.category, OBSERVATION_CATEGORIES, 'observation.category')
+  oneOf(input.assessment, OBSERVATION_ASSESSMENTS, 'observation.assessment')
+  if (input.scope !== undefined) text(input.scope, 'observation.scope')
+  if (input.target !== undefined) {
+    const target = object(input.target, 'observation.target')
+    keys(target, ['workId', 'artifactId', 'revisionId'], 'observation.target')
+    text(target.workId, 'observation.target.workId')
+    validateArtifactId(target.artifactId)
+    text(target.revisionId, 'observation.target.revisionId')
+  }
+  list(input.sourceRefs, 'observation.sourceRefs', (ref, label) => {
+    keys(ref, ['sourceId', 'quote'], label)
+    text(ref.sourceId, `${label}.sourceId`)
+    text(ref.quote, `${label}.quote`)
+    return ref
+  })
+  if (input.severity !== undefined) oneOf(input.severity, OBSERVATION_SEVERITIES, 'observation.severity')
+  if (input.fix !== undefined) text(input.fix, 'observation.fix')
+  if (input.mode !== undefined) oneOf(input.mode, REVISE_MODES, 'observation.mode')
+  return input
+}
+
+/** Validate a hook record. Upsert may not change status; ops use assertHookTransition. */
+export function validateHook(value) {
+  const input = object(value, 'hook')
+  keys(input, ['hookId', 'startChapter', 'type', 'status', 'lastAdvancedChapter',
+    'expectedPayoff', 'notes', 'dependsOn', 'paysOffInArc', 'text'], 'hook')
+  text(input.hookId, 'hook.hookId')
+  integer(input.startChapter, 'hook.startChapter')
+  text(input.type, 'hook.type')
+  oneOf(input.status, HOOK_STATUSES, 'hook.status')
+  integer(input.lastAdvancedChapter, 'hook.lastAdvancedChapter')
+  textAllowEmpty(input.expectedPayoff, 'hook.expectedPayoff')
+  textAllowEmpty(input.notes, 'hook.notes')
+  strings(input.dependsOn, 'hook.dependsOn')
+  if (input.paysOffInArc !== undefined) text(input.paysOffInArc, 'hook.paysOffInArc')
+  text(input.text, 'hook.text')
+  if (input.lastAdvancedChapter < input.startChapter) invalid('hook.lastAdvancedChapter 不能早于 startChapter')
+  return input
+}
+
+/** Assert one hook status transition. */
+export function assertHookTransition(from, to) {
+  oneOf(from, HOOK_STATUSES, 'hook.from')
+  oneOf(to, HOOK_STATUSES, 'hook.to')
+  if (!HOOK_TRANSITIONS[from].includes(to)) invalid(`非法伏笔状态转移：${from} → ${to}`, 'hook-transition-invalid')
+  return to
+}
+
+/** Validate a projected fact. */
+export function validateFact(value) {
+  const input = object(value, 'fact')
+  keys(input, ['subject', 'predicate', 'object', 'validFromChapter', 'validUntilChapter', 'sourceChapter'], 'fact')
+  for (const field of ['subject', 'predicate', 'object']) text(input[field], `fact.${field}`)
+  integer(input.validFromChapter, 'fact.validFromChapter')
+  if (input.validUntilChapter !== null) integer(input.validUntilChapter, 'fact.validUntilChapter')
+  integer(input.sourceChapter, 'fact.sourceChapter')
+  if (input.validUntilChapter !== null && input.validUntilChapter < input.validFromChapter) {
+    invalid('fact.validUntilChapter 不能早于 validFromChapter')
+  }
+  return input
+}
+
+/** Validate one context source. */
+export function validateContextSource(value) {
+  const input = object(value, 'context_source')
+  keys(input, ['source', 'reason', 'excerpt', 'protection'], 'context_source')
+  text(input.source, 'context_source.source')
+  text(input.reason, 'context_source.reason')
+  if (input.excerpt !== undefined) textAllowEmpty(input.excerpt, 'context_source.excerpt')
+  oneOf(input.protection, ['protected', 'compressible'], 'context_source.protection')
+  return input
+}
+
+/** Validate a context package. */
+export function validateContextPackage(value) {
+  const input = object(value, 'context_package')
+  keys(input, ['chapter', 'selectedContext'], 'context_package')
+  integer(input.chapter, 'context_package.chapter', 1)
+  list(input.selectedContext, 'context_package.selectedContext', validateContextSource, { min: 1 })
+  return input
+}
+
+/** Validate a chapter trace. */
+export function validateChapterTrace(value) {
+  const input = object(value, 'trace')
+  keys(input, ['chapter', 'plannerInputs', 'composerInputs', 'selectedSources', 'contextTiers',
+    'tokenBudget', 'compression', 'retrieval', 'notes', 'sections', 'trimmed', 'dropped', 'budget'], 'trace')
+  integer(input.chapter, 'trace.chapter', 1)
+  strings(input.plannerInputs, 'trace.plannerInputs')
+  strings(input.composerInputs, 'trace.composerInputs')
+  strings(input.selectedSources, 'trace.selectedSources')
+  const tiers = object(input.contextTiers, 'trace.contextTiers')
+  keys(tiers, ['protectedSources', 'compressibleSources'], 'trace.contextTiers')
+  strings(tiers.protectedSources, 'trace.contextTiers.protectedSources')
+  strings(tiers.compressibleSources, 'trace.contextTiers.compressibleSources')
+  const budget = object(input.tokenBudget, 'trace.tokenBudget')
+  keys(budget, ['protectedTokens', 'compressibleTokens', 'totalSelectedTokens'], 'trace.tokenBudget')
+  for (const field of ['protectedTokens', 'compressibleTokens', 'totalSelectedTokens']) integer(budget[field], `trace.tokenBudget.${field}`)
+  if (input.compression !== undefined) {
+    const compression = object(input.compression, 'trace.compression')
+    keys(compression, ['compiledSource', 'protectedSources', 'compressedSources', 'protectedTokens', 'compressibleTokens', 'budgetTokens'], 'trace.compression')
+    text(compression.compiledSource, 'trace.compression.compiledSource')
+    strings(compression.protectedSources, 'trace.compression.protectedSources')
+    strings(compression.compressedSources, 'trace.compression.compressedSources')
+    for (const field of ['protectedTokens', 'compressibleTokens', 'budgetTokens']) integer(compression[field], `trace.compression.${field}`)
+  }
+  if (input.retrieval !== undefined) object(input.retrieval, 'trace.retrieval')
+  strings(input.notes, 'trace.notes')
+  if (input.sections !== undefined) {
+    list(input.sections, 'trace.sections', (section, label) => {
+      keys(section, ['name', 'protection', 'sourceIds'], label)
+      text(section.name, `${label}.name`)
+      oneOf(section.protection, ['protected', 'compressible'], `${label}.protection`)
+      strings(section.sourceIds, `${label}.sourceIds`)
+      return section
+    })
+  }
+  if (input.trimmed !== undefined) strings(input.trimmed, 'trace.trimmed')
+  if (input.dropped !== undefined) strings(input.dropped, 'trace.dropped')
+  if (input.budget !== undefined) {
+    const legacyBudget = object(input.budget, 'trace.budget')
+    keys(legacyBudget, ['limit', 'used', 'unit'], 'trace.budget')
+    integer(legacyBudget.limit, 'trace.budget.limit')
+    integer(legacyBudget.used, 'trace.budget.used')
+    oneOf(legacyBudget.unit, ['characters', 'tokens'], 'trace.budget.unit')
+  }
+  return input
+}
+
+/** Validate a short-story artifact. */
+export function validateShortStory(value) {
+  const input = object(value, 'short_story')
+  keys(input, ['storyTitle', 'openingHook', 'chapters', 'rawContent', 'outline', 'draftReview',
+    'revisionPlan', 'salesPackage', 'measurements'], 'short_story')
+  text(input.storyTitle, 'short_story.storyTitle')
+  if (input.openingHook !== undefined) textAllowEmpty(input.openingHook, 'short_story.openingHook')
+  list(input.chapters, 'short_story.chapters', (chapter, label) => {
+    keys(chapter, ['number', 'title', 'content', 'charCount'], label)
+    integer(chapter.number, `${label}.number`, 1)
+    textAllowEmpty(chapter.title, `${label}.title`)
+    textAllowEmpty(chapter.content, `${label}.content`)
+    integer(chapter.charCount, `${label}.charCount`)
+    return chapter
+  }, { min: 1 })
+  const numbers = new Set(input.chapters.map(chapter => chapter.number))
+  if (numbers.size !== input.chapters.length) invalid('short_story.chapters 编号重复')
+  textAllowEmpty(input.rawContent, 'short_story.rawContent')
+  textAllowEmpty(input.outline, 'short_story.outline')
+  textAllowEmpty(input.draftReview, 'short_story.draftReview')
+  textAllowEmpty(input.revisionPlan, 'short_story.revisionPlan')
+  const sales = object(input.salesPackage, 'short_story.salesPackage')
+  keys(sales, ['title', 'intro', 'sellingPoints', 'coverPrompt'], 'short_story.salesPackage')
+  text(sales.title, 'short_story.salesPackage.title')
+  textAllowEmpty(sales.intro, 'short_story.salesPackage.intro')
+  strings(sales.sellingPoints, 'short_story.salesPackage.sellingPoints')
+  textAllowEmpty(sales.coverPrompt, 'short_story.salesPackage.coverPrompt')
+  const measurements = object(input.measurements, 'short_story.measurements')
+  keys(measurements, ['chapterCount', 'totalLength', 'unit', 'openingHookLength', 'chapterLengths'], 'short_story.measurements')
+  integer(measurements.chapterCount, 'short_story.measurements.chapterCount')
+  integer(measurements.totalLength, 'short_story.measurements.totalLength')
+  oneOf(measurements.unit, ['words', 'non-whitespace-characters'], 'short_story.measurements.unit')
+  integer(measurements.openingHookLength, 'short_story.measurements.openingHookLength')
+  list(measurements.chapterLengths, 'short_story.measurements.chapterLengths', (item, label) => {
+    keys(item, ['number', 'length'], label)
+    integer(item.number, `${label}.number`, 1)
+    integer(item.length, `${label}.length`)
+    return item
+  })
+  return input
+}
+
+/** Validate a script artifact. */
+export function validateScript(value) {
+  const input = object(value, 'script')
+  keys(input, ['title', 'sourceKind', 'targetFormat', 'episodeCount', 'episodeDuration', 'spec', 'script', 'episodes'], 'script')
+  text(input.title, 'script.title')
+  if (input.sourceKind !== undefined) text(input.sourceKind, 'script.sourceKind')
+  oneOf(input.targetFormat, SCRIPT_FORMATS, 'script.targetFormat')
+  optionalInteger(input.episodeCount, 'script.episodeCount', 1)
+  if (input.episodeDuration !== undefined) text(input.episodeDuration, 'script.episodeDuration')
+  textAllowEmpty(input.spec, 'script.spec')
+  textAllowEmpty(input.script, 'script.script')
+  list(input.episodes, 'script.episodes', (episode, label) => {
+    keys(episode, ['number', 'title', 'scenes'], label)
+    integer(episode.number, `${label}.number`, 1)
+    textAllowEmpty(episode.title, `${label}.title`)
+    list(episode.scenes, `${label}.scenes`, (scene, sceneLabel) => {
+      keys(scene, ['slug', 'location', 'time', 'action', 'dialogue'], sceneLabel)
+      textAllowEmpty(scene.slug, `${sceneLabel}.slug`)
+      textAllowEmpty(scene.location, `${sceneLabel}.location`)
+      textAllowEmpty(scene.time, `${sceneLabel}.time`)
+      textAllowEmpty(scene.action, `${sceneLabel}.action`)
+      if (!Array.isArray(scene.dialogue)) invalid(`${sceneLabel}.dialogue 必须是数组`)
+      return scene
+    }, { min: 1 })
+    return episode
+  }, { min: 1 })
+  const numbers = new Set(input.episodes.map(episode => episode.number))
+  if (numbers.size !== input.episodes.length) invalid('script.episodes 编号重复')
+  return input
+}

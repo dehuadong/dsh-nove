@@ -23,6 +23,7 @@
     "tools.js",
     "db.js",
     "domain.js",
+    "artifact-contract.js",
     "storage.js",
     "materials.js",
     "search-text.js",
