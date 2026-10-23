@@ -1,0 +1,432 @@
+---
+title: 故事工坊：产物合同 v2（数据模型与迁移）
+status: proposed
+created: 2026-10-23
+updated: 2026-10-23
+---
+
+# Agent Note：故事工坊：产物合同 v2（数据模型与迁移）
+
+## 问题
+
+当前真值是五件自由文本/六字段 JSON，事件是 text-hook/string-fact；短篇、剧本没有独立产物，只能复用长篇章节表。全量对拍确认这不是功能等价：story_frame、volume_map、book_rules、角色卡、ChapterMemo、结构化摘要、hookId/生命周期、fact 三元组/有效期、observation、ContextPackage/Trace 的信息都在现有结构里丢失或被压扁。
+
+本 Note 定字段级数据合同、消费者与迁移；它不实现代码，也不决定 R10 的具体生成流程。产品范围与验收归 #45。
+
+## 与既有记录
+
+- **artifact 身份语法由 [`2026-10-20-storycraft-artifact-identity.md`](2026-10-20-storycraft-artifact-identity.md) 拥有**；本 Note 只扩展 kind/字段，不另起一套 ID 语法。新增/变更的 ID 在 §2 表中列明；旧表（outline/plan/chapter/review/summary/state/bible/volume/export/backup/material）继续有效。
+- R6a 的 [`2026-10-23-storycraft-longform-method-references.md`](../../implemented/pipeline/2026-10-23-storycraft-longform-method-references.md) 记录 hook 只有三态、text 身份、不引入 `superseded`/`lastAdvancedChapter`。本 Note 的 hookId/生命周期与该记录**部分替代**：R6a 在 L 交付前仍是现行运行契约；L 交付时更新 R6a 的状态/验收并互相链接，不提前把新字段用于现有代码。
+- R11 的 [`2026-10-23-storycraft-settler-auto-projection.md`](../../implemented/pipeline/2026-10-23-storycraft-settler-auto-projection.md) 已交付；本 Note 不改变其“审稿→修订→摘要→settle”的闸门顺序，只把产物迁到新模型（L 阶段）。
+- 旧 R10 方案已 rejected：[`2026-10-23-storycraft-foundation-delegation.md`](../../rejected/pipeline/2026-10-23-storycraft-foundation-delegation.md)。
+
+## 提案
+
+### 1. 共同原则
+
+- **一个概念一个属主**：可读长文用 Markdown，机器字段用 JSON；两者同属一个 artifact，不互相替代。
+- **保留旧字段**：迁移不删除现有信息；无法推断的语义标记为 `legacy`/`unverified`，由作者确认，不伪造。
+- **事件是状态源，投影是派生**：fact/hook 的变更写事件；当前状态由投影/折叠得到，可重建。
+- **artifact 有稳定身份**：`artifactId + revisionId`；正文 revision 与状态事件序号分开。
+- **消费者显式**：每个 artifact 写明 brief/context/检索/审稿/结算/UI/导出中的消费者。
+- **三种形态各自流水线**：共享 Work/Book 级合同，不共享短篇/剧本的阶段机（详见技能组织 Note）。
+
+### 2. Work 与 Book 级
+
+```json
+// WorkConfig
+{
+  "workId": "string",
+  "title": "string",
+  "form": "longform|short|script",
+  "platform": "string?",
+  "genre": "string?",
+  "status": "incubating|outlining|active|paused|completed|dropped",
+  "targetChapters": "integer?",
+  "chapterWordCount": { "min": "integer", "max": "integer", "target": "integer?" },
+  "language": "zh|en",
+  "parentWorkId": "string?",
+  "fanficMode": "string?",
+  "tags": ["string"],
+  "planApproval": "required|off",
+  "outline": { "writtenAt": "ISO-8601?", "approvedAt": "ISO-8601?" },
+  "artifactContract": "legacy|v2",
+  "createdAt": "ISO-8601",
+  "updatedAt": "ISO-8601"
+}
+```
+
+```json
+// ArtifactEnvelope
+{
+  "workId": "string",
+  "artifactId": "string",
+  "kind": "outline|plan|chapter|summary|review|state|context|trace|world|style|intent|current_focus|story_frame|volume_map|book_rules|role_index|role_card|volume|material|export|backup|short_story|script|storyboard|interactive_film|play_world|cover|translation|bible",
+  "scope": { "chapter": "integer?" },
+  "revisionId": "string",
+  "content": "object|string",
+  "provenance": "generated|imported|edited|migrated",
+  "verification": "authoritative|unverified|legacy",
+  "createdAt": "ISO-8601"
+}
+```
+
+身份语法由 [`2026-10-20-storycraft-artifact-identity.md`](2026-10-20-storycraft-artifact-identity.md) 拥有。新增/变更：
+
+| 对象 | artifactId | revisionId |
+| --- | --- | --- |
+| 全书计划 | `outline` | 内容哈希 |
+| 章纲 | `plan:<n>` | 内容哈希 |
+| 正文 | `chapter:<n>` | `r1/r2…` |
+| 审稿 | `review:<n>:<bodyRev>:<round>` | 内容哈希 |
+| 摘要 | `summary:<n>` | 内容哈希 |
+| 状态 | `state` | `seq:<n>` |
+| 世界/文风/意图/焦点 | `bible:world` / `bible:style` / `bible:intent` / `bible:current_focus` | 内容哈希 |
+| story_frame / volume_map / book_rules | `bible:story_frame` / `bible:volume_map` / `bible:book_rules` | 内容哈希 |
+| roles 索引/卡 | `roles:index` / `role:<slug>` | 内容哈希 |
+| 卷 | `volume:<id>` | 内容哈希 |
+| 素材 | `material:<id>` | 内容哈希 |
+| 短篇/剧本/分镜 | `short:<id>` / `script:<id>` / `storyboard:<id>` | 内容哈希 |
+| R8 产物 | `interactive_film:<id>` / `play_world:<id>` / `cover:<id>` / `translation:<id>` | 内容哈希（字段合同 R8） |
+| 导出/备份 | `export:<workId>` / `backup:<workId>:<ts>` | 覆盖式/时间戳 |
+
+`meta.artifact_contract` 是权威；WorkConfig 的 `artifactContract` 只是导出/只读投影，不单独写。
+
+`scope.chapter` 对按章 artifact 必填；`state` 的 revision 是事件序号，正文是真实版本，静态文本是内容哈希。旧表已有的 kind 继续有效。
+
+`bible` 是旧 kind 的兼容别名：`bible:characters` 迁移到 `roles:index`/卡，`bible:plan` 迁移到 `outline`，`bible:world/style/intent` 保留；新写不再产生 `bible` kind，只读旧 ID 时映射到具体 kind。
+
+### 3. Foundation 产物
+
+**world**（Markdown，可读）：世界硬规则、地理/时代、社会/力量体系、禁区。必需标题由作者/技能约定；不与 story_frame 的故事前提重复。消费者：architect/planner/writer/reviewer。
+
+**style / intent / current_focus**（Markdown）：沿用现有 `bible/style`、`bible/intent`；新增 `current_focus` 独立文件（当前任务焦点，不混入长期意图）。消费者：writer/brief、planner。
+
+**story_frame**（Markdown，可读；不拆成机器字段，避免把叙事压成标签）
+
+必需标题：`## 前提`、`## 核心冲突`、`## 主角动机`、`## 约束`、`## 因果解决`。作者可加节；消费者是 architect/planner/writer/reviewer。
+
+**volume_map**（Markdown，可读）
+
+每个卷一节：卷目标、起止章方向、关键因果节拍、卷末承诺；消费者 planner/composer/writer。结构化 `volumes` 仍单独存在，`volume_map` 是计划，不是已发生事实。
+
+**book_rules**
+
+```json
+{
+  "version": "2",
+  "narrativePerson": "string",
+  "prohibitions": ["string"],
+  "protagonist": {
+    "name": "string",
+    "personalityLock": ["string"],
+    "behavioralConstraints": ["string"]
+  },
+  "genreLock": { "primary": "string", "forbidden": ["string"] },
+  "enableFullCastTracking": "boolean",
+  "fanficMode": "string?",
+  "allowedDeviations": ["string"],
+  "markdown": "string"
+}
+```
+
+`markdown` 是可读规范；JSON 字段供 writer/settler/validator 读取。消费者：writer（规则输入）、reviewer（禁区）、settler（约束）、UI。
+
+**roles index + card**
+
+```json
+// roles/index
+{
+  "roles": [
+    { "name": "string", "tier": "major|minor", "role": "string",
+      "want": "string", "fear": "string", "limit": "string", "voice": "string" }
+  ]
+}
+```
+
+```json
+// roles/<tier>/<slug>
+{
+  "name": "string",
+  "tier": "major|minor",
+  "motivation": "string",
+  "knowledge": "string",
+  "relationshipPressure": "string",
+  "limits": "string",
+  "arc": "string?",
+  "markdown": "string"
+}
+```
+
+索引保留现有六字段用于 brief 匹配/筛选；卡承载参考实现的动机、已知信息、关系压力、能力边界与可选弧光。六字段只属索引，卡不重复 want/fear/limit/voice；brief 先读索引，需要时读卡；不把卡全文塞进每章 brief。
+
+### 4. 章节产物
+
+```json
+// ChapterIntent
+{ "chapter": 1, "goal": "string" }
+```
+
+```json
+// ChapterMemo
+{
+  "chapter": 1,
+  "goal": "string",
+  "body": "string",
+  "threadRefs": ["hookId"],
+  "perspective": "string?",
+  "obstacle": "string?",
+  "cost": "string?",
+  "turn": "string?",
+  "rawText": "string?"
+}
+```
+
+保留现有章纲五项（perspective/goal/obstacle/cost/turn），新增 `body`、`threadRefs` 与迁移用 `rawText`；消费者 planner/writer/reviewer/reviser。
+
+- `ChapterMemo` 是章纲的唯一权威，存为 `plan:<n>`；`ChapterIntent` 只是从 memo 的 `goal` 派生的只读视图，不单独存储，避免 goal 双写。
+- 作者确认绑定 memo 内容版本：`chapters.plan_approved_at` + `plan_revision`（memo 内容哈希）。未确认/改版后旧批准失效；`story_next` 的 gate 读同一字段。
+
+```json
+// ChapterMeta
+{
+  "number": 1,
+  "title": "string",
+  "wordCount": 0,
+  "stage": "planned|written|reviewed|revised|settled",
+  "planApprovedAt": "ISO-8601?",
+  "planRevision": "string?",
+  "provenance": "generated|imported|edited|migrated",
+  "lengthTelemetry": { "target": 0, "actual": 0, "unit": "words|non-whitespace-characters" }?,
+  "tokenUsage": { "promptTokens": 0, "completionTokens": 0, "totalTokens": 0 }?,
+  "observationIds": ["review:<n>:<bodyRev>:<round>"]
+}
+```
+
+`ChapterMeta` 是 `chapter:<n>` 的投影，不单独占一个 artifact kind；`observationIds` 引用 review observation，不复制正文。
+
+```json
+// ChapterSummary
+{
+  "chapter": 1,
+  "title": "string",
+  "characters": "string",
+  "events": "string",
+  "stateChanges": "string",
+  "hookActivity": "string",
+  "mood": "string",
+  "chapterType": "string",
+  "bodyRevision": 3,
+  "rawText": "string"
+}
+```
+
+`rawText` 是旧摘要/兼容文本；结构化字段供检索/审稿/brief。`bodyRevision` 是摘要针对的正文版本（stale 判定用它）；`artifactId=summary:<n>` 的 revisionId 仍是内容哈希，两者不能混用。消费者：brief（可渲染）、检索、reviewer、settler。
+
+```json
+// Observation
+{
+  "code": "string",
+  "summary": "string",
+  "evidence": ["string"],
+  "category": "execution|quality|scope",
+  "assessment": "issue|resolved|unavailable|observation",
+  "scope": "string?",
+  "target": { "workId": "string", "artifactId": "string", "revisionId": "string" }?,
+  "sourceRefs": [{ "sourceId": "string", "quote": "string" }],
+  "severity": "blocking|major|minor?",
+  "fix": "string?",
+  "mode": "patch|polish|rewrite|deslop?"
+}
+```
+
+`severity/fix/mode` 保留现有审稿契约；`sourceRefs` 必须落在可核对的正文/计划文本上。消费者：reviewer、reviser、UI、导出。
+
+### 5. 状态：fact 与 hook
+
+事件操作（追加写；投影可重建）：
+
+```json
+// fact.upsert / fact.expire
+{ "kind": "fact", "op": "upsert",
+  "fact": { "subject": "string", "predicate": "string", "object": "string" },
+  "chapter": 12, "source": "string" }
+{ "kind": "fact", "op": "expire",
+  "selector": { "subject": "string", "predicate": "string", "object": "string?" },
+  "chapter": 18 }
+```
+
+投影后的 fact：
+
+```json
+{ "subject": "string", "predicate": "string", "object": "string",
+  "validFromChapter": 12, "validUntilChapter": null, "sourceChapter": 12,
+  "legacy": false, "raw": "string?" }
+```
+
+```json
+// hook ops
+{ "kind": "hook", "op": "upsert", "hook": {
+  "hookId": "string", "startChapter": 0, "type": "string",
+  "status": "open|progressing|deferred|resolved|superseded",
+  "lastAdvancedChapter": 0, "expectedPayoff": "string",
+  "notes": "string", "dependsOn": ["hookId"], "paysOffInArc": "string?",
+  "text": "string", "legacyText": "string?" } }
+{ "kind": "hook", "op": "progress|mention|defer|resolve|supersede",
+  "hookId": "string", "chapter": 12 }
+```
+
+状态转移：
+
+| 当前 | 允许 |
+| --- | --- |
+| open | progressing / deferred / resolved / superseded |
+| progressing | deferred / resolved / superseded |
+| deferred | progressing / resolved / superseded |
+| resolved | superseded（仅纠正误记） |
+| superseded | 终态 |
+
+- `upsert` 只创建新 hook 或更新 `text/type/expectedPayoff/notes/dependsOn/paysOffInArc` 等元数据；已有 hook 的 `status` 必须省略或等于当前状态，状态变化只能走 `progress/mention/defer/resolve/supersede`，不能经 upsert 绕过转移表。
+- `mention` 只记被提及，不改 status/lastAdvanced；`progress` 改 progressing + lastAdvanced；`defer` 改 deferred；`resolve` 改 resolved；`supersede` 改 superseded。
+- 非法转移（如 resolved→open、superseded→progressing）返回 `hook-transition-invalid`，不写事件。
+- `hookId` 由宿主生成，不复用 text；`text` 是展示原句，改写不改 ID；旧的文本身份保留在 `legacyText`。
+- hooks/facts 是 `state` 投影，不各自占 artifact kind：hook 用 `hookId` 寻址，fact 用 `subject/predicate/object` + 有效期寻址；`ChapterMemo.threadRefs` 引用 `hookId`。
+- `fact` 的当前状态由 `fact.upsert`/`expire` 投影；`validFrom/validUntil/source` 由投影生成。
+- 旧 text hook/string fact 迁移为 `legacy` 记录（保留原文），不直接猜测 type/expectedPayoff；旧事件 kind 与状态别名必须可读（见 §9）。
+
+### 6. 上下文
+
+```json
+// ContextSource
+{ "source": "string", "reason": "string", "excerpt": "string?",
+  "protection": "protected|compressible" }
+```
+
+```json
+// ContextPackage
+{ "chapter": 1, "selectedContext": ["ContextSource"] }
+```
+
+```json
+// ChapterTrace
+{
+  "chapter": 1,
+  "plannerInputs": ["string"],
+  "composerInputs": ["string"],
+  "selectedSources": ["string"],
+  "contextTiers": { "protectedSources": ["string"], "compressibleSources": ["string"] },
+  "tokenBudget": { "protectedTokens": 0, "compressibleTokens": 0, "totalSelectedTokens": 0 },
+  "compression": { "compiledSource": "string", "protectedSources": ["string"], "compressedSources": ["string"], "protectedTokens": 0, "compressibleTokens": 0, "budgetTokens": 0 }?,
+  "retrieval": { "engine": "sqlite-fts5-bm25", "query": "string", "selectionMode": "semantic|complete", "candidates": [], "semanticSelectedIds": [] }?,
+  "notes": ["string"],
+  "sections": [{ "name": "string", "protection": "protected|compressible", "sourceIds": ["string"] }]?,
+  "trimmed": ["string"],
+  "dropped": ["string"],
+  "budget": { "limit": 0, "used": 0, "unit": "characters|tokens" }?
+}
+```
+
+`sections/trimmed/dropped/budget` 保留现有 `context.js` trace；`contextTiers/tokenBudget/compression/retrieval` 是 R12 的增量。消费者：brief/context、检索、R12 token 预算、UI trace。
+
+### 7. 短篇与剧本产物
+
+短篇不映射到 Chapter：
+
+```json
+// ShortStory
+{
+  "storyTitle": "string",
+  "openingHook": "string?",
+  "chapters": [{ "number": 1, "title": "string", "content": "string", "charCount": 0 }],
+  "rawContent": "string",
+  "outline": "string",
+  "draftReview": "string",
+  "revisionPlan": "string",
+  "salesPackage": { "title": "string", "intro": "string", "sellingPoints": ["string"], "coverPrompt": "string" },
+  "measurements": { "chapterCount": 0, "totalLength": 0, "unit": "words|non-whitespace-characters", "openingHookLength": 0, "chapterLengths": [] }
+}
+```
+
+剧本不映射到 Chapter：
+
+```json
+// Script
+{
+  "title": "string",
+  "sourceKind": "string?",
+  "targetFormat": "vertical_short_drama|screenplay|audio_drama|interactive_script|general_script",
+  "episodeCount": "integer?",
+  "episodeDuration": "string?",
+  "spec": "string",
+  "script": "string",
+  "episodes": [{ "number": 1, "title": "string", "scenes": [{ "slug": "string", "location": "string", "time": "string", "action": "string", "dialogue": [] }] }]
+}
+```
+
+**Storyboard（R8 预留）**：A0 只登记 kind/envelope 与阶段归属；字段合同在 R8 规划补。
+
+Storyboard / interactive film / play / translation / cover 是 R8 产物：A0 只登记 kind/envelope 与阶段归属；字段合同在 R8 规划时补，不能从 A0 范围静默消失（#45 记录此边界）。
+
+### 8. 消费者与投影
+
+| 产物 | brief/context | 检索 | 审稿 | 结算/对账 | UI/导出 |
+| --- | --- | --- | --- | --- | --- |
+| story_frame / volume_map / book_rules | 计划/写作 | 计划检索 | 规则检查 | 约束 | 真值编辑 |
+| roles index/card | 人物段 | 角色检索 | 角色一致性 | 约束 | 角色卡编辑 |
+| intent/memo | 章纲/写作 | 计划检索 | 对照目标 | 约束 | 章纲 |
+| summary | 历史摘要 | FTS | 历史一致性 | 摘要 | 摘要 |
+| hooks/facts | 未解伏笔/状态 | 状态检索 | 对账 | 投影 | 状态面板 |
+| observations | — | 审稿检索 | 问题/证据 | 修订输入 | 审稿 |
+| short_story / script | 独立流水线 | 素材/历史 | 短篇/剧本审稿 | — | 打包/导出 |
+| context/trace | 上下文/trace | — | — | — | 调试 |
+
+### 9. 迁移
+
+- 新作品写 `artifactContract=v2`，库版本 v6；`openWork` 接受 v5（legacy）与 v6（v2）；v5 不自动迁移；旧作品保持 v5 + `legacy` 读，不因 `listWorks`/`openWork` 自动迁移。
+- 版本矩阵：`v5 + legacy` 旧结构只读；`v6 + legacy` 已迁移但未确认，新旧适配器可读、禁止生成；`v6 + v2` 已确认，进入新写/生成；`v5 + v2` 非法，拒绝打开。
+- v5→v6 是**显式迁移**（`story_migrate` 或维护命令），不在 `openWork` 里做数据迁移；`openWork` 只做结构兼容，listing 不触发迁移。
+- 迁移步骤：
+  1. 在事务外做同步备份（`VACUUM INTO`，不带异步 `backupTo`）；
+  2. 开始事务，新建/扩展表并转换数据，保持 `meta.artifact_contract='legacy'`；
+  3. 任一步失败整体回滚，原库保持可读，返回 `migration-failed` + 备份 ID，不留半迁移；
+  4. 作者确认 `unverified` 语义后，用单独事务把该作品标为 `v2`；确认不在迁移事务内。
+- 旧事件继续可读：旧 `kind=entity|hook` + `state=opened|used|resolved` 通过 legacy adapter 映射到新状态；新事件写 `eventSchema:2` 与 `hookId`，不重写旧事件。`mention/used` 的语义按旧规则保留。
+- 可无损映射：
+  - `world` → `world`；`plan` → `outline`；`style/intent` 保留；
+  - `chapter_plans.text` → `plan:<n>` ChapterMemo（无法解析时保留 `rawText`，字段 `unverified`）；`chapters.plan_approved_at` → `ChapterMeta.planApprovedAt`；`planRevision` 取迁移后 memo 内容哈希，保留旧批准绑定；
+  - `characters` 六字段 → roles index（六字段唯一属主）+ 生成的卡（只填 motivation/knowledge/relationshipPressure/limits/arc 的空占位，不复制六字段）；
+  - summary `text` → `ChapterSummary.rawText`，结构化字段留空；`summaries.revision` → `ChapterSummary.bodyRevision`（保留过期绑定）；旧 brief 继续用 `rawText`；
+  - hook text + state → `hookId` + `legacyText` + 状态映射（opened→open、used→progressing、resolved→resolved），`type=legacy`，`expectedPayoff/notes` 为空；
+  - fact string → `{subject: entityName, predicate: "legacy", object: text, raw: text}`；
+  - review item → Observation（`code=legacy-review`，`sourceRefs` 用原位置/引文，`done:true` → `assessment:resolved`，`done:false` → `assessment:issue`），保留原文。
+- 不可自动推断的：story_frame、volume_map、book_rules、角色卡知识/关系压力、hook 预期兑现、摘要结构化字段。迁移生成 `verification: unverified` 占位/空字段，不伪造；作者在 UI 确认后改为 `authoritative`。
+- 旧作品在新格式必填字段未确认前，不允许 R10 生成；`story_next`/`story_status`/导出按 `form` 分派（长篇章表、短篇 ShortStory、剧本 Script），不把短篇/剧本读成长篇章节。
+- `FORM_META`/技能路由同步为 longform/short/script 三条流水线；旧技能名只作为迁移别名，不进入新作品。
+- 失败边界：schema 不匹配 / 校验失败 / 中途异常均拒绝迁移；legacy 读仍可用；不暴露半迁移数据。
+
+## 备选方案
+
+- **只扩字段、不迁移旧作品**：旧作品与新作品行为分叉，长期双模型；否决。
+- **一次性猜测 story_frame/book_rules/hook 类型**：会伪造语义，违反不丢失/不伪造；否决。
+- **继续用 text-hook/string-fact**：无法表达 expire/superseded/expectedPayoff；会继续返工；否决。
+- **把短篇/剧本压进 Chapter**：产物字段和流水线不同，信息损失；否决。
+- **一次性重写所有表**：无法旧读/回滚；改为 v6 新写 + legacy 读 + 迁移路径。
+
+## 验收条件
+
+1. A0 覆盖的每个 artifact（world/style/intent/current_focus/story_frame/volume_map/book_rules/roles/plan/summary/hooks/facts/observations/context/trace/short_story/script）都有字段、权威、生命周期、消费者、迁移规则；R8 的 storyboard/interactive_film/play_world/cover/translation 在 A0 只验收 kind/envelope/identity，字段与消费者验收明确归 R8；
+2. 旧作品在未确认迁移前可读，且不丢失原文/事件；迁移失败可回滚；
+3. 新作品只写 v2；旧字段以 `legacy`/`raw` 保留；`unverified` 在作者确认前阻塞生成；
+4. 每个 artifact 至少一个真实消费者（brief/context/检索/审稿/结算/导出）按新结构读取，不能只按 channel 抽样；
+5. 短篇/剧本/分镜的产物不映射到 Chapter；R8 产物的字段 deferral 在 #45 记录；
+6. 作者闸门 `planApproval`/outline approved/`planApprovedAt` 在 WorkConfig/ChapterMeta 中保留；
+7. 结构合同测试覆盖必填、拒绝、迁移、回滚和消费者；迁移测试必须覆盖 chapter_plans/planApprovedAt、summary bodyRevision、review done→assessment、hook/fact legacy；矩阵与 #45 互链。
+
+## 风险
+
+- 迁移不能自动推断叙事语义；`unverified` 字段需要作者确认，否则生成质量仍可能差。
+- 事件源 + 投影需要重建/回滚测试；只写投影会失去可审计性。
+- 角色卡/规则/摘要字段增多，brief 预算需要按优先级裁剪，不能全塞。
+- 旧作品 legacy 读与新写并存，测试需要覆盖双路径。
+- 本 Note 只定数据合同；短篇/剧本流水线与技能组织见配套 Note。
+

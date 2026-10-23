@@ -83,7 +83,7 @@
 ### 对拍工作法
 - InkOS 仓库分析研究文档 `docs\report\inkos\readme.md`；全量对拍证据见 `docs/report/inkos/2026-10-23-full-project-parity-audit.md`，产物专项见 `docs/report/inkos/2026-10-23-artifact-and-resource-parity-audit.md`；三形态执行计划归 `.agents/notes/proposed/workspace/2026-10-19-storycraft-roadmap.md`，报告不拥有排期。
 - 只使用本 Harness 的 Skill、Preset、Plugin、Subagent 与文件状态；不引入 LLM Provider、独立 Harness/SDK、资源管理服务或额外子 Agent 运行时。
-- 借鉴结构、功能、文档资源、提示词、技能与文案；但新项目代码、内容与注释不标注来源、不建立关联，以独立项目口径命名与改写。
+- 本项目代码、内容与注释不标注来源、不建立关联，以独立项目口径命名与改写。
 - 对拍的记忆不靠对话：规则记在本文件，能力对照与差距记在 `.agents/notes/proposed/pipeline/2026-10-18-storycraft-parity-matrix.md`，决定记在对应 Issue/Note，验证记在 tests/CI。
 - 遇到实现、流程、节点或验收问题时，**先查对拍项目如何实现**：读它的源码、文档、CI、技能、角色资源与测试，再决定我们的做法；不得先改提示词或凭直觉自创。
 - 每次对拍先提取可验证的不变量；再写“参考证据 / 我们落点 / 差异原因 / 验证命令”。查不到或不能照做时，记录约束与原因，必要时先取得用户许可。
@@ -100,6 +100,7 @@
 - 对拍整改先立产物合同，再按形态推进；合同未定前不按旧格式实现新角色/生成链。当前顺序：A0 全量产物合同 → L 长篇 → S 短篇 → D 剧本。
 
 ### 执行、测试与约定
+- 不能把任务工作量“成本高”而作为裁剪、简单实现的理由，应该去规划分阶段排期。
 - 本项目具体功能性实现先参考对拍项目InkOS，是否是相同或类似功能，以及其实现方法，见&对拍工作法.
 - 开发测试由代理执行，不交给用户手工跑：项目 CI 命令是 `node storycraft/scripts/ci.mjs`（全部单元契约文件，当前 37 个 + Playwright E2E）；没有 Playwright 时按 `e2e/run.mjs` 的提示安装或用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装目录。
 - 参考工程的 CI 是 `.github/workflows/ci.yml` 里的 `pnpm install --frozen-lockfile && pnpm build && pnpm test`；对拍时先读参考的 CI、技能、角色资源和测试，再决定我们的实现，不凭印象造替代方案。差异必须写清原因、约束和为什么不能完全照做，必要时先取得用户许可。

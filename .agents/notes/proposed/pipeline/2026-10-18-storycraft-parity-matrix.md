@@ -53,7 +53,7 @@ updated: 2026-10-23
 
 | 参考技能（refs） | 我们的落点 | 状态 |
 | --- | --- | --- |
-| 长篇写法（4） | `storycraft-write-craft` + 篇幅参考；`storycraft-plan-craft`；`storycraft-longform-method` | 已采纳：foundation / reader-contract / state-projection 在 `storycraft-longform-method`，篇幅预算在 `write-craft` |
+| 长篇写法（4） | `storycraft-write-craft` + 篇幅参考；`storycraft-plan-craft`；`storycraft-longform-method` | 部分：R6a 三份 references 在 `storycraft-longform-method`，篇幅预算在 `write-craft`；A0/L 合并为 `long-writing` + 4 refs |
 | 短篇写法（1） | `storycraft-short-story` | 部分：缺生产/包装清单；`SKILL.md:9,36-37` 与阶段机/SQLite 冲突 |
 | 剧本写法（1） | `storycraft-short-drama` | 部分：缺改编边界与制作约束 |
 | 审稿（1） | `storycraft-review` + `review-dimensions.md` | 已采纳 |

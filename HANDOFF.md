@@ -2,7 +2,7 @@
 
 > 更新时间：2026-10-23  
 > 交接范围：`dehuadong/dsh-nove` 的 `storycraft/`；实现提交 `9abdd8e`（本文件随后单独提交）。  
-> 下一会话默认焦点：**A0 全量产物合同 v2**（#45，`Status: planning`）；R10 #44 已改为 `planning` 并被 #45 阻塞。
+> 下一会话默认焦点：**A0 全量产物合同 v2**（#45，`Status: ready`）；R10 #44 已改为 `planning` 并被 #45 阻塞。
 
 ## 1. 当前结论
 
@@ -33,7 +33,7 @@
 
 ### 默认：A0 全量产物合同 v2（#45，planning）
 
-R11 之后做了产物结构与资源对拍补审，结论是 R10 不能按现有 world/plan/characters/text-hook 格式直接实现。A0 已在 #45 登记，规划未开始，先定：
+R11 之后做了产物结构与资源对拍补审，结论是 R10 不能按现有 world/plan/characters/text-hook 格式直接实现。A0 已在 #45 完成规划并进入 ready，先定：
 
 - story_frame / volume_map / book_rules / 角色卡；
 - hook 身份与生命周期；
@@ -118,3 +118,4 @@ A0 之后再把 R10 拆成 R10a（合同/存储）与 R10b（architect 分阶段
 - 不要给 `story_settle` 增加超过一次的重算或循环；
 - 不要让子代理直接落盘；
 - 不要删除 #37–#44 的既有证据或历史 Note。
+
