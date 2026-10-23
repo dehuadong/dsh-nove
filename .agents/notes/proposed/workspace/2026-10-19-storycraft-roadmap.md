@@ -75,6 +75,9 @@ updated: 2026-10-23
 | R8 | 分镜、封面、翻译、交互影游 | 有单独产品需求时 |
 | R10 | foundation 委派：architect 分阶段生成 story_frame / volume_map / book_rules / 角色卡 / 初始伏笔 | A0 之后；作者要一次生成整套设定 |
 | A0 | 全量产物合同 v2：story_frame / volume_map / book_rules / 角色卡 / hook 模型 / 结构化摘要 / observation / facts / memo / context trace；逐项字段、消费者、迁移与验收 | 立即；R10 前置 |
+| L | 长篇全量对齐：A0 → R10a/R10b → long-writing 共享方法 + 4 refs → observation/composer → R9b/R11 迁移 | A0 后 |
+| S | 短篇全量对齐：独立短篇流水线（outline/batch draft/review/revision/package/cover prompt），不复用长篇章节表 | A0 后 |
+| D | 剧本全量对齐：独立 spec/script + 场次/集模型；storyboard/互动影游另列 R8 | A0 后 |
 | R12 | 上下文 token 预算与持久化 trace；语义选择只在测量后做 | R5 检索段稳定后 |
 
 ### 实施顺序
@@ -82,7 +85,7 @@ updated: 2026-10-23
 1. **R6b 形态路由**：最小改动、直接修短篇/剧本子代理拿错技能的问题；
 2. **R9 状态预检已交付**：`story_state` 已有确定性 preflight；R9b 只读语义检查已交付；R11 `story_settle` 自动链路已交付（重算一次、未解决不定稿）；
 3. **R6a 方法资源已交付**：三份 references 在 `storycraft-longform-method`，规划、写作、审稿与主编按触发读取；
-4. **A0 产物合同 v2**：先定 story_frame/volume_map/book_rules/角色卡/hook/摘要/observation/facts 的结构与迁移；R10 依赖 A0；R12 依赖 R5；
+4. **A0 产物合同 v2**：先定全部产物结构与迁移；之后按 L（长篇）→ S（短篇）→ D（剧本）三阶段推进；R10 属于 L；R12 依赖 R5；
 5. R7 / R7b / R7c / R8 按触发条件推进，不提前铺技能目录。
 
 ## 备选方案

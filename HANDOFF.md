@@ -43,6 +43,8 @@ R11 之后做了产物结构与资源对拍补审，结论是 R10 不能按现�
 
 报告：[全项目一对一实现与产物对拍审查](docs/report/inkos/2026-10-23-full-project-parity-audit.md)，专项细节见[产物结构审查](docs/report/inkos/2026-10-23-artifact-and-resource-parity-audit.md)。
 
+阶段顺序：A0 全量产物合同 → L 长篇（R10a/R10b + R9b/R11 迁移）→ S 短篇（独立短篇流水线）→ D 剧本（独立 spec/script + 场次/集）；横向 R7/R7b/R7c/R8 不删除。
+
 A0 之后再把 R10 拆成 R10a（合同/存储）与 R10b（architect 分阶段生成）。R9b/R11 已交付的 text hook/fact 逻辑要在新合同下复审。
 
 ### R10 foundation 委派（暂停）

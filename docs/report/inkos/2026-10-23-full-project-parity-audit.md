@@ -210,13 +210,70 @@ R10 当前 #44 已退回 `planning`。建议拆为：
 
 不建议“先按现有格式实现 R10，以后再改”：这正是用户指出的白做路径。
 
-## 10. 需要作者裁决
+## 11. 三形态阶段性修正适配计划
 
-1. 是否按 A0 全量产物合同推进，而不是只修 R10？
-2. P0 是否包含全部：hook、story_frame、volume_map、book_rules、角色卡、facts、摘要、observation、memo/trace？
-3. 角色卡采用混合还是完全迁移为 Markdown + 索引？
-4. 旧作品：一次性迁移还是旧只读/新写新格式？
-5. 20 个参考技能中，哪些属于当前产品必须实现，哪些明确从产品范围删除？删除必须由作者决定，不由实现裁剪。
-6. R10 是否按 R10a/R10b 拆分？
+前提：**参考实现的结构优先采用，不先假设要拆分**。方法正文归一份共享技能；角色只保留“提交什么”的薄契约，不复制/改写方法。宿主不同的部分（capability/profile 等）用 DSH 等价行为实现，不复制代码；不属于当前产品的能力必须由作者裁决删除。
+
+### 阶段 0：跨形态公共合同（先于三种形态）
+
+- A0：第 6 节全部产物的字段、权威、消费者、生命周期、迁移与验收；
+- 技能组织改为“共享方法技能 + 角色输出契约”：长篇共享 `long-writing`，短篇共享 `short-writing`，剧本共享 `script-writing`；不再把方法拆成多份角色技巧；
+- 数据/迁移/UI/导出/检索/observation 的公共层；
+- 现行 R6a/R9b/R11 记录做部分替代：R6a 的方法拆分、R9b/R11 的 text-hook/string-fact 逻辑按新合同复审，不能把旧实现当不可改前提。
+
+### 阶段 1：长篇全量对齐
+
+1. **Foundation**：architect 四阶段：story_frame + volume_map → book_rules md/json + 初始 hooks → roles 索引 → 角色卡；原子写入；
+2. **Plan**：planner 委派，ChapterIntent + ChapterMemo + threadRefs；作者确认；
+3. **Write/Review/Revise**：所有角色加载同一份 long-writing 方法 + 4 份 references；role skill 只定义输出契约；auditor 输出 observation；
+4. **State**：settler factOps/hookOps + 结构化摘要；state-validator 旧/新对账、最多一次重算；R9b/R11 迁移到新模型；
+5. **Composer/Context**：ContextPackage/Trace、source reason/protection、token 预算；
+6. **验收**：结构合同 + 迁移 + 真实消费者（brief/context/review/settle/export）+ 作者确认路径。
+
+### 阶段 2：短篇全量对齐
+
+参考实现的短篇不是“单文件短篇”，而是独立流水线：
+
+- 产物：`outline/v001.md`、`reviews/draft-v001.md`、`final/full.md`、`final/short-story.json`、`final/sales-package.md`、`final/cover-prompt.md`；
+- 结构：storyTitle / openingHook / chapters[]（number/title/content/charCount）/ totalLength / chapterLengths；默认 12 章 × 约 1000 字，可配置；
+- 流程：outline → batch draft → draft review（sourceRefs 证据）→ revision plan → package（简介/卖点/封面提示词）；
+- 技能：short-writing + production-checklist；短篇分析/市场是独立轨道；
+- 我们当前 `form:short` 仍走单章阶段机与单文件，不是同一产物模型；需要独立短篇模型/动作/UI，不能在长篇章节表上打补丁；
+- 验收：短篇全链路产物、字数/钩子契约、review 证据、打包输出。
+
+### 阶段 3：剧本全量对齐
+
+参考实现的剧本不是“短剧单章”：
+
+- 输入：sourceKind/sourceText、targetFormat（竖屏短剧/标准剧本/广播剧/互动剧本/通用）、episodeCount/episodeDuration、requirements；
+- 产物：spec、script；按场次/集组织；storyboard 是独立产物（shots/连续性/画面提示），interactive film 又有故事树/旗标/结局；
+- 技能：script-writing + episode-scene-craft；分镜/互动影游按 R8 单独阶段；
+- 我们当前 `form:script` 复用章节阶段机；需要独立剧本产物/集场模型与审稿标准；
+- 验收：目标格式、集数/时长、场次格式、剧本 spec/script、导出。
+
+### 横向轨道（不删除）
+
+分析（long/short analysis）、市场研究、导入/续写、同人/仿写/番外、封面、翻译、Play/互动影游：按 R7/R7b/R7c/R8 逐步落位；在 A0 合同中预留字段/产物，不允许因“当前没排期”从产品范围静默消失。
+
+### 阶段依赖
+
+```text
+A0 公共合同
+  → L 长篇（R10a/R10b + R9b/R11 迁移）
+  → S 短篇（独立短篇流水线）
+  → D 剧本（独立剧本/分镜产物）
+  → 横向能力（R7/R7b/R7c/R8）
+```
+
+每个阶段完成后更新对拍矩阵与路线图；R10 不再单独先行。
+
+## 12. 需要作者裁决
+
+1. 是否按 A0 全量产物合同 + 三形态阶段推进，而不是只修 R10？
+2. 长篇是否采用参考实现的“一份 long-writing 方法 + 4 份 references，所有角色共享”，角色只留输出契约？
+3. 短篇是否采用参考实现的独立短篇流水线（outline/batch draft/review/revision/package/cover prompt），而不是当前单文件短篇？
+4. 剧本是否采用独立 spec/script + 场次/集模型，storyboard/互动影游另列 R8？
+5. 旧作品迁移：一次性迁移，还是旧格式只读、新写只写新格式？
+6. 20 个参考技能中，哪些明确不在产品范围？删除必须由作者决定，不由实现裁剪。
 
 在这些裁决前，不创建新的实现门禁，不按旧格式继续 R10。
