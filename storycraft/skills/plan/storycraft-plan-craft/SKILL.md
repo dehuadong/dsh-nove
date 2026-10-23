@@ -21,7 +21,8 @@ whenToUse: 被派去出全书计划、卷划分或某一章的章纲时。
 
 按调用方要求的格式输出：章纲用 JSON（`perspective/goal/obstacle/cost/turn`），全书计划用 JSON（`mainline/volumes/ending`）。
 
-- 章纲五项与全书计划的结构要求按共享方法执行；
+- 章纲五项的逐项定义读 `storycraft-long-writing` 的 `references/reader-contract-and-progression.md`；全书计划三段读 `references/foundation-design.md`；
+- 章纲字段示例见本技能 `references/chapter-plan-examples.md`；
 - 字段写具体，不要用「待定」「见正文」占位；
 - 不要输出正文；
 - 不要调用动作或写文件。

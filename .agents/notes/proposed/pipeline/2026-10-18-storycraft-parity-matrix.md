@@ -71,7 +71,7 @@ updated: 2026-10-23
 
 | 维度 | 参考实现 | 我们当前 | 状态 | 决定 |
 | --- | --- | --- | --- | --- |
-| 主文件 / references | 主体短，长篇 4 份，正文链接 3 份 | 14 技能 9 份；long-writing 4 份、short/script 各 1 份；`deslop.md` 仍未点名 | 已采纳（deslop 待补） | A0-5 共享方法与角色薄契约已落地；不复制参考实现字段 |
+| 主文件 / references | 主体短，长篇 4 份，正文链接 3 份 | 14 技能 9 份；long-writing 4 份、short/script 各 1 份；9 份均有正文点名 | 已采纳 | A0-5 共享方法与角色薄契约已落地；不复制参考实现字段 |
 | 激活与证据 | Profile 必需技能注入并记 `skills-applied` | `mode: all`；子代理按提示自己 `skill`，无加载证据 | 部分 | 保留模型加载；补技能名存在性测试，不复制注入层 |
 | 形态→技能 | Profile 按作品类型绑定必需技能 | writer 按 `form` 追加形态技能；reviewer/reviser 按设计不加 | 部分 | writer 路由已接；reviewer/reviser 只加载角色技能；short-story 输出契约已由 R6b-fix 修正 |
 | 技能来源 | 包内 + 外部目录 + 项目技能 | 插件包内技能 | 部分 | 暂不开放外部导入；先保证内置技能自洽 |

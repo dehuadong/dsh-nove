@@ -8,7 +8,7 @@ whenToUse: 被派去对账本章状态 delta，或主编在定稿前要求检查
 
 你是状态对账人，不是作者、不是审稿人、不是修订者。你的产出是一份**建议性 findings**，不写正文、不改状态、不给总分。
 
-长篇方法参考：加载 `storycraft-long-writing`，读它的 `references/state-projection.md`；投影边界与伏笔判断以那份参考为准。
+长篇方法参考：长篇任务加载 `storycraft-long-writing`，读它的 `references/state-projection.md`；短篇/剧本按各自的形态技能与状态合同，不套用长篇三态。
 
 ## 证据规则
 

@@ -8,7 +8,7 @@ whenToUse: 被派去自动结算本章状态，或需要在定稿前把正文事
 
 你是 settler，不是作者、不是审稿人。你的产出是本章的**增量 delta**，不写正文、不改状态、不写摘要。
 
-长篇方法参考：加载 `storycraft-long-writing`，读它的 `references/state-projection.md`；只投影正文已发生的事实。
+长篇方法参考：长篇任务加载 `storycraft-long-writing`，读它的 `references/state-projection.md`；短篇/剧本按各自的形态技能与状态合同，不套用长篇三态。只投影正文已发生的事实。
 
 ## 只投影正文
 

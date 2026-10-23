@@ -129,16 +129,16 @@ spec → script（episodes/scenes）→ review → final
 | `storycraft-longform-chapter` | 保留主编流程，方法改读 long-writing |
 | `storycraft-plan-craft` | 保留 planner 输出契约，方法读 long-writing |
 | `storycraft-write-craft` | 方法正文并入 long-writing，保留薄角色契约 |
-| `storycraft-longform-method` | 3 refs 并入 long-writing 4 refs；R6a 交付时更新 |
+| `storycraft-longform-method` | 3 refs 已并入 long-writing 4 refs；A0-5 起只留迁移别名，L 切换后下线 |
 | `storycraft-review` | 保留，增加 observation code/evidence |
 | `storycraft-revise-craft` | 保留角色标准 |
-| `storycraft-short-story` | 由 short-writing 替代/薄化 |
-| `storycraft-short-drama` | 由 script-writing 替代/薄化 |
-| `storycraft-state-check` | vet 角色契约，读 state-projection |
-| `storycraft-state-settler` | settler 角色契约，读 state-projection |
+| `storycraft-short-story` | A0-5 薄化为形态契约，方法读 short-writing；S 后下线或保留 |
+| `storycraft-short-drama` | A0-5 薄化为形态契约，方法读 script-writing；D 后下线或保留 |
+| `storycraft-state-check` | vet 角色契约；长篇读 state-projection，短篇/剧本按各自形态 |
+| `storycraft-state-settler` | settler 角色契约；长篇读 state-projection，短篇/剧本按各自形态 |
 | `storycraft-studio-orchestration` | 保留跨形态编排，更新为三流水线 |
 
-`FORM_META`/技能路由在 L/S/D 各阶段同步；旧技能名只作为迁移别名，不进入新作品。
+`FORM_META`/技能路由在 L/S/D 各阶段同步；旧技能名只作为迁移别名，不进入新作品。A0-5 只落长篇共享方法与角色引用；短篇/剧本的 reviewer/reviser 加载各自共享方法，随 S/D 流水线接入。
 
 ### 5. 宿主等价
 

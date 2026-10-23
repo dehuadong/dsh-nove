@@ -37,7 +37,7 @@ DSH 里的长篇创作编排：三十二个动作把立项、章纲、正文、�
 | 形态 | `story_init` 的 form | 单位 | 形态契约 | 共享方法 |
 | --- | --- | --- | --- | --- |
 | 长篇 | `longform`（默认） | 章 | 单章流程与闸门：章纲 → 正文 → 审稿 → 修订/清稿 → 摘要 → 定稿 | `storycraft-long-writing` |
-| 短篇 | `short` | 篇 | 一篇写到底，流程同上 | `storycraft-short-writing` |
+| 短篇 | `short` | 篇 | 一篇或多章组成的完整短篇；默认 12 章 × 约 1000 字可配置（S 阶段接入批量流水线） | `storycraft-short-writing` |
 | 剧本 | `script` | 集 | 按场次与台词组织，流程同上 | `storycraft-script-writing` |
 
 形态是作品数据，决定用哪套技能与页面单位；动作与门禁完全一致。没有已知形态时按长篇读取。

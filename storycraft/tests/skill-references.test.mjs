@@ -80,6 +80,9 @@ const roleSkills = {
   review: join(skills, 'review', 'storycraft-review', 'SKILL.md'),
   orchestration: join(skills, 'shared', 'storycraft-studio-orchestration', 'SKILL.md'),
   chapter: join(skills, 'longform', 'storycraft-longform-chapter', 'SKILL.md'),
+  revise: join(skills, 'revise', 'storycraft-revise-craft', 'SKILL.md'),
+  stateCheck: join(skills, 'review', 'storycraft-state-check', 'SKILL.md'),
+  stateSettler: join(skills, 'review', 'storycraft-state-settler', 'SKILL.md'),
 }
 const roleText = {}
 for (const [role, file] of Object.entries(roleSkills)) roleText[role] = await readFile(file, 'utf8')
