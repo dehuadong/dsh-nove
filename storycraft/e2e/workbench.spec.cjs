@@ -13,7 +13,13 @@ const url = runtime.url
 const facts = runtime.facts ?? {}
 
 async function openWorkbench(page) {
+  page.on('pageerror', error => console.log('PAGEERROR', error.message))
   await page.goto(url, { waitUntil: 'domcontentloaded' })
+  const onboarding = page.getByRole('dialog', { name: 'Get started' })
+  if (await onboarding.count() > 0) {
+    const close = onboarding.getByRole('button', { name: 'Close' })
+    if (await close.count() > 0) await close.first().evaluate(node => node.click())
+  }
 
   // The workbench lives in the right sidebar: open a session, expand the column,
   // then pick its card on the guide page.

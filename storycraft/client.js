@@ -332,6 +332,9 @@ window.__ModuleLoader__.load({
         context: () => currentContext(ctx),
         listWorks: (root) => route(ROUTE.works, { root }),
         listTrash: (root) => route(ROUTE.trash, { root }),
+        restoreTrash: (root, workId) => post('/api/dsh-storycraft/trash/restore', { root, workId }),
+        purgeTrash: (root, workId) => post('/api/dsh-storycraft/trash/purge', { root, workId, confirm: true }),
+        createBackup: (root, workId) => post('/api/dsh-storycraft/backups/create', { root, workId }),
         volumes: (root, id) => route(ROUTE.volumes, { root, id }),
         critique: (root, id, chapter) => route(ROUTE.critique, { root, id, chapter }),
         next: (root, id) => route(ROUTE.next, { root, id }),
@@ -913,7 +916,7 @@ window.__ModuleLoader__.load({
       const [tab, setTab] = useState('chapters')
       const [chapterPage, setChapterPage] = useState(1)
       const [exportInfo, setExportInfo] = useState(undefined)
-      const [backupCount, setBackupCount] = useState(undefined)
+      const [backupList, setBackupList] = useState([])
       const [brief, setBrief] = useState({ status: 'idle' })
       const [materials, setMaterials] = useState([])
       const [exporting, setExporting] = useState(false)
@@ -1184,7 +1187,7 @@ window.__ModuleLoader__.load({
           face.backups(root, workId).catch(() => ({ backups: [] })),
         ]).then(([exports, backups]) => {
           setExportInfo(exports)
-          setBackupCount((backups.backups ?? []).length)
+          setBackupList(backups.backups ?? [])
         })
       }, [tab, face, root, workId])
 
@@ -1990,7 +1993,29 @@ window.__ModuleLoader__.load({
           h('h3', { className: 'sc-section-title' }, '导出'),
           h('p', { className: 'sc-item-body' }, '由宿主直接写 TXT/EPUB 到 .storycraft/exports；目录只读显示，不把路径交给模型。'),
           h('p', { className: 'sc-item-body' }, exportInfo === undefined ? '读取导出目录…' : exportInfo.exists === true ? `已导出：${exportInfo.directory}` : '还没有导出。'),
-          h('p', { className: 'sc-item-body' }, backupCount === undefined ? '读取备份…' : `备份 ${backupCount} 份（.storycraft/backups）`),
+          h('p', { className: 'sc-item-body' }, `备份 ${backupList.length} 份（.storycraft/backups）`),
+          h('div', { className: 'sc-actions' },
+            h('button', {
+              type: 'button',
+              className: 'sc-btn',
+              disabled: sessionId === undefined,
+              onClick: () => {
+                void face.createBackup(root, workId)
+                  .then(() => face.backups(root, workId))
+                  .then(result => setBackupList(result.backups ?? []))
+                  .catch(error => onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) }))
+              },
+            }, '立即备份'),
+          ),
+          backupList.length === 0
+            ? h('p', { className: 'sc-muted' }, '还没有备份。')
+            : h('div', null, ...backupList.map(item => h('div', { className: 'sc-item', key: item.backupId },
+              h('div', { className: 'sc-item-head' },
+                h('span', { className: 'sc-item-name' }, item.file.split(/[\\/]/u).at(-1)),
+                h('span', { className: 'sc-badge' }, `${item.bytes} B`),
+                h('span', { className: 'sc-item-id' }, String(item.createdAt ?? '').replace('T', ' ').slice(0, 16)),
+              ),
+            ))),
           h('div', { className: 'sc-actions' },
             h('button', {
               type: 'button',
@@ -2112,6 +2137,7 @@ window.__ModuleLoader__.load({
       const [presetHealth, setPresetHealth] = useState({ state: 'unknown' })
       const [works, setWorks] = useState([])
       const [trash, setTrash] = useState([])
+      const [homeView, setHomeView] = useState('works')
       const [typeFilter, setTypeFilter] = useState('longform')
       const [currentId, setCurrentId] = useState(undefined)
       const [trashNote, setTrashNote] = useState(undefined)
@@ -2237,6 +2263,27 @@ window.__ModuleLoader__.load({
 
       const worksList = works
 
+      const restoreTrashed = async (item) => {
+        try {
+          await face.restoreTrash(root, item.workId)
+          setNotice({ kind: 'ok', text: `已恢复：${item.title}` })
+          await load()
+        } catch (error) {
+          setNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
+        }
+      }
+
+      const purgeTrashed = async (item) => {
+        if (!window.confirm(`彻底删除「${item.title}」？数据库文件会删除，不能恢复。`)) return
+        try {
+          await face.purgeTrash(root, item.workId)
+          setNotice({ kind: 'ok', text: `已彻底删除：${item.title}` })
+          await load()
+        } catch (error) {
+          setNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
+        }
+      }
+
       return h('div', { className: 'sc-root' },
         h('style', null, CSS),
         h('header', { className: 'sc-header' },
@@ -2254,6 +2301,9 @@ window.__ModuleLoader__.load({
         ),
         h('div', { className: selected === undefined ? 'sc-body' : 'sc-body sc-body-detail' },
           selected === undefined ? h('nav', { className: 'sc-list', 'aria-label': '作品类型' },
+            h('div', { className: 'sc-list-label' }, '视图'),
+            h('button', { type: 'button', className: 'sc-work', 'aria-current': homeView === 'works' ? 'true' : 'false', onClick: () => setHomeView('works') }, '作品'),
+            h('button', { type: 'button', className: 'sc-work', 'aria-current': homeView === 'trash' ? 'true' : 'false', onClick: () => setHomeView('trash') }, 回收站 ),
             h('div', { className: 'sc-list-label' }, '类型'),
             ...FORMS.map(form => h('button', {
               key: form.id,
@@ -2269,19 +2319,6 @@ window.__ModuleLoader__.load({
             trashNote === undefined
               ? null
               : h('p', { className: 'sc-muted', style: { padding: '0 10px', fontSize: 11 } }, trashNote),
-            trash.length === 0
-              ? null
-              : h('div', null,
-                h('div', { className: 'sc-list-label' }, `回收站 ${trash.length}`),
-                ...trash.map(item => h('div', { className: 'sc-trash-row', key: item.path },
-                  h('span', { className: 'sc-work-title' }, item.workId),
-                  h('button', {
-                    type: 'button',
-                    className: 'sc-btn sc-btn-small',
-                    onClick: () => compose(INSTRUCTIONS.restore(item.workId)),
-                  }, '恢复'),
-                )),
-              ),
             h('div', { className: 'sc-list-label' }, '工作区'),
             h('p', { className: 'sc-muted', style: { padding: '0 10px', fontSize: 11 } },
               root === undefined ? '没有打开的会话' : root),
@@ -2291,18 +2328,34 @@ window.__ModuleLoader__.load({
           ) : null,
           h('section', { className: 'sc-detail' },
             selected === undefined
-              ? h(ProjectList, {
-                works: worksList.filter(work => work.form === typeFilter),
-                form: FORMS.find(form => form.id === typeFilter),
-                onOpen: workId => {
-                  setSelected(workId)
-                  setNotice(undefined)
-                  if (sessionId !== undefined) {
-                    void face.setCurrent(root, sessionId, workId).catch(() => {})
-                  }
-                },
-                onCreate: idea => compose(INSTRUCTIONS.newIdea(typeFilter, idea)),
-              })
+              ? homeView === 'trash'
+                ? h('div', { className: 'sc-projects' },
+                  h('h2', { className: 'sc-detail-title' }, '回收站'),
+                  h('p', { className: 'sc-detail-tagline' }, '恢复回作品列表，或彻底删除数据库文件。彻底删除不能撤销。'),
+                  trash.length === 0
+                    ? h('p', { className: 'sc-muted', style: { marginTop: 12 } }, '回收站是空的。')
+                    : h('div', { className: 'sc-project-grid', style: { marginTop: 12 } },
+                      ...trash.map(item => h('div', { className: 'sc-project', key: item.path },
+                        h('span', { className: 'sc-project-title' }, item.title),
+                        h('span', { className: 'sc-work-meta' }, `${item.workId} · ${String(item.trashedAt ?? '').replace('T', ' ').slice(0, 16)}`),
+                        h('div', { className: 'sc-actions', style: { marginTop: 4 } },
+                          h('button', { type: 'button', className: 'sc-btn sc-btn-small', onClick: () => { void restoreTrashed(item) } }, '恢复'),
+                          h('button', { type: 'button', className: 'sc-btn sc-btn-small', onClick: () => { void purgeTrashed(item) } }, '彻底删除'),
+                        ),
+                      ))),
+                )
+                : h(ProjectList, {
+                  works: worksList.filter(work => work.form === typeFilter),
+                  form: FORMS.find(form => form.id === typeFilter),
+                  onOpen: workId => {
+                    setSelected(workId)
+                    setNotice(undefined)
+                    if (sessionId !== undefined) {
+                      void face.setCurrent(root, sessionId, workId).catch(() => {})
+                    }
+                  },
+                  onCreate: idea => compose(INSTRUCTIONS.newIdea(typeFilter, idea)),
+                })
               : null,
             presetHealth.state === 'broken'
               ? h('p', { className: 'sc-notice sc-notice-error' }, `故事工坊预设装载失败：${presetHealth.reason}`)

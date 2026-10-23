@@ -979,6 +979,27 @@ export function deleteWork(root, input) {
 }
 
 /**
+ * Permanently remove one trashed work and its catalog row.
+ * @param {string} root - workspace directory.
+ * @param {{work: string}} input - trashed work.
+ * @returns {{workId: string}} removed identity.
+ */
+export function purgeTrash(root, input) {
+  const workId = String(input.work ?? '')
+  const catalog = openCatalog(root)
+  try {
+    const row = catalogRow(catalog, workId)
+    if (row === undefined || row.trashed_at === null) throw new StoryError('work-not-found', `回收站里没有作品 ${workId}`)
+    const target = trashFile(root, workId)
+    if (existsSync(target)) removeDatabaseFiles(target)
+    transaction(catalog, () => catalog.prepare('DELETE FROM works WHERE work_id = ?').run(workId))
+    return { workId }
+  } finally {
+    catalog.close()
+  }
+}
+
+/**
  * Restore the newest trashed copy of one work.
  * @param {string} root - workspace directory.
  * @param {{name: string}} input - work identity at trash time.

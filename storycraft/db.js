@@ -9,7 +9,7 @@
  * does.
  */
 
-import { existsSync, mkdirSync, renameSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, renameSync, rmSync, unlinkSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { StoryError, isWorkId } from './domain.js'
 import { materialIndexText, searchTokens } from './search-text.js'
@@ -522,7 +522,7 @@ export function removeDatabaseFiles(file) {
   // absent non-ASCII paths, and a missing file is already the desired state.
   for (const suffix of ['', '-wal', '-shm']) {
     const target = `${file}${suffix}`
-    if (existsSync(target)) rmSync(target, { force: true })
+    if (existsSync(target)) unlinkSync(target)
   }
 }
 

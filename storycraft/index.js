@@ -13,7 +13,7 @@
 
 import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, resolve } from 'node:path'
-import { approveChapterPlan, approveOutline, deleteChapter, deleteMaterial, ensureReconciled, exportWorkAtomic, importMaterial, moveChapter, listMaterials, listTrash, listWorks, nextStep, readManifest, readChapter, readReview, readWork, renameMaterial, setMaterialPurpose, status as readStatus, StoryError } from './storage.js'
+import { approveChapterPlan, approveOutline, backupWork, deleteChapter, deleteMaterial, ensureReconciled, exportWorkAtomic, importMaterial, moveChapter, listMaterials, listTrash, listWorks, nextStep, purgeTrash, readManifest, readChapter, readReview, readWork, renameMaterial, restoreWork, setMaterialPurpose, status as readStatus, StoryError } from './storage.js'
 import { critique } from './critique.js'
 import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent } from './current.js'
 import { readVolumes } from './volumes.js'
@@ -250,6 +250,40 @@ export function apply(ctx) {
     }),
     ctx.webServer.register({
       kind: 'exact',
+      path: `${BASE}/trash/restore`,
+      handler: (req, res) => {
+        void postRoute(req, res, async (body) => {
+          const root = await rootOf(ctx, new URLSearchParams({ root: String(body?.root ?? '') }))
+          if (typeof body?.workId !== 'string') throw new StoryError('invalid-body', '恢复需要 workId')
+          return restoreWork(root, { name: body.workId })
+        }, { maxBytes: 32 * 1024, requireJson: true })
+      },
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/trash/purge`,
+      handler: (req, res) => {
+        void postRoute(req, res, async (body) => {
+          if (body?.confirm !== true) throw new StoryError('delete-unconfirmed', '彻底删除需要确认')
+          const root = await rootOf(ctx, new URLSearchParams({ root: String(body?.root ?? '') }))
+          if (typeof body?.workId !== 'string') throw new StoryError('invalid-body', '彻底删除需要 workId')
+          return purgeTrash(root, { work: body.workId })
+        }, { maxBytes: 32 * 1024, requireJson: true })
+      },
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/backups/create`,
+      handler: (req, res) => {
+        void postRoute(req, res, async (body) => {
+          const root = await rootOf(ctx, new URLSearchParams({ root: String(body?.root ?? '') }))
+          if (typeof body?.workId !== 'string') throw new StoryError('invalid-body', '备份需要 workId')
+          return backupWork(root, body.workId)
+        }, { maxBytes: 32 * 1024, requireJson: true })
+      },
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
       path: `${BASE}/current`,
       handler: (req, res) => {
         if (req.method === 'POST') {
@@ -473,9 +507,17 @@ export function apply(ctx) {
         const workId = workOf(query)
         const directory = backupsDir(root)
         const entries = await readdir(directory).catch(() => [])
-        return entries
-          .filter(name => name.startsWith(`${workId}-`) && name.endsWith('.db'))
-          .map(name => ({ backupId: `backup:${workId}:${name.slice(workId.length + 1, -3)}`, file: join(directory, name) }))
+        const files = entries.filter(name => name.startsWith(`${workId}-`) && name.endsWith('.db')).sort().reverse()
+        const backups = await Promise.all(files.map(async (name) => {
+          const info = await stat(join(directory, name))
+          return {
+            backupId: `backup:${workId}:${name.slice(workId.length + 1, -3)}`,
+            file: join(directory, name),
+            bytes: info.size,
+            createdAt: info.mtime.toISOString(),
+          }
+        }))
+        return { backups }
       }),
     }),
     ctx.webServer.register({
