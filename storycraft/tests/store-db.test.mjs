@@ -189,7 +189,7 @@ try {
   store.writeReview(root, { work: clean, chapter: 1, problems: [] })
   store.writeSummary(root, { work: clean, chapter: 1, text: '摘要' })
   const cleanSettle = store.nextStep(root, clean)
-  check('a clean review then goes to state', cleanSettle.action === 'story_state', JSON.stringify(cleanSettle))
+  check('a clean review then goes to automatic settlement', cleanSettle.action === 'story_settle', JSON.stringify(cleanSettle))
   const settled = store.foldState(root, { work: clean, chapter: 1, entities: [{ name: '甲', facts: ['活着'] }], hooks: [] })
   check('a clean review can settle', settled.ok === undefined ? true : settled.ok !== false, JSON.stringify(settled))
 } finally {

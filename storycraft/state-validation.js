@@ -8,7 +8,7 @@
 
 import { StoryError } from './domain.js'
 
-const HOOK_STATES = ['opened', 'used', 'resolved']
+export const HOOK_STATES = ['opened', 'used', 'resolved']
 
 /**
  * Normalize a raw `story_state` delta without deduplicating facts.

@@ -22,6 +22,10 @@ check('summary button exposes the instruction as a tooltip',
   source.includes('title: INSTRUCTIONS.summarize'), 'client.js summary button title')
 check('full-flow instruction forbids an automatic summary fallback',
   source.includes('摘要步骤若委派不可用或未提交，只报告并停手，不自动读正文、不重派'), 'client.js flowFull instruction')
+check('fold instruction uses automatic settlement with a manual fallback',
+  source.includes('先调 story_settle 自动抽取并校验')
+  && source.includes('返回 settled:false 时把 proposed 与 findings 报给我')
+  && source.includes('自动链路不可用时才直接用 story_state'), 'client.js fold instruction')
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`)
 process.exitCode = failures === 0 ? 0 : 1

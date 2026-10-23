@@ -34,6 +34,7 @@ import { critique } from './critique.js'
 import { loadRoleInput } from './role-input.js'
 import { delegateRole } from './delegate.js'
 import { checkChapterState } from './state-check.js'
+import { settleChapterState } from './state-settle.js'
 import { submitPayload } from './submission.js'
 import { checkDraft } from './landing.js'
 import { getCurrent, hydrate as hydrateCurrent, markHydrated, resolveWork, setCurrent, shouldHydrate } from './current.js'
@@ -912,6 +913,79 @@ const STATE_CHECK_OUTPUT = {
   render: OUTPUT.render,
 }
 
+/** Proposed settler delta echoed on an unresolved automatic settlement. */
+const STATE_SETTLE_PROPOSED = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    entities: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          name: { type: 'string' },
+          facts: { type: 'array', items: { type: 'string' } },
+        },
+        required: ['name', 'facts'],
+      },
+    },
+    hooks: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          text: { type: 'string' },
+          state: { type: 'string', enum: ['opened', 'used', 'resolved'] },
+        },
+        required: ['text', 'state'],
+      },
+    },
+  },
+  required: ['entities', 'hooks'],
+}
+
+/** Output of one automatic state settlement. */
+const STATE_SETTLE_OUTPUT = {
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      ok: OUTPUT_PROPERTIES.ok,
+      workId: OUTPUT_PROPERTIES.workId,
+      chapter: { type: 'integer' },
+      revision: { type: 'integer' },
+      settled: { type: 'boolean' },
+      counts: OUTPUT_PROPERTIES.counts,
+      warnings: OUTPUT_PROPERTIES.warnings,
+      items: { type: 'array', items: STATE_CHECK_ITEM },
+      proposed: STATE_SETTLE_PROPOSED,
+      reason: { type: 'string', enum: ['state-reconcile-required', 'state-invalid'] },
+      message: { type: 'string' },
+      attempts: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          settler: { type: 'integer' },
+          validator: { type: 'integer' },
+        },
+        required: ['settler', 'validator'],
+      },
+      trace: {
+        type: 'object',
+        additionalProperties: false,
+        properties: { durationMs: { type: 'integer' } },
+        required: ['durationMs'],
+      },
+      artifact: OUTPUT_PROPERTIES.artifact,
+      error: OUTPUT_PROPERTIES.error,
+    },
+    required: ['ok'],
+  },
+  render: OUTPUT.render,
+}
+
 /**
  * Output contract for `story_context`. It cannot reuse the brief's section shape:
  * those sections require `bytes` and have no protection level.
@@ -1367,6 +1441,33 @@ function rawDefinitions(ctx) {
         const root = workspaceOf(exec)
         const service = typeof ctx?.get === 'function' ? ctx.get('subagents') : undefined
         return checkChapterState(root, args, {
+          service,
+          agent: exec.agent,
+          signal: exec.signal,
+        })
+      },
+    }),
+
+    action({
+      name: 'story_settle',
+      mutates: true,
+      description: '自动结算本章状态：settler 从正文抽取事实与伏笔 delta，先做确定性预检，再用 R9b 语义检查；'
+        + 'major/确定性 error 带反馈重算一次，仍不一致则返回 settled:false 且不写库。'
+        + '成功时写入 events 并定稿；手动修正仍用 story_state。只允许主会话调用。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+          chapter: { type: 'integer', description: '章号。' },
+        },
+        required: ['work', 'chapter'],
+      },
+      output: STATE_SETTLE_OUTPUT,
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const service = typeof ctx?.get === 'function' ? ctx.get('subagents') : undefined
+        return settleChapterState(root, args, {
           service,
           agent: exec.agent,
           signal: exec.signal,
@@ -1864,7 +1965,7 @@ function rawDefinitions(ctx) {
 
     action({
       name: 'story_submit',
-      description: '只允许被 story_delegate 派发的子代理调用：把角色结果提交给宿主校验。校验失败可修正后重提；成功后父代理才会落盘。不要把正文当最终回答返回。',
+      description: '只允许被 story_delegate / story_settle 派发的子代理调用：把角色结果提交给宿主校验。校验失败可修正后重提；成功后父代理才会落盘。不要把正文当最终回答返回。',
       parameters: {
         type: 'object',
         additionalProperties: false,

@@ -738,7 +738,7 @@ export function nextStep(root, work) {
           missing: ['summary'],
         }
       }
-      return { chapter: last.number, stage, action: 'story_state', reason: isCleanReview(candidate) ? `第 ${last.number} 章清稿审稿无问题，定稿` : `第 ${last.number} 章已修订，定稿`, missing: [] }
+      return { chapter: last.number, stage, action: 'story_settle', reason: isCleanReview(candidate) ? `第 ${last.number} 章清稿审稿无问题，自动结算` : `第 ${last.number} 章已修订，自动结算`, missing: [] }
     })()
     const delegate = delegateOf(step, last, candidate)
     return {
@@ -1484,51 +1484,65 @@ export function listSummaries(root, work) {
 }
 
 /**
+ * Read-only settlement gate shared by `story_state` and the automatic settler.
+ * @param {object} db - open work database.
+ * @param {number} number - chapter number.
+ * @returns {{entry: object, review: object, summaryState: object}} gate context.
+ */
+function assertStateGate(db, number, options = {}) {
+  const entry = chapterRow(db, number)
+  if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
+  if (stageOf(entry) === 'settled') {
+    throw new StoryError('chapter-settled', `第 ${number} 章已定稿：不能重复归档；改稿请先 reopen`)
+  }
+  if (options.requireBody === true && entry.current_revision === 0) {
+    throw new StoryError('chapter-not-written', `第 ${number} 章还没有正文：先写正文，审稿与修订后再定稿`)
+  }
+  const review = latestReviewRow(db, number)
+  if (review === undefined) throw new StoryError('review-required', `第 ${number} 章还没有审稿清单：先审稿与修订，再定稿`)
+  const covers = reviewCovers(review, entry, true)
+  const open = parseReview(review.text).filter(item => !item.done)
+  if (open.length > 0) {
+    throw new StoryError('review-required',
+      `第 ${number} 章还有 ${open.length} 条未处理审稿：${open.map(item => item.id).join('、')}；先修订再定稿`)
+  }
+  if (!covers) throw new StoryError('review-required', `第 ${number} 章的审稿针对旧版本 r${review.revision}：先重新审稿`)
+  if (isCleanReview(review) && review.revision !== entry.current_revision) {
+    throw new StoryError('review-required', `第 ${number} 章的清稿审稿针对旧版本 r${review.revision}：先重新审稿`)
+  }
+  if (stageOf(entry) !== 'revised' && !isCleanReview(review)) {
+    throw new StoryError('review-required',
+      `第 ${number} 章还没走完修订（当前阶段：${stageOf(entry)}）：先 story_revise 提交改动，再定稿`)
+  }
+  const summaryState = summaryStateOf(db, number)
+  if (summaryState.state === 'missing') {
+    throw new StoryError('summary-required', `第 ${number} 章还没有摘要：先写摘要，再定稿`)
+  }
+  if (summaryState.state === 'stale') {
+    throw new StoryError('summary-stale',
+      `第 ${number} 章摘要针对旧版本 r${summaryState.revision ?? '?'}：先重写摘要，再定稿`)
+  }
+  return { entry, review, summaryState }
+}
+
+/**
  * Append state events and return the folded counts.
  * @param {string} root - workspace directory.
- * @param {{work: string, chapter: number|string, entities?: Array<{name: string, facts: string|string[]}>, hooks?: Array<{text: string, state: 'opened'|'used'|'resolved'}>}} input - state input.
+ * @param {{work: string, chapter: number|string, entities?: Array<{name: string, facts: string|string[]}>, hooks?: Array<{text: string, state: 'opened'|'used'|'resolved'}>, allowEmpty?: boolean}} input - state input.
  * @returns {object} result with counts and a virtual artifact path.
  */
 export function foldState(root, input) {
   const number = chapterNumber(input.chapter)
   const delta = normalizeStateDelta(input)
-  if (delta.entities.length === 0 && delta.hooks.length === 0) {
+  if (delta.entities.length === 0 && delta.hooks.length === 0 && input.allowEmpty !== true) {
     throw new StoryError('empty-state', '定稿归档至少要给出一条人物事实或伏笔变化')
   }
   const workId = String(input.work)
   const db = openWork(root, workId)
   try {
     return transaction(db, () => {
-      const entry = chapterRow(db, number)
-      if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
-      if (stageOf(entry) === 'settled') {
-        throw new StoryError('chapter-settled', `第 ${number} 章已定稿：不能重复归档；改稿请先 reopen`)
-      }
+      const { entry } = assertStateGate(db, number)
       const foldedBefore = foldedOf(db)
-      const review = latestReviewRow(db, number)
-      if (review === undefined) throw new StoryError('review-required', `第 ${number} 章还没有审稿清单：先审稿与修订，再定稿`)
-      const covers = reviewCovers(review, entry, true)
-      const open = parseReview(review.text).filter(item => !item.done)
-      if (open.length > 0) {
-        throw new StoryError('review-required',
-          `第 ${number} 章还有 ${open.length} 条未处理审稿：${open.map(item => item.id).join('、')}；先修订再定稿`)
-      }
-      if (!covers) throw new StoryError('review-required', `第 ${number} 章的审稿针对旧版本 r${review.revision}：先重新审稿`)
-      if (isCleanReview(review) && review.revision !== entry.current_revision) {
-        throw new StoryError('review-required', `第 ${number} 章的清稿审稿针对旧版本 r${review.revision}：先重新审稿`)
-      }
-      if (stageOf(entry) !== 'revised' && !isCleanReview(review)) {
-        throw new StoryError('review-required',
-          `第 ${number} 章还没走完修订（当前阶段：${stageOf(entry)}）：先 story_revise 提交改动，再定稿`)
-      }
-      const summaryState = summaryStateOf(db, number)
-      if (summaryState.state === 'missing') {
-        throw new StoryError('summary-required', `第 ${number} 章还没有摘要：先写摘要，再定稿`)
-      }
-      if (summaryState.state === 'stale') {
-        throw new StoryError('summary-stale',
-          `第 ${number} 章摘要针对旧版本 r${summaryState.revision ?? '?'}：先重写摘要，再定稿`)
-      }
 
       const { warnings } = validateStateDelta(delta, foldedBefore)
       const written = [
@@ -1565,6 +1579,22 @@ export function foldState(root, input) {
         artifact: { path: virtualPath(workId, 'state/events.jsonl') },
       }
     })
+  } finally {
+    db.close()
+  }
+}
+
+/**
+ * Read-only settlement gate for callers that must validate before writing.
+ * @param {string} root - workspace directory.
+ * @param {{work: string, chapter: number|string}} input - work/chapter.
+ * @returns {{entry: object, review: object, summaryState: object}} gate context.
+ */
+export function statePreflight(root, input) {
+  const number = chapterNumber(input.chapter)
+  const db = openWork(root, String(input.work))
+  try {
+    return assertStateGate(db, number, { requireBody: input.requireBody === true })
   } finally {
     db.close()
   }

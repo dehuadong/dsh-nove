@@ -26,11 +26,12 @@ function mount(mode) {
 
 const all = mount('all')
 const names = (await all.provider.list()).map(skill => skill.name)
-check('all serves every form, every role, the shared catalog, the longform method and the state check', names.length === 10, names.join(','))
+check('all serves every form, every role, the shared catalog, the longform method and the state tools', names.length === 11, names.join(','))
 check('the orchestration skill is shared', names.includes('storycraft-studio-orchestration'))
 check('long form skill present', names.includes('storycraft-longform-chapter'))
 check('long form method present', names.includes('storycraft-longform-method'))
 check('state check skill present', names.includes('storycraft-state-check'))
+check('state settler skill present', names.includes('storycraft-state-settler'))
 check('short form skill present', names.includes('storycraft-short-story'))
 check('script skill present', names.includes('storycraft-short-drama'))
 check('every role craft is reachable from the work mode',
@@ -55,8 +56,9 @@ check('the plan catalog holds the planning skill', planNames.length === 1 && pla
 
 const review = mount('review')
 const reviewNames = (await review.provider.list()).map(skill => skill.name)
-check('the review catalog holds the review and state-check skills',
-  reviewNames.length === 2 && reviewNames.includes('storycraft-review') && reviewNames.includes('storycraft-state-check'),
+check('the review catalog holds review, state-check and state-settler skills',
+  reviewNames.length === 3 && reviewNames.includes('storycraft-review')
+  && reviewNames.includes('storycraft-state-check') && reviewNames.includes('storycraft-state-settler'),
   reviewNames.join(','))
 
 const one = mount('longform')

@@ -32,6 +32,7 @@
     "store-db.js",
     "state-validation.js",
     "state-check.js",
+    "state-settle.js",
     "bible.js",
     "volumes.js",
     "critique.js",

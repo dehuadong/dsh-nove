@@ -234,7 +234,8 @@ window.__ModuleLoader__.load({
           story_write: '写本章正文',
           story_review: '审本章',
           story_revise: '按清单修订本章',
-          story_state: '定稿：写入本章事实',
+          story_settle: '自动结算：抽取事实并定稿',
+          story_state: '手动定稿：写入本章事实',
           story_summarize: '写本章摘要',
           story_volume: '补本卷摘要',
         }[action] ?? action
@@ -295,7 +296,9 @@ window.__ModuleLoader__.load({
         return `给作品 ${workId} 第 ${chapter} 章写摘要：先调 story_next；只有返回 delegate.role=summarizer 时才用 story_delegate(role: summarizer)；否则不读正文，回报「摘要已存在、已过期或当前阶段不需要摘要，重写请明确要求」。`
       },
       fold(workId, chapter) {
-        return `把作品 ${workId} 第 ${chapter} 章已经发生的事实定稿进状态：人物事实与伏笔变化用 story_state 落盘。`
+        return `把作品 ${workId} 第 ${chapter} 章已经发生的事实定稿进状态：先调 story_settle 自动抽取并校验；`
+          + '返回 settled:false 时把 proposed 与 findings 报给我，按我的决定用 story_state 手动修正；'
+          + '自动链路不可用时才直接用 story_state。'
       },
       newIdea(form, idea) {
         const formLabel = { longform: '长篇', short: '短篇', script: '剧本' }[form] ?? '长篇'
@@ -568,7 +571,8 @@ window.__ModuleLoader__.load({
       story_write: '正文',
       story_review: '审稿',
       story_revise: '修订',
-      story_state: '定稿',
+      story_settle: '结算',
+      story_state: '手动结算',
       story_summarize: '摘要',
       story_volume: '卷摘要',
     }

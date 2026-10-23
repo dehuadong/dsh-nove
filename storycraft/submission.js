@@ -8,6 +8,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { StoryError, SUMMARY_MAX_CHARS, countWords, trimSummary } from './domain.js'
+import { HOOK_STATES } from './state-validation.js'
 import { assertRevisionMode } from './revision.js'
 import { checkWordRange } from './landing.js'
 import { readChapter } from './storage.js'
@@ -80,6 +81,9 @@ const VALIDATOR_CODES = new Set([
 /** Per-field character caps for one validator finding. */
 const VALIDATOR_LIMITS = { where: 120, problem: 160, evidence: 240, impact: 120, fix: 120 }
 
+/** Settler delta bounds; the host still re-normalizes and validates it. */
+const SETTLER_LIMITS = { entities: 30, facts: 20, hooks: 30, text: 240 }
+
 /** Validate the role-specific payload shape. */
 function validateShape(role, payload) {
   if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
@@ -96,6 +100,30 @@ function validateShape(role, payload) {
   }
   if (role === 'summarizer') {
     if (typeof payload.summary !== 'string' || payload.summary.trim() === '') return 'summarizer 缺少 summary'
+    return undefined
+  }
+  if (role === 'settler') {
+    if (!Array.isArray(payload.entities)) return 'settler 缺少 entities 数组'
+    if (payload.entities.length > SETTLER_LIMITS.entities) return `settler entities 最多 ${SETTLER_LIMITS.entities} 条`
+    for (const [index, entity] of payload.entities.entries()) {
+      if (entity === null || typeof entity !== 'object') return `settler 第 ${index + 1} 个实体不是对象`
+      if (typeof entity.name !== 'string' || entity.name.trim() === '') return `settler 第 ${index + 1} 个实体缺少 name`
+      if ([...entity.name].length > SETTLER_LIMITS.text) return `settler 第 ${index + 1} 个实体 name 超过 ${SETTLER_LIMITS.text} 字`
+      if (!Array.isArray(entity.facts)) return `settler 第 ${index + 1} 个实体缺少 facts 数组`
+      if (entity.facts.length > SETTLER_LIMITS.facts) return `settler 第 ${index + 1} 个实体 facts 最多 ${SETTLER_LIMITS.facts} 条`
+      for (const [factIndex, fact] of entity.facts.entries()) {
+        if (typeof fact !== 'string' || fact.trim() === '') return `settler 第 ${index + 1} 个实体第 ${factIndex + 1} 条 fact 为空`
+        if ([...fact].length > SETTLER_LIMITS.text) return `settler 第 ${index + 1} 个实体第 ${factIndex + 1} 条 fact 超过 ${SETTLER_LIMITS.text} 字`
+      }
+    }
+    if (!Array.isArray(payload.hooks)) return 'settler 缺少 hooks 数组'
+    if (payload.hooks.length > SETTLER_LIMITS.hooks) return `settler hooks 最多 ${SETTLER_LIMITS.hooks} 条`
+    for (const [index, hook] of payload.hooks.entries()) {
+      if (hook === null || typeof hook !== 'object') return `settler 第 ${index + 1} 条伏笔不是对象`
+      if (typeof hook.text !== 'string' || hook.text.trim() === '') return `settler 第 ${index + 1} 条伏笔缺少 text`
+      if ([...hook.text].length > SETTLER_LIMITS.text) return `settler 第 ${index + 1} 条伏笔 text 超过 ${SETTLER_LIMITS.text} 字`
+      if (!HOOK_STATES.includes(hook.state)) return `settler 第 ${index + 1} 条伏笔 state 非法`
+    }
     return undefined
   }
   if (role === 'validator') {

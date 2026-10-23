@@ -33,11 +33,11 @@ const ctx = {
 tools.apply(ctx, { mode: 'longform' })
 
 const names = registered.map(definition => definition.name).sort()
-check('registers thirty-one actions', names.length === 31, names.join(','))
+check('registers thirty-two actions', names.length === 32, names.join(','))
 check('action names', names.join(',') === [
   'story_backup', 'story_bible', 'story_bible_import', 'story_bible_write', 'story_brief', 'story_context',
   'story_critique', 'story_current', 'story_delegate', 'story_delete', 'story_export', 'story_init', 'story_next', 'story_outline',
-  'story_plan', 'story_propose', 'story_read', 'story_rename', 'story_reopen', 'story_restore', 'story_review', 'story_revise', 'story_submit',
+  'story_plan', 'story_propose', 'story_read', 'story_rename', 'story_reopen', 'story_restore', 'story_review', 'story_revise', 'story_settle', 'story_submit',
   'story_settings', 'story_state', 'story_state_check', 'story_status', 'story_summarize', 'story_volume', 'story_volumes', 'story_write',
 ].sort().join(','), names.join(','))
 check('the delegation and scope guards are registered', guards.length === 2, String(guards.length))
@@ -48,6 +48,14 @@ const byName = new Map(registered.map(definition => [definition.name, definition
 const submitAction = byName.get('story_submit')
 check('submit output accepts retry envelope fields',
   ['actual', 'limit', 'retryable', 'error'].every(key => submitAction.output.schema.properties[key] !== undefined))
+check('story_submit documents both dispatch sources',
+  submitAction.description.includes('story_delegate') && submitAction.description.includes('story_settle'),
+  submitAction.description)
+const settleAction = byName.get('story_settle')
+check('story_settle declares its settlement receipt',
+  settleAction.mutates === true
+  && ['settled', 'proposed', 'reason', 'attempts', 'counts'].every(key => settleAction.output.schema.properties[key] !== undefined),
+  JSON.stringify(Object.keys(settleAction.output.schema.properties ?? {})))
 const scopeGuard = guards[1]
 const scopeRoot = resolve('repo')
 const discussionCopy = '讨论阶段不读历史作品：请先在面板进入一部作品，或给 path 限定到项目目录。'
@@ -328,7 +336,10 @@ try {
   const preSummary = await byName.get('story_summarize').execute({ work, chapter: 1, summary: '司机捡到一盏灯。' }, exec)
   check('summary written before settle', preSummary.ok === true, JSON.stringify(preSummary))
   const afterSummaryNext = await byName.get('story_next').execute({ work }, exec)
-  check('story_next offers no delegate for state', afterSummaryNext.action === 'story_state' && afterSummaryNext.delegate === undefined, JSON.stringify(afterSummaryNext))
+  check('story_next offers no delegate for automatic settlement', afterSummaryNext.action === 'story_settle' && afterSummaryNext.delegate === undefined, JSON.stringify(afterSummaryNext))
+  const manualEmpty = await byName.get('story_state').execute({ work, chapter: 1, entities: [], hooks: [] }, exec)
+  check('manual story_state still rejects an empty delta after the summary',
+    manualEmpty.ok === false && manualEmpty.error.code === 'empty-state', JSON.stringify(manualEmpty))
   const statusWithSummary = await byName.get('story_status').execute({ work }, exec)
   check('story_status exposes the summary binding',
     statusWithSummary.ok === true && statusWithSummary.status.chapters[0].hasSummary === true
@@ -408,6 +419,9 @@ try {
   }, childExec)
   check('a delegated subagent cannot start a state check', deniedCheck.ok === false
     && deniedCheck.error.code === 'state-check-parent-denied', JSON.stringify(deniedCheck))
+  const deniedSettle = await byName.get('story_settle').execute({ work, chapter: 1 }, childExec)
+  check('a delegated subagent cannot settle state', deniedSettle.ok === false
+    && deniedSettle.error.code === 'subagent-cannot-land', JSON.stringify(deniedSettle))
   check('the guard refuses delegated file and shell tools',
     ['write', 'edit', 'pwsh', 'bash'].every(name => typeof guards[0]({ name, agent: childExec.agent }) === 'string'))
   check('the guard leaves the main agent alone', guards[0]({ name: 'write', agent: exec.agent }) === undefined)
