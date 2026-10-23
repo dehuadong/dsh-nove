@@ -73,12 +73,22 @@ updated: 2026-10-23
 | R7b | 市场研究：榜单/平台/对标证据与 rubric | 有明确调研问题且来源可归档 |
 | R7c | 衍生：续写、同人/仿写/番外 | 导入链路与正典边界落地 |
 | R8 | 分镜、封面、翻译、交互影游 | 有单独产品需求时 |
-| R10 | foundation 委派：architect 分阶段生成 story_frame / volume_map / book_rules / 角色卡 / 初始伏笔 | A0 之后；作者要一次生成整套设定 |
-| A0 | 全量产物合同 v2：story_frame / volume_map / book_rules / 角色卡 / hook 模型 / 结构化摘要 / observation / facts / memo / context trace；逐项字段、消费者、迁移与验收 | 立即；R10 前置 |
-| L | 长篇全量对齐：A0 → R10a/R10b → long-writing 共享方法 + 4 refs → observation/composer → R9b/R11 迁移 | A0 后 |
-| S | 短篇全量对齐：独立短篇流水线（outline/batch draft/review/revision/package/cover prompt），不复用长篇章节表 | A0 后 |
-| D | 剧本全量对齐：独立 spec/script + 场次/集模型；storyboard/互动影游另列 R8 | A0 后 |
+| R10 | foundation 委派：architect 分阶段生成 story_frame / volume_map / book_rules / 角色卡 / 初始伏笔 | L 阶段；A0 后 |
 | R12 | 上下文 token 预算与持久化 trace；语义选择只在测量后做 | R5 检索段稳定后 |
+
+### 对拍整改路线（A0 → L → S → D）
+
+本路线拥有阶段排期、范围与退出条件；[全量对拍报告](../../../../docs/report/inkos/2026-10-23-full-project-parity-audit.md) 只提供差距证据与字段细节，不拥有排期。
+
+| 阶段 | 目标 | 范围/交付 | 退出条件 | 工作项 |
+| --- | --- | --- | --- | --- |
+| A0 | 全量产物合同 v2 | 逐项字段、权威、消费者、生命周期、迁移、验收；覆盖 story_frame/volume_map/book_rules/角色卡/ChapterMemo/结构化摘要/hooks/facts/observation/context trace；定“共享方法技能 + 角色薄契约”的技能组织 | 合同评审通过；未决产品/迁移问题由作者裁决；矩阵与报告互链 | 待立 |
+| L 长篇 | 长篇全量对齐 | R10a 合同/存储 + R10b architect 四阶段；long-writing 共享方法 + 4 refs；planner intent/memo/threadRefs；settler/validator 新模型；R9b/R11 迁移；observation/context 消费者 | 长篇产物、角色、技能、消费者、迁移测试全过；R10 关闭 | R10 + 待立 |
+| S 短篇 | 短篇独立流水线 | outline → batch draft → draft review（sourceRefs）→ revision plan → package/cover prompt；short-writing + production-checklist；独立短篇产物/动作/UI | 短篇全链路产物、字数/钩子契约、review 证据、打包输出测试通过 | 待立 |
+| D 剧本 | 剧本独立流水线 | spec/script + 场次/集；script-writing + episode-scene-craft；目标格式/集数/时长；storyboard/互动影游另列 R8 | 剧本 spec/script、场次格式、导出测试通过 | 待立 |
+| 横向 | 分析/市场/导入/同人/封面/翻译/Play | R7/R7b/R7c/R8；A0 预留产物/字段 | 按各自触发条件验收 | 各阶段 Issue |
+
+依赖：A0 完成前不实现 R10/L/S/D；L 先于 S、D；横向能力不因当前未排期从范围删除。
 
 ### 实施顺序
 

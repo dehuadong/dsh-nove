@@ -81,7 +81,7 @@
 
 
 ### 对拍工作法
-- InkOS 仓库分析研究文档 `docs\report\inkos\readme.md`；全量产物与三形态计划见 `docs/report/inkos/2026-10-23-full-project-parity-audit.md`，产物专项见 `docs/report/inkos/2026-10-23-artifact-and-resource-parity-audit.md`。
+- InkOS 仓库分析研究文档 `docs\report\inkos\readme.md`；全量对拍证据见 `docs/report/inkos/2026-10-23-full-project-parity-audit.md`，产物专项见 `docs/report/inkos/2026-10-23-artifact-and-resource-parity-audit.md`；三形态执行计划归 `.agents/notes/proposed/workspace/2026-10-19-storycraft-roadmap.md`，报告不拥有排期。
 - 只使用本 Harness 的 Skill、Preset、Plugin、Subagent 与文件状态；不引入 LLM Provider、独立 Harness/SDK、资源管理服务或额外子 Agent 运行时。
 - 借鉴结构、功能、文档资源、提示词、技能与文案；但新项目代码、内容与注释不标注来源、不建立关联，以独立项目口径命名与改写。
 - 对拍的记忆不靠对话：规则记在本文件，能力对照与差距记在 `.agents/notes/proposed/pipeline/2026-10-18-storycraft-parity-matrix.md`，决定记在对应 Issue/Note，验证记在 tests/CI。
