@@ -513,7 +513,28 @@ export function validateShortStory(value) {
   integer(measurements.totalLength, 'short_story.measurements.totalLength')
   oneOf(measurements.unit, ['words', 'non-whitespace-characters'], 'short_story.measurements.unit')
   integer(measurements.openingHookLength, 'short_story.measurements.openingHookLength')
-  if (!Array.isArray(measurements.chapterLengths)) invalid('short_story.measurements.chapterLengths 必须是数组')
+  list(measurements.chapterLengths, 'short_story.measurements.chapterLengths', (entry, label) => {
+    keys(entry, ['number', 'length'], label)
+    integer(entry.number, `${label}.number`, 1)
+    integer(entry.length, `${label}.length`)
+    return entry
+  })
+  if (measurements.chapterCount !== input.chapters.length) {
+    invalid('short_story.measurements.chapterCount 必须等于章节数')
+  }
+  if (measurements.chapterLengths.length !== input.chapters.length) {
+    invalid('short_story.measurements.chapterLengths 必须逐章对应')
+  }
+  const byNumber = new Map(input.chapters.map(chapter => [chapter.number, chapter]))
+  for (const [index, entry] of measurements.chapterLengths.entries()) {
+    const chapter = byNumber.get(entry.number)
+    if (chapter === undefined) invalid(`short_story.measurements.chapterLengths[${index}] 指向不存在的章 ${entry.number}`)
+    if (entry.length !== chapter.charCount) {
+      invalid(`short_story.measurements.chapterLengths[${index}] 与第 ${entry.number} 章 charCount 不一致`)
+    }
+  }
+  const totalLength = input.chapters.reduce((total, chapter) => total + chapter.charCount, 0)
+  if (measurements.totalLength !== totalLength) invalid('short_story.measurements.totalLength 必须等于 charCount 之和')
   return input
 }
 
@@ -564,6 +585,8 @@ export const ARTIFACT_CONTENT_VALIDATORS = {
   role_index: validateRolesIndex,
   role_card: validateRoleCard,
   review: validateReviewObservations,
+  short_story: validateShortStory,
+  script: validateScript,
 }
 
 /** Canonical artifact IDs, or the chapter-scoped pattern, for typed kinds. */
@@ -576,6 +599,8 @@ export const ARTIFACT_IDENTITY = {
   plan: { pattern: /^plan:([1-9]\d*)$/u, chapterScoped: true },
   summary: { pattern: /^summary:([1-9]\d*)$/u, chapterScoped: true },
   review: { pattern: /^review:([1-9]\d*):r([1-9]\d*):([1-9]\d*)$/u, chapterScoped: true },
+  short_story: { pattern: /^short:[^\s:]+$/u },
+  script: { pattern: /^script:[^\s:]+$/u },
 }
 
 /**
@@ -585,6 +610,9 @@ export const ARTIFACT_IDENTITY = {
 export function assertArtifactIdentity(kind, artifactId, scope) {
   const spec = ARTIFACT_IDENTITY[kind]
   if (spec === undefined) return undefined
+  if (spec.chapterScoped !== true && scope?.chapter !== undefined) {
+    invalid(`${kind} 不接受 scope.chapter`)
+  }
   if (spec.artifactId !== undefined) {
     if (artifactId !== spec.artifactId) invalid(`${kind} 的 artifactId 必须是 ${spec.artifactId}`)
     return undefined

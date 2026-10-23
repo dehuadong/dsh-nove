@@ -211,6 +211,43 @@ export function readRoleCard(root, input) {
   return readTyped(root, input, { artifactId: `role:${segment}`, kind: 'role_card' })
 }
 
+/** One form artifact write: `<prefix>:<id>` with content-hash revision. */
+function writeFormArtifact(root, input, prefix, kind) {
+  return writeTyped(root, {
+    work: input.work,
+    artifactId: `${prefix}:${String(input.id ?? '').trim()}`,
+    kind,
+    content: input.content,
+    provenance: input.provenance,
+    createdAt: input.createdAt,
+  })
+}
+
+/** One form artifact read by `<prefix>:<id>`. */
+function readFormArtifact(root, input, prefix, kind) {
+  return readTyped(root, input, { artifactId: `${prefix}:${String(input.id ?? '').trim()}`, kind })
+}
+
+/** Write one short story as `short:<id>`; it never maps to a chapter row. */
+export function writeShortStory(root, input) {
+  return writeFormArtifact(root, input, 'short', 'short_story')
+}
+
+/** Read one short story, latest or an explicit revision. */
+export function readShortStory(root, input) {
+  return readFormArtifact(root, input, 'short', 'short_story')
+}
+
+/** Write one script as `script:<id>`; it never maps to a chapter row. */
+export function writeScript(root, input) {
+  return writeFormArtifact(root, input, 'script', 'script')
+}
+
+/** Read one script, latest or an explicit revision. */
+export function readScript(root, input) {
+  return readFormArtifact(root, input, 'script', 'script')
+}
+
 /** Write one chapter memo as `plan:<n>`, scoped to that chapter. */
 export function writeChapterMemo(root, input) {
   const chapter = chapterNumber(input.chapter)
