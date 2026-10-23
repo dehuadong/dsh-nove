@@ -11,11 +11,11 @@
 
 import { createHash, randomUUID } from 'node:crypto'
 import {
-  closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, rmSync, unlinkSync, utimesSync, writeFileSync, writeSync,
+  closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, rmSync, statSync, unlinkSync, utimesSync, writeFileSync, writeSync,
 } from 'node:fs'
 import { join } from 'node:path'
 import {
-  backupTo, checkpoint, createWorkDatabase, exportsDir, integrityCheck, WORK_SCHEMA_VERSION,
+  backupTo, checkpoint, createWorkDatabase, exportsDir, integrityCheck, migrateWorkSchema, WORK_SCHEMA_VERSION,
   materialsDir, moveDatabaseFiles, openCatalog, openDatabase, openWork, removeDatabaseFiles, transaction,
   trashDir, trashFile, workFile, worksDir, backupsDir,
 } from './db.js'
@@ -2670,6 +2670,204 @@ export async function exportWorkAtomic(root, work, options = {}) {
   }
 }
 
+/** Escape one literal string for a backup filename pattern. */
+function escapeBackup(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
+}
+
+/** Exact backup filename filter for one work: <workId>-<digits>.db. */
+function backupPattern(workId) {
+  return new RegExp(`^${escapeBackup(workId)}-(\\d+)\\.db$`, 'u')
+}
+
+/** List one work's backup files, newest first. */
+function backupFiles(root, workId) {
+  const directory = backupsDir(root)
+  let names
+  try {
+    names = readdirSync(directory)
+  } catch {
+    return []
+  }
+  const pattern = backupPattern(workId)
+  return names
+    .filter(name => pattern.test(name))
+    .sort()
+    .reverse()
+    .map(name => {
+      const file = join(directory, name)
+      const info = statSync(file)
+      return { file, name, token: pattern.exec(name)[1], bytes: info.size, createdAt: info.mtime.toISOString() }
+    })
+}
+
+/** List a work's backups with stable ids for routes/UI. */
+export function listBackups(root, work) {
+  const workId = String(work)
+  return backupFiles(root, workId).map(entry => ({
+    backupId: `backup:${workId}:${entry.token}`,
+    file: entry.file,
+    bytes: entry.bytes,
+    createdAt: entry.createdAt,
+  }))
+}
+
+/** Resolve a backupId without crossing into another work's files. */
+function resolveBackupFile(root, workId, backupId) {
+  const prefix = `backup:${workId}:`
+  if (typeof backupId !== 'string' || !backupId.startsWith(prefix)) throw new StoryError('backup-not-found', '没有这个备份')
+  const token = backupId.slice(prefix.length)
+  if (!/^\d+$/u.test(token)) throw new StoryError('backup-not-found', '没有这个备份')
+  const file = join(backupsDir(root), `${workId}-${token}.db`)
+  if (!existsSync(file)) throw new StoryError('backup-not-found', '没有这个备份')
+  return { file, token }
+}
+
+/** Run one function under the per-work lock shared with export. */
+async function withWorkLock(root, work, fn) {
+  const key = `${root}\0${work}`
+  const previous = exportLocks.get(key) ?? Promise.resolve()
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  const tail = previous.then(() => gate)
+  exportLocks.set(key, tail)
+  await previous
+  try {
+    return await fn()
+  } finally {
+    release()
+    if (exportLocks.get(key) === tail) exportLocks.delete(key)
+  }
+}
+
+/** Delete old panel-created backups, keeping the newest `keep` files. */
+export function pruneBackups(root, workId, keep) {
+  if (keep === 0) return { removed: [] }
+  const files = backupFiles(root, workId)
+  const removed = []
+  for (const entry of files.slice(keep)) {
+    unlinkSync(entry.file)
+    removed.push(entry.name)
+  }
+  return { removed }
+}
+
+/** Create a backup and apply the panel retention policy. */
+export async function createBackup(root, work, keep = 10) {
+  const limit = keep === 0 ? 0 : Number(keep)
+  if (![0, 5, 10, 20].includes(limit)) throw new StoryError('backup-keep-invalid', '保留策略只允许 5/10/20/不清理')
+  return withWorkLock(root, work, async () => {
+    const result = await backupWork(root, work)
+    const pruned = pruneBackups(root, work, limit)
+    return { ...result, pruned: pruned.removed.length }
+  })
+}
+
+/** Delete one backup file, never the work database. */
+export async function deleteBackup(root, work, backupId) {
+  return withWorkLock(root, work, async () => {
+    const target = resolveBackupFile(root, work, backupId)
+    unlinkSync(target.file)
+    return { backupId }
+  })
+}
+
+/**
+ * Restore one backup over the current work, with an automatic safety backup.
+ * @param {string} root - workspace directory.
+ * @param {string} work - work identity.
+ * @param {string} backupId - backup identity.
+ * @param {{corruptCurrent?: boolean}} [options] - internal diagnostic path.
+ * @returns {Promise<{workId: string, restoredBackup: string, safetyBackup: string|undefined, corrupt: boolean}>} receipt.
+ */
+export async function restoreBackup(root, work, backupId, options = {}) {
+  const workId = String(work)
+  const catalog = openCatalog(root)
+  let row
+  try {
+    row = catalogRow(catalog, workId)
+  } finally {
+    catalog.close()
+  }
+  if (row === undefined || row.trashed_at !== null) throw new StoryError('work-not-found', `没有作品：${workId}`)
+  const target = resolveBackupFile(root, workId, backupId)
+  const stage = join(worksDir(root), `.${workId}-restore-${randomUUID().slice(0, 8)}.db`)
+  const safety = join(backupsDir(root), `.safety-${workId}-${Date.now()}.db`)
+  const hiddenCorrupt = join(backupsDir(root), `.corrupt-${workId}-${Date.now()}.db`)
+
+  return withWorkLock(root, workId, async () => {
+    copyFileSync(target.file, stage)
+    try {
+      const copy = openDatabase(stage, '备份无法读取')
+      try {
+        migrateWorkSchema(copy)
+        if (integrityCheck(copy) !== 'ok') throw new StoryError('backup-invalid', '备份文件不完整')
+      } finally {
+        copy.close()
+      }
+    } catch (error) {
+      removeDatabaseFiles(stage)
+      if (error instanceof StoryError) throw error
+      throw new StoryError('backup-invalid', `备份无法恢复：${error.message}`)
+    }
+
+    let corrupt = options.corruptCurrent === true
+    let safetyBackup
+    try {
+      if (!corrupt) {
+        try {
+          safetyBackup = (await backupWork(root, workId)).file
+        } catch (error) {
+          if (error?.code !== 'db-corrupt') throw error
+          corrupt = true
+        }
+      }
+      const current = workFile(root, workId)
+      if (!corrupt) {
+        const db = openWork(root, workId)
+        try {
+          checkpoint(db)
+        } finally {
+          db.close()
+        }
+        moveDatabaseFiles(current, safety)
+      } else {
+        moveDatabaseFiles(current, hiddenCorrupt)
+      }
+      try {
+        moveDatabaseFiles(stage, current)
+      } catch (error) {
+        if (corrupt) moveDatabaseFiles(hiddenCorrupt, current)
+        else moveDatabaseFiles(safety, current)
+        throw new StoryError('backup-rollback-failed', `恢复失败且回滚失败：${error.message}`)
+      }
+      const verify = openWork(root, workId)
+      try {
+        if (integrityCheck(verify) !== 'ok') throw new StoryError('backup-invalid', '恢复后的作品库不完整')
+      } catch (error) {
+        verify.close()
+        moveDatabaseFiles(current, stage)
+        if (corrupt) moveDatabaseFiles(hiddenCorrupt, current)
+        else moveDatabaseFiles(safety, current)
+        removeDatabaseFiles(stage)
+        throw new StoryError('backup-invalid', `恢复后校验失败：${error.message}`)
+      }
+      verify.close()
+      const at = now()
+      const db = openWork(root, workId)
+      try {
+        db.prepare('UPDATE meta SET updated_at = ? WHERE id = 1').run(at)
+      } finally {
+        db.close()
+      }
+      if (!corrupt && existsSync(safety)) removeDatabaseFiles(safety)
+      return { workId, restoredBackup: backupId, safetyBackup, corrupt }
+    } finally {
+      if (existsSync(stage)) removeDatabaseFiles(stage)
+    }
+  })
+}
+
 /**
  * Copy one work's database to a backup file with an integrity check.
  * @param {string} root - workspace directory.
@@ -2685,7 +2883,14 @@ export async function backupWork(root, work, destination) {
     if (row === undefined) throw new StoryError('work-not-found', `没有作品：${String(work)}`)
     const db = openWork(root, row.work_id)
     try {
-      const file = destination ?? join(backupsDir(root), `${row.work_id}-${Date.now()}.db`)
+      let file = destination
+      if (file === undefined) {
+        let stamp = Date.now()
+        do {
+          file = join(backupsDir(root), `${row.work_id}-${stamp}.db`)
+          stamp += 1
+        } while (existsSync(file))
+      }
       try {
         await backupTo(db, file)
       } catch (error) {

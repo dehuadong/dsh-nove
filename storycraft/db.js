@@ -398,7 +398,7 @@ const MATERIAL_COLUMNS_V4 = [...MATERIALS_SCHEMA_V4.matchAll(/^\s{2}([a-z_]+)\s/
  * reused only when their shape still matches the shared schema.
  * @param {import('node:sqlite').DatabaseSync} db - open v1–v4 work database.
  */
-function migrateWorkSchema(db) {
+export function migrateWorkSchema(db) {
   transaction(db, () => {
     let version = userVersion(db)
     if (version === WORK_SCHEMA_VERSION) return

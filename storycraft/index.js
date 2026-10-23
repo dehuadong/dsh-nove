@@ -13,7 +13,7 @@
 
 import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, resolve } from 'node:path'
-import { approveChapterPlan, approveOutline, backupWork, deleteChapter, deleteMaterial, ensureReconciled, exportWorkAtomic, importMaterial, moveChapter, listMaterials, listTrash, listWorks, nextStep, purgeTrash, readManifest, readChapter, readReview, readWork, renameMaterial, restoreWork, setMaterialPurpose, status as readStatus, StoryError } from './storage.js'
+import { approveChapterPlan, approveOutline, createBackup, deleteBackup, deleteChapter, deleteMaterial, ensureReconciled, exportWorkAtomic, importMaterial, moveChapter, listMaterials, listTrash, listWorks, nextStep, purgeTrash, readManifest, restoreBackup, listBackups, readChapter, readReview, readWork, renameMaterial, restoreWork, setMaterialPurpose, status as readStatus, StoryError } from './storage.js'
 import { critique } from './critique.js'
 import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent } from './current.js'
 import { readVolumes } from './volumes.js'
@@ -232,6 +232,19 @@ export function apply(ctx) {
     }
     return { root, workId }
   }
+  const targetWork = async (body) => {
+    const sessionId = typeof body?.sessionId === 'string' ? body.sessionId : ''
+    const workId = typeof body?.workId === 'string' ? body.workId : ''
+    if (sessionId === '' || workId === '') throw new StoryError('invalid-body', '操作需要 sessionId 与 workId')
+    const root = await rootOf(ctx, new URLSearchParams({ root: String(body?.root ?? '') }))
+    const works = await listWorks(root)
+    if (!works.some(work => work.workId === workId)) throw new StoryError('work-not-found', `没有作品：${workId}`)
+    if (getCurrent(sessionId) !== workId) {
+      hydrateCurrent(await readCurrentFile(root))
+      if (getCurrent(sessionId) !== workId) throw new StoryError('work-mismatch', '只在面板当前作品里操作')
+    }
+    return { root, workId }
+  }
   const disposers = [
     ctx.webServer.register({
       kind: 'exact',
@@ -276,9 +289,30 @@ export function apply(ctx) {
       path: `${BASE}/backups/create`,
       handler: (req, res) => {
         void postRoute(req, res, async (body) => {
-          const root = await rootOf(ctx, new URLSearchParams({ root: String(body?.root ?? '') }))
-          if (typeof body?.workId !== 'string') throw new StoryError('invalid-body', '备份需要 workId')
-          return backupWork(root, body.workId)
+          const { root, workId } = await targetWork(body)
+          return createBackup(root, workId, body?.keep === undefined ? 10 : Number(body.keep))
+        }, { maxBytes: 32 * 1024, requireJson: true })
+      },
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/backups/restore`,
+      handler: (req, res) => {
+        void postRoute(req, res, async (body) => {
+          const { root, workId } = await targetWork(body)
+          if (body?.confirm !== true) throw new StoryError('backup-restore-unconfirmed', '恢复备份需要确认')
+          return restoreBackup(root, workId, String(body?.backupId ?? ''))
+        }, { maxBytes: 32 * 1024, requireJson: true })
+      },
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/backups/delete`,
+      handler: (req, res) => {
+        void postRoute(req, res, async (body) => {
+          const { root, workId } = await targetWork(body)
+          if (body?.confirm !== true) throw new StoryError('backup-delete-unconfirmed', '删除备份需要确认')
+          return deleteBackup(root, workId, String(body?.backupId ?? ''))
         }, { maxBytes: 32 * 1024, requireJson: true })
       },
     }),
@@ -505,19 +539,7 @@ export function apply(ctx) {
       handler: (req, res) => readRoute(req, res, async (query) => {
         const root = await rootOf(ctx, query)
         const workId = workOf(query)
-        const directory = backupsDir(root)
-        const entries = await readdir(directory).catch(() => [])
-        const files = entries.filter(name => name.startsWith(`${workId}-`) && name.endsWith('.db')).sort().reverse()
-        const backups = await Promise.all(files.map(async (name) => {
-          const info = await stat(join(directory, name))
-          return {
-            backupId: `backup:${workId}:${name.slice(workId.length + 1, -3)}`,
-            file: join(directory, name),
-            bytes: info.size,
-            createdAt: info.mtime.toISOString(),
-          }
-        }))
-        return { backups }
+        return { backups: listBackups(root, workId) }
       }),
     }),
     ctx.webServer.register({

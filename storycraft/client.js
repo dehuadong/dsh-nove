@@ -334,7 +334,9 @@ window.__ModuleLoader__.load({
         listTrash: (root) => route(ROUTE.trash, { root }),
         restoreTrash: (root, workId) => post('/api/dsh-storycraft/trash/restore', { root, workId }),
         purgeTrash: (root, workId) => post('/api/dsh-storycraft/trash/purge', { root, workId, confirm: true }),
-        createBackup: (root, workId) => post('/api/dsh-storycraft/backups/create', { root, workId }),
+        createBackup: (root, sessionId, workId, keep) => post('/api/dsh-storycraft/backups/create', { root, sessionId, workId, keep }),
+        restoreBackup: (root, sessionId, workId, backupId) => post('/api/dsh-storycraft/backups/restore', { root, sessionId, workId, backupId, confirm: true }),
+        deleteBackup: (root, sessionId, workId, backupId) => post('/api/dsh-storycraft/backups/delete', { root, sessionId, workId, backupId, confirm: true }),
         volumes: (root, id) => route(ROUTE.volumes, { root, id }),
         critique: (root, id, chapter) => route(ROUTE.critique, { root, id, chapter }),
         next: (root, id) => route(ROUTE.next, { root, id }),
@@ -917,6 +919,14 @@ window.__ModuleLoader__.load({
       const [chapterPage, setChapterPage] = useState(1)
       const [exportInfo, setExportInfo] = useState(undefined)
       const [backupList, setBackupList] = useState([])
+      const [backupKeep, setBackupKeep] = useState(() => {
+        try {
+          const saved = Number(localStorage.getItem('storycraft.backup.keep'))
+          return [0, 5, 10, 20].includes(saved) ? saved : 10
+        } catch {
+          return 10
+        }
+      })
       const [brief, setBrief] = useState({ status: 'idle' })
       const [materials, setMaterials] = useState([])
       const [exporting, setExporting] = useState(false)
@@ -1015,6 +1025,49 @@ window.__ModuleLoader__.load({
           onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
         } finally {
           setStyleBusy(false)
+        }
+      }
+
+      const createBackupNow = async () => {
+        if (sessionId === undefined) return
+        try {
+          localStorage.setItem('storycraft.backup.keep', String(backupKeep))
+        } catch {}
+        try {
+          const result = await face.createBackup(root, sessionId, workId, backupKeep)
+          onNotice({ kind: 'ok', text: `已备份；按策略清理 ${result.pruned ?? 0} 份旧备份` })
+          await refreshBackups()
+        } catch (error) {
+          onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
+        }
+      }
+
+      const restoreBackupItem = async (item) => {
+        if (sessionId === undefined) return
+        if (!window.confirm('恢复会用这个备份覆盖当前作品库；恢复前会自动备份当前版本。继续？')) return
+        try {
+          await face.restoreBackup(root, sessionId, workId, item.backupId)
+          setSelected(undefined)
+          setChapterPage(1)
+          setBible({ status: 'idle' })
+          setBrief({ status: 'idle' })
+          onNotice({ kind: 'ok', text: '已恢复备份；当前作品已重新读取' })
+          await load()
+          await refreshBackups()
+        } catch (error) {
+          onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
+        }
+      }
+
+      const deleteBackupItem = async (item) => {
+        if (sessionId === undefined) return
+        if (!window.confirm('删除这个备份文件？此操作不可撤销。')) return
+        try {
+          await face.deleteBackup(root, sessionId, workId, item.backupId)
+          onNotice({ kind: 'ok', text: '已删除备份' })
+          await refreshBackups()
+        } catch (error) {
+          onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
         }
       }
 
@@ -1182,13 +1235,16 @@ window.__ModuleLoader__.load({
 
       useEffect(() => {
         if (tab !== 'exports') return
-        Promise.all([
-          face.exports(root, workId).catch(() => ({ exists: false })),
-          face.backups(root, workId).catch(() => ({ backups: [] })),
-        ]).then(([exports, backups]) => {
-          setExportInfo(exports)
-          setBackupList(backups.backups ?? [])
-        })
+        face.exports(root, workId).then(setExportInfo).catch(() => setExportInfo({ exists: false }))
+      }, [tab, face, root, workId])
+
+      const refreshBackups = () => face.backups(root, workId)
+        .then(result => setBackupList(result.backups ?? []))
+        .catch(error => onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) }))
+
+      useEffect(() => {
+        if (tab !== 'backups') return
+        void refreshBackups()
       }, [tab, face, root, workId])
 
       const loadBrief = async (chapter) => {
@@ -1568,7 +1624,7 @@ window.__ModuleLoader__.load({
           h('span', { className: 'sc-badge' }, `伏笔 未解 ${detail.state.hooks.filter(hook => hook.state !== 'resolved').length}`),
         ),
         h('div', { className: 'sc-main-tabs', role: 'tablist', 'aria-label': '作品面板' },
-          ...['chapters', 'truth', 'context', 'materials', 'exports'].map((name, index) => h('button', {
+          ...['chapters', 'truth', 'context', 'materials', 'exports', 'backups'].map((name, index) => h('button', {
             key: name,
             type: 'button',
             role: 'tab',
@@ -1579,13 +1635,13 @@ window.__ModuleLoader__.load({
             className: 'sc-main-tab',
             onClick: () => switchTab(name),
             onKeyDown: event => {
-              const order = ['chapters', 'truth', 'context', 'materials', 'exports']
+              const order = ['chapters', 'truth', 'context', 'materials', 'exports', 'backups']
               if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
               event.preventDefault()
               const next = event.key === 'Home' ? 0 : event.key === 'End' ? order.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + order.length) % order.length
               if (switchTab(order[next])) document.getElementById(`sc-tab-${order[next]}`)?.focus()
             },
-          }, name === 'chapters' ? '章节' : name === 'truth' ? '真值' : name === 'context' ? '写前上下文' : name === 'materials' ? '素材' : '导出')),
+          }, name === 'chapters' ? '章节' : name === 'truth' ? '真值' : name === 'context' ? '写前上下文' : name === 'materials' ? '素材' : name === 'exports' ? '导出' : '备份')),
         ),
         notice === undefined ? null : h('p', { className: `sc-notice sc-notice-${notice.kind}`, style: { marginTop: 12 } }, notice.text),
 
@@ -1991,32 +2047,8 @@ window.__ModuleLoader__.load({
           hidden: tab !== 'exports',
         },
           h('h3', { className: 'sc-section-title' }, '导出'),
-          h('p', { className: 'sc-item-body' }, '由宿主直接写 TXT/EPUB 到 .storycraft/exports；目录只读显示，不把路径交给模型。'),
+          h('p', { className: 'sc-item-body' }, '导出是覆盖快照：每次替换 .storycraft/exports 下的当前版本，不保留历史。'),
           h('p', { className: 'sc-item-body' }, exportInfo === undefined ? '读取导出目录…' : exportInfo.exists === true ? `已导出：${exportInfo.directory}` : '还没有导出。'),
-          h('p', { className: 'sc-item-body' }, `备份 ${backupList.length} 份（.storycraft/backups）`),
-          h('div', { className: 'sc-actions' },
-            h('button', {
-              type: 'button',
-              className: 'sc-btn',
-              disabled: sessionId === undefined,
-              onClick: () => {
-                void face.createBackup(root, workId)
-                  .then(() => face.backups(root, workId))
-                  .then(result => setBackupList(result.backups ?? []))
-                  .catch(error => onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) }))
-              },
-            }, '立即备份'),
-          ),
-          backupList.length === 0
-            ? h('p', { className: 'sc-muted' }, '还没有备份。')
-            : h('div', null, ...backupList.map((item, index) => h('div', { className: 'sc-item', key: item.backupId },
-              h('div', { className: 'sc-item-head' },
-                h('span', { className: 'sc-badge' }, String(index + 1).padStart(2, '0')),
-                h('span', { className: 'sc-item-name' }, item.file.split(/[\\/]/u).at(-1)),
-                h('span', { className: 'sc-badge' }, `${item.bytes} B`),
-                h('span', { className: 'sc-item-id' }, String(item.createdAt ?? '').replace('T', ' ').slice(0, 16)),
-              ),
-            ))),
           h('div', { className: 'sc-actions' },
             h('button', {
               type: 'button',
@@ -2029,6 +2061,55 @@ window.__ModuleLoader__.load({
             h('button', { type: 'button', className: 'sc-btn', onClick: () => { void showExportDirectory() } }, '查看导出目录'),
           ),
         ),
+
+        h('div', {
+          className: 'sc-section sc-tab-panel',
+          id: 'sc-panel-backups',
+          role: 'tabpanel',
+          'aria-labelledby': 'sc-tab-backups',
+          hidden: tab !== 'backups',
+        },
+          h('h3', { className: 'sc-section-title' }, '备份'),
+          h('p', { className: 'sc-item-body' }, `备份 ${backupList.length} 份；每份是独立数据库副本，可恢复或删除。`),
+          h('div', { className: 'sc-actions' },
+            h('button', {
+              type: 'button',
+              className: 'sc-btn sc-btn-primary',
+              disabled: sessionId === undefined,
+              onClick: () => { void createBackupNow() },
+            }, '立即备份'),
+            h('select', {
+              className: 'sc-input sc-narrow',
+              'aria-label': '备份保留策略',
+              value: backupKeep,
+              onChange: event => {
+                const keep = Number(event.target.value)
+                setBackupKeep(keep)
+                try { localStorage.setItem('storycraft.backup.keep', String(keep)) } catch {}
+              },
+            },
+              h('option', { value: 5 }, '保留 5 份'),
+              h('option', { value: 10 }, '保留 10 份'),
+              h('option', { value: 20 }, '保留 20 份'),
+              h('option', { value: 0 }, '不自动清理'),
+            ),
+          ),
+          backupList.length === 0
+            ? h('p', { className: 'sc-muted' }, '还没有备份。')
+            : h('div', null, ...backupList.map((item, index) => h('div', { className: 'sc-item', key: item.backupId },
+              h('div', { className: 'sc-item-head' },
+                h('span', { className: 'sc-badge' }, String(index + 1).padStart(2, '0')),
+                h('span', { className: 'sc-item-name' }, item.file.split(/[\\/]/u).at(-1)),
+                h('span', { className: 'sc-badge' }, `${item.bytes} B`),
+                h('span', { className: 'sc-item-id' }, String(item.createdAt ?? '').replace('T', ' ').slice(0, 16)),
+              ),
+              h('div', { className: 'sc-actions' },
+                h('button', { type: 'button', className: 'sc-btn sc-btn-small', onClick: () => { void restoreBackupItem(item) } }, '恢复'),
+                h('button', { type: 'button', className: 'sc-btn sc-btn-small', onClick: () => { void deleteBackupItem(item) } }, '删除'),
+              ),
+            ))),
+        ),
+
 
         bibleEditor === undefined
           ? null
@@ -2067,7 +2148,7 @@ window.__ModuleLoader__.load({
         h('details', { className: 'sc-help' },
           h('summary', null, '这一页怎么工作'),
           h('ol', null,
-            h('li', null, '顶部有「章节 / 真值 / 写前上下文 / 素材 / 导出」五个标签；章节默认倒序、20 章/页。'),
+            h('li', null, '顶部有「章节 / 真值 / 写前上下文 / 素材 / 导出 / 备份」六个标签；章节默认倒序、20 章/页。'),
             h('li', null, '页面只读：作品、章节、审稿与状态都从作品目录读取，不另存一份。'),
             h('li', null, '按钮不写文件：它把一条固定指令投递给当前会话，由模型调用 story_init / story_plan / story_write / story_review / story_revise / story_state 落盘。'),
             h('li', null, '所以写完一章后点「刷新」，或重新进入本页，就能看到新章节与新字数。'),
