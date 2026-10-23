@@ -932,7 +932,7 @@ function rawDefinitions(ctx) {
       name: 'story_init',
       mutates: true,
       description: '建立一部作品：真值五件与检索表。'
-        + ' 用户要求开始写一部新作品时先调用它。作品 id 由标题生成；同 id 已存在时拒绝，不覆盖已有作品。'
+        + ' 先有作者同意的提案，再调用它立项。作品 id 由标题生成；同 id 已存在时拒绝，不覆盖已有作品。'
 
         + ' 会话没有当前作品时，成功后会把新作品设为当前；已有其他当前作品时拒绝（请新建会话再立项）。',
       parameters: {
@@ -1006,7 +1006,7 @@ function rawDefinitions(ctx) {
       mutates: true,
       description: '把与作者谈成的方案落成提案（标题、形态、一句话前提、主要人物与冲突）。'
         + ' 提案不是作品：不建目录、不写章节。方向成熟后写提案给作者看，作者明确同意后再 story_init。'
-        + ' 讨论阶段不要调用它，也不要写任何文件。',
+        + ' 讨论阶段不要调用它，也不要写任何文件；缺信息时先只问一个最关键的问题，不要一次抛出问卷。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -1016,7 +1016,7 @@ function rawDefinitions(ctx) {
           premise: { type: 'string', description: '一句话前提或核心冲突。' },
           characters: { type: 'string', description: '主要人物与他们的目标（可选）。' },
           conflict: { type: 'string', description: '主要冲突或阻力（可选）。' },
-          notes: { type: 'string', description: '其他约定，如字数范围、叙事视角（可选）。' },
+          notes: { type: 'string', description: '完整创意 brief：约定、字数范围、叙事视角、参考与禁区（可选，但方向成熟时建议写全）。' },
         },
         required: ['title', 'premise'],
       },
