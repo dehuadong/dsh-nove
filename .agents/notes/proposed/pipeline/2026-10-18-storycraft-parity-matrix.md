@@ -23,9 +23,9 @@ updated: 2026-10-23
 
 - **最强差距不在「有没有角色」，而在三处交接**：
   1. 委派只到 writer / reviewer / reviser / summarizer；architect、planner 没有委派角色；
-  2. `story_state` 是手工写入口，没有 settler 自动投影，也没有 state validator 对账；
+  2. `story_state` 是手工写入口；R9b 已有只读语义检查，但还没有 settler 自动投影与自动对账；
   3. writer 委派硬编码「长篇小说」和长篇技能，短篇/剧本子代理拿不到形态技能。
-- **Skill 不是数量问题，是资源深度与路由问题**：9 个技能覆盖主干；长篇三份方法参考（foundation / 读者承诺 / 状态投影）已在 `storycraft-longform-method`；分析与市场研究仍没有 lens/rubric。
+- **Skill 不是数量问题，是资源深度与路由问题**：10 个技能覆盖主干；长篇三份方法参考（foundation / 读者承诺 / 状态投影）已在 `storycraft-longform-method`；分析与市场研究仍没有 lens/rubric。
 - **不复制 InkOS 的权限层**：capability gating、`propose_action`、Profile 注入、`skills-applied` 证据是它 2.0 的宿主模型；DSH 已有自己的动作、作者闸门与委派回执，只借方法与资源组织。
 
 ## 提案
@@ -49,7 +49,7 @@ updated: 2026-10-23
 
 ### 技能对拍
 
-参考 `inkos-master/packages/core/skills` 共 20 个技能、18 份 references；我们 9 个技能、7 份 references。
+参考 `inkos-master/packages/core/skills` 共 20 个技能、18 份 references；我们 10 个技能、7 份 references。
 
 | 参考技能（refs） | 我们的落点 | 状态 |
 | --- | --- | --- |
@@ -57,6 +57,7 @@ updated: 2026-10-23
 | 短篇写法（1） | `storycraft-short-story` | 部分：缺生产/包装清单；`SKILL.md:9,36-37` 与阶段机/SQLite 冲突 |
 | 剧本写法（1） | `storycraft-short-drama` | 部分：缺改编边界与制作约束 |
 | 审稿（1） | `storycraft-review` + `review-dimensions.md` | 已采纳 |
+| 状态对账（0） | `storycraft-state-check` + `story_state_check` | 已采纳：只读、advisory；自动 settler + 一次重算留 R11 |
 | 去 AI 味（1） | `storycraft-revise-craft` + `deslop.md` | 已采纳；`deslop.md` 未在正文点名 |
 | 续写（0） | 长篇「承接上一章」一句 | 部分：无正典重建、续写点 |
 | 导入（1） | `story_bible_import`（仅旧 `design/` 真值） | 部分：不导入章节，`bible.js:240` 还阻断 outline |
@@ -70,7 +71,7 @@ updated: 2026-10-23
 
 | 维度 | 参考实现 | 我们当前 | 状态 | 决定 |
 | --- | --- | --- | --- | --- |
-| 主文件 / references | 主体短，长篇 4 份，正文链接 3 份 | 9 技能 7 份；长篇 3 份方法参考均被正文点名，`deslop.md` 仍未点名 | 已采纳（deslop 待补） | 新增长篇 3 份，在角色 SKILL.md 里点名；不复制参考实现字段 |
+| 主文件 / references | 主体短，长篇 4 份，正文链接 3 份 | 10 技能 7 份；长篇 3 份方法参考均被正文点名，`deslop.md` 仍未点名 | 已采纳（deslop 待补） | 新增长篇 3 份，在角色 SKILL.md 里点名；不复制参考实现字段 |
 | 激活与证据 | Profile 必需技能注入并记 `skills-applied` | `mode: all`；子代理按提示自己 `skill`，无加载证据 | 部分 | 保留模型加载；补技能名存在性测试，不复制注入层 |
 | 形态→技能 | Profile 按作品类型绑定必需技能 | writer 按 `form` 追加形态技能；reviewer/reviser 按设计不加 | 部分 | writer 路由已接；reviewer/reviser 只加载角色技能；short-story 输出契约已由 R6b-fix 修正 |
 | 技能来源 | 包内 + 外部目录 + 项目技能 | 插件包内技能 | 部分 | 暂不开放外部导入；先保证内置技能自洽 |
@@ -88,7 +89,7 @@ updated: 2026-10-23
 | 章计划交接 | planner 产出 ChapterIntent + ChapterMemo | 章纲五字段 | 无独立 memo | 部分 | 保留章纲，不新增对象 |
 | 上下文装配 | composer：半窗预算、语义选择、trace | `story_context` 固定段 + 8000 字符 | 无 token 预算/trace | 部分 | R12 |
 | 状态投影 | writer 提交后自动 factOps/hookOps + baseline | `story_state` 手工 | 无自动投影 | 缺失 | R11 |
-| 状态对账 | validator 比较旧/新投影与权威，最多一次重投影 | 确定性预检：重复事实、伏笔状态机、二次归档 | 缺语义对账 | 部分 | R9 已交付；R9b 语义 |
+| 状态对账 | validator 比较旧/新投影与权威，最多一次重投影 | 确定性预检 + 只读语义检查 `story_state_check` | 部分：自动 settler + 一次重算 | 部分 | R9/R9b 已交付；自动链路 R11 |
 | 连续性证据 | observation code + 行号 + revision | 审稿问题文本 | 无结构化证据 | 部分 | 后续补 code/行号 |
 | 失败策略 | 错误码回给子代理修正；失败保留正史 | 重试/回退；误报可触发整章重写 | 分类不统一 | 部分 | 统一失败码 |
 | 技能加载 | Profile + 每动作默认技能合并 | 子代理按提示加载；writer 已按 form 追加技能 | 无加载证据 | 部分 | R6b 已交付；证据后续 |
@@ -117,7 +118,7 @@ updated: 2026-10-23
 | 连续性审稿 | LLM auditor + 证据 observations | `story_review` / reviewer 问题条目 | 无 observation code / 行号 | 部分 | 后续补证据 |
 | 质检 | 指标与审稿分离 | `story_critique` | 未进入工作流对拍 | 部分 | 保留独立只读节点 |
 | 状态抽取 | chapter summary / factOps / hookOps | `story_state` 手写 | 无自动 settler | 缺失 | R11 |
-| 状态对账 | StateValidator 语义对账 | 确定性预检：重复事实、伏笔状态机、二次归档 | 无语义对账 | 部分 | R9 已交付；语义留 R9b |
+| 状态对账 | StateValidator 语义对账 | 确定性预检 + 只读 `story_state_check` | 自动 settler + 一次重算 | 部分 | R9/R9b 已交付；自动链路 R11 |
 | 修订 | 独立 revise，mode + observations | `story_revise` / reviser | 无 observation 输入 | 部分 | 保留 mode |
 | 审稿/修订分离 | 审稿只观察，不自动改 | review 条目 + 主编决定 | 委派失败会回退重写 | 部分 | warning 不触发重写 |
 | 作者闸门 | 计划/章纲确认 | 面板确认 | 无 | 对齐 | 确认不自动发送 |

@@ -33,12 +33,12 @@ const ctx = {
 tools.apply(ctx, { mode: 'longform' })
 
 const names = registered.map(definition => definition.name).sort()
-check('registers thirty actions', names.length === 30, names.join(','))
+check('registers thirty-one actions', names.length === 31, names.join(','))
 check('action names', names.join(',') === [
   'story_backup', 'story_bible', 'story_bible_import', 'story_bible_write', 'story_brief', 'story_context',
   'story_critique', 'story_current', 'story_delegate', 'story_delete', 'story_export', 'story_init', 'story_next', 'story_outline',
   'story_plan', 'story_propose', 'story_read', 'story_rename', 'story_reopen', 'story_restore', 'story_review', 'story_revise', 'story_submit',
-  'story_settings', 'story_state', 'story_status', 'story_summarize', 'story_volume', 'story_volumes', 'story_write',
+  'story_settings', 'story_state', 'story_state_check', 'story_status', 'story_summarize', 'story_volume', 'story_volumes', 'story_write',
 ].sort().join(','), names.join(','))
 check('the delegation and scope guards are registered', guards.length === 2, String(guards.length))
 check('every action declares output schema', registered.every(definition => definition.output?.schema && typeof definition.output?.render === 'function'))
@@ -403,6 +403,11 @@ try {
   check('delegation is refused before work resolution', deniedEarly.ok === false && deniedEarly.error.code === 'subagent-cannot-land', JSON.stringify(deniedEarly))
   const childRead = await byName.get('story_status').execute({ work }, childExec)
   check('a delegated subagent keeps read actions', childRead.ok === true && childRead.status.writtenChapters === 1, JSON.stringify(childRead.status ?? childRead))
+  const deniedCheck = await byName.get('story_state_check').execute({
+    work, chapter: 1, entities: [{ name: '甲', facts: ['一条事实'] }],
+  }, childExec)
+  check('a delegated subagent cannot start a state check', deniedCheck.ok === false
+    && deniedCheck.error.code === 'state-check-parent-denied', JSON.stringify(deniedCheck))
   check('the guard refuses delegated file and shell tools',
     ['write', 'edit', 'pwsh', 'bash'].every(name => typeof guards[0]({ name, agent: childExec.agent }) === 'string'))
   check('the guard leaves the main agent alone', guards[0]({ name: 'write', agent: exec.agent }) === undefined)

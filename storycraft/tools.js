@@ -33,6 +33,7 @@ import { readVolumes, writeVolume } from './volumes.js'
 import { critique } from './critique.js'
 import { loadRoleInput } from './role-input.js'
 import { delegateRole } from './delegate.js'
+import { checkChapterState } from './state-check.js'
 import { submitPayload } from './submission.js'
 import { checkDraft } from './landing.js'
 import { getCurrent, hydrate as hydrateCurrent, markHydrated, resolveWork, setCurrent, shouldHydrate } from './current.js'
@@ -852,6 +853,65 @@ const DELEGATE_OUTPUT = {
   render: OUTPUT.render,
 }
 
+/** One advisory semantic finding returned by `story_state_check`. */
+const STATE_CHECK_ITEM = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    code: {
+      type: 'string',
+      enum: ['fact-unsupported', 'fact-ambiguous', 'missing-change', 'hook-state-mismatch', 'hook-evidence-weak'],
+    },
+    where: { type: 'string' },
+    problem: { type: 'string' },
+    evidence: { type: 'string' },
+    impact: { type: 'string' },
+    severity: { type: 'string', enum: ['major', 'minor'] },
+    fix: { type: 'string' },
+    evidenceVerified: { oneOf: [{ type: 'boolean' }, { type: 'null' }] },
+  },
+  required: ['code', 'where', 'problem', 'evidence', 'impact', 'severity', 'fix', 'evidenceVerified'],
+}
+
+/** Read-only output of one semantic state check. */
+const STATE_CHECK_OUTPUT = {
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      ok: OUTPUT_PROPERTIES.ok,
+      workId: OUTPUT_PROPERTIES.workId,
+      chapter: { type: 'integer' },
+      revision: { type: 'integer' },
+      checked: { type: 'boolean' },
+      items: { type: 'array', items: STATE_CHECK_ITEM },
+      counts: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          facts: { type: 'integer' },
+          hooks: { type: 'integer' },
+          items: { type: 'integer' },
+        },
+        required: ['facts', 'hooks', 'items'],
+      },
+      warnings: OUTPUT_PROPERTIES.warnings,
+      trace: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          durationMs: { type: 'integer' },
+          submissionAttempts: { type: 'integer' },
+        },
+        required: ['durationMs', 'submissionAttempts'],
+      },
+      error: OUTPUT_PROPERTIES.error,
+    },
+    required: ['ok'],
+  },
+  render: OUTPUT.render,
+}
+
 /**
  * Output contract for `story_context`. It cannot reuse the brief's section shape:
  * those sections require `bytes` and have no protection level.
@@ -1256,6 +1316,61 @@ function rawDefinitions(ctx) {
           ok: true, workId: args.work, artifact: result.artifact, resolved: result.resolved,
           ...(warnings.length === 0 ? {} : { warnings }),
         }
+      },
+    }),
+
+    action({
+      name: 'story_state_check',
+      description: '只读：在 story_state 之前核对拟写入的 delta 是否被本章正文支持，并找出正文里漏记的重要变化。'
+        + ' 只返回建议性 findings，不改正文、不写 events、不改阶段；是否修改 delta 由主编决定。'
+        + ' 只允许主会话调用，会启动一个 validator 子代理。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+          chapter: { type: 'integer', description: '章号。' },
+          entities: {
+            type: 'array',
+            description: '拟写入的人物/关系/时间线事实。',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                name: { type: 'string' },
+                facts: { type: 'array', items: { type: 'string' }, description: '一条或几条事实。' },
+              },
+              required: ['name', 'facts'],
+            },
+          },
+          hooks: {
+            type: 'array',
+            description: '拟写入的伏笔变化。',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                text: { type: 'string' },
+                state: { type: 'string', enum: ['opened', 'used', 'resolved'] },
+              },
+              required: ['text', 'state'],
+            },
+          },
+        },
+        required: ['work', 'chapter'],
+      },
+      output: STATE_CHECK_OUTPUT,
+      async execute(args, exec) {
+        if (delegationDepthOf(exec) > 0) {
+          throw new StoryError('state-check-parent-denied', 'story_state_check 只允许主会话调用；子代理不能发起语义对账')
+        }
+        const root = workspaceOf(exec)
+        const service = typeof ctx?.get === 'function' ? ctx.get('subagents') : undefined
+        return checkChapterState(root, args, {
+          service,
+          agent: exec.agent,
+          signal: exec.signal,
+        })
       },
     }),
 

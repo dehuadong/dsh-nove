@@ -126,6 +126,91 @@ try {
   const summaryConsumed = consumeSubmission(summarizer.delegationId)
   check('accepted summary is consumable', summaryConsumed?.payload.summary === '甲回到屋里。', JSON.stringify(summaryConsumed))
   closeSubmission(summarizer.delegationId)
+
+  const openValidator = () => openSubmission({ role: 'validator', workId: work, chapter: 1 })
+  const item = {
+    code: 'fact-unsupported', where: '霍七', problem: '不是他', evidence: '韩松没松',
+    impact: '归属错', severity: 'major', fix: '改记韩松',
+  }
+  const badCodeEntry = openValidator()
+  const badCode = await submitPayload({
+    delegationId: badCodeEntry.delegationId, depth: 1, root,
+    payload: { items: [{ ...item, code: 'unsupported-fact' }] },
+  })
+  check('validator rejects an unknown finding code', badCode.ok === false
+    && badCode.error.code === 'submit-invalid' && badCode.retryable === true, JSON.stringify(badCode))
+  closeSubmission(badCodeEntry.delegationId)
+  const missingFieldEntry = openValidator()
+  const missingField = await submitPayload({
+    delegationId: missingFieldEntry.delegationId, depth: 1, root,
+    payload: { items: [{ ...item, evidence: '' }] },
+  })
+  check('validator requires evidence', missingField.ok === false
+    && missingField.error.code === 'submit-invalid', JSON.stringify(missingField))
+  closeSubmission(missingFieldEntry.delegationId)
+  const longEvidenceEntry = openValidator()
+  const longEvidence = await submitPayload({
+    delegationId: longEvidenceEntry.delegationId, depth: 1, root,
+    payload: { items: [{ ...item, evidence: '证'.repeat(241) }] },
+  })
+  check('validator caps evidence length', longEvidence.ok === false
+    && longEvidence.error.code === 'submit-invalid', JSON.stringify(longEvidence))
+  closeSubmission(longEvidenceEntry.delegationId)
+  const tooManyEntry = openValidator()
+  const tooMany = await submitPayload({
+    delegationId: tooManyEntry.delegationId, depth: 1, root,
+    payload: { items: Array.from({ length: 9 }, () => item) },
+  })
+  check('validator caps findings at eight', tooMany.ok === false
+    && tooMany.error.code === 'submit-invalid', JSON.stringify(tooMany))
+  closeSubmission(tooManyEntry.delegationId)
+  const badSeverityEntry = openValidator()
+  const badSeverity = await submitPayload({
+    delegationId: badSeverityEntry.delegationId, depth: 1, root,
+    payload: { items: [{ ...item, severity: 'blocker' }] },
+  })
+  check('validator severity is advisory only', badSeverity.ok === false
+    && badSeverity.error.code === 'submit-invalid', JSON.stringify(badSeverity))
+  closeSubmission(badSeverityEntry.delegationId)
+  const emptyEntry = openValidator()
+  const emptyFindings = await submitPayload({
+    delegationId: emptyEntry.delegationId, depth: 1, root, payload: { items: [] },
+  })
+  check('validator accepts an empty finding list', emptyFindings.ok === true
+    && emptyFindings.submitted === true, JSON.stringify(emptyFindings))
+  closeSubmission(emptyEntry.delegationId)
+  const acceptedEntry = openValidator()
+  const acceptedFinding = await submitPayload({
+    delegationId: acceptedEntry.delegationId, depth: 1, root, payload: { items: [item] },
+  })
+  check('validator accepts a non-empty finding', acceptedFinding.ok === true
+    && acceptedFinding.submitted === true, JSON.stringify(acceptedFinding))
+  const acceptedPayload = consumeSubmission(acceptedEntry.delegationId)
+  check('validator finding is consumable', acceptedPayload?.payload.items.length === 1
+    && acceptedPayload.payload.items[0].code === 'fact-unsupported', JSON.stringify(acceptedPayload))
+  closeSubmission(acceptedEntry.delegationId)
+  const missingQuoteEntry = openValidator()
+  const missingQuote = await submitPayload({
+    delegationId: missingQuoteEntry.delegationId, depth: 1, root,
+    payload: { items: [{ ...item, code: 'missing-change', evidence: '无对应段落' }] },
+  })
+  check('missing-change requires a body quote', missingQuote.ok === false
+    && missingQuote.error.code === 'submit-invalid' && missingQuote.retryable === true, JSON.stringify(missingQuote))
+  closeSubmission(missingQuoteEntry.delegationId)
+  const exhaustedEntry = openValidator()
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await submitPayload({
+      delegationId: exhaustedEntry.delegationId, depth: 1, root,
+      payload: { items: [{ ...item, severity: 'blocker' }] },
+    })
+  }
+  const exhaustedFindings = await submitPayload({
+    delegationId: exhaustedEntry.delegationId, depth: 1, root,
+    payload: { items: [{ ...item, severity: 'blocker' }] },
+  })
+  check('validator attempt limit is enforced', exhaustedFindings.ok === false
+    && exhaustedFindings.error.code === 'submit-attempts-exhausted', JSON.stringify(exhaustedFindings))
+  closeSubmission(exhaustedEntry.delegationId)
 } finally {
   await rm(root, { recursive: true, force: true })
 }

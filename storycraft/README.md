@@ -1,12 +1,12 @@
 # 故事工坊（dsh-storycraft）
 
-DSH 里的长篇创作编排：三十个动作把立项、章纲、正文、审稿、修订、定稿归档与导出备份落到**一作品一库**的 SQLite 存储，一个**工作台**以只读方式看作品与章节，并按键把固定指令投给当前会话。故事工坊是**一个工作模式**（一个 Agent 预设），以标准预设为基线再挂自己的动作、技能与人设。
+DSH 里的长篇创作编排：三十一个动作把立项、章纲、正文、审稿、修订、定稿归档与导出备份落到**一作品一库**的 SQLite 存储，一个**工作台**以只读方式看作品与章节，并按键把固定指令投给当前会话。故事工坊是**一个工作模式**（一个 Agent 预设），以标准预设为基线再挂自己的动作、技能与人设。
 
 ## 现状
 
 | 工作模式 | 人设 | 技能 | 动作 | 工作台 |
 | --- | --- | --- | --- | --- |
-| 故事工坊 `storycraft` | 有（主编 / 子代理两用） | 有（长篇 / 短篇 / 剧本形态技能 + 角色写法、审稿、修订、规划；长篇另有方法参考） | **有**：`story_init` `story_plan` `story_write` `story_review` `story_revise` `story_state` `story_status` `story_next` `story_delegate` `story_submit`，以及真值四件 `story_bible` `story_bible_write` `story_bible_import` `story_summarize`、只读 `story_read` 与写前上下文 `story_brief`；常备能力 `story_export` `story_backup` | 有 |
+| 故事工坊 `storycraft` | 有（主编 / 子代理两用） | 有（长篇 / 短篇 / 剧本形态技能 + 角色写法、审稿、修订、规划、状态对账；长篇另有方法参考） | **有**：`story_init` `story_plan` `story_write` `story_review` `story_revise` `story_state` `story_state_check` `story_status` `story_next` `story_delegate` `story_submit`，以及真值四件 `story_bible` `story_bible_write` `story_bible_import` `story_summarize`、只读 `story_read` 与写前上下文 `story_brief`；常备能力 `story_export` `story_backup` | 有 |
 
 动作按预设作用域注册：只有「故事工坊」会话能看到 `story_*`，其他模式与其他会话的工具面不变。形态（长篇 / 短篇 / 剧本）是作品数据（`catalog.db` 的 `works.form`），不是预设；同一会话里可以分别打开三种形态的作品。
 
@@ -17,6 +17,7 @@ DSH 里的长篇创作编排：三十个动作把立项、章纲、正文、审�
 - `story_delegate` 在宿主侧预检、装配上下文、启动子代理、校验并落库；主编只收紧凑回执，正文不进入主会话；
 - 手动兜底仍用官方 `subagent`：省略 `agentPreset`，子代理加入故事工坊当前组合；角色由任务提示与对应技能（`storycraft-write-craft`、`storycraft-review`、`storycraft-revise-craft`、`storycraft-plan-craft`）决定；
 - 写手按作品 `form` 追加形态技能：短篇加 `storycraft-short-story`，剧本加 `storycraft-short-drama`，提示按「章 / 篇 / 集」显示单位；
+- 定稿前的状态对账由 `storycraft-state-check` 子代理完成（`story_state_check`），只读、只出建议；它不替代 `storycraft-review` 的正文审稿；
 - 长篇任务里，规划、写作、审稿与定稿前的主编按各自技能正文的触发加载 `storycraft-longform-method` 的 references；方法技能只给判断依据，不产出提交内容，也不替代角色技能的输出契约；
 - 委派子代理通过 `story_submit` 提交结构化结果；预设作用域的守卫拒绝它调用 `write`、`edit`、`pwsh`、`bash` 与写动作（`story_write`、`story_review`、`story_revise`、`story_delegate` 等），落库一律由宿主/主编完成；
 - 委派深度固定为 1，子代理不能再派发。
@@ -105,6 +106,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 
 - 没有章纲不能写正文（`plan-not-found`）；
 - 没有审稿清单不能定稿（`review-required`）；没有摘要返回 `summary-required`，摘要过期返回 `summary-stale`；`story_state` 在写库前做确定性预检：重复事实只 warning，重复/倒退伏笔与二次归档直接拒绝；
+- 定稿前建议先 `story_state_check`：只读核对拟写入 delta 是否被正文支持；findings 只作建议，不跑也不阻断 `story_state`；
 - 审稿条目没处理完不能定稿，错误里列出条目 id；
 - 审稿只对「它记录的那个正文版本」有效：改过正文后要重新审稿才能再修订；清稿审稿必须针对当前版本；定稿允许「有问题的审稿针对上一版、条目已全处理」；
 - 已定稿章改章纲要先带 `reopen: true` 重写正文回退（`chapter-settled`）；
@@ -121,6 +123,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 | `story_write` | 写正文并更新字数与版本 | 正文为空；已有正文且未声明 `rewrite`；已定稿且未 `reopen` |
 | `story_review` | 写问题清单（轮次按章独立编号；空清单表示清稿） | 正文不存在；已定稿；**不改正文** |
 | `story_revise` | 生成新版本正文并把条目改为已处理 | 没有审稿清单；未指定条目；条目不存在；正文与当前版本相同；模式与改动幅度不符 |
+| `story_state_check` | 只读语义对账：把拟写入的 delta 交给 validator 子代理核对正文，返回最多 8 条建议性 findings 与正文引文校验；不写库 | 子代理调用 `state-check-parent-denied`；空 delta `empty-state`；缺正文 `chapter-not-written`；已定稿 `chapter-settled`；服务缺失/超时/无提交/正文改版分别返回错误，不返回干净结果 |
 | `story_state` | 追加人物事实与伏笔事件，返回新增/已用/已解/未解计数与 `warnings` | 作品或章不存在；伏笔状态非法；「已用」指向未解伏笔；「已解」指向不存在的伏笔；重复/倒退伏笔 `duplicate-hook`；已定稿重复归档 `chapter-settled`；未修订完成或未清稿；无摘要 `summary-required`；摘要过期 `summary-stale` |
 | `story_status` | 只读汇总进度、阶段、版本、未处理问题、未解伏笔；每章带 `hasSummary` / `summaryRevision` / `summaryStale` | 作品不存在；作品库升级失败 `schema-migration-failed` |
 | `story_delegate` | 宿主侧跑一个角色（writer/reviewer/reviser/summarizer）：预检、装配上下文、启动子代理、消费 `story_submit`、落库，返回紧凑回执 | 预检/阶段错误按原码返回；服务缺失 `delegation-unavailable`；无合格提交 `delegation-no-submission`；当前版本已有摘要 `summary-exists` |
@@ -198,6 +201,7 @@ storycraft/
   db.js                        # SQLite 目录库 / 作品库 schema、连接、检查点与备份
   store-db.js                  # 全部读写：作品、章节、真值、卷、素材、检索、生命周期、导出备份
   state-validation.js          # story_state 的确定性预检：重复事实、伏笔状态机、二次归档
+  state-check.js               # story_state_check：只读语义对账、findings 与引文校验
   materials.js                 # 素材上传字节校验、文件名、哈希与元数据
   search-text.js               # FTS 分词与素材标题/正文索引文本
   storage.js                   # 稳定门面：动作与路由从这里取领域函数与存储函数

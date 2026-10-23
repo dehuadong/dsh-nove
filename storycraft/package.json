@@ -31,6 +31,7 @@
     "epub.js",
     "store-db.js",
     "state-validation.js",
+    "state-check.js",
     "bible.js",
     "volumes.js",
     "critique.js",

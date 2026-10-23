@@ -54,12 +54,13 @@ updated: 2026-10-23
 | R6b-fix | short-story 输出契约：移除 `stories/*.md`，阶段顺序改为摘要→定稿 | skill 正文修订（2026-10-23） |
 | R6a | 长篇方法资源：`storycraft-longform-method` 三份 references（基础设计 / 读者承诺 / 状态投影），规划、写作、审稿与主编按触发读取 | #41；`implemented/pipeline/2026-10-23-storycraft-longform-method-references.md` |
 | R9 | 状态预检：重复事实 warning；重复/倒退伏笔、已解再用、二次归档拒绝 | #40（已关闭） |
+| R9b | 语义状态对账：只读 `story_state_check`、validator 角色、findings 与引文校验；自动 settler 链路留 R11 | #42；`implemented/pipeline/2026-10-23-storycraft-semantic-state-check.md` |
 
 ### 进行中
 
 | 阶段 | 内容 | 依赖 |
 | --- | --- | --- |
-| — | 没有在飞项；R4b / R4c / R4e / R5 的旧行已归档到「已交付」 | — |
+| — | 没有在飞项；R9b 已归档到「已交付」，R11 是下一个依赖项 | — |
 
 ### 后续阶段
 
@@ -71,7 +72,6 @@ updated: 2026-10-23
 | R7b | 市场研究：榜单/平台/对标证据与 rubric | 有明确调研问题且来源可归档 |
 | R7c | 衍生：续写、同人/仿写/番外 | 导入链路与正典边界落地 |
 | R8 | 分镜、封面、翻译、交互影游 | 有单独产品需求时 |
-| R9b | 语义状态对账：事实是否被正文支持、旧/新投影矛盾 | R9 后；有测量显示需要 LLM 调用 |
 | R10 | foundation 委派：architect 角色一次生成 story_frame / volume_map / book_rules / 初始伏笔 | R9b 后；作者要一次生成整套设定 |
 | R11 | settler 自动投影：writer/reviser 提交后抽取 factOps/hookOps，绑定正文 baseline；自动调用 R9b validator，发现不一致先重算一次，仍不一致则保留旧投影、不自动定稿并报告 | R9b 交付后；有自动投影需求 |
 | R12 | 上下文 token 预算与持久化 trace；语义选择只在测量后做 | R5 检索段稳定后 |
@@ -79,7 +79,7 @@ updated: 2026-10-23
 ### 实施顺序
 
 1. **R6b 形态路由**：最小改动、直接修短篇/剧本子代理拿错技能的问题；
-2. **R9 状态预检已交付**：`story_state` 已有确定性 preflight；R9b 语义对账待测量；
+2. **R9 状态预检已交付**：`story_state` 已有确定性 preflight；R9b 只读语义检查已交付；R11 接自动链路（重算一次、未解决不定稿）；
 3. **R6a 方法资源已交付**：三份 references 在 `storycraft-longform-method`，规划、写作、审稿与主编按触发读取；
 4. R10 / R11 依赖 R9；R12 依赖 R5；
 5. R7 / R7b / R7c / R8 按触发条件推进，不提前铺技能目录。

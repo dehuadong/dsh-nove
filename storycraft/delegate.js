@@ -155,14 +155,112 @@ function promptFor({ input, manifest, context, delegationId }) {
   lines.push('story_submit 返回 ok:false 时，按 error.retryable 修正 payload 后重提，最多 3 次；不要把工具错误当成最终失败。')
   return lines.join('\n')
 }
-function abortPromise(signal, message) {
+function abortPromise(signal, message, code) {
   return new Promise((_, reject) => {
     if (signal.aborted) {
-      reject(new StoryError('delegation-failed', message))
+      reject(new StoryError(code, message))
       return
     }
-    signal.addEventListener('abort', () => reject(new StoryError('delegation-failed', message)), { once: true })
+    signal.addEventListener('abort', () => reject(new StoryError(code, message)), { once: true })
   })
+}
+
+/**
+ * Refuse a run before any preflight or DB read when no child can be started.
+ * Shared by chapter delegation (to keep its error order) and the state check.
+ * @param {object|undefined} service - subagents service.
+ * @param {object|undefined} agent - calling agent.
+ * @param {{unavailableCode?: string, unavailableMessage?: string}} [options] - error shape.
+ */
+function assertChildAvailability(service, agent, options = {}) {
+  const unavailableCode = options.unavailableCode ?? 'delegation-unavailable'
+  const unavailableMessage = options.unavailableMessage
+    ?? '当前组合没有可用的 subagents 服务：请走手动 story_context + subagent 路径'
+  if (service === undefined || agent === undefined) {
+    throw new StoryError(unavailableCode, unavailableMessage)
+  }
+  if (typeof service.list === 'function') {
+    const providers = service.list()
+    if (Array.isArray(providers) && !providers.includes('spawn')) {
+      throw new StoryError(unavailableCode, '当前组合没有 spawn 子代理 provider：请走手动 story_context + subagent 路径')
+    }
+  }
+}
+
+/**
+ * Start one child and await its completion.
+ *
+ * The caller owns cleanup: this returns `{result, dispose}` so landing can
+ * happen before the child is disposed, matching the pre-refactor order. On any
+ * failure the helper disposes before rethrowing.
+ * @param {object} input - service, agent, cwd, prompt, label, signal, timeoutMs.
+ * @returns {Promise<{result: object, dispose: () => Promise<void>}>} child result and cleaner.
+ */
+export async function runChild(input) {
+  const {
+    service, agent, cwd, prompt, label, signal, timeoutMs,
+    availability = true,
+    unavailableCode = 'delegation-unavailable',
+    failedCode = 'delegation-failed',
+    unavailableMessage = '当前组合没有可用的 subagents 服务：请走手动 story_context + subagent 路径',
+  } = input
+  if (availability) {
+    assertChildAvailability(service, agent, { unavailableCode, unavailableMessage })
+  }
+
+  const timeout = new AbortController()
+  const timer = setTimeout(() => timeout.abort(), timeoutMs)
+  const callerSignal = signal ?? new AbortController().signal
+  const combined = AbortSignal.any([callerSignal, timeout.signal])
+  let activation
+  let disposed = false
+  const dispose = async () => {
+    if (disposed) return
+    disposed = true
+    clearTimeout(timer)
+    if (activation !== undefined) {
+      try {
+        await activation.dispose()
+      } catch (error) {
+        console.warn(`[storycraft] 子代理清理失败：${error instanceof Error ? error.message : String(error)}`)
+      }
+    }
+  }
+
+  try {
+    try {
+      activation = await service.startActivation({
+        provider: 'spawn',
+        label,
+        request: {
+          parent: agent,
+          cwd,
+          prompt: [{ type: 'text', text: prompt }],
+        },
+        signal: combined,
+        delivery: 'caller',
+      })
+    } catch (error) {
+      if (error?.code === 'UNSUPPORTED_CAPABILITY' || /provider|capabilit/iu.test(String(error?.message))) {
+        throw new StoryError(unavailableCode, `子代理 provider 不可用：${error?.message ?? error}`)
+      }
+      throw new StoryError(failedCode, `子代理启动失败：${error?.message ?? error}`)
+    }
+
+    const result = await Promise.race([
+      activation.result,
+      abortPromise(callerSignal, '子代理调用被取消', failedCode),
+      abortPromise(timeout.signal, '子代理调用超时', failedCode),
+    ]).catch(error => {
+      if (error instanceof StoryError) throw error
+      throw new StoryError(failedCode, `子代理调用失败：${error?.message ?? error}`)
+    })
+    clearTimeout(timer)
+    return { result, dispose }
+  } catch (error) {
+    await dispose()
+    throw error
+  }
 }
 
 /** Shorten receipt warnings to the contract budget and mark truncation. */
@@ -218,15 +316,7 @@ export async function delegateRole(root, input, host) {
     throw new StoryError('delegation-failed', `未知角色：${role}`)
   }
   const mode = role === 'reviser' && typeof input.mode === 'string' ? input.mode : 'patch'
-  if (host?.service === undefined || host?.agent === undefined) {
-    throw new StoryError('delegation-unavailable', '当前组合没有可用的 subagents 服务：请走手动 story_context + subagent 路径')
-  }
-  if (typeof host.service.list === 'function') {
-    const providers = host.service.list()
-    if (Array.isArray(providers) && !providers.includes('spawn')) {
-      throw new StoryError('delegation-unavailable', '当前组合没有 spawn 子代理 provider：请走手动 story_context + subagent 路径')
-    }
-  }
+  assertChildAvailability(host?.service, host?.agent)
 
   preflight(root, { work, chapter, role, mode })
   const loaded = await loadRoleInput(root, {
@@ -244,44 +334,20 @@ export async function delegateRole(root, input, host) {
   const prompt = promptFor({ input: { role, chapter, mode }, manifest: loaded.manifest, context: loaded.context, delegationId: opened.delegationId })
 
   const timeoutMs = Number.isFinite(host.timeoutMs) ? host.timeoutMs : DELEGATE_TIMEOUT_MS
-  const timeout = new AbortController()
-  const timer = setTimeout(() => timeout.abort(), timeoutMs)
-  const callerSignal = host.signal ?? new AbortController().signal
-  const signal = AbortSignal.any([callerSignal, timeout.signal])
-  let activation
+  const signal = host.signal ?? new AbortController().signal
+  let child
   try {
-    try {
-      activation = await host.service.startActivation({
-        provider: 'spawn',
-        label: `故事工坊-${ROLE_META[role].label}`,
-        request: {
-          parent: host.agent,
-          cwd: root,
-          prompt: [{ type: 'text', text: prompt }],
-        },
-        signal,
-        delivery: 'caller',
-      })
-    } catch (error) {
-      if (error?.code === 'UNSUPPORTED_CAPABILITY' || /provider|capabilit/iu.test(String(error?.message))) {
-        throw new StoryError('delegation-unavailable', `子代理 provider 不可用：${error?.message ?? error}`)
-      }
-      throw new StoryError('delegation-failed', `子代理启动失败：${error?.message ?? error}`)
-    }
-
-    let result
-    try {
-      result = await Promise.race([
-        activation.result,
-        abortPromise(callerSignal, '子代理调用被取消'),
-        abortPromise(timeout.signal, '子代理调用超时'),
-      ])
-    } catch (error) {
-      if (error instanceof StoryError) throw error
-      throw new StoryError('delegation-failed', `子代理调用失败：${error?.message ?? error}`)
-    } finally {
-      clearTimeout(timer)
-    }
+    child = await runChild({
+      service: host?.service,
+      agent: host?.agent,
+      cwd: root,
+      prompt,
+      label: `故事工坊-${ROLE_META[role].label}`,
+      signal: host.signal,
+      timeoutMs,
+      availability: false,
+    })
+    const result = child.result
     const submission = consumeSubmission(opened.delegationId)
     const attempts = submission?.attempts ?? 0
     if (result?.stopReason !== 'completed') {
@@ -382,14 +448,7 @@ export async function delegateRole(root, input, host) {
       ...(warnings.length === 0 ? {} : { warnings: receiptWarnings(warnings) }),
     })
   } finally {
-    clearTimeout(timer)
     closeSubmission(opened.delegationId)
-    if (activation !== undefined) {
-      try {
-        await activation.dispose()
-      } catch (error) {
-        console.warn(`[storycraft] 子代理清理失败：${error instanceof Error ? error.message : String(error)}`)
-      }
-    }
+    if (child !== undefined) await child.dispose()
   }
 }

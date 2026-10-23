@@ -65,6 +65,21 @@ function failure(code, message, extra = {}) {
   }
 }
 
+/** Evidence marker used when the body has no supporting passage. */
+export const STATE_CHECK_NO_EVIDENCE = '无对应段落'
+
+/** State-check finding codes accepted by the validator role. */
+const VALIDATOR_CODES = new Set([
+  'fact-unsupported',
+  'fact-ambiguous',
+  'missing-change',
+  'hook-state-mismatch',
+  'hook-evidence-weak',
+])
+
+/** Per-field character caps for one validator finding. */
+const VALIDATOR_LIMITS = { where: 120, problem: 160, evidence: 240, impact: 120, fix: 120 }
+
 /** Validate the role-specific payload shape. */
 function validateShape(role, payload) {
   if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
@@ -81,6 +96,29 @@ function validateShape(role, payload) {
   }
   if (role === 'summarizer') {
     if (typeof payload.summary !== 'string' || payload.summary.trim() === '') return 'summarizer 缺少 summary'
+    return undefined
+  }
+  if (role === 'validator') {
+    if (!Array.isArray(payload.items)) return 'validator 缺少 items 数组'
+    if (payload.items.length > 8) return 'validator items 最多 8 条'
+    for (const [index, item] of payload.items.entries()) {
+      if (item === null || typeof item !== 'object') return `validator 第 ${index + 1} 条不是对象`
+      if (!VALIDATOR_CODES.has(item.code)) return `validator 第 ${index + 1} 条 code 非法`
+      for (const key of ['where', 'problem', 'evidence', 'impact', 'fix']) {
+        if (typeof item[key] !== 'string' || item[key].trim() === '') {
+          return `validator 第 ${index + 1} 条缺少 ${key}`
+        }
+        if ([...item[key]].length > VALIDATOR_LIMITS[key]) {
+          return `validator 第 ${index + 1} 条 ${key} 超过 ${VALIDATOR_LIMITS[key]} 字`
+        }
+      }
+      if (item.code === 'missing-change' && item.evidence.trim() === STATE_CHECK_NO_EVIDENCE) {
+        return `validator 第 ${index + 1} 条 missing-change 需要正文引文`
+      }
+      if (!['major', 'minor'].includes(item.severity)) {
+        return `validator 第 ${index + 1} 条 severity 非法`
+      }
+    }
     return undefined
   }
   if (!Array.isArray(payload.items)) return 'reviewer 缺少 items 数组'

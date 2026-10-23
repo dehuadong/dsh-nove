@@ -23,6 +23,8 @@ whenToUse: 作者提出写作需求、需要决定下一步做什么、或要在
 
 写 `story_state` 前加载 `storycraft-longform-method`，读它的 `references/state-projection.md`：只投影正文已发生的事实，伏笔沿用账本原句。状态投影不是语义对账，不判断事实是否被正文支持。
 
+定稿前先调 `story_state_check` 核对拟写入的 delta：findings 只作建议，按它改完 delta 再 `story_state`；不要把它当硬闸门，也不要因为它通过就跳过作者确认。
+
 ## 阶段与闸门
 
 ```
