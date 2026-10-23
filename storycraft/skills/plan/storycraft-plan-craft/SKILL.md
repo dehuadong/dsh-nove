@@ -8,6 +8,10 @@ whenToUse: 被派去出全书计划、卷划分或某一章的章纲时。
 
 你产出的是**结构与契约**，不是正文。落地由调用你的人完成。
 
+## 先读方法
+
+长篇任务先加载 `storycraft-longform-method`：出全书计划、划卷或种初始伏笔前读它的 `references/foundation-design.md`；写章纲或判断一章是否成立前读它的 `references/reader-contract-and-progression.md`。
+
 ## 全书计划三段
 
 1. **主线**：主角要什么、被什么阻挡、大致怎么走。写清「起点—压力—代价—可能的结局方向」，不要写成简介；

@@ -26,9 +26,10 @@ function mount(mode) {
 
 const all = mount('all')
 const names = (await all.provider.list()).map(skill => skill.name)
-check('all serves every form, every role and the shared catalog', names.length === 8, names.join(','))
+check('all serves every form, every role, the shared catalog and the longform method', names.length === 9, names.join(','))
 check('the orchestration skill is shared', names.includes('storycraft-studio-orchestration'))
 check('long form skill present', names.includes('storycraft-longform-chapter'))
+check('long form method present', names.includes('storycraft-longform-method'))
 check('short form skill present', names.includes('storycraft-short-story'))
 check('script skill present', names.includes('storycraft-short-drama'))
 check('every role craft is reachable from the work mode',
@@ -52,7 +53,10 @@ const planNames = (await plan.provider.list()).map(skill => skill.name)
 check('the plan catalog holds the planning skill', planNames.length === 1 && planNames[0] === 'storycraft-plan-craft', planNames.join(','))
 
 const one = mount('longform')
-check('one form serves one catalog', (await one.provider.list()).length === 1)
+const oneNames = (await one.provider.list()).map(skill => skill.name)
+check('one form serves its flow and method skills',
+  oneNames.length === 2 && oneNames.includes('storycraft-longform-chapter') && oneNames.includes('storycraft-longform-method'),
+  oneNames.join(','))
 
 const bad = mount('novella')
 check('unknown mode warns and serves nothing', bad.warnings.length === 1, bad.warnings.join('; '))

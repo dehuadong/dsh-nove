@@ -25,7 +25,7 @@ updated: 2026-10-23
   1. 委派只到 writer / reviewer / reviser / summarizer；architect、planner 没有委派角色；
   2. `story_state` 是手工写入口，没有 settler 自动投影，也没有 state validator 对账；
   3. writer 委派硬编码「长篇小说」和长篇技能，短篇/剧本子代理拿不到形态技能。
-- **Skill 不是数量问题，是资源深度与路由问题**：8 个技能覆盖主干，但长篇缺 foundation / 读者承诺 / 状态投影三份方法参考；分析与市场研究没有 lens/rubric；短篇技能仍写 `stories/*.md`，与 SQLite 作品库冲突。
+- **Skill 不是数量问题，是资源深度与路由问题**：9 个技能覆盖主干；长篇三份方法参考（foundation / 读者承诺 / 状态投影）已在 `storycraft-longform-method`；分析与市场研究仍没有 lens/rubric。
 - **不复制 InkOS 的权限层**：capability gating、`propose_action`、Profile 注入、`skills-applied` 证据是它 2.0 的宿主模型；DSH 已有自己的动作、作者闸门与委派回执，只借方法与资源组织。
 
 ## 提案
@@ -49,11 +49,11 @@ updated: 2026-10-23
 
 ### 技能对拍
 
-参考 `inkos-master/packages/core/skills` 共 20 个技能、18 份 references；我们 8 个技能、4 份 references。
+参考 `inkos-master/packages/core/skills` 共 20 个技能、18 份 references；我们 9 个技能、7 份 references。
 
 | 参考技能（refs） | 我们的落点 | 状态 |
 | --- | --- | --- |
-| 长篇写法（4） | `storycraft-write-craft` + 篇幅参考；`storycraft-plan-craft` | 部分：缺 foundation-design / reader-contract / state-projection |
+| 长篇写法（4） | `storycraft-write-craft` + 篇幅参考；`storycraft-plan-craft`；`storycraft-longform-method` | 已采纳：foundation / reader-contract / state-projection 在 `storycraft-longform-method`，篇幅预算在 `write-craft` |
 | 短篇写法（1） | `storycraft-short-story` | 部分：缺生产/包装清单；`SKILL.md:9,36-37` 与阶段机/SQLite 冲突 |
 | 剧本写法（1） | `storycraft-short-drama` | 部分：缺改编边界与制作约束 |
 | 审稿（1） | `storycraft-review` + `review-dimensions.md` | 已采纳 |
@@ -70,9 +70,9 @@ updated: 2026-10-23
 
 | 维度 | 参考实现 | 我们当前 | 状态 | 决定 |
 | --- | --- | --- | --- | --- |
-| 主文件 / references | 主体短，长篇 4 份，正文链接 3 份 | 8 技能 4 份，仅 2 份被正文点名 | 部分 | 补长篇 2 份；每份 reference 必须在正文点名 |
+| 主文件 / references | 主体短，长篇 4 份，正文链接 3 份 | 9 技能 7 份；长篇 3 份方法参考均被正文点名，`deslop.md` 仍未点名 | 已采纳（deslop 待补） | 新增长篇 3 份，在角色 SKILL.md 里点名；不复制参考实现字段 |
 | 激活与证据 | Profile 必需技能注入并记 `skills-applied` | `mode: all`；子代理按提示自己 `skill`，无加载证据 | 部分 | 保留模型加载；补技能名存在性测试，不复制注入层 |
-| 形态→技能 | Profile 按作品类型绑定必需技能 | writer 按 `form` 追加形态技能；reviewer/reviser 不加 | 部分 | 路由已接；short-story 输出契约待 R6b-fix |
+| 形态→技能 | Profile 按作品类型绑定必需技能 | writer 按 `form` 追加形态技能；reviewer/reviser 按设计不加 | 部分 | writer 路由已接；reviewer/reviser 只加载角色技能；short-story 输出契约已由 R6b-fix 修正 |
 | 技能来源 | 包内 + 外部目录 + 项目技能 | 插件包内技能 | 部分 | 暂不开放外部导入；先保证内置技能自洽 |
 | 资源检索 | 统一检索内核按 scope/kind 检索 | `story_context` 检索段 + 材料库 | 部分 | 先做确定性召回与 trace；语义选择待 R12 |
 

@@ -8,6 +8,10 @@ whenToUse: 被派去审一章、需要给出问题清单、或作者要求诊断
 
 你是审稿人，不是作者。你的产出是**一份可执行的问题清单**，不是改写、不是评分、不是读后感。
 
+## 长篇方法参考
+
+审长篇时先加载 `storycraft-longform-method`：推进、重复、余波与因果归属读它的 `references/reader-contract-and-progression.md`；正文事实与伏笔账本对不上时读它的 `references/state-projection.md`。
+
 ## 先定标准，再找问题
 
 同一段文字，日常喜剧、言情、悬疑、商业连载、文学向的标准不同：

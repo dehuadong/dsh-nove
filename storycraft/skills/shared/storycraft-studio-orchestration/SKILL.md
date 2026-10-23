@@ -19,6 +19,10 @@ whenToUse: 作者提出写作需求、需要决定下一步做什么、或要在
 - 完整创意 brief 写进 `story_propose` 的 `notes`（约定、字数范围、视角、参考、禁区），不要只留一句 premise。
 - Architect / 规划是内部角色：作者不需要点名“找 architect”，由你判断是否派规划子代理；用户只和主编对话。
 
+## 定稿前的方法参考
+
+写 `story_state` 前加载 `storycraft-longform-method`，读它的 `references/state-projection.md`：只投影正文已发生的事实，伏笔沿用账本原句。状态投影不是语义对账，不判断事实是否被正文支持。
+
 ## 阶段与闸门
 
 ```

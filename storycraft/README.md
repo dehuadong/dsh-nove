@@ -6,7 +6,7 @@ DSH 里的长篇创作编排：三十个动作把立项、章纲、正文、审�
 
 | 工作模式 | 人设 | 技能 | 动作 | 工作台 |
 | --- | --- | --- | --- | --- |
-| 故事工坊 `storycraft` | 有（主编 / 子代理两用） | 有（三套技能：长篇 / 短篇 / 剧本） | **有**：`story_init` `story_plan` `story_write` `story_review` `story_revise` `story_state` `story_status` `story_next` `story_delegate` `story_submit`，以及真值四件 `story_bible` `story_bible_write` `story_bible_import` `story_summarize`、只读 `story_read` 与写前上下文 `story_brief`；常备能力 `story_export` `story_backup` | 有 |
+| 故事工坊 `storycraft` | 有（主编 / 子代理两用） | 有（长篇 / 短篇 / 剧本形态技能 + 角色写法、审稿、修订、规划；长篇另有方法参考） | **有**：`story_init` `story_plan` `story_write` `story_review` `story_revise` `story_state` `story_status` `story_next` `story_delegate` `story_submit`，以及真值四件 `story_bible` `story_bible_write` `story_bible_import` `story_summarize`、只读 `story_read` 与写前上下文 `story_brief`；常备能力 `story_export` `story_backup` | 有 |
 
 动作按预设作用域注册：只有「故事工坊」会话能看到 `story_*`，其他模式与其他会话的工具面不变。形态（长篇 / 短篇 / 剧本）是作品数据（`catalog.db` 的 `works.form`），不是预设；同一会话里可以分别打开三种形态的作品。
 
@@ -17,6 +17,7 @@ DSH 里的长篇创作编排：三十个动作把立项、章纲、正文、审�
 - `story_delegate` 在宿主侧预检、装配上下文、启动子代理、校验并落库；主编只收紧凑回执，正文不进入主会话；
 - 手动兜底仍用官方 `subagent`：省略 `agentPreset`，子代理加入故事工坊当前组合；角色由任务提示与对应技能（`storycraft-write-craft`、`storycraft-review`、`storycraft-revise-craft`、`storycraft-plan-craft`）决定；
 - 写手按作品 `form` 追加形态技能：短篇加 `storycraft-short-story`，剧本加 `storycraft-short-drama`，提示按「章 / 篇 / 集」显示单位；
+- 长篇任务里，规划、写作、审稿与定稿前的主编按各自技能正文的触发加载 `storycraft-longform-method` 的 references；方法技能只给判断依据，不产出提交内容，也不替代角色技能的输出契约；
 - 委派子代理通过 `story_submit` 提交结构化结果；预设作用域的守卫拒绝它调用 `write`、`edit`、`pwsh`、`bash` 与写动作（`story_write`、`story_review`、`story_revise`、`story_delegate` 等），落库一律由宿主/主编完成；
 - 委派深度固定为 1，子代理不能再派发。
 
@@ -38,6 +39,10 @@ DSH 里的长篇创作编排：三十个动作把立项、章纲、正文、审�
 | 剧本 | `script` | 集 | 竖屏短剧写法：按场次与台词组织，流程同上 |
 
 形态是作品数据，决定用哪套技能与页面单位；动作与门禁完全一致。没有已知形态时按长篇读取。
+
+## 长篇方法参考
+
+`storycraft-longform-method` 是规划、写作、审稿与定稿前主编共用的长篇判断依据，不产出提交内容。三份 references 分别覆盖基础设计、读者承诺与推进、状态投影；各自技能正文点名什么时候读哪一份。方法技能只给判断标准，不替代角色输出契约。
 
 ## 作品库
 

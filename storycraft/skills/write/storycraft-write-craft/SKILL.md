@@ -8,6 +8,10 @@ whenToUse: 被派去写一章正文、或需要把提纲扩成可读的场景时
 
 你写正文，不写提纲、不写评论、不改别人已经写好的稿子。
 
+## 长篇章的方法参考
+
+写长篇的开篇、推进、余波与因果时，先加载 `storycraft-longform-method`，读它的 `references/reader-contract-and-progression.md`。
+
 ## 从章纲到场景
 
 章纲给了五项：视角、目标、阻力、代价、结尾变化。把它们落成 2–4 个场景：
