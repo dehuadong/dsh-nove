@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：foundation 委派（architect 一次生成基础设定）
-status: proposed
+status: rejected
 created: 2026-10-23
 updated: 2026-10-23
+reason: 旧方案把 story_frame / volume_map / book_rules / 角色卡压进 world/plan/characters/text-hook，信息损失；A0 全量产物合同后重做 R10。
 ---
 
 # Agent Note：故事工坊：foundation 委派（architect 一次生成基础设定）
@@ -120,7 +121,11 @@ story_foundation(work, replace?)
 - **用 plan 文本承载伏笔，不进账本**：brief/status 看不到，`story_state` 不能引用；否决。
 - **生成 style/intent**：风格应由作者定，intent 是作者意图；本项不生成。否决。
 
-## 验收条件
+## 否决原因
+
+全量对拍审查（[2026-10-23-full-project-parity-audit.md](../../../../docs/report/inkos/2026-10-23-full-project-parity-audit.md)）确认：把 story_frame、volume_map、book_rules、角色卡映射进 world/plan/characters、把初始 hooks 写成 text 事件，是信息损失裁剪，不是功能等价。R10 已退回 #44 `planning`，等 A0 全量产物合同（#45）后再重新规划；本 Note 的提案与验收不再适用。
+
+## 原验收条件（随否决失效）
 
 1. `story_next` 在空作品（无章节、无 outline）返回 `story_foundation`；有 outline 未确认时返回 `story_outline`。
 2. 成功写入 world/characters/plan，outline 未确认；作者确认前 `story_plan` 仍被 `outline-required` 拒绝。

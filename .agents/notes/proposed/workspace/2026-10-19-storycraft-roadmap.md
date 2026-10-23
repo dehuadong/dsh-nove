@@ -82,8 +82,8 @@ updated: 2026-10-23
 
 | 阶段 | 目标 | 范围/交付 | 退出条件 | 工作项 |
 | --- | --- | --- | --- | --- |
-| A0 | 全量产物合同 v2 | 逐项字段、权威、消费者、生命周期、迁移、验收；覆盖 story_frame/volume_map/book_rules/角色卡/ChapterMemo/结构化摘要/hooks/facts/observation/context trace；定“共享方法技能 + 角色薄契约”的技能组织 | 合同评审通过；未决产品/迁移问题由作者裁决；矩阵与报告互链 | 待立 |
-| L 长篇 | 长篇全量对齐 | R10a 合同/存储 + R10b architect 四阶段；long-writing 共享方法 + 4 refs；planner intent/memo/threadRefs；settler/validator 新模型；R9b/R11 迁移；observation/context 消费者 | 长篇产物、角色、技能、消费者、迁移测试全过；R10 关闭 | R10 + 待立 |
+| A0 | 全量产物合同 v2 | 逐项字段、权威、消费者、生命周期、迁移、验收；覆盖 story_frame/volume_map/book_rules/角色卡/ChapterMemo/结构化摘要/hooks/facts/observation/context trace；定“共享方法技能 + 角色薄契约”的技能组织 | 合同评审通过；未决产品/迁移问题由作者裁决；矩阵与报告互链 | #45 |
+| L 长篇 | 长篇全量对齐 | R10a 合同/存储 + R10b architect 四阶段；long-writing 共享方法 + 4 refs；planner intent/memo/threadRefs；settler/validator 新模型；R9b/R11 迁移；observation/context 消费者 | 长篇产物、角色、技能、消费者、迁移测试全过；R10 关闭 | #44 + 待立 |
 | S 短篇 | 短篇独立流水线 | outline → batch draft → draft review（sourceRefs）→ revision plan → package/cover prompt；short-writing + production-checklist；独立短篇产物/动作/UI | 短篇全链路产物、字数/钩子契约、review 证据、打包输出测试通过 | 待立 |
 | D 剧本 | 剧本独立流水线 | spec/script + 场次/集；script-writing + episode-scene-craft；目标格式/集数/时长；storyboard/互动影游另列 R8 | 剧本 spec/script、场次格式、导出测试通过 | 待立 |
 | 横向 | 分析/市场/导入/同人/封面/翻译/Play | R7/R7b/R7c/R8；A0 预留产物/字段 | 按各自触发条件验收 | 各阶段 Issue |

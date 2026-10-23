@@ -2,7 +2,7 @@
 
 > 更新时间：2026-10-23  
 > 交接范围：`dehuadong/dsh-nove` 的 `storycraft/`；实现提交 `9abdd8e`（本文件随后单独提交）。  
-> 下一会话默认焦点：**A0 产物合同 v2**（未立项）；R10 foundation 委派暂停，等 A0 后再决定。
+> 下一会话默认焦点：**A0 全量产物合同 v2**（#45，`Status: planning`）；R10 #44 已改为 `planning` 并被 #45 阻塞。
 
 ## 1. 当前结论
 
@@ -31,9 +31,9 @@
 
 ## 2. 下一步
 
-### 默认：A0 产物合同 v2（未立项）
+### 默认：A0 全量产物合同 v2（#45，planning）
 
-R11 之后做了产物结构与资源对拍补审，结论是 R10 不能按现有 world/plan/characters/text-hook 格式直接实现。先定：
+R11 之后做了产物结构与资源对拍补审，结论是 R10 不能按现有 world/plan/characters/text-hook 格式直接实现。A0 已在 #45 登记，规划未开始，先定：
 
 - story_frame / volume_map / book_rules / 角色卡；
 - hook 身份与生命周期；
@@ -47,9 +47,9 @@ R11 之后做了产物结构与资源对拍补审，结论是 R10 不能按现�
 
 A0 之后再把 R10 拆成 R10a（合同/存储）与 R10b（architect 分阶段生成）。R9b/R11 已交付的 text hook/fact 逻辑要在新合同下复审。
 
-### R10 foundation 委派（暂停）
+### R10 foundation 委派（#44，blocked by #45）
 
-#44 已退回 `Status: planning`。当前映射是成本驱动的默认，不是产物结构比较后的决定；不要直接实现。
+#44 已改为 `Status: planning`，标题改为“R10 foundation 委派（A0 后）”，原生依赖 #45。旧方案与旧 Note 已 rejected；不要按旧格式实现。
 
 ### 备选：R7 拆稿分析（需作者提供参考作品）
 
@@ -100,7 +100,7 @@ A0 之后再把 R10 拆成 R10a（合同/存储）与 R10b（architect 分阶段
 默认 A0：
 
 ```text
-批准，使用技能planning 执行规划 A0 产物合同 v2
+批准，使用技能planning 执行规划 A0 全量产物合同 v2
 ```
 
 若改选 R7（先准备参考作品）：
