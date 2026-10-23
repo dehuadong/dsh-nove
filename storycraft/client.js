@@ -1565,7 +1565,7 @@ window.__ModuleLoader__.load({
           h('span', { className: 'sc-badge' }, `伏笔 未解 ${detail.state.hooks.filter(hook => hook.state !== 'resolved').length}`),
         ),
         h('div', { className: 'sc-main-tabs', role: 'tablist', 'aria-label': '作品面板' },
-          ...['chapters', 'truth', 'materials', 'exports'].map((name, index) => h('button', {
+          ...['chapters', 'truth', 'context', 'materials', 'exports'].map((name, index) => h('button', {
             key: name,
             type: 'button',
             role: 'tab',
@@ -1576,13 +1576,13 @@ window.__ModuleLoader__.load({
             className: 'sc-main-tab',
             onClick: () => switchTab(name),
             onKeyDown: event => {
-              const order = ['chapters', 'truth', 'materials', 'exports']
+              const order = ['chapters', 'truth', 'context', 'materials', 'exports']
               if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
               event.preventDefault()
               const next = event.key === 'Home' ? 0 : event.key === 'End' ? order.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + order.length) % order.length
               if (switchTab(order[next])) document.getElementById(`sc-tab-${order[next]}`)?.focus()
             },
-          }, name === 'chapters' ? '章节' : name === 'truth' ? '真值' : name === 'materials' ? '素材' : '导出')),
+          }, name === 'chapters' ? '章节' : name === 'truth' ? '真值' : name === 'context' ? '写前上下文' : name === 'materials' ? '素材' : '导出')),
         ),
         notice === undefined ? null : h('p', { className: `sc-notice sc-notice-${notice.kind}`, style: { marginTop: 12 } }, notice.text),
 
@@ -1770,18 +1770,7 @@ window.__ModuleLoader__.load({
                 }
                 void loadBible()
               },
-            }, '真值'),
-            h('select', {
-              className: 'sc-input',
-              'aria-label': '写前上下文目标章',
-              value: briefChapter,
-              onChange: event => setBriefChapter(Number(event.target.value)),
-            }, ...chapters.map(item => h('option', { key: item.number, value: item.number }, `第 ${item.number} 章`))),
-            h('button', {
-              type: 'button',
-              className: 'sc-btn',
-              onClick: () => { void loadBrief(briefChapter) },
-            }, '写前上下文'),
+            }, '刷新真值'),
           ),
           bible.status === 'loading' ? h('p', { className: 'sc-muted' }, '读取真值…') : null,
           bible.status === 'error' ? h('p', { className: 'sc-notice sc-notice-info' }, bible.error) : null,
@@ -1824,6 +1813,29 @@ window.__ModuleLoader__.load({
                 h('pre', { className: 'sc-yaml' }, file.content),
               )))
             : null,
+        ),
+
+        h('div', {
+          className: 'sc-section sc-tab-panel',
+          id: 'sc-panel-context',
+          role: 'tabpanel',
+          'aria-labelledby': 'sc-tab-context',
+          hidden: tab !== 'context',
+        },
+          h('h3', { className: 'sc-section-title' }, '写前上下文'),
+          h('div', { className: 'sc-actions' },
+            h('select', {
+              className: 'sc-input',
+              'aria-label': '写前上下文目标章',
+              value: briefChapter,
+              onChange: event => setBriefChapter(Number(event.target.value)),
+            }, ...chapters.map(item => h('option', { key: item.number, value: item.number }, `第 ${item.number} 章`))),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn',
+              onClick: () => { void loadBrief(briefChapter) },
+            }, '装配写前上下文'),
+          ),
           brief.status === 'loading' ? h('p', { className: 'sc-muted' }, '装配写前上下文…') : null,
           brief.status === 'error' ? h('p', { className: 'sc-notice sc-notice-info' }, brief.error) : null,
           brief.status === 'ready'
@@ -2029,7 +2041,7 @@ window.__ModuleLoader__.load({
         h('details', { className: 'sc-help' },
           h('summary', null, '这一页怎么工作'),
           h('ol', null,
-            h('li', null, '顶部有「章节 / 真值 / 素材 / 导出」四个标签；章节默认倒序、20 章/页。'),
+            h('li', null, '顶部有「章节 / 真值 / 写前上下文 / 素材 / 导出」五个标签；章节默认倒序、20 章/页。'),
             h('li', null, '页面只读：作品、章节、审稿与状态都从作品目录读取，不另存一份。'),
             h('li', null, '按钮不写文件：它把一条固定指令投递给当前会话，由模型调用 story_init / story_plan / story_write / story_review / story_revise / story_state 落盘。'),
             h('li', null, '所以写完一章后点「刷新」，或重新进入本页，就能看到新章节与新字数。'),

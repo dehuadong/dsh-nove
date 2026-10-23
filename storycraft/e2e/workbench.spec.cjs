@@ -362,7 +362,7 @@ test.describe('故事工坊工作台', () => {
     await page.setViewportSize({ width: 900, height: 900 })
     await openWorkbench(page)
     await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())
-    await expect(page.locator('.sc-main-tab')).toHaveCount(4, { timeout: 15_000 })
+    await expect(page.locator('.sc-main-tab')).toHaveCount(5, { timeout: 15_000 })
     const widths = await page.locator('.sc-detail').evaluate(node => ({
       client: node.clientWidth,
       scroll: node.scrollWidth,
@@ -375,6 +375,8 @@ test.describe('故事工坊工作台', () => {
     const drawer = await page.locator('.sc-drawer').evaluate(node => node.getBoundingClientRect().width)
     expect(drawer).toBeLessThanOrEqual(widths.client)
     await page.getByRole('button', { name: '取消', exact: true }).evaluate(node => node.click())
+    await page.locator('.sc-main-tab').filter({ hasText: '写前上下文' }).evaluate(node => node.click())
+    await expect(page.getByLabel('写前上下文目标章')).toBeVisible()
   })
 
   test('章节倒序分页', async ({ page }) => {
