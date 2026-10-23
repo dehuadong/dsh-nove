@@ -1,7 +1,7 @@
 # 交接文档：A0 实现 tickets 已交付，#45 仍待消费者收口（2026-10-23）
 
 > 更新时间：2026-10-23  
-> 仓库：`dehuadong/dsh-nove`，分支 `main`，HEAD `64c8194`。
+> 仓库：`dehuadong/dsh-nove`，分支 `main`，HEAD `17dc053`。
 > 本轮范围：A0 #45 的实现 tickets #46–#49；A0 合同 Note 仍为 proposed，#45 仍 in-progress。
 
 ## 1. 当前结论
@@ -19,7 +19,7 @@
   - 边界：旧 `foldEvents` 忽略带 `op` 的 v2 事件；旧 state-validation/check/settle 继续消费 text-hook/string-fact。
 - **#48 A0-4 短篇/剧本独立 artifact 存储**：`293215f`
   - `short:<id>` / `script:<id>`；不写长篇章表；不接收 `scope.chapter`；必填、编号重复、空场景、字符统计校验。
-- **#49 A0-5 共享方法技能与角色薄契约**：`64c8194`
+- **#49 A0-5 共享方法技能与角色薄契约**：`64c8194`（复审修正 `17dc053`）
   - `storycraft-long-writing`（4 refs）、`storycraft-short-writing`（production-checklist）、`storycraft-script-writing`（episode-scene-craft）。
   - 角色/形态技能薄化；`storycraft-longform-method` 保留迁移别名；R6a Note 标注部分替代并互链；README/对拍矩阵更新为 14 技能/9 references。
 
