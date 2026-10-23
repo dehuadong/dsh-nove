@@ -1,92 +1,109 @@
-# 交接文档：故事工坊 #23 / #19 已完成，下一步 #21 清稿与 token 治理
+# 交接文档：故事工坊 R6b/R9 已交付，下一步 R6a 长篇方法资源
 
-> 更新时间：2026-10-21  
-> 交接范围：`dehuadong/dsh-nove` 的故事工坊（`storycraft/`）；#23 与 #19 已完成真实单章复验并关闭。
+> 更新时间：2026-10-23  
+> 交接范围：`dehuadong/dsh-nove` 的 `storycraft/`；当前提交 `9e13bbc`。  
+> 下一会话默认焦点：**R6a 长篇方法资源**（未立项）；备选 **R9b 语义对账**。
 
 ## 1. 当前结论
 
-### 已完成并关闭
+### 已交付并关闭
 
-- **#23 角色结果结构化提交**：两章共 6 个子代理（writer / reviewer / reviser）全部只调用 `story_submit`，最终回答均为「已提交」（3 字符）；父回执含 `submissionAttempts` / `lastMode` / `wordRange`，不含正文。
-- **#19 真实链路**：
-  - 无手动 `subagent` / `story_write` / `story_revise`，无正文回退；
-  - writer 第 1 章两次 `submit-word-range`（1,042 / 1,165 < 1,200）后被拒，第 3 次提交 1,247 字成功，同轮重提；
-  - AC6 clean 窗口：第 2 章 **2,107**、第 1 章补完 bible 后 **1,758**，均 ≤4,000；
-  - 首次建档 `bible-missing` episode **6,290** 单独记录（≤10,000，不并入 clean 值）。
-- **#22 回归**：主会话无 `works/` 或 `.dsh/` 路径；只按 `artifactId` 读取当前章，无跨章读正文。
-- **#21 warning-only**：只返回 `warnings`，未阻断落盘（有「交叉两」「看见山」「用袖口」等误报）。
-- **#21 清稿路径**：第 3 章手动 `story_review(problems: [])` 通过，`story_next` 直接给 `story_summarize`，`story_state` 定稿；委派 reviewer 的空清单未触发（严格“只报硬伤”指令下仍出 3 条），由 `delegate.test.mjs` 覆盖。
+- **#39 R6b 形态路由**：
+  - `domain.js` 的 `FORM_META`；
+  - `delegate.js` 的 `writerSkills(form)`；
+  - writer 按 form 加载 `storycraft-write-craft` + `storycraft-short-story` / `storycraft-short-drama`；
+  - 提示按「章 / 篇 / 集」显示；
+  - reviewer/reviser 只加载角色技能。
+- **R6b-fix**：
+  - 短篇技能去掉 `stories/*.md` 输出契约；
+  - 阶段顺序改为「篇纲 → 正文 → 审稿 → 修订 → 摘要 → 定稿」。
+- **#40 R9 状态预检**：
+  - `state-validation.js`：normalize + 伏笔状态机；
+  - `foldState` 在闸门后、写库前校验；
+  - 重复事实 warning；重复/倒退 hook、`hook-not-found`、`hook-not-open` 拒绝；
+  - 已定稿再次 settle 返回 `chapter-settled`。
+- **R6c 创意阶段沟通规则**：
+  - 讨论不自动执行；
+  - 缺信息只问一个关键问题；
+  - 完整 brief 写进 `story_propose.notes`；
+  - Architect/规划内部化。
+- **#38 备份闭环**、**#37 面板重设计** 已交付；不在此重述，见 Issue/Note。
 
-### 未完成
+### 验证现状
 
-- **token 治理**：摘要前 `story_read` 把整章读回主会话（第 1 章 2,224；第 2、3 章同类）。#19 AC3 把 summary/state 排除在 AC6 之外，所以这不是 AC6 失败，但整体成本仍高；建议单列工单：新增摘要委派或宿主侧摘要。
-- **P2 测试补强**：SubmissionStore TTL/过期清理、`SUBMIT_OUTPUT` 失败 envelope 的 DSH 级校验、真实链路 token 预算。
-- **#21 其余对拍项**：清稿与 warning 已回归；#21 的状态/doc AC 仍按 Issue 自身评审处理，不在本轮范围。
+- 单元：**34 个文件全过**（`node storycraft/scripts/ci.mjs --no-e2e`）。
+- E2E：**未跑**。本机 Playwright/DSH 登录弹窗阻塞，不能声称 E2E 通过。
+- 规划文档检查：`node scripts/decisions/check.mjs` 通过。
+- `HANDOFF.md` 曾在 #40 提交中误删，已用 `9e13bbc` 恢复。
 
-## 2. 证据
+## 2. 下一步：R6a
 
-- 会话：`session-91e3c83e-05b6-4781-b319-a3f539b74ef8`
-- 作品：《雪线邮路》，longform，单章 1200–1800 字；第 1 章 `settled` `r2` 1,485 字，第 2 章 `settled` `r2` 1,703 字，第 3 章 `settled` `r1` 1,408 字，`openProblems 0`
-- 报告：`.agents/notes/proposed/pipeline/2026-10-20-storycraft-live-test-report.md`（commit `b54c802`）
-- Issue：
-  - #23 验收评论：https://github.com/dehuadong/dsh-nove/issues/23#issuecomment-6306480229
-  - #19 复验评论：https://github.com/dehuadong/dsh-nove/issues/19#issuecomment-6306484556
-  - #21 回归评论：https://github.com/dehuadong/dsh-nove/issues/21#issuecomment-6306491670
-  - #22 回归评论：https://github.com/dehuadong/dsh-nove/issues/22#issuecomment-6306491995
+范围建议（尚未立项）：
 
-### 量化
+1. 新增三份长篇方法 references：
+   - `foundation-design.md`：主线/卷末不可逆变化/人物弧代价/初始伏笔；
+   - `reader-contract-and-progression.md`：开篇承诺、进展轴、余波、因果归属；
+   - `state-projection.md`：factOps / hook 生命周期 / 状态投影边界。
+2. 放进 `storycraft/skills/plan/storycraft-plan-craft/references/` 或 `storycraft/skills/write/storycraft-write-craft/references/`，由对应 `SKILL.md` 正文点名。
+3. 接入规划、写作、审稿技能的阅读触发，不新增动作。
+4. 更新 README、对拍矩阵、路线图；R6a 移到已交付。
+5. 加最小静态测试：references 存在且在 SKILL 正文被点名。
 
-| 指标 | 2026-10-20 | 2026-10-21 |
-| --- | --- | --- |
-| 主会话工具参数 + 结果（第 1 章整轮） | 26,538 | 18,909（-29%） |
-| #19 AC6 clean 窗口 | 未测 | 2,107（第 2 章）/ 1,758（第 1 章 setup 后） |
-| 首次建档 setup episode | — | 6,290 |
-| 总 token（第 1 章） | 1,459,887 | 865,521 |
-| 手动正文回退 | 3 次 | 0 |
-| 子代理最终回答正文 | 有 | 无 |
+不要在本项做：
+- 语义对账（R9b）；
+- LLM 调用；
+- 新动作/schema；
+- 自动改写。
 
-## 3. 代码落点
+## 3. 关键产物与证据
 
-- `storycraft/submission.js`：SubmissionStore、提交校验、3 次上限、单次消费。
-- `storycraft/revision.js`：`assertRevisionMode`，与 `reviseChapter` 共用。
-- `storycraft/tools.js`：`story_submit` 动作与 `SUBMIT_OUTPUT`。
-- `storycraft/delegate.js`：注入 `delegationId`、消费提交、宿主落盘。
-- `storycraft/landing.js`：委派 writer/reviser 的 min/max 硬校验。
+- 路线图：`.agents/notes/proposed/workspace/2026-10-19-storycraft-roadmap.md`
+- 对拍矩阵：`.agents/notes/proposed/pipeline/2026-10-18-storycraft-parity-matrix.md`
+- InkOS 2.0 增量：`docs/report/inkos/2.0-harness-delta.md`
+- R6b 实现 Note：`.agents/notes/implemented/pipeline/2026-10-23-storycraft-form-aware-delegation.md`
+- R9 实现 Note：`.agents/notes/implemented/pipeline/2026-10-23-storycraft-state-preflight.md`
+- 最近提交：
+  - `526feec` R6b
+  - `576625d` R6b-fix
+  - `b6cc388` R9 规划
+  - `d9cd45d` R9 实现
+  - `9e13bbc` 恢复 HANDOFF
 
-## 4. 下一步
+## 4. 已知风险/边界
 
-### P1：#21 清稿与 warning
+- `state-validation.js` 只做确定性检查；**不是语义对账**，不能判断事实是否被正文支持。
+- 重复事实用精确字符串匹配，同义改写不报。
+- `story_propose.notes` 是 brief 载体，但不是独立 artifact；不要把全部约定塞进 premise。
+- 委派形态路由已修，但短篇/剧本技能正文可能还有旧口径；另开 R6b-fix 后续项。
+- E2E 环境未恢复；若需验证 UI，先解决 Playwright/DSH 登录弹窗，不要用“单元通过”代替。
+- 旧会话中已加载的工具不会热替换；新会话或重载插件后才生效。
 
-- 清稿路径已用第 3 章的手动空清单验证；委派空清单仍由单元测试覆盖；
-- 若真实链路再次暴露新问题，先按 `AGENTS.md` 查参考实现，再决定是否立工单。
+## 5. 建议技能
 
-### P2：token 治理
-
-- 摘要通道：让摘要不经过主会话全文读取（摘要委派或宿主侧生成）；
-- 保留并补充 SubmissionStore TTL、`SUBMIT_OUTPUT` 失败 envelope、主会话 token 预算测试。
-
-## 5. 已知风险/边界
-
-- 工具调用参数仍可能显示正文；验收只约束子代理**最终回答**无正文，不承诺 UI 完全隐藏。
-- `story_submit` 不写作品库；父代理是唯一落盘者。
-- 旧会话里已经打开/加载的旧工具不会热替换；必须新会话或重载插件。
-- E2E 依赖 Playwright；本机命令使用：
-  `DSH_E2E_PLAYWRIGHT_ROOT=C:\Users\MyPC\AppData\Local\npm-cache\_npx\420ff84f11983ee5`
-  路径因机器而异，按 `storycraft/e2e/run.mjs` 提示调整。
-- 本轮曾误建一个空的 storycraft 会话 `session-65e62e3e-3281-4eb9-b8a6-5f01d7b5aabd`，未使用，可忽略。
-
-## 6. 建议技能
-
-- `implement`：继续 #21 清稿与 token 治理的实施修正；
-- `code-review`：对 `d01a79f..7ca6a33` 做 Standards/Spec 复审；
-- `verify`：下一轮真实清稿链路通过后做最终验收；
-- `diagnosing-bugs`：若出现 `delegation-no-submission`、字数/mode 异常；
+- `planning`：先立项 R6a，收敛三份 references 的归属与验收；
+- `implement`：实现门禁通过后写 references/接线/测试；
+- `research`：需要再核对 InkOS `foundation-design` / `reader-contract` / `state-projection` 原文时；
+- `code-review`：对 R6a 变更做 Standards/Spec 双轴复审；
+- `verify`：最后核对 references 被点名、34 单测、文档检查；
 - `handoff`：下一次会话结束再交接。
+
+## 6. 门禁命令
+
+```text
+批准，使用技能planning 执行规划 R6a 长篇方法资源
+```
+
+若改选语义对账：
+
+```text
+批准，使用技能planning 执行规划 R9b 语义状态对账
+```
 
 ## 7. 不要做
 
-- 不要把“22 个单元 + E2E 通过”代替真实单章验收；
-- 不要把 `story_submit` 失败改成主编重试或手动正文搬运；
-- 不要恢复 `patch→polish→rewrite` 自动阶梯；
+- 不要把“34 单测通过”写成“E2E/真实链路通过”；
+- 不要把确定性预检宣传成语义对账；
+- 不要给 `story_state` 增加 LLM 调用而不先测量；
 - 不要让子代理直接落盘；
-- 不要删除 #19 的历史证据，它仍是验证依据。
+- 不要恢复 `patch→polish→rewrite` 自动阶梯；
+- 不要删除 #37/#38/#39/#40 的既有证据或历史 Note。
