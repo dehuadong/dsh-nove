@@ -194,10 +194,21 @@ export function validateStoryFrame(value) {
   return content
 }
 
+/** Fields every volume section of a volume_map must carry. */
+export const VOLUME_MAP_FIELDS = ['卷目标', '起止章', '关键节拍', '卷末承诺']
+
 /** Validate a readable volume_map Markdown document. */
 export function validateVolumeMap(value) {
   const content = text(value, 'volume_map')
-  if (!/^##\s+/mu.test(content)) invalid('volume_map 至少需要一个卷标题')
+  const sections = content.split(/^##\s+/mu).slice(1)
+  if (sections.length === 0) invalid('volume_map 至少需要一个卷标题')
+  for (const [index, section] of sections.entries()) {
+    for (const field of VOLUME_MAP_FIELDS) {
+      if (!new RegExp(`^\\s*[-*]?\\s*${field}\\s*[：:]`, 'mu').test(section)) {
+        invalid(`volume_map 第 ${index + 1} 节缺少 ${field}`)
+      }
+    }
+  }
   return content
 }
 
@@ -244,7 +255,9 @@ export function validateRolesIndex(value) {
 /** Validate a role card; it does not duplicate the index's six fields. */
 export function validateRoleCard(value) {
   const input = object(value, 'role_card')
-  keys(input, ['name', 'tier', 'motivation', 'knowledge', 'relationshipPressure', 'limits', 'arc', 'markdown'], 'role_card')
+  keys(input, ['slug', 'name', 'tier', 'motivation', 'knowledge', 'relationshipPressure', 'limits', 'arc', 'markdown'], 'role_card')
+  text(input.slug, 'role_card.slug')
+  if (/[\s:]/u.test(input.slug)) invalid('role_card.slug 不能含空白或冒号')
   text(input.name, 'role_card.name')
   oneOf(input.tier, ['major', 'minor'], 'role_card.tier')
   for (const field of ['motivation', 'knowledge', 'relationshipPressure', 'limits']) text(input[field], `role_card.${field}`)
@@ -525,4 +538,70 @@ export function validateScript(value) {
   const numbers = new Set(input.episodes.map(episode => episode.number))
   if (numbers.size !== input.episodes.length) invalid('script.episodes 编号重复')
   return input
+}
+
+/**
+ * Content validators for artifact kinds with a canonical shape.
+ *
+ * Kinds without an entry are still envelope-checked by the store; their field
+ * contract arrives with the ticket that owns that artifact (R8 for storyboard
+ * and the other production artifacts).
+ */
+export const ARTIFACT_CONTENT_VALIDATORS = {
+  plan: validateChapterMemo,
+  summary: validateChapterSummary,
+  story_frame: validateStoryFrame,
+  volume_map: validateVolumeMap,
+  book_rules: validateBookRules,
+  role_index: validateRolesIndex,
+  role_card: validateRoleCard,
+}
+
+/** Canonical artifact IDs, or the chapter-scoped pattern, for typed kinds. */
+export const ARTIFACT_IDENTITY = {
+  story_frame: { artifactId: 'bible:story_frame' },
+  volume_map: { artifactId: 'bible:volume_map' },
+  book_rules: { artifactId: 'bible:book_rules' },
+  role_index: { artifactId: 'roles:index' },
+  role_card: { pattern: /^role:[^\s:]+$/u },
+  plan: { pattern: /^plan:([1-9]\d*)$/u, chapterScoped: true },
+  summary: { pattern: /^summary:([1-9]\d*)$/u, chapterScoped: true },
+}
+
+/**
+ * Assert that an artifactId, kind and scope agree for a typed kind.
+ * @returns {number|undefined} the chapter number for a chapter-scoped kind.
+ */
+export function assertArtifactIdentity(kind, artifactId, scope) {
+  const spec = ARTIFACT_IDENTITY[kind]
+  if (spec === undefined) return undefined
+  if (spec.artifactId !== undefined) {
+    if (artifactId !== spec.artifactId) invalid(`${kind} 的 artifactId 必须是 ${spec.artifactId}`)
+    return undefined
+  }
+  if (spec.pattern === undefined) return undefined
+  const match = spec.pattern.exec(artifactId)
+  if (match === null) invalid(`${kind} 的 artifactId 不合法：${artifactId}`)
+  if (spec.chapterScoped !== true) return undefined
+  const chapter = Number(match[1])
+  if (scope?.chapter !== chapter) invalid(`${kind} 的 scope.chapter 必须等于 ${chapter}`)
+  return chapter
+}
+
+/**
+ * Validate a complete artifact record: envelope, identity and kind-specific
+ * content. This is the write boundary of the v6 registry.
+ */
+export function validateArtifactRecord(value) {
+  const envelope = validateArtifactEnvelope(value)
+  const chapter = assertArtifactIdentity(envelope.kind, envelope.artifactId, envelope.scope)
+  const validator = ARTIFACT_CONTENT_VALIDATORS[envelope.kind]
+  const content = validator === undefined ? envelope.content : validator(envelope.content)
+  if ((envelope.kind === 'plan' || envelope.kind === 'summary') && content.chapter !== chapter) {
+    invalid(`${envelope.kind} 的 content.chapter 必须等于 ${chapter}`)
+  }
+  if (envelope.kind === 'role_card' && content.slug !== envelope.artifactId.slice('role:'.length)) {
+    invalid('role_card 的 slug 必须等于 artifactId 的 role 段')
+  }
+  return { ...envelope, content }
 }

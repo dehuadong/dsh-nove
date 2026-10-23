@@ -104,7 +104,7 @@ updated: 2026-10-23
 
 **volume_map**（Markdown，可读）
 
-每个卷一节：卷目标、起止章方向、关键因果节拍、卷末承诺；消费者 planner/composer/writer。结构化 `volumes` 仍单独存在，`volume_map` 是计划，不是已发生事实。
+每个卷一节：卷目标、起止章方向、关键因果节拍、卷末承诺，实现为 `卷目标：`、`起止章：`、`关键节拍：`、`卷末承诺：` 四个标签；消费者 planner/composer/writer。结构化 `volumes` 仍单独存在，`volume_map` 是计划，不是已发生事实。
 
 **book_rules**
 
@@ -143,6 +143,7 @@ updated: 2026-10-23
 ```json
 // roles/<tier>/<slug>
 {
+  "slug": "string",
   "name": "string",
   "tier": "major|minor",
   "motivation": "string",
@@ -154,7 +155,7 @@ updated: 2026-10-23
 }
 ```
 
-索引保留现有六字段用于 brief 匹配/筛选；卡承载参考实现的动机、已知信息、关系压力、能力边界与可选弧光。六字段只属索引，卡不重复 want/fear/limit/voice；brief 先读索引，需要时读卡；不把卡全文塞进每章 brief。
+索引保留现有六字段用于 brief 匹配/筛选；卡承载参考实现的动机、已知信息、关系压力、能力边界与可选弧光。六字段只属索引，卡不重复 want/fear/limit/voice；brief 先读索引，需要时读卡；不把卡全文塞进每章 brief。卡的 `slug` 是稳定身份，改名不改 ID；索引按 name 匹配，卡按 slug 寻址。
 
 ### 4. 章节产物
 

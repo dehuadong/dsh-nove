@@ -76,8 +76,10 @@ rejects('work config rejects bad approval', 'artifact-invalid',
 const frame = '# 故事框架\n\n## 前提\n有一个账本。\n\n## 核心冲突\n甲要拿回账本。\n\n## 主角动机\n救父亲。\n\n## 约束\n不能惊动掌柜。\n\n## 因果解决\n账本牵出旧案。'
 check('story frame valid', validateStoryFrame(frame) === frame)
 rejects('story frame needs headings', 'artifact-invalid', () => validateStoryFrame('# 故事框架\n'))
-check('volume map valid', validateVolumeMap('## 第一卷\n从当铺到旧案。') !== '')
+check('volume map valid', validateVolumeMap('## 第一卷\n- 卷目标：换账本\n- 起止章：第 1–20 章\n- 关键节拍：当铺对峙\n- 卷末承诺：账本暴露') !== '')
 rejects('volume map needs a volume heading', 'artifact-invalid', () => validateVolumeMap('随便写'))
+rejects('volume map needs every volume field', 'artifact-invalid',
+  () => validateVolumeMap('## 第一卷\n- 卷目标：换账本\n'))
 
 const rules = {
   version: '2', narrativePerson: '第三人称限知', prohibitions: ['不写现代网络梗'],
@@ -92,10 +94,11 @@ const roles = { roles: [{ name: '甲', tier: 'major', role: '主角', want: '救
 check('roles index valid', validateRolesIndex(roles).roles.length === 1)
 rejects('roles index rejects duplicate names', 'artifact-invalid',
   () => validateRolesIndex({ roles: [...roles.roles, ...roles.roles] }))
-const card = { name: '甲', tier: 'major', motivation: '救父', knowledge: '知道账本存在', relationshipPressure: '掌柜欠人情', limits: '不杀人', arc: '学会求助', markdown: '# 甲\n' }
-check('role card valid', validateRoleCard(card).name === '甲')
+const card = { slug: 'jia', name: '甲', tier: 'major', motivation: '救父', knowledge: '知道账本存在', relationshipPressure: '掌柜欠人情', limits: '不杀人', arc: '学会求助', markdown: '# 甲\n' }
+check('role card valid', validateRoleCard(card).slug === 'jia')
 rejects('role card does not duplicate six fields', 'artifact-invalid',
   () => validateRoleCard({ ...card, want: '救父' }))
+rejects('role card needs a slug', 'artifact-invalid', () => validateRoleCard({ ...card, slug: '' }))
 
 check('chapter memo valid', validateChapterMemo(memo).threadRefs[0] === 'h_1')
 rejects('chapter memo rejects missing goal', 'artifact-invalid', () => validateChapterMemo({ ...memo, goal: '' }))

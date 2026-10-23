@@ -11,7 +11,7 @@
 
 import { existsSync, mkdirSync, renameSync, rmSync, unlinkSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { StoryError, isWorkId } from './domain.js'
+import { StoryError, isWorkId, now } from './domain.js'
 
 let DatabaseSync
 try {
@@ -124,6 +124,8 @@ CREATE TABLE IF NOT EXISTS chapters (
   current_revision INTEGER NOT NULL DEFAULT 0,
   words INTEGER NOT NULL DEFAULT 0,
   plan_approved_at TEXT,
+  plan_revision TEXT,
+  provenance TEXT NOT NULL DEFAULT 'generated' CHECK (provenance IN ('generated', 'imported', 'edited')),
   last_revise_mode TEXT,
   updated_at TEXT NOT NULL
 );
@@ -356,6 +358,23 @@ export function openCatalog(root, options = {}) {
   return db
 }
 
+/** Columns the v6 shape needs; a v6 file without them predates the A0 schema. */
+const WORK_SCHEMA_REQUIRED_COLUMNS = Object.freeze({
+  chapters: ['plan_revision', 'provenance'],
+})
+
+/** Reject a stale v6 file instead of letting a raw SQLite error surface later. */
+function assertWorkShape(db, workId) {
+  for (const [table, required] of Object.entries(WORK_SCHEMA_REQUIRED_COLUMNS)) {
+    const names = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map(row => row.name))
+    const missing = required.filter(name => !names.has(name))
+    if (missing.length > 0) {
+      throw new StoryError('schema-version-mismatch',
+        `作品 ${workId} 的 v6 库缺少 A0 字段 ${missing.join('、')}：测试作品请删除重建，不做兼容迁移`)
+    }
+  }
+}
+
 /**
  * Open an existing work database. Never creates one: an id that was never
  * initialized is reported as `work-not-found`.
@@ -374,6 +393,7 @@ export function openWork(root, workId) {
       throw new StoryError('schema-version-mismatch',
         `作品 ${workId} 的库版本 ${version} 不是支持的 ${WORK_SCHEMA_VERSION}：测试作品请删除重建，不做兼容迁移`)
     }
+    assertWorkShape(db, workId)
   } catch (error) {
     db.close()
     throw error
@@ -455,6 +475,11 @@ export function moveDatabaseFiles(from, to) {
   for (const suffix of ['-wal', '-shm']) {
     if (existsSync(`${from}${suffix}`)) renameSync(`${from}${suffix}`, `${to}${suffix}`)
   }
+}
+
+/** Touch a work database's meta activity stamp. */
+export function touchMeta(db, at = now()) {
+  db.prepare('UPDATE meta SET updated_at = ? WHERE id = 1').run(at)
 }
 
 /**

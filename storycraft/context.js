@@ -111,7 +111,7 @@ export async function assembleRoleContext(input, dependencies = {}) {
 
   // Stop before a writer is dispatched: an unconfirmed plan means no draft yet.
   if (role === 'writer' && planApprovalPolicy(manifest) === 'required'
-    && entry !== undefined && entry.currentRevision === 0 && entry.planApprovedAt === undefined) {
+    && entry !== undefined && entry.currentRevision === 0 && entry.planApproved !== true) {
     throw new StoryError('plan-not-approved',
       `第 ${number} 章章纲还没经作者确认：请在面板「章纲」里点「确认章纲」，再取写手上下文`)
   }

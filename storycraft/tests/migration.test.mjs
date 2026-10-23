@@ -40,6 +40,11 @@ try {
   db.close()
   openWork(root, workId).close()
   check('v6 work reopens', true)
+
+  const stale = openDatabase(workFile(root, workId))
+  stale.exec('ALTER TABLE chapters DROP COLUMN plan_revision')
+  stale.close()
+  throwsCode('v6 work missing A0 columns is refused', 'schema-version-mismatch', () => openWork(root, workId))
 } finally {
   await rm(root, { recursive: true, force: true })
 }

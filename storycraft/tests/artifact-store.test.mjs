@@ -4,6 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { initWork } from '../storage.js'
+import { writePlan } from '../store-db.js'
 import { listArtifacts, putArtifact, readArtifact } from '../artifact-store.js'
 
 let failures = 0
@@ -27,6 +28,10 @@ function rejects(name, code, fn) {
 const root = await mkdtemp(join(tmpdir(), 'storycraft-artifact-'))
 try {
   const { workId: work } = initWork(root, { title: '产物测试' })
+  writePlan(root, {
+    work, chapter: 1, perspective: '甲', goal: '拿到账本',
+    obstacle: '掌柜刁难', cost: '欠人情', turn: '账本是假的',
+  })
   const memo = {
     chapter: 1, goal: '拿到账本', body: '从当铺换出账本', threadRefs: ['h_1'],
     perspective: '甲', obstacle: '掌柜刁难', cost: '欠人情', turn: '账本是假的',
@@ -50,7 +55,11 @@ try {
 
   putArtifact(root, {
     workId: work, artifactId: 'bible:story_frame', kind: 'story_frame',
-    revisionId: 'frame-1', content: '# 故事框架\n', provenance: 'generated', createdAt: '2026-10-23T00:02:00.000Z',
+    revisionId: 'frame-1', provenance: 'generated', createdAt: '2026-10-23T00:02:00.000Z',
+    content: [
+      '# 故事框架', '', '## 前提', '有一个账本。', '', '## 核心冲突', '甲要拿回账本。',
+      '', '## 主角动机', '救父亲。', '', '## 约束', '不能惊动掌柜。', '', '## 因果解决', '账本牵出旧案。', '',
+    ].join('\n'),
   })
   const plans = listArtifacts(root, { work, kind: 'plan' })
   check('list by kind', plans.artifacts.length === 1 && plans.artifacts[0].artifactId === 'plan:1', JSON.stringify(plans))

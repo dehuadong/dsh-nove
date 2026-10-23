@@ -16,7 +16,7 @@ import {
 import { join } from 'node:path'
 import {
   backupTo, checkpoint, createWorkDatabase, exportsDir, integrityCheck, WORK_SCHEMA_VERSION,
-  materialsDir, moveDatabaseFiles, openCatalog, openDatabase, openWork, removeDatabaseFiles, transaction,
+  materialsDir, moveDatabaseFiles, openCatalog, openDatabase, openWork, removeDatabaseFiles, touchMeta, transaction,
   trashDir, trashFile, workFile, worksDir, backupsDir,
 } from './db.js'
 import { MATERIAL_PURPOSES, MATERIAL_TITLE_MAX, materialMetadata, normalizeMaterialPurpose, prepareMaterial } from './materials.js'
@@ -86,6 +86,19 @@ function ensureChapter(db, number) {
   if (existing !== undefined) return existing
   db.prepare('INSERT INTO chapters (number, updated_at) VALUES (?, ?)').run(number, now())
   return chapterRow(db, number)
+}
+
+/**
+ * Whether the author's plan confirmation still covers the current memo.
+ *
+ * A chapter without a memo uses the legacy confirmation (the plan text action);
+ * once `plan:<n>` exists, the confirmed revision must be its latest revision.
+ */
+function planGateSatisfied(db, entry) {
+  if (entry.plan_approved_at === null) return false
+  const memo = db.prepare(`SELECT revision_id FROM artifacts
+    WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1`).get(`plan:${entry.number}`)
+  return memo === undefined || entry.plan_revision === memo.revision_id
 }
 
 /**
@@ -161,11 +174,6 @@ function isCleanReview(review) {
   return typeof review?.text === 'string' && review.text.includes('- 清稿：无问题')
 }
 
-/** Touch the meta row's activity stamp. */
-function touchMeta(db, at = now()) {
-  db.prepare('UPDATE meta SET updated_at = ? WHERE id = 1').run(at)
-}
-
 /** Serialize every event row as the JSONL text `foldEvents` consumes. */
 function eventsText(db) {
   return db.prepare('SELECT * FROM events ORDER BY seq').all()
@@ -207,6 +215,8 @@ export function readManifest(root, work) {
     try {
       const meta = metaOf(db)
       const chapters = db.prepare('SELECT * FROM chapters ORDER BY number').all()
+      const memos = new Map(db.prepare("SELECT artifact_id, revision_id FROM artifacts WHERE kind = 'plan' ORDER BY rowid")
+        .all().map(row => [row.artifact_id, row.revision_id]))
       return {
         version: 1,
         workId: row.work_id,
@@ -221,18 +231,25 @@ export function readManifest(root, work) {
             ...(meta.outline_approved_at === null ? {} : { approvedAt: meta.outline_approved_at }),
           },
         }),
-        chapters: chapters.map(chapter => ({
-          number: chapter.number,
-          id: chapterStem(chapter.number),
-          title: chapter.title,
-          status: chapter.status,
-          stage: chapter.stage,
-          currentRevision: chapter.current_revision,
-          words: chapter.words,
-          ...(chapter.plan_approved_at === null ? {} : { planApprovedAt: chapter.plan_approved_at }),
-          ...(chapter.last_revise_mode === null ? {} : { lastReviseMode: chapter.last_revise_mode }),
-          updatedAt: chapter.updated_at,
-        })),
+        chapters: chapters.map(chapter => {
+          const memoRevision = memos.get(`plan:${chapter.number}`)
+          return {
+            number: chapter.number,
+            id: chapterStem(chapter.number),
+            title: chapter.title,
+            status: chapter.status,
+            stage: chapter.stage,
+            currentRevision: chapter.current_revision,
+            words: chapter.words,
+            planApproved: chapter.plan_approved_at !== null
+              && (memoRevision === undefined || chapter.plan_revision === memoRevision),
+            ...(chapter.plan_approved_at === null ? {} : { planApprovedAt: chapter.plan_approved_at }),
+            ...(chapter.plan_revision == null ? {} : { planRevision: chapter.plan_revision }),
+            provenance: chapter.provenance ?? 'generated',
+            ...(chapter.last_revise_mode === null ? {} : { lastReviseMode: chapter.last_revise_mode }),
+            updatedAt: chapter.updated_at,
+          }
+        }),
         createdAt: row.created_at,
         updatedAt: meta.updated_at,
       }
@@ -510,7 +527,9 @@ export function readWork(root, work) {
         words: chapter.words,
         stage: stageOf(chapter),
         hasPlan: planRows.has(chapter.number),
-        planApproved: chapter.planApprovedAt !== undefined,
+        planApproved: chapter.planApproved === true,
+        ...(chapter.planRevision === undefined ? {} : { planRevision: chapter.planRevision }),
+        provenance: chapter.provenance,
         hasSummary: summary.state === 'current',
         summaryRevision: summary.revision,
         summaryStale: summary.state === 'stale',
@@ -582,6 +601,8 @@ export function status(root, work) {
           stage: stageOf(chapter),
           revision: chapter.currentRevision,
           words: chapter.words,
+          ...(chapter.planRevision === undefined ? {} : { planRevision: chapter.planRevision }),
+          provenance: chapter.provenance,
           hasSummary: summary.state === 'current',
           summaryRevision: summary.revision,
           summaryStale: summary.state === 'stale',
@@ -697,7 +718,7 @@ export function nextStep(root, work) {
         return { chapter: last.number, stage, action: 'story_plan', reason: `第 ${last.number} 章缺章纲`, missing: [] }
       }
       if (!hasBody) {
-        if (planApprovalPolicy(manifest) === 'required' && last.planApprovedAt === undefined) {
+        if (planApprovalPolicy(manifest) === 'required' && last.planApproved !== true) {
           return {
             chapter: last.number, stage, action: 'story_write',
             reason: `第 ${last.number} 章章纲等作者确认：在面板「章纲」里点「确认章纲」，然后写正文`,
@@ -1063,7 +1084,7 @@ export function writePlan(root, input) {
       const at = now()
       db.prepare(`INSERT INTO chapter_plans (number, text, written_at) VALUES (?, ?, ?)
         ON CONFLICT(number) DO UPDATE SET text = excluded.text, written_at = excluded.written_at`).run(number, text, at)
-      db.prepare('UPDATE chapters SET plan_approved_at = NULL, updated_at = ? WHERE number = ?').run(at, number)
+      db.prepare('UPDATE chapters SET plan_approved_at = NULL, plan_revision = NULL, updated_at = ? WHERE number = ?').run(at, number)
       touchMeta(db, at)
       return {
         workId,
@@ -1093,9 +1114,18 @@ export function approveChapterPlan(root, input) {
       const plan = db.prepare('SELECT 1 FROM chapter_plans WHERE number = ?').get(number)
       if (entry === undefined || plan === undefined) throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲`)
       const at = now()
-      db.prepare('UPDATE chapters SET plan_approved_at = ?, updated_at = ? WHERE number = ?').run(at, at, number)
+      // A memo revision is the content version the author confirms; without a
+      // memo the legacy plan text action stays the only plan source.
+      const memo = db.prepare(`SELECT revision_id FROM artifacts
+        WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1`).get(`plan:${number}`)
+      const planRevision = memo?.revision_id ?? null
+      db.prepare('UPDATE chapters SET plan_approved_at = ?, plan_revision = ?, updated_at = ? WHERE number = ?')
+        .run(at, planRevision, at, number)
       touchMeta(db, at)
-      return { workId, entry: { number, planApprovedAt: at } }
+      return {
+        workId,
+        entry: { number, planApprovedAt: at, ...(planRevision === null ? {} : { planRevision }) },
+      }
     })
   } finally {
     db.close()
@@ -1123,7 +1153,7 @@ export function writeChapter(root, input) {
         throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲：先 story_plan，再写正文`)
       }
       if (input.requirePlanApproval === true && meta.plan_approval === 'required'
-        && entry.current_revision === 0 && entry.plan_approved_at === null) {
+        && entry.current_revision === 0 && !planGateSatisfied(db, entry)) {
         throw new StoryError('plan-not-approved', `第 ${number} 章章纲还没经作者确认：请在面板「章纲」里点「确认章纲」后再写正文`)
       }
       const settled = stageOf(entry) === 'settled'
@@ -1139,9 +1169,12 @@ export function writeChapter(root, input) {
       db.prepare('INSERT INTO chapter_versions (number, revision, body, words, created_at) VALUES (?, ?, ?, ?, ?)')
         .run(number, revision, body, words, at)
       db.prepare(`UPDATE chapters SET title = ?, status = 'written', stage = 'written',
-        current_revision = ?, words = ?, plan_approved_at = CASE WHEN ? = 1 THEN NULL ELSE plan_approved_at END,
+        current_revision = ?, words = ?,
+        plan_approved_at = CASE WHEN ? = 1 THEN NULL ELSE plan_approved_at END,
+        plan_revision = CASE WHEN ? = 1 THEN NULL ELSE plan_revision END,
         updated_at = ? WHERE number = ?`)
-        .run(String(input.title ?? entry.title), revision, words, revision === 1 ? 1 : 0, at, number)
+        .run(String(input.title ?? entry.title), revision, words,
+          revision === 1 ? 1 : 0, revision === 1 ? 1 : 0, at, number)
       dropSearchDoc(db, `chapter:${number}:r${revision - 1}`)
       syncSearchDoc(db, `chapter:${number}:r${revision}`, 'chapter', `chapters/${chapterStem(number)}`, number, body)
       if (settled) {
@@ -1357,7 +1390,8 @@ export function reviseChapter(root, input) {
       const at = now()
       db.prepare('INSERT INTO chapter_versions (number, revision, body, words, created_at) VALUES (?, ?, ?, ?, ?)')
         .run(number, revision, body, words, at)
-      db.prepare("UPDATE chapters SET status = 'revised', stage = 'revised', current_revision = ?, words = ?, last_revise_mode = ?, updated_at = ? WHERE number = ?")
+      db.prepare(`UPDATE chapters SET status = 'revised', stage = 'revised',
+        current_revision = ?, words = ?, provenance = 'edited', last_revise_mode = ?, updated_at = ? WHERE number = ?`)
         .run(revision, words, mode, at, number)
       dropSearchDoc(db, `chapter:${number}:r${revision - 1}`)
       syncSearchDoc(db, `chapter:${number}:r${revision}`, 'chapter', `chapters/${chapterStem(number)}`, number, body)
@@ -2457,6 +2491,8 @@ function exportManifest(root, workId, catalogRowValue, db) {
         currentRevision: chapter.current_revision,
         words: chapter.words,
         planApprovedAt: chapter.plan_approved_at,
+        planRevision: chapter.plan_revision,
+        provenance: chapter.provenance,
         summaryRevision: summary.revision,
         summaryStale: summary.state === 'stale',
       }

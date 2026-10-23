@@ -67,7 +67,7 @@ function preflight(root, input) {
     }
     if (stageOf(entry) === 'settled') throw new StoryError('chapter-settled', `第 ${chapter} 章已定稿：改正文请先 reopen`)
     if (entry.currentRevision > 0) throw new StoryError('chapter-exists', `第 ${chapter} 章已有正文；改稿请走 story_revise 或手动 rewrite`)
-    if (manifest.planApproval === 'required' && entry.planApprovedAt === undefined) {
+    if (manifest.planApproval === 'required' && entry.planApproved !== true) {
       throw new StoryError('plan-not-approved', `第 ${chapter} 章章纲还没经作者确认：请在面板「章纲」里点「确认章纲」后再写正文`)
     }
     return { manifest, entry }
