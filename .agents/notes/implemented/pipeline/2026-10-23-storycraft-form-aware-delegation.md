@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：委派形态路由（长篇/短篇/剧本）
-status: proposed
+status: implemented
 created: 2026-10-23
 updated: 2026-10-23
+verification: 33 单测全过；delegate 覆盖长篇/短篇/剧本 writer 与短篇 reviewer/reviser；skills 覆盖已挂载目录
 ---
 
 # Agent Note：故事工坊：委派形态路由（长篇/短篇/剧本）
@@ -11,7 +12,7 @@ updated: 2026-10-23
 
 `delegate.js` 的 writer 只加载 `storycraft-write-craft`，子代理提示固定写「长篇小说」。短篇、剧本走同一个 `story_delegate`，但子代理拿不到 `storycraft-short-story` / `storycraft-short-drama`；形态是作品数据，委派层却没有读它。
 
-## 提案
+## 决定
 
 ### 1. 形态元数据
 
@@ -47,7 +48,7 @@ reviewer / reviser / summarizer 只加载现有角色技能，不追加形态技
 ```
 
 - 只有 writer 有形态技能；reviewer/reviser 仍只列角色技能；
-- 不改任务段、上下文段、`story_submit` 输出契约；
+- 只同步 `storycraft-studio-orchestration` 的 writer 路由表；不改任务段、上下文段、`story_submit` 输出契约；
 - 不改委托回执、预检、落盘。
 
 ### 4. 测试
@@ -70,12 +71,19 @@ reviewer / reviser / summarizer 只加载现有角色技能，不追加形态技
 - **把短篇/剧本技能合并进 `storycraft-write-craft`**：技能会变成长篇+短篇+剧本大杂烩，Token 与职责都变差；否决。
 - **委派前让主编手工点名技能**：依赖模型记忆，容易漏；否决。
 
-## 验收条件
+## 后果
 
 1. 三种形态的 writer 提示加载通用写法 + 正确形态技能，标签与单位正确。
 2. 短篇/剧本提示不再出现「长篇小说」。
 3. 技能名均在 `mount('all')` 的已挂载目录中；reviewer/reviser 不加载形态技能。
 4. 现有委派测试与 33 单测通过；E2E 受登录弹窗阻塞时如实记录；对拍矩阵同步。
+
+## 验证
+
+- `node storycraft/scripts/ci.mjs --no-e2e`：33 个单测文件全过。
+- delegate.test.mjs：长篇/短篇/剧本 writer 的提示头、单位与技能；短篇 reviewer/reviser 不加形态技能。
+- skills.test.mjs：ROLE_META + FORM_META 的每个技能都在 mount('all') 目录中；writerSkills 去重正确。
+- E2E 未跑：本机 Playwright 环境/登录弹窗阻塞。
 
 ## 风险
 

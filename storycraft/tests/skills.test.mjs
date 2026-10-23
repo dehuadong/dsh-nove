@@ -1,5 +1,7 @@
 // The work mode mounts one skill row that serves every form and every role.
 import { apply } from '../skills.js'
+import { FORM_META } from '../domain.js'
+import { ROLE_META, writerSkills } from '../delegate.js'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -33,6 +35,9 @@ check('every role craft is reachable from the work mode',
   ['storycraft-write-craft', 'storycraft-review', 'storycraft-revise-craft', 'storycraft-plan-craft'].every(name => names.includes(name)),
   names.join(','))
 check('no warning for all', all.warnings.length === 0, all.warnings.join('; '))
+const routed = [...Object.values(ROLE_META).map(meta => meta.skill), ...Object.values(FORM_META).map(meta => meta.skill)].filter(Boolean)
+check('every routed role/form skill is mounted', routed.every(name => names.includes(name)), routed.join(','))
+check('writerSkills dedupes longform and adds short/script skills', writerSkills('longform').length === 1 && writerSkills('short').length === 2 && writerSkills('script').length === 2)
 
 const write = mount('write')
 const writeNames = (await write.provider.list()).map(skill => skill.name)

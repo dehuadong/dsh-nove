@@ -11,8 +11,8 @@
 
 import { createHash } from 'node:crypto'
 import {
-  StoryError, chapterNumber, latestReview, readManifest, readPlan, readSummary, readSummaryState, reviseChapter,
-  stageOf, summaryAdmissible, writeChapter, writeReview, writeSummary,
+  FORM_META, StoryError, chapterNumber, formOf, latestReview, readManifest, readPlan, readSummary, readSummaryState, reviseChapter,
+  stageOf, summaryAdmissible, unitOf, writeChapter, writeReview, writeSummary,
 } from './storage.js'
 import { loadRoleInput } from './role-input.js'
 import { checkDraft } from './landing.js'
@@ -32,12 +32,16 @@ const MAX_WARNINGS = 5
 /** Maximum characters in one warning. */
 const MAX_WARNING_CHARS = 120
 
-/** Role labels and skills the child must load. */
-const ROLE_META = {
+/** Role labels and role-specific skills; writer adds the form skill separately. */
+export const ROLE_META = {
   writer: { label: '写手', skill: 'storycraft-write-craft' },
   reviewer: { label: '审稿', skill: 'storycraft-review' },
   reviser: { label: '修订', skill: 'storycraft-revise-craft' },
   summarizer: { label: '摘要' },
+}
+
+export function writerSkills(form) {
+  return [...new Set([ROLE_META.writer.skill, FORM_META[formOf({ form })].skill])]
 }
 
 function chapterEntryOf(manifest, number) {
@@ -112,9 +116,12 @@ function contextText(context) {
 /** Build the child prompt for one role. */
 function promptFor({ input, manifest, context, delegationId }) {
   const meta = ROLE_META[input.role]
+  const form = formOf(manifest)
+  const formMeta = FORM_META[form]
+  const skills = input.role === 'writer' ? writerSkills(form) : (meta.skill === undefined ? [] : [meta.skill])
   const lines = [
-    `你是长篇小说《${manifest.title}》（${manifest.workId}）的${meta.label}子代理，负责第 ${input.chapter} 章。`,
-    ...(meta.skill === undefined ? [] : [`开工前先调用 skill 工具加载 \`${meta.skill}\`，严格按它的方法执行。`]),
+    `你是${formMeta.label}《${manifest.title}》（${manifest.workId}）的${meta.label}子代理，负责第 ${input.chapter} ${unitOf(form)}。`,
+    ...(skills.length === 0 ? [] : [`开工前先调用 skill 工具加载 ${skills.map(skill => `\`${skill}\``).join('、')}，严格按它们的方法执行。`]),
     '',
     '## 本次任务',
     context.taskText,

@@ -16,6 +16,7 @@ DSH 里的长篇创作编排：三十个动作把立项、章纲、正文、审�
 
 - `story_delegate` 在宿主侧预检、装配上下文、启动子代理、校验并落库；主编只收紧凑回执，正文不进入主会话；
 - 手动兜底仍用官方 `subagent`：省略 `agentPreset`，子代理加入故事工坊当前组合；角色由任务提示与对应技能（`storycraft-write-craft`、`storycraft-review`、`storycraft-revise-craft`、`storycraft-plan-craft`）决定；
+- 写手按作品 `form` 追加形态技能：短篇加 `storycraft-short-story`，剧本加 `storycraft-short-drama`，提示按「章 / 篇 / 集」显示单位；
 - 委派子代理通过 `story_submit` 提交结构化结果；预设作用域的守卫拒绝它调用 `write`、`edit`、`pwsh`、`bash` 与写动作（`story_write`、`story_review`、`story_revise`、`story_delegate` 等），落库一律由宿主/主编完成；
 - 委派深度固定为 1，子代理不能再派发。
 

@@ -36,7 +36,7 @@ updated: 2026-10-23
 | --- | --- | --- | --- |
 | architect | 书级设计（世界观、卷、人物弧、初始伏笔） | 规划角色 + 全书计划；无 foundation 委派 | 部分：缺 story_frame / volume_map / book_rules 分层与初始伏笔投影（`architect.ts:142-184`） |
 | planner | 单章计划（目标/阻力/代价/变化） | 规划角色 + `story_context` + 章纲 | 部分：`story_context` 有 planner 枚举，`story_delegate` 不含 planner（`tools.js:1118,1783`） |
-| writer | 写正文 | 写手子代理 + `storycraft-write-craft` | 部分：正文交接已对齐；缺 form 技能与提交后 settler（`delegate.js:36-41,116-117`） |
+| writer | 写正文 | 写手子代理 + `storycraft-write-craft` + 形态技能 | 部分：form 路由已接；仍缺提交后 settler |
 | auditor / reviewer | 审稿清单与证据 | 审稿子代理 + `storycraft-review` | 部分：有问题清单，无 observation code / 行号证据（`continuity.ts:74-97`） |
 | reviser | 按条目改稿 | 修订者子代理 + `storycraft-revise-craft` | 部分：有 mode；无 observation 输入 |
 | settler | 把事实与伏笔归档 | `story_state` 手写 | 缺失：委派 writer 提交后不自动投影（`writer.ts:271-363`） |
@@ -72,7 +72,7 @@ updated: 2026-10-23
 | --- | --- | --- | --- | --- |
 | 主文件 / references | 主体短，长篇 4 份，正文链接 3 份 | 8 技能 4 份，仅 2 份被正文点名 | 部分 | 补长篇 2 份；每份 reference 必须在正文点名 |
 | 激活与证据 | Profile 必需技能注入并记 `skills-applied` | `mode: all`；子代理按提示自己 `skill`，无加载证据 | 部分 | 保留模型加载；补技能名存在性测试，不复制注入层 |
-| 形态→技能 | Profile 按作品类型绑定必需技能 | 形态是作品数据；委派只发角色技能 | 缺失 | 按 `form` 追加形态技能 |
+| 形态→技能 | Profile 按作品类型绑定必需技能 | writer 按 `form` 追加形态技能；reviewer/reviser 不加 | 部分 | 路由已接；short-story 输出契约待 R6b-fix |
 | 技能来源 | 包内 + 外部目录 + 项目技能 | 插件包内技能 | 部分 | 暂不开放外部导入；先保证内置技能自洽 |
 | 资源检索 | 统一检索内核按 scope/kind 检索 | `story_context` 检索段 + 材料库 | 部分 | 先做确定性召回与 trace；语义选择待 R12 |
 

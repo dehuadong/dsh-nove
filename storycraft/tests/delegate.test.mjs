@@ -126,7 +126,47 @@ try {
   check('writer receipt stays compact', JSON.stringify(writer).length <= 1500, String(JSON.stringify(writer).length))
   check('writer child prompt does not reach the receipt', !JSON.stringify(writer).includes('甲推开门'), JSON.stringify(writer))
   check('writer receipt reports submission attempts', writer.submissionAttempts === 1, JSON.stringify(writer))
+  const writerPrompt = writerService.specs[0].request.prompt[0].text
+  check('long-form writer prompt names form and unit', writerPrompt.split('\n')[0] === '你是长篇小说《委派测试》（委派测试）的写手子代理，负责第 1 章。', writerPrompt.split('\n')[0])
+  check('long-form writer prompt loads one generic craft skill',
+    writerPrompt.split('storycraft-write-craft').length - 1 === 1 && !writerPrompt.includes('storycraft-short-story') && !writerPrompt.includes('storycraft-short-drama'),
+    writerPrompt.split('\n')[1])
   check('writer body landed', s.readChapter(root, { work, chapter: 1 }).content.includes('甲推开门'))
+
+  // Form-aware writer routing: short adds the short-fiction method, script the script method.
+  const short = s.initWork(root, { title: '短篇委派', form: 'short' }).workId
+  await writeBible(root, short, 'characters', JSON.stringify([{ name: '甲', role: '主视角', want: 'w', fear: 'f', limit: 'l', voice: 'v' }]))
+  s.writePlan(root, { work: short, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+  s.approveChapterPlan(root, { work: short, chapter: 1 })
+  const shortService = fakeService([completed({ payload: { title: '短篇', body: '甲推开门，雨声进来了。' } })])
+  await delegateRole(root, { work: short, chapter: 1, role: 'writer' }, { service: shortService, agent, signal })
+  const shortPrompt = shortService.specs[0].request.prompt[0].text
+  check('short writer prompt names form and unit', shortPrompt.startsWith('你是短篇小说《短篇委派》') && shortPrompt.includes('负责第 1 篇。'), shortPrompt.split('\n')[0])
+  check('short writer prompt loads generic and short skills', shortPrompt.includes('storycraft-write-craft') && shortPrompt.includes('storycraft-short-story'), shortPrompt.split('\n')[1])
+
+  const script = s.initWork(root, { title: '剧本委派', form: 'script' }).workId
+  await writeBible(root, script, 'characters', JSON.stringify([{ name: '甲', role: '主视角', want: 'w', fear: 'f', limit: 'l', voice: 'v' }]))
+  s.writePlan(root, { work: script, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+  s.approveChapterPlan(root, { work: script, chapter: 1 })
+  const scriptService = fakeService([completed({ payload: { title: '第一集', body: '甲推开门，雨声进来了。' } })])
+  await delegateRole(root, { work: script, chapter: 1, role: 'writer' }, { service: scriptService, agent, signal })
+  const scriptPrompt = scriptService.specs[0].request.prompt[0].text
+  check('script writer prompt names form and unit', scriptPrompt.startsWith('你是剧本《剧本委派》') && scriptPrompt.includes('负责第 1 集。'), scriptPrompt.split('\n')[0])
+  check('script writer prompt loads generic and script skills', scriptPrompt.includes('storycraft-write-craft') && scriptPrompt.includes('storycraft-short-drama'), scriptPrompt.split('\n')[1])
+
+  const shortReviewService = fakeService([completed({ structured: { items: [{ where: '结尾', problem: '太快', impact: '读者跟不上', severity: 'minor', fix: '补一拍', mode: 'patch' }] } })])
+  await delegateRole(root, { work: short, chapter: 1, role: 'reviewer' }, { service: shortReviewService, agent, signal })
+  const shortReviewPrompt = shortReviewService.specs[0].request.prompt[0].text
+  check('short reviewer prompt keeps form label and role skill only',
+    shortReviewPrompt.startsWith('你是短篇小说《短篇委派》') && shortReviewPrompt.includes('storycraft-review') && !shortReviewPrompt.includes('storycraft-short-story'),
+    shortReviewPrompt.split('\n').slice(0, 2).join(' / '))
+
+  const shortReviserService = fakeService([completed({ payload: { body: '甲推开门，雨声进来了。他在门口停了一拍。' } })])
+  await delegateRole(root, { work: short, chapter: 1, role: 'reviser', mode: 'rewrite' }, { service: shortReviserService, agent, signal })
+  const shortReviserPrompt = shortReviserService.specs[0].request.prompt[0].text
+  check('short reviser prompt keeps form label and role skill only',
+    shortReviserPrompt.startsWith('你是短篇小说《短篇委派》') && shortReviserPrompt.includes('storycraft-revise-craft') && !shortReviserPrompt.includes('storycraft-short-story'),
+    shortReviserPrompt.split('\n').slice(0, 2).join(' / '))
 
   // Reviewer: structured result maps where/problem/fix into the stored review.
   const reviewService = fakeService([completed({

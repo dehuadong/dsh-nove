@@ -23,6 +23,13 @@ export class StoryError extends Error {
 /** Forms a work may declare; the form is data on the work, not a preset. */
 export const WORK_FORMS = ['longform', 'short', 'script']
 
+/** Display label and form-specific writing skill for each form. */
+export const FORM_META = Object.freeze({
+  longform: { label: '长篇小说', skill: 'storycraft-write-craft' },
+  short: { label: '短篇小说', skill: 'storycraft-short-story' },
+  script: { label: '剧本', skill: 'storycraft-short-drama' },
+})
+
 /** Current time in ISO form. */
 export function now() {
   return new Date().toISOString()
