@@ -38,5 +38,6 @@ InkOS 仓库分析研究文档（本地仓库地址：`E:\dsh-nove\inkos-master`
 
 ## 2026-10-23 产物结构与资源对拍补审
 
-- [产物结构与资源文档对拍审查](2026-10-23-artifact-and-resource-parity-audit.md)：逐项比较 story_frame / volume_map / book_rules / 角色卡 / 章节摘要 / hooks / facts / observations / context trace，给出信息损失、迁移代价与整改顺序。
-- 结论：此前对拍偏流程与编排；R10 不应按现有 world/plan/characters/text-hook 格式直接实现，需先做产物合同 v2。
+- [全项目一对一实现与产物对拍审查](2026-10-23-full-project-parity-audit.md)：Agent、Skill/资源、产物/数据模型、流水线与宿主机制的全量盘点；缺口按依赖排序，不按迁移成本裁剪。
+- [产物结构与资源文档对拍审查](2026-10-23-artifact-and-resource-parity-audit.md)：story_frame / volume_map / book_rules / 角色卡 / 章节摘要 / hooks / facts / observations / context trace 的专项细节。
+- 结论：此前对拍偏流程与编排；R10 不应按现有 world/plan/characters/text-hook 格式直接实现，需先做 A0 全量产物合同 v2。

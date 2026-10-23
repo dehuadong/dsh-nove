@@ -74,7 +74,7 @@ updated: 2026-10-23
 | R7c | 衍生：续写、同人/仿写/番外 | 导入链路与正典边界落地 |
 | R8 | 分镜、封面、翻译、交互影游 | 有单独产品需求时 |
 | R10 | foundation 委派：architect 分阶段生成 story_frame / volume_map / book_rules / 角色卡 / 初始伏笔 | A0 之后；作者要一次生成整套设定 |
-| A0 | 产物合同 v2：story_frame / volume_map / book_rules / 角色卡 / hook 模型 / 结构化摘要 / observation / facts；先决定再迁移 | 立即；R10 前置 |
+| A0 | 全量产物合同 v2：story_frame / volume_map / book_rules / 角色卡 / hook 模型 / 结构化摘要 / observation / facts / memo / context trace；逐项字段、消费者、迁移与验收 | 立即；R10 前置 |
 | R12 | 上下文 token 预算与持久化 trace；语义选择只在测量后做 | R5 检索段稳定后 |
 
 ### 实施顺序
