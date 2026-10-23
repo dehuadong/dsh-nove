@@ -30,7 +30,7 @@ export const STORE_DIR = '.storycraft'
 export const CATALOG_SCHEMA_VERSION = 1
 
 /** Schema version of one work database. */
-export const WORK_SCHEMA_VERSION = 5
+export const WORK_SCHEMA_VERSION = 6
 
 /** Material table without purpose, created by the v2→v3 step. */
 const MATERIALS_SCHEMA_V3 = `
@@ -95,6 +95,22 @@ CREATE TABLE IF NOT EXISTS session_current (
   work_id TEXT,
   updated_at TEXT NOT NULL
 );
+`
+
+/** v6 artifact registry: canonical artifacts with immutable revisions. */
+const ARTIFACT_SCHEMA = `
+CREATE TABLE IF NOT EXISTS artifacts (
+  artifact_id TEXT NOT NULL,
+  revision_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  scope_chapter INTEGER,
+  content_type TEXT NOT NULL CHECK (content_type IN ('json', 'text')),
+  content TEXT NOT NULL,
+  provenance TEXT NOT NULL CHECK (provenance IN ('generated', 'imported', 'edited')),
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (artifact_id, revision_id)
+);
+CREATE INDEX IF NOT EXISTS idx_artifacts_kind ON artifacts(kind);
 `
 
 /** One work's schema. `meta` is the single row holding the export copy. */
@@ -187,6 +203,8 @@ CREATE TABLE IF NOT EXISTS bible (
 );
 
 ${MATERIALS_SCHEMA_V4}
+
+${ARTIFACT_SCHEMA}
 
 CREATE TABLE IF NOT EXISTS search_docs (
   doc_id TEXT PRIMARY KEY,
@@ -454,6 +472,7 @@ export function migrateWorkSchema(db) {
         }
       }
       db.exec("INSERT INTO search_fts(search_fts) VALUES('rebuild')")
+      db.exec(ARTIFACT_SCHEMA)
       db.exec(`PRAGMA user_version = ${WORK_SCHEMA_VERSION}`)
     }
   })
