@@ -17,7 +17,7 @@ updated: 2026-10-23
 
 > 2026-10-19：角色不再各自成预设。派发由主编用官方 `subagent` 完成，角色由任务提示与技能区分；上下文由只读动作 `story_context` 交付（见 [#12](https://github.com/dehuadong/dsh-nove/issues/12)）。
 
-> 2026-10-23 复核基线：`inkos-master` 2.0.0（无 `.git`，以 `package.json` 与源码为准）。本轮只补**方法、Skill/资源组织、Agent 编排与交接**；研究文档索引见 `docs/report/inkos/readme.md`。路线图见 `workspace/2026-10-19-storycraft-roadmap.md`。
+> 2026-10-23 复核基线：`inkos-master` 2.0.0（无 `.git`，以 `package.json` 与源码为准）。本轮只补**方法、Skill/资源组织、Agent 编排与交接**；2.0 源码增量见 `docs/report/inkos/2.0-harness-delta.md`，研究索引见 `docs/report/inkos/readme.md`。路线图见 `workspace/2026-10-19-storycraft-roadmap.md`。
 
 ## 2026-10-23 复核结论
 

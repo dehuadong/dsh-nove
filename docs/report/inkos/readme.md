@@ -1,6 +1,6 @@
 InkOS 仓库分析研究文档（本地仓库地址：`E:\dsh-nove\inkos-master`）
 
-> 2026-10-23 复核基线：`inkos-master` 2.0.0（`package.json`，无 `.git`）。下列 v1.0 / L1–L7 报告主要基于 1.x 与 2.0 早期源码，能力对拍已按当前源码修正，见 [与参考实现的能力对拍清单](../../../.agents/notes/proposed/pipeline/2026-10-18-storycraft-parity-matrix.md) 与 [路线图](../../../.agents/notes/proposed/workspace/2026-10-19-storycraft-roadmap.md)。报告里的旧 commit pin 不能作为当前基线证据。
+> 2026-10-23 复核基线：`inkos-master` 2.0.0（`package.json`，无 `.git`）。下列 v1.0 / L1–L7 报告主要基于 1.x 与 2.0 早期源码，**不是当前源码的完整描述**；2.0 的执行模型、capability/profile、Skill 发现与资源绑定见 [InkOS 2.0 Harness 增量研究](2.0-harness-delta.md)。能力对拍见 [与参考实现的能力对拍清单](../../../.agents/notes/proposed/pipeline/2026-10-18-storycraft-parity-matrix.md)，阶段排期见 [路线图](../../../.agents/notes/proposed/workspace/2026-10-19-storycraft-roadmap.md)。报告里的旧 commit pin 不能作为当前基线证据。
 
 ## [InkOS 总体研究结论 v1.0](01.md)，整合以下多轮研究：
 
@@ -28,10 +28,10 @@ InkOS 仓库分析研究文档（本地仓库地址：`E:\dsh-nove\inkos-master`
 
 ## 2026-10-23 复核缺口
 
-- `inkos-master` 实际为 2.0.0；Profile 已包含 `capabilityIds`、`confirmation`、`contextRecipe` 等，报告仍按 1.x 的 required/recommended skills 描述。
+- `inkos-master` 实际为 2.0.0；Profile 已包含 `capabilityIds`、`confirmation`、`contextRecipe`、`artifactSchemas`、`production`，报告仍按 1.x 的 required/recommended skills 描述。
 - Skill 发现已支持项目/用户目录与 `@skill-id` 激活；报告仍假设只有包内技能。
 - 检索已统一为一个内核（故事记忆、材料、Skill references 按 scope/kind 区分）；`inkos03` 的“两套检索”结论过时。
 - 2.0 新增 capability 动作、`propose_action` 确认交接、session→profile 绑定、`ActionResult` 完成证据、book-reference 资源绑定；`L4`/`L6` 未覆盖。
-- Skill 数量为 20（18 份 references），`inkos-story-deslop` 等未出现在旧报告中。
+- Skill 数量为 20（18 份 references），`inkos-story-deslop` 等未出现在旧报告中；`use_skill` 还支持 reference 精确读取与 query 检索。
 
-上述缺口的对拍落点与优先级已写入 parity matrix 与 roadmap；本目录旧报告不重写，保留为 v1 研究记录。
+上述缺口的源码证据与增量结论见 [2.0 Harness 增量研究](2.0-harness-delta.md)；对拍落点与优先级已写入 parity matrix 与 roadmap。本目录旧报告不重写，保留为 v1 研究记录。

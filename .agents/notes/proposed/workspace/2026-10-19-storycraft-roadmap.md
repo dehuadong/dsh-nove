@@ -21,7 +21,7 @@ updated: 2026-10-23
 - **Agent 编排**：委派只到 writer / reviewer / reviser / summarizer，writer 硬编码只加载长篇技能；`architect`、`planner` 没有委派角色；`story_state` 之后没有 settler 投影与 state validator 对账。
 - **形态路由**：委派提示固定写「长篇小说」，短篇/剧本即使走同一套动作，子代理也拿不到形态技能。
 
-详细证据与逐项状态见 `pipeline/2026-10-18-storycraft-parity-matrix.md` 的「2026-10-23 复核」；研究文档基线见 `docs/report/inkos/readme.md`。
+详细证据与逐项状态见 `pipeline/2026-10-18-storycraft-parity-matrix.md` 的「2026-10-23 复核」；2.0 源码增量见 `docs/report/inkos/2.0-harness-delta.md`，研究索引见 `docs/report/inkos/readme.md`。
 
 ## 提案
 
