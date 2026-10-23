@@ -311,7 +311,7 @@ updated: 2026-10-23
   "contextTiers": { "protectedSources": ["string"], "compressibleSources": ["string"] },
   "tokenBudget": { "protectedTokens": 0, "compressibleTokens": 0, "totalSelectedTokens": 0 },
   "compression": { "compiledSource": "string", "protectedSources": ["string"], "compressedSources": ["string"], "protectedTokens": 0, "compressibleTokens": 0, "budgetTokens": 0 }?,
-  "retrieval": { "engine": "sqlite-fts5-bm25", "query": "string", "selectionMode": "semantic|complete", "candidates": [{ "id": "string", "kind": "string", "source": "string", "score": "number" }], "semanticSelectedIds": ["string"] }?,
+  "retrieval": { "engine": "sqlite-fts5-bm25", "query": "string", "selectionMode": "semantic|complete", "candidates": [], "semanticSelectedIds": [] }?,
   "notes": ["string"],
   "sections": [{ "name": "string", "protection": "protected|compressible", "sourceIds": ["string"] }]?,
   "trimmed": ["string"],

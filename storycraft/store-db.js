@@ -15,7 +15,7 @@ import {
 } from 'node:fs'
 import { join } from 'node:path'
 import {
-  backupTo, checkpoint, createWorkDatabase, exportsDir, integrityCheck, migrateWorkSchema, WORK_SCHEMA_VERSION,
+  backupTo, checkpoint, createWorkDatabase, exportsDir, integrityCheck, WORK_SCHEMA_VERSION,
   materialsDir, moveDatabaseFiles, openCatalog, openDatabase, openWork, removeDatabaseFiles, transaction,
   trashDir, trashFile, workFile, worksDir, backupsDir,
 } from './db.js'
@@ -2819,7 +2819,10 @@ export async function restoreBackup(root, work, backupId, options = {}) {
     try {
       const copy = openDatabase(stage, '备份无法读取')
       try {
-        migrateWorkSchema(copy)
+        const version = Number(copy.prepare('PRAGMA user_version').get()?.user_version ?? 0)
+        if (version !== WORK_SCHEMA_VERSION) {
+          throw new StoryError('backup-invalid', `备份 schema v${version} 不是支持的 v${WORK_SCHEMA_VERSION}`)
+        }
         if (integrityCheck(copy) !== 'ok') throw new StoryError('backup-invalid', '备份文件不完整')
       } finally {
         copy.close()

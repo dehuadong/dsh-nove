@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../storage.js'
-import { openCatalog, openWork, workFile } from '../db.js'
+import { openCatalog, openDatabase, openWork, workFile } from '../db.js'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -47,6 +47,28 @@ try {
     check('restore brings back the backup content', restored.prepare("SELECT content FROM bible WHERE name = 'world'").get().content === '# 旧世界\n')
   } finally {
     restored.close()
+  }
+
+  const legacy = (await s.initWork(root, { title: '旧库备份' })).workId
+  s.writeBible(root, { work: legacy, name: 'world', content: '# 当前世界\n' })
+  await s.createBackup(root, legacy, 10)
+  const legacySaved = (await s.listBackups(root, legacy))[0]
+  const legacyDb = openDatabase(legacySaved.file)
+  legacyDb.exec('PRAGMA user_version = 5')
+  legacyDb.close()
+  let legacyError
+  try {
+    await s.restoreBackup(root, legacy, legacySaved.backupId)
+  } catch (error) {
+    legacyError = error
+  }
+  check('non-v6 backup is refused before swap', legacyError?.code === 'backup-invalid', String(legacyError?.code))
+  const legacyCurrent = openWork(root, legacy)
+  try {
+    check('refused backup leaves the current work intact',
+      legacyCurrent.prepare("SELECT content FROM bible WHERE name = 'world'").get().content === '# 当前世界\n')
+  } finally {
+    legacyCurrent.close()
   }
 
   const corrupt = (await s.initWork(root, { title: '损坏恢复' })).workId

@@ -432,14 +432,7 @@ export function validateChapterTrace(value) {
     oneOf(retrieval.engine, ['sqlite-fts5-bm25'], 'trace.retrieval.engine')
     text(retrieval.query, 'trace.retrieval.query')
     oneOf(retrieval.selectionMode, ['semantic', 'complete'], 'trace.retrieval.selectionMode')
-    list(retrieval.candidates, 'trace.retrieval.candidates', (candidate, label) => {
-      keys(candidate, ['id', 'kind', 'source', 'score'], label)
-      text(candidate.id, `${label}.id`)
-      text(candidate.kind, `${label}.kind`)
-      text(candidate.source, `${label}.source`)
-      if (typeof candidate.score !== 'number' || Number.isNaN(candidate.score)) invalid(`${label}.score 必须是数字`)
-      return candidate
-    })
+    if (!Array.isArray(retrieval.candidates)) invalid('trace.retrieval.candidates 必须是数组')
     strings(retrieval.semanticSelectedIds, 'trace.retrieval.semanticSelectedIds')
   }
   strings(input.notes, 'trace.notes')
