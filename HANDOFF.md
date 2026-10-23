@@ -1,122 +1,90 @@
-# 交接文档：R11 已交付，下一步 A0 产物合同 v2（R10 暂停）
+# 交接文档：A0 实现 tickets 已交付，#45 仍待消费者收口（2026-10-23）
 
 > 更新时间：2026-10-23  
-> 交接范围：`dehuadong/dsh-nove` 的 `storycraft/`；实现提交 `9abdd8e`（本文件随后单独提交）。  
-> 下一会话默认焦点：**A0 全量产物合同 v2**（#45，`Status: ready`）；R10 #44 已改为 `planning` 并被 #45 阻塞。
+> 仓库：`dehuadong/dsh-nove`，分支 `main`，HEAD `64c8194`。
+> 本轮范围：A0 #45 的实现 tickets #46–#49；A0 合同 Note 仍为 proposed，#45 仍 in-progress。
 
 ## 1. 当前结论
 
-### 已交付并关闭
+### 已交付（本轮）
 
-- **#43 R11 settler 自动投影与语义对账**：
-  - 新增主会话写动作 `story_settle`：settler 从正文抽取 delta → 确定性预检 → R9b `story_state_check`；
-  - major/确定性差异带反馈重算一次；仍不一致返回 `settled:false`、proposed 与 findings，不写库；
-  - 首次空 delta 可零 counts 定稿；被 major 拒绝后的第二次空 delta 视为未解决；
-  - 成功后 `foldState` 写 events 并定稿；`story_next` 定稿步骤改为 `story_settle`，`story_state` 保留手动回退；
-  - 新增 `storycraft-state-settler` 技能与 `story_submit` 的 `settler` 角色；动作 31→32，技能 10→11（`review` 3）；
-  - 不新增表/schema；baseline 用正文 revision + 事件序号，变化即 `state-settle-stale`；
-  - 设计记录迁至 `implemented/pipeline/2026-10-23-storycraft-settler-auto-projection.md`。
-- **#42 R9b 只读语义检查**：`story_state_check`、validator 角色、引文校验。
-- **#41 R6a 长篇方法资源**：`storycraft-longform-method` 三份 references。
-- **#39 R6b**、**R6b-fix**、**#40 R9**、**R6c**、**#38**、**#37** 已交付；细节见 Issue/Note。
+- **#46 A0-2 foundation 与章节 artifact 接入 v6 registry**：`7e674d2`
+  - foundation token：story_frame / volume_map / book_rules / roles index / role card；章节 token：ChapterMemo（`plan:<n>`）/ ChapterSummary（`summary:<n>`）/ ChapterMeta 投影。
+  - 每类走 `artifact-contract.js` 的 ID/scope/content 校验；revision 为内容哈希；旧 revision 不可变可读。
+  - 作者闸门：`approveChapterPlan` 绑定当前最新 memo revision；manifest/readWork/status/export 带 planRevision/provenance；`story_next`/`writeChapter`/`delegate`/`context` 的 gate 统一读 `planApproved`。
+  - v6 旧库缺 A0 列时 `openWork` 返回 `schema-version-mismatch`。
+- **#47 A0-3 hook/fact/observation 合同接入**：`b821090`
+  - `state-events.js`：hook upsert 不改状态；progress/mention/defer/resolve/supersede 走转移表；非法转移不写事件；fact upsert/expire 投影有效区间与 sourceChapter。
+  - review observation：`review:<n>:r<bodyRev>:<round>`，sourceRefs 必须落在正文或计划文本；`loadRoleInput` 的 reviser 优先读 observation，缺失时回退旧审稿文本。
+  - 边界：旧 `foldEvents` 忽略带 `op` 的 v2 事件；旧 state-validation/check/settle 继续消费 text-hook/string-fact。
+- **#48 A0-4 短篇/剧本独立 artifact 存储**：`293215f`
+  - `short:<id>` / `script:<id>`；不写长篇章表；不接收 `scope.chapter`；必填、编号重复、空场景、字符统计校验。
+- **#49 A0-5 共享方法技能与角色薄契约**：`64c8194`
+  - `storycraft-long-writing`（4 refs）、`storycraft-short-writing`（production-checklist）、`storycraft-script-writing`（episode-scene-craft）。
+  - 角色/形态技能薄化；`storycraft-longform-method` 保留迁移别名；R6a Note 标注部分替代并互链；README/对拍矩阵更新为 14 技能/9 references。
 
 ### 验证现状
 
-- 单元：**37 个文件全过**（`node storycraft/scripts/ci.mjs --no-e2e`）。
-- `state-settle.test.mjs`：成功、首次空 delta、minor、major→重算、两次 major、两次 invalid、空重算 unresolved、闸门、stale（revision 与 seq）、无服务/超时/无提交/坏 payload、validator 不可用、prompt 边界、技能路由。
-- 手动 `story_state` 闸门顺序保持不变；`story_settle` 额外要求正文。
-- 规划文档检查：`node scripts/decisions/check.mjs` 通过（47 条记录）。
-- E2E：**未跑**。本机 Playwright/DSH 登录弹窗阻塞，不能声称 E2E 通过。
-- Implementation Review：Standards / Spec 两轴复审后无剩余实质问题；修正了 gate 顺序、空重算安全、技能路由、基线测试、文档计数。
+- 单元：**43 个文件全过**（`node storycraft/scripts/ci.mjs --no-e2e`）。
+- 规划文档检查：`node scripts/decisions/check.mjs` 通过（50 条记录）。
+- E2E：**未跑**。本机 Playwright/DSH 登录弹窗仍阻塞，不能声称 E2E 通过。
+- Implementation Review：每个 ticket 做了 Standards/Spec 双轴复审并修正了 material findings（计划闸门双权威、v6 旧库误判、v2 事件被旧 fold 误读、observation 引文校验、volume_map 校验、短篇/剧本 scope 与统计等）。
+- 真实模型/真实链路验收：未做；A0 收口前仍由作者做一次。
 
-## 2. 下一步
+## 2. #45 仍未完成的部分
 
-### 默认：A0 全量产物合同 v2（#45，ready）
+`#45` 的验收 4 要求“每个 A0 产物至少一个真实消费者（brief/context、检索、审稿、结算/对账、UI、导出/备份）”。本轮只完成了存储/合同与部分消费者：
 
-R11 之后做了产物结构与资源对拍补审，结论是 R10 不能按现有 world/plan/characters/text-hook 格式直接实现。A0 已在 #45 完成规划并进入 ready，先定：
+- 已接：ChapterMeta 投影、export/readWork/status 的 planRevision/provenance、reviser 的 observation 读取、短篇/剧本存储层隔离。
+- 未接：foundation（story_frame/volume_map/book_rules/roles）没有生产消费者；ChapterMemo/ChapterSummary 的生产者仍是旧 `chapter_plans`/`summaries` 表；hooks/facts v2 投影尚未替换 settler/state 链。这些按 handoff 属于 L/R10b，但 #45 的 AC4 尚未满足。
+- 因此：**#46–#49 已关闭，#45 保持 in-progress，不能标 complete。**
 
-- story_frame / volume_map / book_rules / 角色卡；
-- hook 身份与生命周期；
-- 结构化章节摘要、observation 证据；
-- facts 三元组/有效期、chapter memo threadRefs；
-- 只支持 v6；旧测试作品直接删除重建，不做兼容/迁移。
+## 3. 下一步
 
-报告：[全项目一对一实现与产物对拍审查](docs/report/inkos/2026-10-23-full-project-parity-audit.md)，专项细节见[产物结构审查](docs/report/inkos/2026-10-23-artifact-and-resource-parity-audit.md)。
+1. **收口 A0 消费者**（需新工单或作者重排）：为 foundation/memo/summary/hooks/facts 接 brief/context、检索、审稿、结算或导出中的真实消费者；只写入/读回不算。
+2. 消费者收口后再重新规划 **L（R10a/R10b + R9b/R11 迁移）**，然后 S（短篇批量流水线）与 D（剧本 spec/场次）。
+3. 若作者决定把消费者整体归入 L，需在 #45 明确改验收，而不是静默把 AC4 当已满足。
 
-阶段顺序：A0 全量产物合同 → L 长篇（R10a/R10b + R9b/R11 迁移）→ S 短篇（独立短篇流水线）→ D 剧本（独立 spec/script + 场次/集）；横向 R7/R7b/R7c/R8 不删除。
+## 4. 关键合同/决策
 
-A0 之后再把 R10 拆成 R10a（合同/存储）与 R10b（architect 分阶段生成）。R9b/R11 已交付的 text hook/fact 逻辑要在新合同下重写。
+- 产物合同：[`2026-10-23-storycraft-artifact-contract-v2.md`](.agents/notes/proposed/pipeline/2026-10-23-storycraft-artifact-contract-v2.md)。
+- Skill 组织：[`2026-10-23-storycraft-skill-organization-v2.md`](.agents/notes/proposed/pipeline/2026-10-23-storycraft-skill-organization-v2.md)。
+- 作者闸门：outline/章纲必须作者确认；ChapterMemo 是章纲唯一权威；`planApproved` 要求批准 revision 等于当前最新 memo。
+- 只 v6：不做 v1–v5 迁移、legacy 读或 `artifact_contract` 标志。
+- hook/fact/observation 新合同与旧 text-hook/string-fact 并存有明确边界，L 再迁移。
+- 短篇/剧本不映射到 Chapter；实际流水线/UI 归 S/D。
 
-### R10 foundation 委派（#44，blocked by #45）
+## 5. 重要风险/边界
 
-#44 已改为 `Status: planning`，标题改为“R10 foundation 委派（A0 后）”，原生依赖 #45。旧方案与旧 Note 已 rejected；不要按旧格式实现。
+- `readChapterMeta` 的 `observationIds` 只列 review artifact；observation 内容消费目前只在 reviser 路径。
+- v2 状态事件读取-追加不是原子事务；并发追加可能返回旧投影，L 接 settler 时需收紧。
+- `sourceRefs` 引文校验只覆盖本章正文/计划；跨章或摘要引用未开放。
+- 旧技能名仍作为迁移别名存在，L 切换路由后下线；当前目录数量以 `skills.test` 为准。
+- 真实模型不用于开发测试；最终只做一次作者验收。
 
-### 备选：R7 拆稿分析（需作者提供参考作品）
-
-长/短篇合并一份拆解技能与 lens，区分证据与借鉴。没有可归档的参考作品时保持未排期。
-
-### 不要在本轮做
-
-- 不按旧格式实现 R10；
-- 不把 `story_settle` 做成自动后台/无人值守；
-- 不新增候选表/schema 而不立项；
-- 不扩写短篇/剧本自动结算，除非另开工作项；
-- 不跳过作者对全书计划/章纲的确认。
-
-## 3. 关键产物与证据
-
-- 工作项：[#43 R11](https://github.com/dehuadong/dsh-nove/issues/43)
-- 实现 Note：`.agents/notes/implemented/pipeline/2026-10-23-storycraft-settler-auto-projection.md`
-- R9b 工作项：[#42](https://github.com/dehuadong/dsh-nove/issues/42)
-- 路线图：`.agents/notes/proposed/workspace/2026-10-19-storycraft-roadmap.md`
-- 对拍矩阵：`.agents/notes/proposed/pipeline/2026-10-18-storycraft-parity-matrix.md`
-- 产物结构补审：[docs/report/inkos/2026-10-23-artifact-and-resource-parity-audit.md](docs/report/inkos/2026-10-23-artifact-and-resource-parity-audit.md)
-- InkOS 2.0 增量：`docs/report/inkos/2.0-harness-delta.md`
-- 最近提交：
-  - `048e808` R11 规划
-  - `9abdd8e` R11 实现与交付文档
-
-## 4. 已知风险/边界
-
-- 自动结算最坏 2 次 settler + 2 次 validator；成本和时延高于手动，显式调用、不做后台。
-- settler 质量依赖模型与技能；dev 测试用假子代理，不能证明真实抽取正确；最终真实链路仍由作者验收。
-- minor findings 被接受后仍可能有错；`missing-change` 不是完整抽取，`fact-ambiguous` 只是建议。
-- 事实只追加、不能撤回；settler 写错旧事实只能后续覆盖或人工处理。
-- 首次空 delta 可定稿；被 major 拒绝后的空重算不定稿，避免静默接受空状态。
-- 37 单测通过不等于 E2E 或真实链路通过；真实使用验收仍由作者最后做一次。
-- 旧会话中已加载的工具/技能不会热替换；新会话或重载插件后才生效。
-
-## 5. 建议技能
-
-- `planning`：立项 R10 或 R7，收敛真值/输入与验收；
-- `implement`：实现门禁通过后写代码与测试；
-- `code-review`：对变更做 Standards/Spec 双轴复审；
-- `verify`：核对验收、迁移 Note 生命周期、更新工作项；
-- `research`：需要再核对 InkOS foundation/architect 实现时；
-- `handoff`：下一次会话结束再交接。
-
-## 6. 门禁命令
-
-默认 A0：
+## 6. 验证命令
 
 ```text
-批准，使用技能 implement 执行实现 A0 全量产物合同 v2
+node storycraft/scripts/ci.mjs --no-e2e
+node scripts/decisions/check.mjs
+git status --short
+git log --oneline -6
 ```
 
-若改选 R7（先准备参考作品）：
+E2E 在环境阻塞解除后再跑；不要在本机弹窗未解决时声称通过。
 
-```text
-批准，使用技能planning 执行规划 R7 拆稿分析
-```
+## 7. 建议技能
 
-## 7. 不要做
+- `verify`：A0 消费者收口后做最终验收。
+- `planning`：为 A0 消费者新增工单，或把消费者整体改归 L 时更新 #45 验收。
+- `implement`：L/S/D 实现。
+- `code-review`：每个 ticket/切片复核。
+- `research`：需要再核对 InkOS 的 foundation/state 消费路径时，先读 `docs/report/inkos/`。
 
-- 不要按旧 world/plan/characters/text-hook 格式实现 R10；
-- 不要把 `story_settle` 写成自动后台或无人值守；
-- 不要把「37 单测通过」写成「E2E/真实链路通过」；
-- 不要把自动结算通过说成「状态一定正确」；minor findings 仍可能是错；
-- 不要给 `story_settle` 增加超过一次的重算或循环；
-- 不要让子代理直接落盘；
-- 不要删除 #37–#44 的既有证据或历史 Note。
+## 8. 不要做
 
-
+- 不要把 #45 标 complete 或把 AC4 当已满足；
+- 不要恢复旧库迁移/兼容；
+- 不要在没有消费者的情况下声称 A0 完成；
+- 不要删除 #45–#49 或历史证据；
+- 不要复制 InkOS 代码/文件；按结构与领域语言重写。
