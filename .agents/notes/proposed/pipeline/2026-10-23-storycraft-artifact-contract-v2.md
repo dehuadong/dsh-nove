@@ -15,7 +15,7 @@ updated: 2026-10-23
 
 ## 与既有记录
 
-- **artifact 身份语法由 [`2026-10-20-storycraft-artifact-identity.md`](2026-10-20-storycraft-artifact-identity.md) 拥有**；本 Note 只扩展 kind/字段，不另起一套 ID 语法。新增/变更的 ID 在 §2 表中列明；旧表（outline/plan/chapter/review/summary/state/bible/volume/export/backup/material）继续有效。
+- **artifact 身份语法由 [`2026-10-20-storycraft-artifact-identity.md`](2026-10-20-storycraft-artifact-identity.md) 拥有**；本 Note 只扩展 kind/字段，不另起一套 ID 语法。新增/变更的 ID 在 §2 表中列明；旧表（outline/plan/chapter/review/summary/state/bible/volume/export/backup/material）继续有效。本 Note 的“静态 artifact 保留历史 revision”**部分替代**该 Note 的“upsert 不保留历史”；L 交付时更新该 Note 的状态/验收并互相链接。
 - R6a 的 [`2026-10-23-storycraft-longform-method-references.md`](../../implemented/pipeline/2026-10-23-storycraft-longform-method-references.md) 记录 hook 只有三态、text 身份、不引入 `superseded`/`lastAdvancedChapter`。本 Note 的 hookId/生命周期与该记录**部分替代**：R6a 在 L 交付前仍是现行运行契约；L 交付时更新 R6a 的状态/验收并互相链接，不提前把新字段用于现有代码。
 - R11 的 [`2026-10-23-storycraft-settler-auto-projection.md`](../../implemented/pipeline/2026-10-23-storycraft-settler-auto-projection.md) 已交付；本 Note 不改变其“审稿→修订→摘要→settle”的闸门顺序，只把产物迁到新模型（L 阶段）。
 - 旧 R10 方案已 rejected：[`2026-10-23-storycraft-foundation-delegation.md`](../../rejected/pipeline/2026-10-23-storycraft-foundation-delegation.md)。
@@ -191,7 +191,7 @@ updated: 2026-10-23
   "stage": "planned|written|reviewed|revised|settled",
   "planApprovedAt": "ISO-8601?",
   "planRevision": "string?",
-  "provenance": "generated|imported|edited|migrated",
+  "provenance": "generated|imported|edited",
   "lengthTelemetry": { "target": 0, "actual": 0, "unit": "words|non-whitespace-characters" }?,
   "tokenUsage": { "promptTokens": 0, "completionTokens": 0, "totalTokens": 0 }?,
   "observationIds": ["review:<n>:<bodyRev>:<round>"]
@@ -311,7 +311,7 @@ updated: 2026-10-23
   "contextTiers": { "protectedSources": ["string"], "compressibleSources": ["string"] },
   "tokenBudget": { "protectedTokens": 0, "compressibleTokens": 0, "totalSelectedTokens": 0 },
   "compression": { "compiledSource": "string", "protectedSources": ["string"], "compressedSources": ["string"], "protectedTokens": 0, "compressibleTokens": 0, "budgetTokens": 0 }?,
-  "retrieval": { "engine": "sqlite-fts5-bm25", "query": "string", "selectionMode": "semantic|complete", "candidates": [], "semanticSelectedIds": [] }?,
+  "retrieval": { "engine": "sqlite-fts5-bm25", "query": "string", "selectionMode": "semantic|complete", "candidates": [{ "id": "string", "kind": "string", "source": "string", "score": "number" }], "semanticSelectedIds": ["string"] }?,
   "notes": ["string"],
   "sections": [{ "name": "string", "protection": "protected|compressible", "sourceIds": ["string"] }]?,
   "trimmed": ["string"],

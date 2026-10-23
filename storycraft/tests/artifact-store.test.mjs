@@ -57,6 +57,11 @@ try {
   const all = listArtifacts(root, { work })
   check('list latest of each artifact', all.artifacts.length === 2, JSON.stringify(all))
 
+  rejects('missing revision is revision-not-found', 'revision-not-found',
+    () => readArtifact(root, { work, artifactId: 'plan:1', revisionId: 'missing' }))
+  rejects('duplicate revision is refused', 'artifact-revision-exists', () => putArtifact(root, {
+    workId: work, artifactId: 'plan:1', kind: 'plan', scope: { chapter: 1 }, revisionId: 'hash-1', content: memo, provenance: 'generated', createdAt: '2026-10-23T00:00:00.000Z',
+  }))
   rejects('missing artifact is not found', 'artifact-not-found', () => readArtifact(root, { work, artifactId: 'plan:2' }))
   rejects('invalid envelope is rejected', 'artifact-invalid', () => putArtifact(root, {
     workId: work, artifactId: 'works/plan', kind: 'plan', revisionId: 'x', content: memo, provenance: 'generated', createdAt: 'now',

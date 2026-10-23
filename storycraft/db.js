@@ -12,7 +12,6 @@
 import { existsSync, mkdirSync, renameSync, rmSync, unlinkSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { StoryError, isWorkId } from './domain.js'
-import { materialIndexText, searchTokens } from './search-text.js'
 
 let DatabaseSync
 try {
@@ -32,22 +31,7 @@ export const CATALOG_SCHEMA_VERSION = 1
 /** Schema version of one work database. */
 export const WORK_SCHEMA_VERSION = 6
 
-/** Material table without purpose, created by the v2→v3 step. */
-const MATERIALS_SCHEMA_V3 = `
-CREATE TABLE IF NOT EXISTS materials (
-  id TEXT PRIMARY KEY,
-  title TEXT NOT NULL,
-  format TEXT NOT NULL,
-  origin TEXT NOT NULL,
-  bytes INTEGER NOT NULL,
-  hash TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  content TEXT NOT NULL
-);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_materials_hash ON materials(hash);
-`
-
-/** Final material table with purpose, used by new databases and v3→v4. */
+/** Final material table with purpose, used by new databases. */
 const MATERIALS_SCHEMA_V4 = `
 CREATE TABLE IF NOT EXISTS materials (
   id TEXT PRIMARY KEY,
@@ -386,111 +370,15 @@ export function openWork(root, workId) {
   const db = openDatabase(file)
   try {
     const version = userVersion(db)
-    if (version === 1 || version === 2 || version === 3 || version === 4) {
-      try {
-        migrateWorkSchema(db)
-      } catch (error) {
-        if (error?.code === 'work-busy' || error?.code === 'schema-version-mismatch') throw error
-        throw new StoryError('schema-migration-failed',
-          `作品 ${workId} 的库升级到 v${WORK_SCHEMA_VERSION} 失败：${error instanceof Error ? error.message : String(error)}`)
-      }
-      syncCatalogSchemaVersion(root, workId)
-    } else if (version !== WORK_SCHEMA_VERSION) {
+    if (version !== WORK_SCHEMA_VERSION) {
       throw new StoryError('schema-version-mismatch',
-        `作品 ${workId} 的库版本 ${version} 不是支持的 ${WORK_SCHEMA_VERSION}：请升级插件或恢复备份`)
+        `作品 ${workId} 的库版本 ${version} 不是支持的 ${WORK_SCHEMA_VERSION}：测试作品请删除重建，不做兼容迁移`)
     }
   } catch (error) {
     db.close()
     throw error
   }
   return db
-}
-
-/** Column names declared by each material table shape. */
-const MATERIAL_COLUMNS_V3 = [...MATERIALS_SCHEMA_V3.matchAll(/^\s{2}([a-z_]+)\s/gmu)].map(match => match[1])
-const MATERIAL_COLUMNS_V4 = [...MATERIALS_SCHEMA_V4.matchAll(/^\s{2}([a-z_]+)\s/gmu)].map(match => match[1])
-
-/**
- * Upgrade a v1–v4 work database in place. Idempotent: a concurrent opener that
- * already committed the current version is a no-op, and existing columns are
- * reused only when their shape still matches the shared schema.
- * @param {import('node:sqlite').DatabaseSync} db - open v1–v4 work database.
- */
-export function migrateWorkSchema(db) {
-  transaction(db, () => {
-    let version = userVersion(db)
-    if (version === WORK_SCHEMA_VERSION) return
-    if (version !== 1 && version !== 2 && version !== 3 && version !== 4) {
-      throw new StoryError('schema-version-mismatch', '只支持从 v1–v4 升级作品库')
-    }
-    if (version === 1) {
-      const columns = db.prepare('PRAGMA table_info(summaries)').all()
-      if (!columns.some(column => column.name === 'revision')) {
-        db.exec('ALTER TABLE summaries ADD COLUMN revision INTEGER')
-      }
-      db.exec(`UPDATE summaries SET revision = (
-        SELECT CASE WHEN chapters.current_revision > 0 THEN chapters.current_revision END
-        FROM chapters WHERE chapters.number = summaries.number
-      ) WHERE revision IS NULL`)
-      version = 2
-      db.exec('PRAGMA user_version = 2')
-    }
-    if (version === 2) {
-      const columns = db.prepare('PRAGMA table_info(materials)').all().map(column => column.name)
-      if (columns.length > 0
-        && columns.join(',') !== MATERIAL_COLUMNS_V3.join(',')
-        && columns.join(',') !== MATERIAL_COLUMNS_V4.join(',')) {
-        throw new StoryError('schema-migration-failed', 'materials 表已存在但列不匹配，拒绝复用')
-      }
-      db.exec(MATERIALS_SCHEMA_V3)
-      version = 3
-      db.exec('PRAGMA user_version = 3')
-    }
-    if (version === 3) {
-      const columns = db.prepare('PRAGMA table_info(materials)').all().map(column => column.name)
-      if (columns.length === 0) db.exec(MATERIALS_SCHEMA_V4)
-      else if (!columns.includes('purpose')) db.exec('ALTER TABLE materials ADD COLUMN purpose TEXT NOT NULL DEFAULT \'reference\' CHECK (purpose IN (\'setting\',\'character\',\'scene\',\'style\',\'reference\'))')
-      else if (columns.join(',') !== MATERIAL_COLUMNS_V4.join(',')) {
-        throw new StoryError('schema-migration-failed', 'materials 表列不匹配 v4，拒绝复用')
-      }
-      version = 4
-      db.exec('PRAGMA user_version = 4')
-    }
-    if (version === 4) {
-      const rows = db.prepare(`SELECT m.id, m.title, m.content, d.rowid AS rowid
-        FROM materials m LEFT JOIN search_docs d ON d.doc_id = 'material:' || m.id
-        ORDER BY m.id`).all()
-      for (const row of rows) {
-        const tokens = searchTokens(materialIndexText(row.title, row.content))
-        if (row.rowid === null) {
-          db.prepare('INSERT INTO search_docs (doc_id, kind, source, chapter, body, tokens) VALUES (?, ?, ?, ?, ?, ?)')
-            .run(`material:${row.id}`, 'material', `materials/${row.id}`, 0, row.content, tokens)
-          const inserted = db.prepare('SELECT rowid FROM search_docs WHERE doc_id = ?').get(`material:${row.id}`)
-          db.prepare('INSERT INTO search_fts (rowid, tokens) VALUES (?, ?)').run(inserted.rowid, tokens)
-        } else {
-          db.prepare('UPDATE search_docs SET tokens = ? WHERE rowid = ?').run(tokens, row.rowid)
-        }
-      }
-      db.exec("INSERT INTO search_fts(search_fts) VALUES('rebuild')")
-      db.exec(ARTIFACT_SCHEMA)
-      db.exec(`PRAGMA user_version = ${WORK_SCHEMA_VERSION}`)
-    }
-  })
-}
-
-/** Best-effort catalog copy of the work schema version; never blocks a write. */
-function syncCatalogSchemaVersion(root, workId) {
-  try {
-    const catalog = openCatalog(root, { create: false, busyTimeout: 0 })
-    if (catalog === undefined) return
-    try {
-      catalog.prepare('UPDATE works SET schema_version = ? WHERE work_id = ?').run(WORK_SCHEMA_VERSION, workId)
-    } finally {
-      catalog.close()
-    }
-  } catch {
-    // The catalog copy is metadata; the work's PRAGMA remains authoritative.
-  }
 }
 
 /**

@@ -6,7 +6,7 @@
  * boundary with these functions.
  */
 
-import { StoryError } from './domain.js'
+import { StoryError, STAGES, WORK_FORMS } from './domain.js'
 
 /** Contract version carried by new works. */
 export const ARTIFACT_CONTRACT_VERSION = 2
@@ -22,8 +22,8 @@ export const ARTIFACT_KINDS = [
 /** Form-specific pipelines. Short/script do not share the longform stage machine. */
 export const FORM_PIPELINES = {
   longform: ['foundation', 'plan', 'compose', 'write', 'review', 'revise', 'summary', 'settle'],
-  short: ['outline', 'draft', 'review', 'revise', 'package'],
-  script: ['spec', 'script', 'episodes', 'review'],
+  short: ['outline', 'batch_draft', 'draft_review', 'revision_plan', 'package'],
+  script: ['spec', 'script', 'episodes_scenes', 'review'],
 }
 
 /** Hook lifecycle states. */
@@ -42,7 +42,7 @@ export const OBSERVATION_CATEGORIES = ['execution', 'quality', 'scope']
 export const OBSERVATION_ASSESSMENTS = ['issue', 'resolved', 'unavailable', 'observation']
 export const OBSERVATION_SEVERITIES = ['blocking', 'major', 'minor']
 export const REVISE_MODES = ['patch', 'polish', 'rewrite', 'deslop']
-export const CHAPTER_STAGES = ['planned', 'written', 'reviewed', 'revised', 'settled']
+export const CHAPTER_STAGES = STAGES
 export const ARTIFACT_PROVENANCE = ['generated', 'imported', 'edited']
 export const SCRIPT_FORMATS = ['vertical_short_drama', 'screenplay', 'audio_drama', 'interactive_script', 'general_script']
 
@@ -137,6 +137,10 @@ export function validateArtifactEnvelope(value) {
     invalid(`${input.kind} 必须带 scope.chapter`)
   }
   if (input.content === undefined) invalid('artifact.content 缺失')
+  if (typeof input.content !== 'string'
+    && (input.content === null || typeof input.content !== 'object' || Array.isArray(input.content))) {
+    invalid('artifact.content 只能是对象或字符串')
+  }
   text(input.createdAt, 'createdAt')
   return { ...input, artifactId }
 }
@@ -149,15 +153,15 @@ export function validateWorkConfig(value) {
     'outline', 'createdAt', 'updatedAt'], 'work')
   text(input.workId, 'workId')
   text(input.title, 'title')
-  oneOf(input.form, ['longform', 'short', 'script'], 'form')
+  oneOf(input.form, WORK_FORMS, 'form')
   oneOf(input.language, ['zh', 'en'], 'language')
   if (input.platform !== undefined) text(input.platform, 'platform')
   if (input.genre !== undefined) text(input.genre, 'genre')
-  if (input.status !== undefined) {
-    oneOf(input.status, ['incubating', 'outlining', 'active', 'paused', 'completed', 'dropped'], 'status')
-  }
+  if (input.status === undefined) invalid('work.status 缺失')
+  oneOf(input.status, ['incubating', 'outlining', 'active', 'paused', 'completed', 'dropped'], 'status')
   optionalInteger(input.targetChapters, 'targetChapters', 1)
-  if (input.chapterWordCount !== undefined) {
+  if (input.chapterWordCount === undefined) invalid('chapterWordCount 缺失')
+  {
     const range = object(input.chapterWordCount, 'chapterWordCount')
     keys(range, ['min', 'max', 'target'], 'chapterWordCount')
     integer(range.min, 'chapterWordCount.min', 1)
@@ -165,14 +169,19 @@ export function validateWorkConfig(value) {
     if (range.max < range.min) invalid('chapterWordCount.max 不能小于 min')
     optionalInteger(range.target, 'chapterWordCount.target', 1)
   }
-  if (input.planApproval !== undefined) oneOf(input.planApproval, ['required', 'off'], 'planApproval')
-  if (input.outline !== undefined) {
+  if (input.planApproval === undefined) invalid('planApproval 缺失')
+  oneOf(input.planApproval, ['required', 'off'], 'planApproval')
+  if (input.outline === undefined) invalid('outline 缺失')
+  {
     const outline = object(input.outline, 'outline')
     keys(outline, ['writtenAt', 'approvedAt'], 'outline')
     if (outline.writtenAt !== undefined) text(outline.writtenAt, 'outline.writtenAt')
     if (outline.approvedAt !== undefined) text(outline.approvedAt, 'outline.approvedAt')
   }
-  if (input.tags !== undefined) strings(input.tags, 'tags')
+  if (input.tags === undefined) invalid('tags 缺失')
+  strings(input.tags, 'tags')
+  text(input.createdAt, 'createdAt')
+  text(input.updatedAt, 'updatedAt')
   return input
 }
 
@@ -226,7 +235,7 @@ export function validateRolesIndex(value) {
     oneOf(role.tier, ['major', 'minor'], `${label}.tier`)
     for (const field of ['role', 'want', 'fear', 'limit', 'voice']) text(role[field], `${label}.${field}`)
     return role
-  }, { min: 1, max: 20 })
+  })
   const names = new Set(input.roles.map(role => role.name))
   if (names.size !== input.roles.length) invalid('roles.roles 姓名重复')
   return input
@@ -240,7 +249,7 @@ export function validateRoleCard(value) {
   oneOf(input.tier, ['major', 'minor'], 'role_card.tier')
   for (const field of ['motivation', 'knowledge', 'relationshipPressure', 'limits']) text(input[field], `role_card.${field}`)
   if (input.arc !== undefined) text(input.arc, 'role_card.arc')
-  if (input.markdown !== undefined) text(input.markdown, 'role_card.markdown')
+  text(input.markdown, 'role_card.markdown')
   return input
 }
 
@@ -269,7 +278,8 @@ export function validateChapterMeta(value) {
   oneOf(input.stage, CHAPTER_STAGES, 'chapter_meta.stage')
   if (input.planApprovedAt !== undefined) text(input.planApprovedAt, 'chapter_meta.planApprovedAt')
   if (input.planRevision !== undefined) text(input.planRevision, 'chapter_meta.planRevision')
-  if (input.provenance !== undefined) oneOf(input.provenance, ARTIFACT_PROVENANCE, 'chapter_meta.provenance')
+  if (input.provenance === undefined) invalid('chapter_meta.provenance 缺失')
+  oneOf(input.provenance, ARTIFACT_PROVENANCE, 'chapter_meta.provenance')
   if (input.lengthTelemetry !== undefined) {
     const telemetry = object(input.lengthTelemetry, 'lengthTelemetry')
     keys(telemetry, ['target', 'actual', 'unit'], 'lengthTelemetry')
@@ -282,7 +292,8 @@ export function validateChapterMeta(value) {
     keys(usage, ['promptTokens', 'completionTokens', 'totalTokens'], 'tokenUsage')
     for (const field of ['promptTokens', 'completionTokens', 'totalTokens']) integer(usage[field], `tokenUsage.${field}`)
   }
-  if (input.observationIds !== undefined) strings(input.observationIds, 'chapter_meta.observationIds')
+  if (input.observationIds === undefined) invalid('chapter_meta.observationIds 缺失')
+  strings(input.observationIds, 'chapter_meta.observationIds')
   return input
 }
 
@@ -415,7 +426,22 @@ export function validateChapterTrace(value) {
     strings(compression.compressedSources, 'trace.compression.compressedSources')
     for (const field of ['protectedTokens', 'compressibleTokens', 'budgetTokens']) integer(compression[field], `trace.compression.${field}`)
   }
-  if (input.retrieval !== undefined) object(input.retrieval, 'trace.retrieval')
+  if (input.retrieval !== undefined) {
+    const retrieval = object(input.retrieval, 'trace.retrieval')
+    keys(retrieval, ['engine', 'query', 'selectionMode', 'candidates', 'semanticSelectedIds'], 'trace.retrieval')
+    oneOf(retrieval.engine, ['sqlite-fts5-bm25'], 'trace.retrieval.engine')
+    text(retrieval.query, 'trace.retrieval.query')
+    oneOf(retrieval.selectionMode, ['semantic', 'complete'], 'trace.retrieval.selectionMode')
+    list(retrieval.candidates, 'trace.retrieval.candidates', (candidate, label) => {
+      keys(candidate, ['id', 'kind', 'source', 'score'], label)
+      text(candidate.id, `${label}.id`)
+      text(candidate.kind, `${label}.kind`)
+      text(candidate.source, `${label}.source`)
+      if (typeof candidate.score !== 'number' || Number.isNaN(candidate.score)) invalid(`${label}.score 必须是数字`)
+      return candidate
+    })
+    strings(retrieval.semanticSelectedIds, 'trace.retrieval.semanticSelectedIds')
+  }
   strings(input.notes, 'trace.notes')
   if (input.sections !== undefined) {
     list(input.sections, 'trace.sections', (section, label) => {
@@ -426,8 +452,10 @@ export function validateChapterTrace(value) {
       return section
     })
   }
-  if (input.trimmed !== undefined) strings(input.trimmed, 'trace.trimmed')
-  if (input.dropped !== undefined) strings(input.dropped, 'trace.dropped')
+  if (input.trimmed === undefined) invalid('trace.trimmed 缺失')
+  strings(input.trimmed, 'trace.trimmed')
+  if (input.dropped === undefined) invalid('trace.dropped 缺失')
+  strings(input.dropped, 'trace.dropped')
   if (input.budget !== undefined) {
     const legacyBudget = object(input.budget, 'trace.budget')
     keys(legacyBudget, ['limit', 'used', 'unit'], 'trace.budget')
@@ -452,7 +480,7 @@ export function validateShortStory(value) {
     textAllowEmpty(chapter.content, `${label}.content`)
     integer(chapter.charCount, `${label}.charCount`)
     return chapter
-  }, { min: 1 })
+  })
   const numbers = new Set(input.chapters.map(chapter => chapter.number))
   if (numbers.size !== input.chapters.length) invalid('short_story.chapters 编号重复')
   textAllowEmpty(input.rawContent, 'short_story.rawContent')
@@ -471,12 +499,7 @@ export function validateShortStory(value) {
   integer(measurements.totalLength, 'short_story.measurements.totalLength')
   oneOf(measurements.unit, ['words', 'non-whitespace-characters'], 'short_story.measurements.unit')
   integer(measurements.openingHookLength, 'short_story.measurements.openingHookLength')
-  list(measurements.chapterLengths, 'short_story.measurements.chapterLengths', (item, label) => {
-    keys(item, ['number', 'length'], label)
-    integer(item.number, `${label}.number`, 1)
-    integer(item.length, `${label}.length`)
-    return item
-  })
+  if (!Array.isArray(measurements.chapterLengths)) invalid('short_story.measurements.chapterLengths 必须是数组')
   return input
 }
 
@@ -503,9 +526,9 @@ export function validateScript(value) {
       textAllowEmpty(scene.action, `${sceneLabel}.action`)
       if (!Array.isArray(scene.dialogue)) invalid(`${sceneLabel}.dialogue 必须是数组`)
       return scene
-    }, { min: 1 })
+    })
     return episode
-  }, { min: 1 })
+  })
   const numbers = new Set(input.episodes.map(episode => episode.number))
   if (numbers.size !== input.episodes.length) invalid('script.episodes 编号重复')
   return input

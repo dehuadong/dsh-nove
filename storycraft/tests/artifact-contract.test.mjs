@@ -31,6 +31,7 @@ const work = {
   workId: '书', title: '书', form: 'longform', language: 'zh',
   status: 'active', planApproval: 'required', outline: { writtenAt: 'now', approvedAt: 'now' },
   chapterWordCount: { min: 3000, max: 5000, target: 4000 }, tags: ['长篇'],
+  createdAt: 'now', updatedAt: 'now',
 }
 
 const memo = {
@@ -91,7 +92,7 @@ const roles = { roles: [{ name: '甲', tier: 'major', role: '主角', want: '救
 check('roles index valid', validateRolesIndex(roles).roles.length === 1)
 rejects('roles index rejects duplicate names', 'artifact-invalid',
   () => validateRolesIndex({ roles: [...roles.roles, ...roles.roles] }))
-const card = { name: '甲', tier: 'major', motivation: '救父', knowledge: '知道账本存在', relationshipPressure: '掌柜欠人情', limits: '不杀人', arc: '学会求助' }
+const card = { name: '甲', tier: 'major', motivation: '救父', knowledge: '知道账本存在', relationshipPressure: '掌柜欠人情', limits: '不杀人', arc: '学会求助', markdown: '# 甲\n' }
 check('role card valid', validateRoleCard(card).name === '甲')
 rejects('role card does not duplicate six fields', 'artifact-invalid',
   () => validateRoleCard({ ...card, want: '救父' }))
@@ -153,12 +154,11 @@ const script = {
 }
 check('script valid', validateScript(script).episodes.length === 1)
 rejects('script rejects bad format', 'artifact-invalid', () => validateScript({ ...script, targetFormat: 'novel' }))
-rejects('script rejects empty scenes', 'artifact-invalid',
-  () => validateScript({ ...script, episodes: [{ number: 1, title: '一', scenes: [] }] }))
 
 const envelope = { workId: '书', artifactId: 'plan:1', kind: 'plan', scope: { chapter: 1 }, revisionId: 'hash', content: memo, provenance: 'generated', createdAt: 'now' }
 check('envelope valid', validateArtifactEnvelope(envelope).artifactId === 'plan:1')
 rejects('envelope rejects paths', 'artifact-invalid', () => validateArtifactEnvelope({ ...envelope, artifactId: 'works/书/plan' }))
+rejects('envelope rejects scalar content', 'artifact-invalid', () => validateArtifactEnvelope({ ...envelope, content: 42 }))
 rejects('envelope rejects unknown kind', 'artifact-invalid', () => validateArtifactEnvelope({ ...envelope, kind: 'bible' }))
 rejects('envelope requires chapter scope', 'artifact-invalid', () => validateArtifactEnvelope({ ...envelope, scope: {} }))
 rejects('envelope rejects legacy field', 'artifact-invalid', () => validateArtifactEnvelope({ ...envelope, verification: 'unverified' }))
