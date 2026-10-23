@@ -161,6 +161,18 @@ story_state_check(work, chapter, entities?, hooks?)
 - 缺章纲、摘要、人物卡仍能检查；prompt 不含其他章正文或路径。
 - 父回执不含整章正文；items 的证据片段有界。
 
+### 7. 与 R11 的衔接（本项不实现）
+
+R9b 的 validator 核心供 R11 复用。R11 落地时的自动链路：
+
+1. settler 从正文抽取 delta；
+2. 复用本项的 normalize/validate 与 validator，生成 findings；
+3. 有可重算差异：带着 findings 重算一次（只一次）；
+4. 仍不一致或 validator 不可用：保留旧投影，**不自动定稿**，返回 observations；
+5. 只有重算后一致，才 fold 并定稿。
+
+与 InkOS 的差异：InkOS 在未解决时仍落盘章节、保留旧状态；我们的阶段机把「定稿」和「状态写入」绑在一起，因此未解决时不自动定稿，避免出现 `settled` 但状态未应用的章节。这是刻意选择，不是遗漏。
+
 ## 备选方案
 
 - **把校验塞进 `story_state`，自动加一次 LLM 调用**：每次定稿都付费、失败策略与写事务耦合，且容易把建议误当阻断；本项改为显式只读动作。否决。

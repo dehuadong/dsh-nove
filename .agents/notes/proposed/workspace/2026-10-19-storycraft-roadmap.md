@@ -73,7 +73,7 @@ updated: 2026-10-23
 | R8 | 分镜、封面、翻译、交互影游 | 有单独产品需求时 |
 | R9b | 语义状态对账：事实是否被正文支持、旧/新投影矛盾 | R9 后；有测量显示需要 LLM 调用 |
 | R10 | foundation 委派：architect 角色一次生成 story_frame / volume_map / book_rules / 初始伏笔 | R9b 后；作者要一次生成整套设定 |
-| R11 | settler 自动投影：writer 提交后抽取 factOps/hookOps，绑定正文 baseline | R9 后 |
+| R11 | settler 自动投影：writer/reviser 提交后抽取 factOps/hookOps，绑定正文 baseline；自动调用 R9b validator，发现不一致先重算一次，仍不一致则保留旧投影、不自动定稿并报告 | R9b 交付后；有自动投影需求 |
 | R12 | 上下文 token 预算与持久化 trace；语义选择只在测量后做 | R5 检索段稳定后 |
 
 ### 实施顺序
