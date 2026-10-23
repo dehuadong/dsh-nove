@@ -96,9 +96,6 @@ try {
     work, chapter: 1, body: '再改一版，补上母亲的旧照片。'.repeat(20), problemIds: ['Q1'], mode: 'rewrite',
   })
 
-  await rejects('hook used before opened rejected', 'hook-not-open', () => s.foldState(root, {
-    work, chapter: 1, hooks: [{ text: '合同是假的', state: 'used' }],
-  }))
   let missingSummary
   try {
     await s.readChapter(root, { work, chapter: 1, view: 'summary' })
@@ -110,6 +107,9 @@ try {
     work, chapter: 1, entities: [{ name: '林澈', facts: ['拿到假合同'] }],
   }))
   await s.writeSummary(root, { work, chapter: 1, text: '林澈拿到假合同，母亲留下旧照片。' })
+  await rejects('hook used before opened rejected', 'hook-not-open', () => s.foldState(root, {
+    work, chapter: 1, hooks: [{ text: '合同是假的', state: 'used' }],
+  }))
   const folded = await s.foldState(root, {
     work, chapter: 1,
     entities: [{ name: '林澈', facts: ['欠房东三个月房租', '拿到假合同'] }],

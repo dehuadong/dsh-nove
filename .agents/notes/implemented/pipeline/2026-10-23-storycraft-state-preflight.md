@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：状态预检与对账边界
-status: proposed
+status: implemented
 created: 2026-10-23
 updated: 2026-10-23
+verification: 34 单测全过；state-validation 覆盖重复事实、伏笔状态机、二次归档；E2E 未跑
 ---
 
 # Agent Note：故事工坊：状态预检与对账边界
@@ -13,7 +14,7 @@ updated: 2026-10-23
 
 InkOS 在 writer 提交后有状态投影与 StateValidator；本项先做**确定性、无 LLM 的预检**，语义对账（事实是否被正文支持）另列 R9b。
 
-## 提案
+## 决定
 
 ### 1. 位置
 
@@ -38,7 +39,8 @@ story_state → summary 前置检查 → foldState
 | --- | --- | --- |
 | 实体/伏笔空字段 | error | 保留 `invalid-entity` / `invalid-hook` |
 | 已定稿章节再次 settle | error | 新增 `chapter-settled`，在闸门处 |
-| `used` 指向已解/不存在伏笔 | error | 保留/收紧 `hook-not-open` |
+| `used` 指向已解伏笔 | error | 新增 `duplicate-hook` |
+| `used` 指向不存在伏笔 | error | 保留 `hook-not-open` |
 | `resolved` 指向不存在伏笔 | error | 新增 `hook-not-found` |
 | 同一 payload 重复/倒退 hook 状态（重复 `used` 除外） | error | 新增 `duplicate-hook` |
 | 同一 payload 重复事实 | warning | 新增 `duplicate-fact` |
@@ -73,7 +75,7 @@ duplicate-hook: 门后的信
 - 同 payload `opened → resolved`：合法；
 - 重复 `opened` / `resolved → used`：`duplicate-hook`；
 - `resolved` 不存在：`hook-not-found`；
-- `used` 不存在/已解：`hook-not-open`；
+- `used` 不存在：`hook-not-open`；`used` 已解：`duplicate-hook`；
 - 已定稿再次 settle：`chapter-settled`，events/stage 不变；
 - 错误路径不写 events；warnings 不影响 counts；
 - 既有 `store-chapter` / `storage` / `summary-binding` / `tools` 测试全过；33 个单测文件全过。
@@ -97,7 +99,7 @@ duplicate-hook: 门后的信
 - **把检查放在 `story_state` 动作前置**：store-only 调用绕过校验，且与写库之间有 TOCTOU；否决。
 - **检查人物名是否登记**：默认 characters 为空、白名单规则更宽；会产生大量误报，留给语义层；否决。
 
-## 验收条件
+## 后果
 
 1. 合法 delta 落库，无 warnings。
 2. 同 payload 重复事实、旧投影已存在事实返回 `duplicate-fact`。
@@ -106,6 +108,14 @@ duplicate-hook: 门后的信
 5. 已定稿章节再次 settle 返回 `chapter-settled`，不重复写 events。
 6. summary/review/stage 闸门不回归；33 个既有单测全过。
 7. `story_state` 工具说明与 README 同步。
+
+## 验证
+
+- `node storycraft/scripts/ci.mjs --no-e2e`：34 个单测文件全过。
+- `state-validation.test.mjs`：重复事实、旧投影重复、`opened → resolved`、重复/倒退 hook、`hook-not-found`/`hook-not-open`、二次归档、失败不写 events。
+- 既有 review/summary/stage 闸门回归通过；`store-chapter` 更新为二次归档拒绝。
+- E2E 未跑：本机 Playwright 环境/登录弹窗阻塞。
+- `package.json` 的 `files` 已包含 `state-validation.js`，按 files 列表复制后可加载。
 
 ## 风险
 

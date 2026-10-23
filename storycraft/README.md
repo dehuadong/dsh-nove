@@ -99,7 +99,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 每章有一个阶段，只能沿 `已规划 → 已写 → 已审 → 已修订/清稿 → 已定稿` 前进；摘要不是独立阶段，当前正文版本的摘要写好后才能定稿。动作在入口校验，缺前置就拒绝并指出下一步：
 
 - 没有章纲不能写正文（`plan-not-found`）；
-- 没有审稿清单不能定稿（`review-required`）；没有摘要返回 `summary-required`，摘要过期返回 `summary-stale`；
+- 没有审稿清单不能定稿（`review-required`）；没有摘要返回 `summary-required`，摘要过期返回 `summary-stale`；`story_state` 在写库前做确定性预检：重复事实只 warning，重复/倒退伏笔与二次归档直接拒绝；
 - 审稿条目没处理完不能定稿，错误里列出条目 id；
 - 审稿只对「它记录的那个正文版本」有效：改过正文后要重新审稿才能再修订；清稿审稿必须针对当前版本；定稿允许「有问题的审稿针对上一版、条目已全处理」；
 - 已定稿章改章纲要先带 `reopen: true` 重写正文回退（`chapter-settled`）；
@@ -116,7 +116,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 | `story_write` | 写正文并更新字数与版本 | 正文为空；已有正文且未声明 `rewrite`；已定稿且未 `reopen` |
 | `story_review` | 写问题清单（轮次按章独立编号；空清单表示清稿） | 正文不存在；已定稿；**不改正文** |
 | `story_revise` | 生成新版本正文并把条目改为已处理 | 没有审稿清单；未指定条目；条目不存在；正文与当前版本相同；模式与改动幅度不符 |
-| `story_state` | 追加人物事实与伏笔事件，返回新增/已用/已解/未解计数 | 作品或章不存在；伏笔状态非法；「已用」指向未埋的伏笔；未修订完成或未清稿；无摘要 `summary-required`；摘要过期 `summary-stale` |
+| `story_state` | 追加人物事实与伏笔事件，返回新增/已用/已解/未解计数与 `warnings` | 作品或章不存在；伏笔状态非法；「已用」指向未解伏笔；「已解」指向不存在的伏笔；重复/倒退伏笔 `duplicate-hook`；已定稿重复归档 `chapter-settled`；未修订完成或未清稿；无摘要 `summary-required`；摘要过期 `summary-stale` |
 | `story_status` | 只读汇总进度、阶段、版本、未处理问题、未解伏笔；每章带 `hasSummary` / `summaryRevision` / `summaryStale` | 作品不存在；作品库升级失败 `schema-migration-failed` |
 | `story_delegate` | 宿主侧跑一个角色（writer/reviewer/reviser/summarizer）：预检、装配上下文、启动子代理、消费 `story_submit`、落库，返回紧凑回执 | 预检/阶段错误按原码返回；服务缺失 `delegation-unavailable`；无合格提交 `delegation-no-submission`；当前版本已有摘要 `summary-exists` |
 | `story_submit` | 仅子代理调用：提交结构化角色结果，宿主校验字数/mode，失败可重提 | 父代理/非委派 `submit-parent-denied`；超 3 次 `submit-attempts-exhausted` |
@@ -192,6 +192,7 @@ storycraft/
   index.js                     # Host 半边：只读路由 + 作者确认/素材管理/面板导出
   db.js                        # SQLite 目录库 / 作品库 schema、连接、检查点与备份
   store-db.js                  # 全部读写：作品、章节、真值、卷、素材、检索、生命周期、导出备份
+  state-validation.js          # story_state 的确定性预检：重复事实、伏笔状态机、二次归档
   materials.js                 # 素材上传字节校验、文件名、哈希与元数据
   search-text.js               # FTS 分词与素材标题/正文索引文本
   storage.js                   # 稳定门面：动作与路由从这里取领域函数与存储函数

@@ -1264,7 +1264,7 @@ function rawDefinitions(ctx) {
       mutates: true,
       description: '把本章产生的人物事实与伏笔变化定稿进作品状态，并返回折叠后的计数。'
         + ' 只写变化，不重抄全部设定；「已用」必须指向一条未解伏笔；'
-        + ' 当前正文版本没有摘要返回 summary-required，摘要过期返回 summary-stale。',
+        + ' 当前正文版本没有摘要返回 summary-required，摘要过期返回 summary-stale；重复事实返回 duplicate-fact 警告，伏笔状态非法返回 duplicate-hook / hook-not-found / hook-not-open；已定稿再次归档返回 chapter-settled。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -1316,6 +1316,7 @@ function rawDefinitions(ctx) {
           ok: true,
           workId: args.work,
           counts: result.counts,
+          warnings: result.warnings,
           artifact: { workId: args.work, artifactId: 'state', revisionId: `seq:${result.seq}`, kind: 'state' },
         }
       },

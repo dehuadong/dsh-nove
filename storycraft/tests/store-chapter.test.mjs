@@ -78,8 +78,8 @@ try {
     () => store.reviseChapter(root, { work, chapter: 1, body: '再来一版正文。', mode: 'nope' }))
   throws('patch mode needs problems', 'missing-problems',
     () => store.reviseChapter(root, { work, chapter: 1, body: '再来一版正文。', mode: 'patch' }))
-  throws('resolving an unknown hook refused', 'hook-not-open',
-    () => store.foldState(root, { work, chapter: 1, hooks: [{ text: '不存在', state: 'used' }] }))
+  throws('a settled chapter cannot be settled twice', 'chapter-settled',
+    () => store.foldState(root, { work, chapter: 1, entities: [{ name: '周砚', facts: ['重复'] }] }))
   throws('empty state refused', 'empty-state', () => store.foldState(root, { work, chapter: 2 }))
   throws('volume range invalid', 'volume-invalid', () => store.writeVolume(root, { work, id: 'v2', from: 5, to: 2 }))
   throws('volume chapter must exist', 'chapter-not-found', () => store.writeVolume(root, { work, id: 'v2', from: 6, to: 7 }))

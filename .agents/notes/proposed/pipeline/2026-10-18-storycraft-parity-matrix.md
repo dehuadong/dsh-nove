@@ -88,10 +88,10 @@ updated: 2026-10-23
 | 章计划交接 | planner 产出 ChapterIntent + ChapterMemo | 章纲五字段 | 无独立 memo | 部分 | 保留章纲，不新增对象 |
 | 上下文装配 | composer：半窗预算、语义选择、trace | `story_context` 固定段 + 8000 字符 | 无 token 预算/trace | 部分 | R12 |
 | 状态投影 | writer 提交后自动 factOps/hookOps + baseline | `story_state` 手工 | 无自动投影 | 缺失 | R11 |
-| 状态对账 | validator 比较旧/新投影与权威，最多一次重投影 | 无 | 缺失 | 缺失 | R9（最高优先） |
+| 状态对账 | validator 比较旧/新投影与权威，最多一次重投影 | 确定性预检：重复事实、伏笔状态机、二次归档 | 缺语义对账 | 部分 | R9 已交付；R9b 语义 |
 | 连续性证据 | observation code + 行号 + revision | 审稿问题文本 | 无结构化证据 | 部分 | 后续补 code/行号 |
 | 失败策略 | 错误码回给子代理修正；失败保留正史 | 重试/回退；误报可触发整章重写 | 分类不统一 | 部分 | 统一失败码 |
-| 技能加载 | Profile + 每动作默认技能合并 | 子代理按提示加载 | 无证据/无形态路由 | 部分 | form 路由 + 名字测试 |
+| 技能加载 | Profile + 每动作默认技能合并 | 子代理按提示加载；writer 已按 form 追加技能 | 无加载证据 | 部分 | R6b 已交付；证据后续 |
 
 ### 明确不采纳
 
@@ -117,7 +117,7 @@ updated: 2026-10-23
 | 连续性审稿 | LLM auditor + 证据 observations | `story_review` / reviewer 问题条目 | 无 observation code / 行号 | 部分 | 后续补证据 |
 | 质检 | 指标与审稿分离 | `story_critique` | 未进入工作流对拍 | 部分 | 保留独立只读节点 |
 | 状态抽取 | chapter summary / factOps / hookOps | `story_state` 手写 | 无自动 settler | 缺失 | R11 |
-| 状态对账 | StateValidator 语义对账 | 无 | 缺失 | 缺失 | R9 |
+| 状态对账 | StateValidator 语义对账 | 确定性预检：重复事实、伏笔状态机、二次归档 | 无语义对账 | 部分 | R9 已交付；语义留 R9b |
 | 修订 | 独立 revise，mode + observations | `story_revise` / reviser | 无 observation 输入 | 部分 | 保留 mode |
 | 审稿/修订分离 | 审稿只观察，不自动改 | review 条目 + 主编决定 | 委派失败会回退重写 | 部分 | warning 不触发重写 |
 | 作者闸门 | 计划/章纲确认 | 面板确认 | 无 | 对齐 | 确认不自动发送 |

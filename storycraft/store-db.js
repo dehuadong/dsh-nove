@@ -24,6 +24,7 @@ import { chapterRemap } from './chapter-edit.js'
 import { buildEpub } from './epub.js'
 import { snippetFor } from './retrieval.js'
 import { materialIndexText, searchTokens } from './search-text.js'
+import { normalizeStateDelta, validateStateDelta } from './state-validation.js'
 
 export { searchTokens }
 import {
@@ -1490,39 +1491,20 @@ export function listSummaries(root, work) {
  */
 export function foldState(root, input) {
   const number = chapterNumber(input.chapter)
-  const entities = Array.isArray(input.entities) ? input.entities : []
-  const hooks = Array.isArray(input.hooks) ? input.hooks : []
-  if (entities.length === 0 && hooks.length === 0) throw new StoryError('empty-state', '定稿归档至少要给出一条人物事实或伏笔变化')
+  const delta = normalizeStateDelta(input)
+  if (delta.entities.length === 0 && delta.hooks.length === 0) {
+    throw new StoryError('empty-state', '定稿归档至少要给出一条人物事实或伏笔变化')
+  }
   const workId = String(input.work)
   const db = openWork(root, workId)
   try {
     return transaction(db, () => {
       const entry = chapterRow(db, number)
       if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
+      if (stageOf(entry) === 'settled') {
+        throw new StoryError('chapter-settled', `第 ${number} 章已定稿：不能重复归档；改稿请先 reopen`)
+      }
       const foldedBefore = foldedOf(db)
-      const openHooks = new Set(foldedBefore.hooks.filter(hook => hook.state !== 'resolved').map(hook => hook.text))
-      const written = []
-      for (const [index, entity] of entities.entries()) {
-        const name = String(entity?.name ?? '').trim()
-        const rawFacts = typeof entity?.facts === 'string' ? [entity.facts] : entity?.facts
-        const facts = Array.isArray(rawFacts) ? rawFacts.map(fact => String(fact).trim()).filter(Boolean) : []
-        if (name === '' || facts.length === 0) {
-          throw new StoryError('invalid-entity',
-            `第 ${index + 1} 条人物${name === '' ? '' : `（${name}）`}的 facts 必须是非空字符串或字符串数组`)
-        }
-        written.push({ kind: 'entity', name, facts })
-      }
-      for (const hook of hooks) {
-        const text = String(hook?.text ?? '').trim()
-        const state = String(hook?.state ?? '')
-        if (text === '') throw new StoryError('invalid-hook', '伏笔需要非空描述')
-        if (!['opened', 'used', 'resolved'].includes(state)) {
-          throw new StoryError('invalid-hook-state', `伏笔状态只能是 opened/used/resolved，收到：${state}`)
-        }
-        if (state === 'used' && !openHooks.has(text)) throw new StoryError('hook-not-open', `没有可标记为已用的伏笔：${text}`)
-        openHooks.add(text)
-        written.push({ kind: 'hook', text, state })
-      }
       const review = latestReviewRow(db, number)
       if (review === undefined) throw new StoryError('review-required', `第 ${number} 章还没有审稿清单：先审稿与修订，再定稿`)
       const covers = reviewCovers(review, entry, true)
@@ -1547,6 +1529,12 @@ export function foldState(root, input) {
         throw new StoryError('summary-stale',
           `第 ${number} 章摘要针对旧版本 r${summaryState.revision ?? '?'}：先重写摘要，再定稿`)
       }
+
+      const { warnings } = validateStateDelta(delta, foldedBefore)
+      const written = [
+        ...delta.entities.map(entity => ({ kind: 'entity', name: entity.name, facts: entity.facts })),
+        ...delta.hooks.map(hook => ({ kind: 'hook', text: hook.text, state: hook.state })),
+      ]
       let seq = (db.prepare('SELECT max(seq) AS n FROM events').get()?.n ?? 0) + 1
       const at = now()
       for (const event of written) {
@@ -1565,14 +1553,15 @@ export function foldState(root, input) {
         chapter: number,
         appended: written.length,
         seq,
+        warnings,
         counts: {
-          entities: entities.length,
+          entities: delta.entities.length,
           opened: folded.hooks.filter(hook => hook.state === 'opened').length,
           used: folded.hooks.filter(hook => hook.state === 'used').length,
           resolved: folded.hooks.filter(hook => hook.state === 'resolved').length,
           open: folded.hooks.filter(hook => hook.state !== 'resolved').length,
         },
-        hooks: [...openHooks],
+        hooks: folded.hooks.filter(hook => hook.state !== 'resolved').map(hook => hook.text),
         artifact: { path: virtualPath(workId, 'state/events.jsonl') },
       }
     })
