@@ -73,7 +73,8 @@ updated: 2026-10-23
 | R7b | 市场研究：榜单/平台/对标证据与 rubric | 有明确调研问题且来源可归档 |
 | R7c | 衍生：续写、同人/仿写/番外 | 导入链路与正典边界落地 |
 | R8 | 分镜、封面、翻译、交互影游 | 有单独产品需求时 |
-| R10 | foundation 委派：architect 角色一次生成 story_frame / volume_map / book_rules / 初始伏笔 | R11 后；作者要一次生成整套设定 |
+| R10 | foundation 委派：architect 分阶段生成 story_frame / volume_map / book_rules / 角色卡 / 初始伏笔 | A0 之后；作者要一次生成整套设定 |
+| A0 | 产物合同 v2：story_frame / volume_map / book_rules / 角色卡 / hook 模型 / 结构化摘要 / observation / facts；先决定再迁移 | 立即；R10 前置 |
 | R12 | 上下文 token 预算与持久化 trace；语义选择只在测量后做 | R5 检索段稳定后 |
 
 ### 实施顺序
@@ -81,7 +82,7 @@ updated: 2026-10-23
 1. **R6b 形态路由**：最小改动、直接修短篇/剧本子代理拿错技能的问题；
 2. **R9 状态预检已交付**：`story_state` 已有确定性 preflight；R9b 只读语义检查已交付；R11 `story_settle` 自动链路已交付（重算一次、未解决不定稿）；
 3. **R6a 方法资源已交付**：三份 references 在 `storycraft-longform-method`，规划、写作、审稿与主编按触发读取；
-4. R10 依赖 R11（已交付）；R12 依赖 R5；
+4. **A0 产物合同 v2**：先定 story_frame/volume_map/book_rules/角色卡/hook/摘要/observation/facts 的结构与迁移；R10 依赖 A0；R12 依赖 R5；
 5. R7 / R7b / R7c / R8 按触发条件推进，不提前铺技能目录。
 
 ## 备选方案

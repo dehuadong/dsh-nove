@@ -35,3 +35,8 @@ InkOS 仓库分析研究文档（本地仓库地址：`E:\dsh-nove\inkos-master`
 - Skill 数量为 20（18 份 references），`inkos-story-deslop` 等未出现在旧报告中；`use_skill` 还支持 reference 精确读取与 query 检索。
 
 上述缺口的源码证据与增量结论见 [2.0 Harness 增量研究](2.0-harness-delta.md)；对拍落点与优先级已写入 parity matrix 与 roadmap。本目录旧报告不重写，保留为 v1 研究记录。
+
+## 2026-10-23 产物结构与资源对拍补审
+
+- [产物结构与资源文档对拍审查](2026-10-23-artifact-and-resource-parity-audit.md)：逐项比较 story_frame / volume_map / book_rules / 角色卡 / 章节摘要 / hooks / facts / observations / context trace，给出信息损失、迁移代价与整改顺序。
+- 结论：此前对拍偏流程与编排；R10 不应按现有 world/plan/characters/text-hook 格式直接实现，需先做产物合同 v2。

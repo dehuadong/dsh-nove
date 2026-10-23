@@ -130,6 +130,25 @@ updated: 2026-10-23
 | 失败策略 | review-unavailable 不重写 | delegate 重试/回退 | 误报触发整章重写 | 部分 | 统一失败分类 |
 | forecast/同人/番外/互动影游 | 参考有 | 无 | 不在主线 | 非范围 | 不纳入 |
 
+## 产物结构补审（2026-10-23）
+
+此前对拍偏流程/编排，产物结构未逐项比较。完整证据与整改顺序见 [产物结构与资源文档对拍审查](../../../../docs/report/inkos/2026-10-23-artifact-and-resource-parity-audit.md)。本表只登记需要跟进的产物层缺口，不重复报告正文。
+
+| 产物 | InkOS | 我们当前 | 缺口 | 状态 | 计划 |
+| --- | --- | --- | --- | --- | --- |
+| story_frame | 独立可读 Markdown | 压在 `world` + `plan.mainline` | 框架/世界职责混用 | 待合同 | A0 |
+| volume_map | 独立可读 Markdown | `plan` 的卷划分文字 | 无独立身份；与结构化卷易双源 | 待合同 | A0 |
+| book_rules | 可读 + JSON（人称/主角锁/禁区等） | 无，规则散在 world | writer/settler 无机器可读规则 | 待合同 | A0 |
+| 角色卡 | 每人 Markdown（动机/知识/关系压力/边界） | 六字段 JSON | 缺知识/关系压力/边界 | 待合同 | A0 |
+| 章节摘要 | 结构化 7 字段 | 纯文本 ≤400 字 | 无法按 hookActivity/mood 检索 | 待合同 | P1 |
+| hooks | hookId + 生命周期/预期兑现/依赖 | text + 三态 | 改写即新伏笔；无 defer/superseded | 待合同 | P0 |
+| facts | subject/predicate/object + 有效期 | 字符串数组 | 无法 expire/覆盖 | 待合同 | P2 |
+| observations | code/evidence/sourceRefs/assessment | review 文本条目 | 无证据结构/可审计语义 | 待合同 | P1 |
+| chapter memo | goal/body/threadRefs | 五项章纲 | 缺 threadRefs | 待合同 | P2 |
+| context trace | source/reason/protection + token trace | 固定段 + 字符预算 | 无 per-source trace | 待合同 | R12 |
+
+A0 = 产物合同 v2；P0 先于 R10b，P1/P2 可独立，R12 保持原排期。
+
 ## 备选方案
 
 - **只采纳角色、不采纳文档**：技能仍会单薄，判断标准靠模型自由发挥；否决。

@@ -1,8 +1,8 @@
-# 交接文档：R11 settler 自动投影已交付，下一步 R10 foundation 委派 / R7 分析
+# 交接文档：R11 已交付，下一步 A0 产物合同 v2（R10 暂停）
 
 > 更新时间：2026-10-23  
 > 交接范围：`dehuadong/dsh-nove` 的 `storycraft/`；实现提交 `9abdd8e`（本文件随后单独提交）。  
-> 下一会话默认焦点：**R10 foundation 委派**（未立项）；备选 **R7 拆稿分析**（需作者提供参考作品）。
+> 下一会话默认焦点：**A0 产物合同 v2**（未立项）；R10 foundation 委派暂停，等 A0 后再决定。
 
 ## 1. 当前结论
 
@@ -31,16 +31,23 @@
 
 ## 2. 下一步
 
-### 默认：R10 foundation 委派（未立项）
+### 默认：A0 产物合同 v2（未立项）
 
-R10 依赖 R11（已交付）：architect 角色一次生成 `story_frame` / `volume_map` / `book_rules` / 初始伏笔，并接到现有真值/全书计划与作者确认。
+R11 之后做了产物结构与资源对拍补审，结论是 R10 不能按现有 world/plan/characters/text-hook 格式直接实现。先定：
 
-建议先收敛：
+- story_frame / volume_map / book_rules / 角色卡；
+- hook 身份与生命周期；
+- 结构化章节摘要、observation 证据；
+- facts 三元组/有效期、chapter memo threadRefs；
+- 迁移与兼容策略。
 
-- 生成哪些真值、哪些仍由作者手写；
-- 初始伏笔如何进入现有 `hooks` 账本（text 身份）；
-- 与 `story_outline` 作者闸门的关系；
-- 失败/部分生成如何回退。
+报告：[2026-10-23-artifact-and-resource-parity-audit.md](docs/report/inkos/2026-10-23-artifact-and-resource-parity-audit.md)。
+
+A0 之后再把 R10 拆成 R10a（合同/存储）与 R10b（architect 分阶段生成）。R9b/R11 已交付的 text hook/fact 逻辑要在新合同下复审。
+
+### R10 foundation 委派（暂停）
+
+#44 已退回 `Status: planning`。当前映射是成本驱动的默认，不是产物结构比较后的决定；不要直接实现。
 
 ### 备选：R7 拆稿分析（需作者提供参考作品）
 
@@ -48,6 +55,7 @@ R10 依赖 R11（已交付）：architect 角色一次生成 `story_frame` / `vo
 
 ### 不要在本轮做
 
+- 不按旧格式实现 R10；
 - 不把 `story_settle` 做成自动后台/无人值守；
 - 不新增候选表/schema 而不立项；
 - 不扩写短篇/剧本自动结算，除非另开工作项；
@@ -60,6 +68,7 @@ R10 依赖 R11（已交付）：architect 角色一次生成 `story_frame` / `vo
 - R9b 工作项：[#42](https://github.com/dehuadong/dsh-nove/issues/42)
 - 路线图：`.agents/notes/proposed/workspace/2026-10-19-storycraft-roadmap.md`
 - 对拍矩阵：`.agents/notes/proposed/pipeline/2026-10-18-storycraft-parity-matrix.md`
+- 产物结构补审：[docs/report/inkos/2026-10-23-artifact-and-resource-parity-audit.md](docs/report/inkos/2026-10-23-artifact-and-resource-parity-audit.md)
 - InkOS 2.0 增量：`docs/report/inkos/2.0-harness-delta.md`
 - 最近提交：
   - `048e808` R11 规划
@@ -86,10 +95,10 @@ R10 依赖 R11（已交付）：architect 角色一次生成 `story_frame` / `vo
 
 ## 6. 门禁命令
 
-默认 R10：
+默认 A0：
 
 ```text
-批准，使用技能planning 执行规划 R10 foundation 委派
+批准，使用技能planning 执行规划 A0 产物合同 v2
 ```
 
 若改选 R7（先准备参考作品）：
@@ -100,9 +109,10 @@ R10 依赖 R11（已交付）：architect 角色一次生成 `story_frame` / `vo
 
 ## 7. 不要做
 
+- 不要按旧 world/plan/characters/text-hook 格式实现 R10；
 - 不要把 `story_settle` 写成自动后台或无人值守；
 - 不要把「37 单测通过」写成「E2E/真实链路通过」；
 - 不要把自动结算通过说成「状态一定正确」；minor findings 仍可能是错；
 - 不要给 `story_settle` 增加超过一次的重算或循环；
 - 不要让子代理直接落盘；
-- 不要删除 #37–#43 的既有证据或历史 Note。
+- 不要删除 #37–#44 的既有证据或历史 Note。
