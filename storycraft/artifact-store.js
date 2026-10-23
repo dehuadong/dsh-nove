@@ -1,6 +1,6 @@
 /** Immutable artifact registry: contract validation plus SQLite persistence. */
 
-import { StoryError, now } from './domain.js'
+import { StoryError } from './domain.js'
 import { validateArtifactEnvelope } from './artifact-contract.js'
 import { openWork, transaction } from './db.js'
 
@@ -17,10 +17,13 @@ function deserialize(row) {
 export function putArtifact(root, input) {
   const envelope = validateArtifactEnvelope(input)
   const { contentType, text } = serialize(envelope.content)
-  const at = envelope.createdAt ?? now()
+  const at = envelope.createdAt
   const db = openWork(root, String(envelope.workId))
   try {
     return transaction(db, () => {
+      const existing = db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ? AND revision_id = ?')
+        .get(envelope.artifactId, envelope.revisionId)
+      if (existing !== undefined) throw new StoryError('artifact-revision-exists', `artifact revision 已存在：${envelope.artifactId}@${envelope.revisionId}`)
       db.prepare(`INSERT INTO artifacts
         (artifact_id, revision_id, kind, scope_chapter, content_type, content, provenance, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
@@ -51,7 +54,10 @@ export function readArtifact(root, input) {
       ? db.prepare('SELECT * FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1').get(artifactId)
       : db.prepare('SELECT * FROM artifacts WHERE artifact_id = ? AND revision_id = ?').get(artifactId, String(input.revisionId))
     if (row === undefined) {
-      throw new StoryError('artifact-not-found', `没有 artifact：${artifactId}${input.revisionId === undefined ? '' : `@${input.revisionId}`}`)
+      if (input.revisionId !== undefined) {
+        throw new StoryError('revision-not-found', `没有 revision：${artifactId}@${input.revisionId}`)
+      }
+      throw new StoryError('artifact-not-found', `没有 artifact：${artifactId}`)
     }
     return {
       workId,
