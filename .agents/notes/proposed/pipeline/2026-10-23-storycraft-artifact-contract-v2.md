@@ -1,17 +1,17 @@
 ---
-title: 故事工坊：产物合同 v2（数据模型与迁移）
+title: 故事工坊：产物合同 v2（数据模型与初始化）
 status: proposed
 created: 2026-10-23
 updated: 2026-10-23
 ---
 
-# Agent Note：故事工坊：产物合同 v2（数据模型与迁移）
+# Agent Note：故事工坊：产物合同 v2（数据模型与初始化）
 
 ## 问题
 
 当前真值是五件自由文本/六字段 JSON，事件是 text-hook/string-fact；短篇、剧本没有独立产物，只能复用长篇章节表。全量对拍确认这不是功能等价：story_frame、volume_map、book_rules、角色卡、ChapterMemo、结构化摘要、hookId/生命周期、fact 三元组/有效期、observation、ContextPackage/Trace 的信息都在现有结构里丢失或被压扁。
 
-本 Note 定字段级数据合同、消费者与迁移；它不实现代码，也不决定 R10 的具体生成流程。产品范围与验收归 #45。
+本 Note 定字段级数据合同、消费者与初始化；它不实现代码，也不决定 R10 的具体生成流程。产品范围与验收归 #45。
 
 ## 与既有记录
 
@@ -25,7 +25,7 @@ updated: 2026-10-23
 ### 1. 共同原则
 
 - **一个概念一个属主**：可读长文用 Markdown，机器字段用 JSON；两者同属一个 artifact，不互相替代。
-- **保留旧字段**：迁移不删除现有信息；无法推断的语义标记为 `legacy`/`unverified`，由作者确认，不伪造。
+- **只支持新库**：本项目没有正式旧作品；现有测试作品直接删除重建。只支持 v6，不设计兼容/迁移层。
 - **事件是状态源，投影是派生**：fact/hook 的变更写事件；当前状态由投影/折叠得到，可重建。
 - **artifact 有稳定身份**：`artifactId + revisionId`；正文 revision 与状态事件序号分开。
 - **消费者显式**：每个 artifact 写明 brief/context/检索/审稿/结算/UI/导出中的消费者。
@@ -50,7 +50,6 @@ updated: 2026-10-23
   "tags": ["string"],
   "planApproval": "required|off",
   "outline": { "writtenAt": "ISO-8601?", "approvedAt": "ISO-8601?" },
-  "artifactContract": "legacy|v2",
   "createdAt": "ISO-8601",
   "updatedAt": "ISO-8601"
 }
@@ -61,12 +60,11 @@ updated: 2026-10-23
 {
   "workId": "string",
   "artifactId": "string",
-  "kind": "outline|plan|chapter|summary|review|state|context|trace|world|style|intent|current_focus|story_frame|volume_map|book_rules|role_index|role_card|volume|material|export|backup|short_story|script|storyboard|interactive_film|play_world|cover|translation|bible",
+  "kind": "outline|plan|chapter|summary|review|state|context|trace|world|style|intent|current_focus|story_frame|volume_map|book_rules|role_index|role_card|volume|material|export|backup|short_story|script|storyboard|interactive_film|play_world|cover|translation",
   "scope": { "chapter": "integer?" },
   "revisionId": "string",
   "content": "object|string",
-  "provenance": "generated|imported|edited|migrated",
-  "verification": "authoritative|unverified|legacy",
+  "provenance": "generated|imported|edited",
   "createdAt": "ISO-8601"
 }
 ```
@@ -90,11 +88,9 @@ updated: 2026-10-23
 | R8 产物 | `interactive_film:<id>` / `play_world:<id>` / `cover:<id>` / `translation:<id>` | 内容哈希（字段合同 R8） |
 | 导出/备份 | `export:<workId>` / `backup:<workId>:<ts>` | 覆盖式/时间戳 |
 
-`meta.artifact_contract` 是权威；WorkConfig 的 `artifactContract` 只是导出/只读投影，不单独写。
+`scope.chapter` 对按章 artifact 必填；`state` 的 revision 是事件序号，正文是真实版本，静态文本是内容哈希。
 
-`scope.chapter` 对按章 artifact 必填；`state` 的 revision 是事件序号，正文是真实版本，静态文本是内容哈希。旧表已有的 kind 继续有效。
-
-`bible` 是旧 kind 的兼容别名：`bible:characters` 迁移到 `roles:index`/卡，`bible:plan` 迁移到 `outline`，`bible:world/style/intent` 保留；新写不再产生 `bible` kind，只读旧 ID 时映射到具体 kind。
+新库没有 `bible` 兼容 kind：`bible:world` 等只作为 artifactId 前缀，kind 使用具体的 `world`/`story_frame`/`book_rules`；不再产生旧 `bible` kind。
 
 ### 3. Foundation 产物
 
@@ -177,12 +173,11 @@ updated: 2026-10-23
   "perspective": "string?",
   "obstacle": "string?",
   "cost": "string?",
-  "turn": "string?",
-  "rawText": "string?"
+  "turn": "string?"
 }
 ```
 
-保留现有章纲五项（perspective/goal/obstacle/cost/turn），新增 `body`、`threadRefs` 与迁移用 `rawText`；消费者 planner/writer/reviewer/reviser。
+保留现有章纲五项（perspective/goal/obstacle/cost/turn），新增 `body` 与 `threadRefs`；消费者 planner/writer/reviewer/reviser。
 
 - `ChapterMemo` 是章纲的唯一权威，存为 `plan:<n>`；`ChapterIntent` 只是从 memo 的 `goal` 派生的只读视图，不单独存储，避免 goal 双写。
 - 作者确认绑定 memo 内容版本：`chapters.plan_approved_at` + `plan_revision`（memo 内容哈希）。未确认/改版后旧批准失效；`story_next` 的 gate 读同一字段。
@@ -221,7 +216,7 @@ updated: 2026-10-23
 }
 ```
 
-`rawText` 是旧摘要/兼容文本；结构化字段供检索/审稿/brief。`bodyRevision` 是摘要针对的正文版本（stale 判定用它）；`artifactId=summary:<n>` 的 revisionId 仍是内容哈希，两者不能混用。消费者：brief（可渲染）、检索、reviewer、settler。
+`rawText` 是摘要渲染/原文来源，不是旧格式兼容；结构化字段供检索/审稿/brief。`bodyRevision` 是摘要针对的正文版本（stale 判定用它）；`artifactId=summary:<n>` 的 revisionId 仍是内容哈希，两者不能混用。消费者：brief（可渲染）、检索、reviewer、settler。
 
 ```json
 // Observation
@@ -260,8 +255,7 @@ updated: 2026-10-23
 
 ```json
 { "subject": "string", "predicate": "string", "object": "string",
-  "validFromChapter": 12, "validUntilChapter": null, "sourceChapter": 12,
-  "legacy": false, "raw": "string?" }
+  "validFromChapter": 12, "validUntilChapter": null, "sourceChapter": 12 }
 ```
 
 ```json
@@ -271,7 +265,7 @@ updated: 2026-10-23
   "status": "open|progressing|deferred|resolved|superseded",
   "lastAdvancedChapter": 0, "expectedPayoff": "string",
   "notes": "string", "dependsOn": ["hookId"], "paysOffInArc": "string?",
-  "text": "string", "legacyText": "string?" } }
+  "text": "string" } }
 { "kind": "hook", "op": "progress|mention|defer|resolve|supersede",
   "hookId": "string", "chapter": 12 }
 ```
@@ -289,10 +283,10 @@ updated: 2026-10-23
 - `upsert` 只创建新 hook 或更新 `text/type/expectedPayoff/notes/dependsOn/paysOffInArc` 等元数据；已有 hook 的 `status` 必须省略或等于当前状态，状态变化只能走 `progress/mention/defer/resolve/supersede`，不能经 upsert 绕过转移表。
 - `mention` 只记被提及，不改 status/lastAdvanced；`progress` 改 progressing + lastAdvanced；`defer` 改 deferred；`resolve` 改 resolved；`supersede` 改 superseded。
 - 非法转移（如 resolved→open、superseded→progressing）返回 `hook-transition-invalid`，不写事件。
-- `hookId` 由宿主生成，不复用 text；`text` 是展示原句，改写不改 ID；旧的文本身份保留在 `legacyText`。
+- `hookId` 由宿主生成，不复用 text；`text` 是展示原句，改写不改 ID。
 - hooks/facts 是 `state` 投影，不各自占 artifact kind：hook 用 `hookId` 寻址，fact 用 `subject/predicate/object` + 有效期寻址；`ChapterMemo.threadRefs` 引用 `hookId`。
 - `fact` 的当前状态由 `fact.upsert`/`expire` 投影；`validFrom/validUntil/source` 由投影生成。
-- 旧 text hook/string fact 迁移为 `legacy` 记录（保留原文），不直接猜测 type/expectedPayoff；旧事件 kind 与状态别名必须可读（见 §9）。
+- 新库不接收旧 text-hook/string-fact 事件；测试作品重建，不做兼容解析。
 
 ### 6. 上下文
 
@@ -380,53 +374,38 @@ Storyboard / interactive film / play / translation / cover 是 R8 产物：A0 �
 | short_story / script | 独立流水线 | 素材/历史 | 短篇/剧本审稿 | — | 打包/导出 |
 | context/trace | 上下文/trace | — | — | — | 调试 |
 
-### 9. 迁移
+### 9. 库版本与初始化
 
-- 新作品写 `artifactContract=v2`，库版本 v6；`openWork` 接受 v5（legacy）与 v6（v2）；v5 不自动迁移；旧作品保持 v5 + `legacy` 读，不因 `listWorks`/`openWork` 自动迁移。
-- 版本矩阵：`v5 + legacy` 旧结构只读；`v6 + legacy` 已迁移但未确认，新旧适配器可读、禁止生成；`v6 + v2` 已确认，进入新写/生成；`v5 + v2` 非法，拒绝打开。
-- v5→v6 是**显式迁移**（`story_migrate` 或维护命令），不在 `openWork` 里做数据迁移；`openWork` 只做结构兼容，listing 不触发迁移。
-- 迁移步骤：
-  1. 在事务外做同步备份（`VACUUM INTO`，不带异步 `backupTo`）；
-  2. 开始事务，新建/扩展表并转换数据，保持 `meta.artifact_contract='legacy'`；
-  3. 任一步失败整体回滚，原库保持可读，返回 `migration-failed` + 备份 ID，不留半迁移；
-  4. 作者确认 `unverified` 语义后，用单独事务把该作品标为 `v2`；确认不在迁移事务内。
-- 旧事件继续可读：旧 `kind=entity|hook` + `state=opened|used|resolved` 通过 legacy adapter 映射到新状态；新事件写 `eventSchema:2` 与 `hookId`，不重写旧事件。`mention/used` 的语义按旧规则保留。
-- 可无损映射：
-  - `world` → `world`；`plan` → `outline`；`style/intent` 保留；
-  - `chapter_plans.text` → `plan:<n>` ChapterMemo（无法解析时保留 `rawText`，字段 `unverified`）；`chapters.plan_approved_at` → `ChapterMeta.planApprovedAt`；`planRevision` 取迁移后 memo 内容哈希，保留旧批准绑定；
-  - `characters` 六字段 → roles index（六字段唯一属主）+ 生成的卡（只填 motivation/knowledge/relationshipPressure/limits/arc 的空占位，不复制六字段）；
-  - summary `text` → `ChapterSummary.rawText`，结构化字段留空；`summaries.revision` → `ChapterSummary.bodyRevision`（保留过期绑定）；旧 brief 继续用 `rawText`；
-  - hook text + state → `hookId` + `legacyText` + 状态映射（opened→open、used→progressing、resolved→resolved），`type=legacy`，`expectedPayoff/notes` 为空；
-  - fact string → `{subject: entityName, predicate: "legacy", object: text, raw: text}`；
-  - review item → Observation（`code=legacy-review`，`sourceRefs` 用原位置/引文，`done:true` → `assessment:resolved`，`done:false` → `assessment:issue`），保留原文。
-- 不可自动推断的：story_frame、volume_map、book_rules、角色卡知识/关系压力、hook 预期兑现、摘要结构化字段。迁移生成 `verification: unverified` 占位/空字段，不伪造；作者在 UI 确认后改为 `authoritative`。
-- 旧作品在新格式必填字段未确认前，不允许 R10 生成；`story_next`/`story_status`/导出按 `form` 分派（长篇章表、短篇 ShortStory、剧本 Script），不把短篇/剧本读成长篇章节。
-- `FORM_META`/技能路由同步为 longform/short/script 三条流水线；旧技能名只作为迁移别名，不进入新作品。
-- 失败边界：schema 不匹配 / 校验失败 / 中途异常均拒绝迁移；legacy 读仍可用；不暴露半迁移数据。
+- 只支持 v6；新作品直接建 v6，所有 artifact 使用本合同。
+- 本项目没有正式旧作品；现有旧作品都是测试数据，直接删除/重建，不设计 v5 兼容、legacy 读、迁移或 `artifact_contract` 标志。
+- `openWork` 遇到非 v6 直接返回 `schema-version-mismatch`，提示重建测试作品；不做自动升级。
+- 测试 fixture 每次创建新库；不保留兼容 fixture。
+- `FORM_META`/技能路由同步为 longform/short/script 三条流水线，不保留旧技能别名。
+- 唯一例外：参考实现的 R8 产物（storyboard/interactive film/play/translation/cover）字段合同延后到 R8，不是旧格式兼容。
 
 ## 备选方案
 
-- **只扩字段、不迁移旧作品**：旧作品与新作品行为分叉，长期双模型；否决。
-- **一次性猜测 story_frame/book_rules/hook 类型**：会伪造语义，违反不丢失/不伪造；否决。
+- **为测试旧作品设计兼容/迁移层**：没有真实用户数据，只会增加双模型与测试负担；否决。
+- **一次性猜测 story_frame/book_rules/hook 类型**：会伪造语义；新库不存在旧数据，不需要；否决。
 - **继续用 text-hook/string-fact**：无法表达 expire/superseded/expectedPayoff；会继续返工；否决。
 - **把短篇/剧本压进 Chapter**：产物字段和流水线不同，信息损失；否决。
-- **一次性重写所有表**：无法旧读/回滚；改为 v6 新写 + legacy 读 + 迁移路径。
+- **保留 v5 读、v6 写**：测试作品可直接重建，双读没有收益；否决。
 
 ## 验收条件
 
-1. A0 覆盖的每个 artifact（world/style/intent/current_focus/story_frame/volume_map/book_rules/roles/plan/summary/hooks/facts/observations/context/trace/short_story/script）都有字段、权威、生命周期、消费者、迁移规则；R8 的 storyboard/interactive_film/play_world/cover/translation 在 A0 只验收 kind/envelope/identity，字段与消费者验收明确归 R8；
-2. 旧作品在未确认迁移前可读，且不丢失原文/事件；迁移失败可回滚；
-3. 新作品只写 v2；旧字段以 `legacy`/`raw` 保留；`unverified` 在作者确认前阻塞生成；
+1. A0 覆盖的每个 artifact（world/style/intent/current_focus/story_frame/volume_map/book_rules/roles/plan/summary/hooks/facts/observations/context/trace/short_story/script）都有字段、权威、生命周期、消费者；R8 的 storyboard/interactive_film/play_world/cover/translation 在 A0 只验收 kind/envelope/identity，字段与消费者验收明确归 R8；
+2. 只支持 v6；旧版本/测试旧作品直接报 `schema-version-mismatch` 并重建，没有兼容/迁移路径；
+3. 新作品只写本合同；不存在 `legacy`/`unverified`/迁移字段；
 4. 每个 artifact 至少一个真实消费者（brief/context/检索/审稿/结算/导出）按新结构读取，不能只按 channel 抽样；
 5. 短篇/剧本/分镜的产物不映射到 Chapter；R8 产物的字段 deferral 在 #45 记录；
 6. 作者闸门 `planApproval`/outline approved/`planApprovedAt` 在 WorkConfig/ChapterMeta 中保留；
-7. 结构合同测试覆盖必填、拒绝、迁移、回滚和消费者；迁移测试必须覆盖 chapter_plans/planApprovedAt、summary bodyRevision、review done→assessment、hook/fact legacy；矩阵与 #45 互链。
+7. 结构合同测试覆盖必填、拒绝和消费者；测试库每次重建；矩阵与 #45 互链。
 
 ## 风险
 
-- 迁移不能自动推断叙事语义；`unverified` 字段需要作者确认，否则生成质量仍可能差。
+- 没有旧作品兼容层，但测试 fixture 必须全部重建；旧测试若仍假设 v5 会失败，需同步更新。
 - 事件源 + 投影需要重建/回滚测试；只写投影会失去可审计性。
 - 角色卡/规则/摘要字段增多，brief 预算需要按优先级裁剪，不能全塞。
-- 旧作品 legacy 读与新写并存，测试需要覆盖双路径。
+- 新 schema 一次性落地，实施时不能偷偷保留 legacy 双读；否则又变成兼容层。
 - 本 Note 只定数据合同；短篇/剧本流水线与技能组织见配套 Note。
 

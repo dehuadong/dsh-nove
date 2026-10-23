@@ -31,7 +31,7 @@
 
 ## 2. 下一步
 
-### 默认：A0 全量产物合同 v2（#45，planning）
+### 默认：A0 全量产物合同 v2（#45，ready）
 
 R11 之后做了产物结构与资源对拍补审，结论是 R10 不能按现有 world/plan/characters/text-hook 格式直接实现。A0 已在 #45 完成规划并进入 ready，先定：
 
@@ -39,13 +39,13 @@ R11 之后做了产物结构与资源对拍补审，结论是 R10 不能按现�
 - hook 身份与生命周期；
 - 结构化章节摘要、observation 证据；
 - facts 三元组/有效期、chapter memo threadRefs；
-- 迁移与兼容策略。
+- 只支持 v6；旧测试作品直接删除重建，不做兼容/迁移。
 
 报告：[全项目一对一实现与产物对拍审查](docs/report/inkos/2026-10-23-full-project-parity-audit.md)，专项细节见[产物结构审查](docs/report/inkos/2026-10-23-artifact-and-resource-parity-audit.md)。
 
 阶段顺序：A0 全量产物合同 → L 长篇（R10a/R10b + R9b/R11 迁移）→ S 短篇（独立短篇流水线）→ D 剧本（独立 spec/script + 场次/集）；横向 R7/R7b/R7c/R8 不删除。
 
-A0 之后再把 R10 拆成 R10a（合同/存储）与 R10b（architect 分阶段生成）。R9b/R11 已交付的 text hook/fact 逻辑要在新合同下复审。
+A0 之后再把 R10 拆成 R10a（合同/存储）与 R10b（architect 分阶段生成）。R9b/R11 已交付的 text hook/fact 逻辑要在新合同下重写。
 
 ### R10 foundation 委派（#44，blocked by #45）
 
@@ -100,7 +100,7 @@ A0 之后再把 R10 拆成 R10a（合同/存储）与 R10b（architect 分阶段
 默认 A0：
 
 ```text
-批准，使用技能planning 执行规划 A0 全量产物合同 v2
+批准，使用技能 implement 执行实现 A0 全量产物合同 v2
 ```
 
 若改选 R7（先准备参考作品）：
@@ -118,4 +118,5 @@ A0 之后再把 R10 拆成 R10a（合同/存储）与 R10b（architect 分阶段
 - 不要给 `story_settle` 增加超过一次的重算或循环；
 - 不要让子代理直接落盘；
 - 不要删除 #37–#44 的既有证据或历史 Note。
+
 
