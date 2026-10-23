@@ -21,7 +21,7 @@ whenToUse: 作者提出写作需求、需要决定下一步做什么、或要在
 
 ## 定稿前的方法参考
 
-写 `story_state` 前加载 `storycraft-longform-method`，读它的 `references/state-projection.md`：只投影正文已发生的事实，伏笔沿用账本原句。状态投影不是语义对账，不判断事实是否被正文支持。
+写 `story_state` 前加载 `storycraft-long-writing`，读它的 `references/state-projection.md`：只投影正文已发生的事实，伏笔沿用账本原句。状态投影不是语义对账，不判断事实是否被正文支持。
 
 定稿优先调 `story_settle`：由 settler 自动抽取 delta，再做确定性预检与 `story_state_check`；返回 `settled:false` 时把 proposed 与 findings 报给作者，按作者决定用 `story_state` 手动修正。不要跳过自动结算直接手写，除非作者明确要求或自动链路不可用。
 

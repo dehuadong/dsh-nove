@@ -14,6 +14,10 @@ verification: 35 单测全过（含 skill-references）；all 挂载 9 个技能
 
 参考实现把这些方法放在长篇写作技能的四份 references 里，由 architect / planner / writer / auditor / reviser 共同使用；我们按角色拆了技能，却没有给跨角色方法一个共同的家。产品范围与验收由工作项拥有，不在这里。
 
+## 部分替代（2026-10-23）
+
+A0-5 起，三份 references 已迁到 [`storycraft-long-writing`](../../proposed/pipeline/2026-10-23-storycraft-skill-organization-v2.md)，并新增 `scene-dialogue-and-length-budget.md`；角色技能改读共享方法，`storycraft-longform-method` 只保留迁移别名。本 Note 的 references 文件清单与技能数量是交付当时的证据，不再描述当前目录；当前数量与路由以 `skills.js` 与 `skills.test` 为准，L 切换后本 Note 归档。
+
 ## 决定
 
 ### 1. 一份共享方法技能

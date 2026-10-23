@@ -15,7 +15,7 @@ updated: 2026-10-23
 
 ## 与既有记录
 
-- R6a 的 [`2026-10-23-storycraft-longform-method-references.md`](../../implemented/pipeline/2026-10-23-storycraft-longform-method-references.md) 仍是现行运行契约；本 Note 的 `long-writing` + 4 refs 在其 L 交付时**部分替代**它，届时更新 R6a 状态/验收并互相链接，不提前改变现有技能路由。
+- R6a 的 [`2026-10-23-storycraft-longform-method-references.md`](../../implemented/pipeline/2026-10-23-storycraft-longform-method-references.md) 在 A0-5 被**部分替代**：三份 references 已迁到 `long-writing` 并新增篇幅参考；角色技能改读共享方法，`storycraft-longform-method` 只留迁移别名。运行目录的数量与路由仍以 `skills.js`/`skills.test` 为准，L 切换到 `long-writing` 后完成归档；两 Note 已互相链接。
 - R11 的 [`2026-10-23-storycraft-settler-auto-projection.md`](../../implemented/pipeline/2026-10-23-storycraft-settler-auto-projection.md) 的定稿顺序（审稿→修订→摘要→settle）在 L 中保留；本 Note 只把方法归并、产物迁到 v2。
 - 旧 R10 方案已 rejected：[`2026-10-23-storycraft-foundation-delegation.md`](../../rejected/pipeline/2026-10-23-storycraft-foundation-delegation.md)。
 
@@ -32,10 +32,10 @@ skills/longform/storycraft-long-writing/SKILL.md
   references/scene-dialogue-and-length-budget.md
   references/state-projection.md
 
-skills/short/storycraft-short-writing/SKILL.md
+skills/shortform/storycraft-short-writing/SKILL.md
   references/production-checklist.md
 
-skills/script/storycraft-script-writing/SKILL.md
+skills/screenplay/storycraft-script-writing/SKILL.md
   references/episode-scene-craft.md
 ```
 
@@ -95,7 +95,7 @@ spec → script（episodes/scenes）→ review → final
 
 ### 4. 20 个参考技能的落位
 
-不按“分类不同”删除；每个技能有归属阶段。A0 只定组织与范围，实际实现按 L/S/D/R7/R7b/R7c/R8 排期。
+不按“分类不同”删除；每个技能有归属阶段。共享方法技能与 references 在 A0 落地；运行路由、阶段机与流水线动作按 L/S/D/R7/R7b/R7c/R8 切换。
 
 | 技能 | 阶段 | 我们的技能 |
 | --- | --- | --- |

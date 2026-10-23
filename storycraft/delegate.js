@@ -121,7 +121,7 @@ function promptFor({ input, manifest, context, delegationId }) {
   const skills = input.role === 'writer' ? writerSkills(form) : (meta.skill === undefined ? [] : [meta.skill])
   const lines = [
     `你是${formMeta.label}《${manifest.title}》（${manifest.workId}）的${meta.label}子代理，负责第 ${input.chapter} ${unitOf(form)}。`,
-    ...(skills.length === 0 ? [] : [`开工前先调用 skill 工具加载 ${skills.map(skill => `\`${skill}\``).join('、')}，严格按它们的方法执行。`]),
+    ...(skills.length === 0 ? [] : [`开工前先调用 skill 工具加载 ${skills.map(skill => `\`${skill}\``).join('、')}，严格按它们的契约与共享方法执行。`]),
     '',
     '## 本次任务',
     context.taskText,

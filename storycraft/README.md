@@ -15,11 +15,11 @@ DSH 里的长篇创作编排：三十二个动作把立项、章纲、正文、�
 写手、审稿、修订、摘要、规划**不是预设**，而是子代理；写手/审稿/修订/摘要默认由宿主动作 `story_delegate` 通过官方 `subagents` 服务启动，规划仍用手动 `subagent`：
 
 - `story_delegate` 在宿主侧预检、装配上下文、启动子代理、校验并落库；主编只收紧凑回执，正文不进入主会话；
-- 手动兜底仍用官方 `subagent`：省略 `agentPreset`，子代理加入故事工坊当前组合；角色由任务提示与对应技能（`storycraft-write-craft`、`storycraft-review`、`storycraft-revise-craft`、`storycraft-plan-craft`）决定；
-- 写手按作品 `form` 追加形态技能：短篇加 `storycraft-short-story`，剧本加 `storycraft-short-drama`，提示按「章 / 篇 / 集」显示单位；
+- 手动兜底仍用官方 `subagent`：省略 `agentPreset`，子代理加入故事工坊当前组合；角色由任务提示与对应薄契约技能（`storycraft-write-craft`、`storycraft-review`、`storycraft-revise-craft`、`storycraft-plan-craft`）决定；角色技能只写任务、提交 schema、闸门与失败回退，方法正文读共享技能；
+- 写手按作品 `form` 追加形态技能：短篇加 `storycraft-short-story`，剧本加 `storycraft-short-drama`，提示按「章 / 篇 / 集」显示单位；形态技能同样只写契约，短篇/剧本方法读各自的共享技能；
 - 定稿前的状态对账由 `storycraft-state-check` 子代理完成（`story_state_check`），只读、只出建议；它不替代 `storycraft-review` 的正文审稿；
 - 定稿本身优先由 `story_settle` 自动完成：`storycraft-state-settler` 从正文抽取 delta，再走 `story_state_check`；未解决时用 `story_state` 手动修正；
-- 长篇任务里，规划、写作、审稿与定稿前的主编按各自技能正文的触发加载 `storycraft-longform-method` 的 references；方法技能只给判断依据，不产出提交内容，也不替代角色技能的输出契约；
+- 长篇任务里，规划、写作、审稿与定稿前的主编按各自技能正文的触发加载 `storycraft-long-writing` 的 references；短篇、剧本各读 `storycraft-short-writing` / `storycraft-script-writing`；方法技能只给判断依据，不产出提交内容，也不替代角色技能的输出契约；
 - 委派子代理通过 `story_submit` 提交结构化结果；预设作用域的守卫拒绝它调用 `write`、`edit`、`pwsh`、`bash` 与写动作（`story_write`、`story_review`、`story_revise`、`story_delegate` 等），落库一律由宿主/主编完成；
 - 委派深度固定为 1，子代理不能再派发。
 
@@ -34,17 +34,23 @@ DSH 里的长篇创作编排：三十二个动作把立项、章纲、正文、�
 
 ## 形态
 
-| 形态 | `story_init` 的 form | 单位 | 技能 |
-| --- | --- | --- | --- |
-| 长篇 | `longform`（默认） | 章 | 单章写法：章纲 → 正文 → 审稿 → 修订/清稿 → 摘要 → 定稿 |
-| 短篇 | `short` | 篇 | 短篇写法：一篇写到底，流程同上 |
-| 剧本 | `script` | 集 | 竖屏短剧写法：按场次与台词组织，流程同上 |
+| 形态 | `story_init` 的 form | 单位 | 形态契约 | 共享方法 |
+| --- | --- | --- | --- | --- |
+| 长篇 | `longform`（默认） | 章 | 单章流程与闸门：章纲 → 正文 → 审稿 → 修订/清稿 → 摘要 → 定稿 | `storycraft-long-writing` |
+| 短篇 | `short` | 篇 | 一篇写到底，流程同上 | `storycraft-short-writing` |
+| 剧本 | `script` | 集 | 按场次与台词组织，流程同上 | `storycraft-script-writing` |
 
 形态是作品数据，决定用哪套技能与页面单位；动作与门禁完全一致。没有已知形态时按长篇读取。
 
-## 长篇方法参考
+## 共享方法
 
-`storycraft-longform-method` 是规划、写作、审稿与定稿前主编共用的长篇判断依据，不产出提交内容。三份 references 分别覆盖基础设计、读者承诺与推进、状态投影；各自技能正文点名什么时候读哪一份。方法技能只给判断标准，不替代角色输出契约。
+每个形态一份共享方法技能，由该形态的角色共同加载，不产出提交内容：
+
+- `storycraft-long-writing`：四份 references，分别覆盖基础设计、读者承诺与推进、场景/对话/篇幅预算、状态投影；
+- `storycraft-short-writing`：`references/production-checklist.md`；
+- `storycraft-script-writing`：`references/episode-scene-craft.md`。
+
+角色/形态技能只写任务、提交 schema、闸门与失败回退；`storycraft-longform-method` 保留为迁移别名，指向 `storycraft-long-writing`，L 阶段切换路由后下线。方法技能只给判断标准，不替代角色输出契约。
 
 ## 作品库
 

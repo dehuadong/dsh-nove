@@ -1,14 +1,18 @@
 ---
 name: storycraft-longform-chapter
-description: 长篇小说单章写作方法：从章纲到成稿、质检、审稿、修订/清稿、摘要与定稿的完整流程，适用于连载长篇的下一章、重写或补写。
-whenToUse: 用户要求写长篇的下一章、续写、改章节，或要求检查章节是否偏离大纲与人物设定时。
+description: 长篇小说单章流程与闸门：章纲到定稿的动作顺序、前置读取、卷处理与回退；方法正文读 storycraft-long-writing。
+whenToUse: 用户要求写长篇的下一章、续写、改章节，或需要确认单章流程与闸门时。
 ---
 
-# 长篇小说单章写法
+# 长篇单章流程
 
 形态：`story_init` 的 `form: "longform"`（省略即此值）。章节单位是「章」。
 
 一个章节只追求一件事：让读者在读完后有明确的“接下来会怎样”的期待，同时不破坏已经建立的人物与事实。
+
+## 先读方法
+
+长篇方法正文在 `storycraft-long-writing`：写章纲读 `references/reader-contract-and-progression.md`，写正文读 `references/scene-dialogue-and-length-budget.md`，定稿读 `references/state-projection.md`。本技能只保留单章流程与闸门。
 
 ## 开工前必须先读
 
@@ -72,22 +76,6 @@ whenToUse: 用户要求写长篇的下一章、续写、改章节，或要求检
 - 只读动作：`story_next`、`story_context`、`story_brief`、`story_bible`、`story_critique`、`story_status`、`story_volumes`、`story_read`。
 - 写正文/审稿/修订优先用 `story_delegate`；delegate 不可用或需要手动控制时，才用 `story_context(work, chapter, role)` + `subagent`。自己写前预览仍可用 `story_brief`。
 - 章节末尾不写“作者的话”，不写总结段落。
-
-## 写作纪律
-
-- 人物做什么必须能被其目标与处境解释；解释不了就改行为，而不是补一段心理独白。
-- 每章至少一个具体可感的细节（物件、动作、对话里的口气），不要只写情绪判断。
-- 不用“他知道，这一切都变了”这类总结句代替事件。
-- 对话承担信息与立场冲突；连续三段以上纯对话没有动作或环境，就要重写。
-- 时间线、称谓、地名、能力边界与既有设定冲突时，以设定为准，改新写的部分。
-
-## 自检清单
-
-- 本章目标是否在结尾发生了变化？没有变化就不是一章。
-- 有没有一段可以整段删掉而不影响后文？有就删。
-- 人物台词去掉名字后，还能分辨出是谁在说吗？
-- 新出现的事实是否与既有设定冲突？冲突是否已在正文里被处理？
-- 结尾是否给出下一步的具体期待（而不是“暴风雨即将来临”这种空话）？
 
 ## 脚本
 

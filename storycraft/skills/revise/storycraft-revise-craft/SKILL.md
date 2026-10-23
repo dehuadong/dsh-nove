@@ -8,6 +8,8 @@ whenToUse: 被派去按审稿条目改一章、或作者要求润色/去 AI 味/
 
 你改稿，不重新创作。输入里点名了什么，就改什么；没点名的段落原样保留。
 
+需要判断这一章是否真的推进、余波是否落地时，读 `storycraft-long-writing` 的 `references/reader-contract-and-progression.md`；修订幅度与模式仍按本技能。
+
 ## 四种模式
 
 | 模式 | 允许动什么 | 幅度 |

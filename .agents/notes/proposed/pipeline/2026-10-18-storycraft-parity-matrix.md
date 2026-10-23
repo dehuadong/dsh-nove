@@ -49,13 +49,13 @@ updated: 2026-10-23
 
 ### 技能对拍
 
-参考 `inkos-master/packages/core/skills` 共 20 个技能、18 份 references；我们 11 个技能、7 份 references。
+参考 `inkos-master/packages/core/skills` 共 20 个技能、18 份 references；我们 14 个技能、9 份 references（A0-5 共享方法落地后）。
 
 | 参考技能（refs） | 我们的落点 | 状态 |
 | --- | --- | --- |
-| 长篇写法（4） | `storycraft-write-craft` + 篇幅参考；`storycraft-plan-craft`；`storycraft-longform-method` | 部分：R6a 三份 references 在 `storycraft-longform-method`，篇幅预算在 `write-craft`；A0/L 合并为 `long-writing` + 4 refs |
-| 短篇写法（1） | `storycraft-short-story` | 部分：缺生产/包装清单；`SKILL.md:9,36-37` 与阶段机/SQLite 冲突 |
-| 剧本写法（1） | `storycraft-short-drama` | 部分：缺改编边界与制作约束 |
+| 长篇写法（4） | `storycraft-long-writing` + 4 refs；角色技能读共享方法 | A0-5 已合并；`storycraft-longform-method` 只留迁移别名，L 下线 |
+| 短篇写法（1） | `storycraft-short-writing` + `production-checklist.md`；`storycraft-short-story` 只留形态契约 | A0-5 已落地；S 阶段接批量流水线 |
+| 剧本写法（1） | `storycraft-script-writing` + `episode-scene-craft.md`；`storycraft-short-drama` 只留形态契约 | A0-5 已落地；D 阶段接 spec/场次 |
 | 审稿（1） | `storycraft-review` + `review-dimensions.md` | 已采纳 |
 | 状态对账（0） | `storycraft-state-check` + `story_state_check` | 已采纳：只读、advisory；R11 的 `story_settle` 已接自动 settler + 一次重算 |
 | 去 AI 味（1） | `storycraft-revise-craft` + `deslop.md` | 已采纳；`deslop.md` 未在正文点名 |
@@ -71,7 +71,7 @@ updated: 2026-10-23
 
 | 维度 | 参考实现 | 我们当前 | 状态 | 决定 |
 | --- | --- | --- | --- | --- |
-| 主文件 / references | 主体短，长篇 4 份，正文链接 3 份 | 11 技能 7 份；长篇 3 份方法参考均被正文点名，`deslop.md` 仍未点名 | 已采纳（deslop 待补） | 新增长篇 3 份，在角色 SKILL.md 里点名；不复制参考实现字段 |
+| 主文件 / references | 主体短，长篇 4 份，正文链接 3 份 | 14 技能 9 份；long-writing 4 份、short/script 各 1 份；`deslop.md` 仍未点名 | 已采纳（deslop 待补） | A0-5 共享方法与角色薄契约已落地；不复制参考实现字段 |
 | 激活与证据 | Profile 必需技能注入并记 `skills-applied` | `mode: all`；子代理按提示自己 `skill`，无加载证据 | 部分 | 保留模型加载；补技能名存在性测试，不复制注入层 |
 | 形态→技能 | Profile 按作品类型绑定必需技能 | writer 按 `form` 追加形态技能；reviewer/reviser 按设计不加 | 部分 | writer 路由已接；reviewer/reviser 只加载角色技能；short-story 输出契约已由 R6b-fix 修正 |
 | 技能来源 | 包内 + 外部目录 + 项目技能 | 插件包内技能 | 部分 | 暂不开放外部导入；先保证内置技能自洽 |

@@ -26,10 +26,13 @@ function mount(mode) {
 
 const all = mount('all')
 const names = (await all.provider.list()).map(skill => skill.name)
-check('all serves every form, every role, the shared catalog, the longform method and the state tools', names.length === 11, names.join(','))
+check('all serves every form, every role, the shared catalog, the shared methods and the state tools', names.length === 14, names.join(','))
 check('the orchestration skill is shared', names.includes('storycraft-studio-orchestration'))
 check('long form skill present', names.includes('storycraft-longform-chapter'))
 check('long form method present', names.includes('storycraft-longform-method'))
+check('shared long-form method present', names.includes('storycraft-long-writing'))
+check('shared short-form method present', names.includes('storycraft-short-writing'))
+check('shared script method present', names.includes('storycraft-script-writing'))
 check('state check skill present', names.includes('storycraft-state-check'))
 check('state settler skill present', names.includes('storycraft-state-settler'))
 check('short form skill present', names.includes('storycraft-short-story'))
@@ -63,9 +66,23 @@ check('the review catalog holds review, state-check and state-settler skills',
 
 const one = mount('longform')
 const oneNames = (await one.provider.list()).map(skill => skill.name)
-check('one form serves its flow and method skills',
-  oneNames.length === 2 && oneNames.includes('storycraft-longform-chapter') && oneNames.includes('storycraft-longform-method'),
+check('one form serves its flow, legacy alias and shared method',
+  oneNames.length === 3 && oneNames.includes('storycraft-longform-chapter')
+  && oneNames.includes('storycraft-longform-method') && oneNames.includes('storycraft-long-writing'),
   oneNames.join(','))
+
+const short = mount('shortform')
+const shortNames = (await short.provider.list()).map(skill => skill.name)
+check('short form serves its contract and shared method',
+  shortNames.length === 2 && shortNames.includes('storycraft-short-story') && shortNames.includes('storycraft-short-writing'),
+  shortNames.join(','))
+
+const screenplay = mount('screenplay')
+const screenplayNames = (await screenplay.provider.list()).map(skill => skill.name)
+check('screenplay serves its contract and shared method',
+  screenplayNames.length === 2 && screenplayNames.includes('storycraft-short-drama')
+  && screenplayNames.includes('storycraft-script-writing'),
+  screenplayNames.join(','))
 
 const bad = mount('novella')
 check('unknown mode warns and serves nothing', bad.warnings.length === 1, bad.warnings.join('; '))

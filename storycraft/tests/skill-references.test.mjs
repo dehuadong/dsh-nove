@@ -1,8 +1,8 @@
-// Long-form method references: one home, named by every role that reads them.
+// Shared method references: one home per form, named by every role that reads them.
 //
-// The method skill is an index, not an output contract. These checks keep the
-// three references discoverable from the role skills and tie the projection
-// wording back to the shipped hook state machine.
+// A method skill is an index, not an output contract. These checks keep the
+// references discoverable from role skills and tie the projection wording back
+// to the shipped hook state machine.
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -18,19 +18,20 @@ function check(name, condition, detail) {
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const skills = join(root, 'skills')
-const methodDir = join(skills, 'longform', 'storycraft-longform-method')
+const methodDir = join(skills, 'longform', 'storycraft-long-writing')
 const methodSkill = await readFile(join(methodDir, 'SKILL.md'), 'utf8')
 
 const REFERENCES = [
   'foundation-design.md',
   'reader-contract-and-progression.md',
+  'scene-dialogue-and-length-budget.md',
   'state-projection.md',
 ]
 
-check('method skill keeps its routed name', /^name:\s*storycraft-longform-method$/m.test(methodSkill))
-check('method skill stays an index', methodSkill.split(/\r?\n/).length <= 60,
+check('shared long-form method keeps its name', /^name:\s*storycraft-long-writing$/m.test(methodSkill))
+check('shared long-form method stays an index', methodSkill.split(/\r?\n/).length <= 60,
   `${methodSkill.split(/\r?\n/).length} lines`)
-check('method skill does not impersonate an output contract',
+check('shared long-form method does not impersonate an output contract',
   !methodSkill.includes('story_submit') && !methodSkill.includes('payload') && !methodSkill.includes('```'))
 
 const referenceText = {}
@@ -59,37 +60,58 @@ const referenceFiles = (await readdir(join(methodDir, 'references'), { withFileT
 check('references directory has no orphan file', referenceFiles.join(',') === [...REFERENCES].sort().join(','),
   referenceFiles.join(','))
 
+const oldMethod = await readFile(join(skills, 'longform', 'storycraft-longform-method', 'SKILL.md'), 'utf8')
+check('the old method name is a thin alias to the shared method',
+  oldMethod.includes('storycraft-long-writing') && !oldMethod.includes('references/'))
+
+const shortMethod = await readFile(join(skills, 'shortform', 'storycraft-short-writing', 'SKILL.md'), 'utf8')
+const shortChecklist = await readFile(join(skills, 'shortform', 'storycraft-short-writing', 'references', 'production-checklist.md'), 'utf8')
+check('short method names its production checklist',
+  shortMethod.includes('references/production-checklist.md') && shortChecklist.startsWith('# '))
+
+const scriptMethod = await readFile(join(skills, 'screenplay', 'storycraft-script-writing', 'SKILL.md'), 'utf8')
+const scriptCraft = await readFile(join(skills, 'screenplay', 'storycraft-script-writing', 'references', 'episode-scene-craft.md'), 'utf8')
+check('script method names its episode/scene reference',
+  scriptMethod.includes('references/episode-scene-craft.md') && scriptCraft.startsWith('# '))
+
 const roleSkills = {
   plan: join(skills, 'plan', 'storycraft-plan-craft', 'SKILL.md'),
   write: join(skills, 'write', 'storycraft-write-craft', 'SKILL.md'),
   review: join(skills, 'review', 'storycraft-review', 'SKILL.md'),
   orchestration: join(skills, 'shared', 'storycraft-studio-orchestration', 'SKILL.md'),
+  chapter: join(skills, 'longform', 'storycraft-longform-chapter', 'SKILL.md'),
 }
 const roleText = {}
 for (const [role, file] of Object.entries(roleSkills)) roleText[role] = await readFile(file, 'utf8')
 
-const loadsMethod = role => role.includes('加载 `storycraft-longform-method`')
-check('planning loads the method and reads foundation + reader contract',
+const loadsMethod = role => /加载\s*`storycraft-long-writing`/u.test(role)
+for (const [role, text] of Object.entries(roleText)) {
+  check(`${role} skill carries no long-form method body`,
+    !/^## (从章纲到场景|卷怎么划|人物与因果|节奏与收尾|写作纪律|自检清单)/mu.test(text))
+}
+check('planning loads the shared method and reads foundation + reader contract',
   loadsMethod(roleText.plan)
-  && roleText.plan.includes('读它的 `references/foundation-design.md`')
-  && roleText.plan.includes('读它的 `references/reader-contract-and-progression.md`'))
-check('writing loads the method and reads the reader contract',
+  && roleText.plan.includes('`references/foundation-design.md`')
+  && roleText.plan.includes('`references/reader-contract-and-progression.md`'))
+check('writing loads the shared method and reads the reader contract',
   loadsMethod(roleText.write)
-  && roleText.write.includes('读它的 `references/reader-contract-and-progression.md`'))
-check('review loads the method and reads the reader contract + state projection',
+  && roleText.write.includes('`references/reader-contract-and-progression.md`'))
+check('review loads the shared method and reads the reader contract + state projection',
   loadsMethod(roleText.review)
-  && roleText.review.includes('读它的 `references/reader-contract-and-progression.md`')
-  && roleText.review.includes('读它的 `references/state-projection.md`'))
-check('orchestration loads the method and reads state projection before settling',
+  && roleText.review.includes('`references/reader-contract-and-progression.md`')
+  && roleText.review.includes('`references/state-projection.md`'))
+check('orchestration loads the shared method and reads state projection before settling',
   loadsMethod(roleText.orchestration)
-  && roleText.orchestration.includes('读它的 `references/state-projection.md`'))
+  && roleText.orchestration.includes('`references/state-projection.md`'))
+check('the single-chapter flow points to the shared method',
+  roleText.chapter.includes('`storycraft-long-writing`'))
 
 const shortStory = await readFile(join(skills, 'shortform', 'storycraft-short-story', 'SKILL.md'), 'utf8')
 const shortDrama = await readFile(join(skills, 'screenplay', 'storycraft-short-drama', 'SKILL.md'), 'utf8')
-check('short form is not asked to read long-form method',
-  !shortStory.includes('storycraft-longform-method'))
-check('screenplay is not asked to read long-form method',
-  !shortDrama.includes('storycraft-longform-method'))
+check('short form loads its shared method, not the long-form method',
+  shortStory.includes('storycraft-short-writing') && !shortStory.includes('storycraft-long-writing'))
+check('screenplay loads its shared method, not the long-form method',
+  shortDrama.includes('storycraft-script-writing') && !shortDrama.includes('storycraft-long-writing'))
 
 const validation = await readFile(join(root, 'state-validation.js'), 'utf8')
 const hookMatch = /const HOOK_STATES = \[([^\]]+)\]/u.exec(validation)

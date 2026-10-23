@@ -10,7 +10,7 @@ whenToUse: 被派去审一章、需要给出问题清单、或作者要求诊断
 
 ## 长篇方法参考
 
-审长篇时先加载 `storycraft-longform-method`：推进、重复、余波与因果归属读它的 `references/reader-contract-and-progression.md`；正文事实与伏笔账本对不上时读它的 `references/state-projection.md`。
+审长篇时先加载 `storycraft-long-writing`：推进、重复、余波与因果归属读它的 `references/reader-contract-and-progression.md`；正文事实与伏笔账本对不上时读它的 `references/state-projection.md`。
 
 ## 先定标准，再找问题
 
