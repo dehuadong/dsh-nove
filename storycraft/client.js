@@ -2009,8 +2009,9 @@ window.__ModuleLoader__.load({
           ),
           backupList.length === 0
             ? h('p', { className: 'sc-muted' }, '还没有备份。')
-            : h('div', null, ...backupList.map(item => h('div', { className: 'sc-item', key: item.backupId },
+            : h('div', null, ...backupList.map((item, index) => h('div', { className: 'sc-item', key: item.backupId },
               h('div', { className: 'sc-item-head' },
+                h('span', { className: 'sc-badge' }, String(index + 1).padStart(2, '0')),
                 h('span', { className: 'sc-item-name' }, item.file.split(/[\\/]/u).at(-1)),
                 h('span', { className: 'sc-badge' }, `${item.bytes} B`),
                 h('span', { className: 'sc-item-id' }, String(item.createdAt ?? '').replace('T', ' ').slice(0, 16)),
