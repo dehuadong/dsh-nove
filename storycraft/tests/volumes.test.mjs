@@ -56,7 +56,7 @@ try {
   // Brief: volume summary plus the rolling window.
   const brief = await b.assembleBrief(root, work, 8)
   const sections = brief.sections.map(section => section.name)
-  check('brief order includes the new sections', sections.join(',') === 'intent,plan,characters,hooks,volumeSummary,recentSummaries,previous,style,wordPolicy', sections.join(','))
+  check('brief order includes the new sections', sections.join(',') === 'intent,storyFrame,bookRules,plan,currentFocus,characters,hooks,volumeMap,volumeSummary,recentSummaries,previous,style,wordPolicy', sections.join(','))
   const volumeSection = brief.sections.find(section => section.name === 'volumeSummary')
   check('volume summary absent when the volume has none', volumeSection.absent === true, JSON.stringify(volumeSection))
   const recent = brief.sections.find(section => section.name === 'recentSummaries')

@@ -17,6 +17,7 @@ import {
   readManifest, readPlan, readSummary as readSummaryRow, readSummaryState, readVolumes, searchMemory, virtualPath,
   writeBible as writeBibleRow, writeSummary as writeSummaryRow,
 } from './store-db.js'
+import { readFoundationDocuments } from './artifact-store.js'
 
 /** Every truth file, with how its content is validated. */
 export const BIBLE_FILES = {
@@ -38,7 +39,7 @@ export function assertEditableBible(name) {
 }
 
 /** Names in the order the brief presents them (highest priority first). */
-export const BRIEF_SECTION_ORDER = ['intent', 'plan', 'characters', 'hooks', 'volumeSummary', 'recentSummaries', 'previous', 'style', 'wordPolicy', 'retrieval']
+export const BRIEF_SECTION_ORDER = ['intent', 'storyFrame', 'bookRules', 'plan', 'currentFocus', 'characters', 'hooks', 'volumeMap', 'volumeSummary', 'recentSummaries', 'previous', 'style', 'wordPolicy', 'retrieval']
 
 /** Byte budget of one assembled brief. */
 export const BRIEF_BUDGET_BYTES = 8192
@@ -323,6 +324,13 @@ export async function writeSummary(root, workId, chapter, text) {
  * @param {object} [dependencies] - injectable `searchMemory` for fail-open tests.
  * @returns {Promise<{sections: object[], budget: object, missing: string[], dropped: object[], retrieval: object}>} brief.
  */
+/** Render one foundation artifact content: Markdown string or its readable `markdown` field. */
+function foundationText(content) {
+  if (typeof content === 'string') return content
+  if (content !== null && typeof content === 'object' && typeof content.markdown === 'string') return content.markdown
+  return content === undefined ? '' : JSON.stringify(content)
+}
+
 export async function assembleBrief(root, workId, chapter, dependencies = {}) {
   const number = chapterNumber(chapter)
   const manifest = readManifest(root, workId)
@@ -340,8 +348,10 @@ export async function assembleBrief(root, workId, chapter, dependencies = {}) {
 
   const plan = readPlan(root, work, number)
   if (plan === undefined) missing.push('outline')
+  const foundation = readFoundationDocuments(root, work)
 
-  const characters = parseCharacters(raw.characters)
+  const indexRoles = Array.isArray(foundation.rolesIndex?.content?.roles) ? foundation.rolesIndex.content.roles : undefined
+  const characters = indexRoles !== undefined && indexRoles.length > 0 ? indexRoles : parseCharacters(raw.characters)
   const planText = plan ?? ''
   const matched = characters
     .filter(record => planText.includes(record.name))
@@ -350,6 +360,9 @@ export async function assembleBrief(root, workId, chapter, dependencies = {}) {
   const characterText = chosen
     .map(record => `- ${record.name}（${record.role}）：想要 ${record.want}；害怕 ${record.fear}；底线 ${record.limit}；口吻 ${record.voice}`)
     .join('\n')
+  const characterSource = indexRoles !== undefined && indexRoles.length > 0
+    ? virtualPath(work, 'foundation/roles/index.json')
+    : biblePath(work, 'characters')
 
   const folded = readFoldedState(root, work)
   const hooks = folded.hooks.filter(hook => ['open', 'progressing', 'deferred'].includes(hook.status))
@@ -357,11 +370,19 @@ export async function assembleBrief(root, workId, chapter, dependencies = {}) {
     .map(hook => `- ${hook.text}（${hook.status}，第 ${hook.startChapter} 章埋）`)
     .join('\n')
 
+  const storyFrame = foundationText(foundation.storyFrame?.content)
+  const bookRules = foundationText(foundation.bookRules?.content)
+  const currentFocus = foundationText(foundation.currentFocus?.content)
+  const volumeMap = foundationText(foundation.volumeMap?.content)
   const sections = [
     section('intent', '作者意图与当前焦点', raw.intent, biblePath(work, 'intent')),
+    section('storyFrame', '故事框架', storyFrame, virtualPath(work, 'foundation/story_frame.md'), { absent: storyFrame === '' }),
+    section('bookRules', '作品规则', bookRules, virtualPath(work, 'foundation/book_rules.md'), { absent: bookRules === '' }),
     section('plan', '本章章纲', planText, virtualPath(work, `outline/${chapterStem(number)}.plan.md`), { absent: plan === undefined }),
-    section('characters', '本章涉及人物', characterText, biblePath(work, 'characters'), { fallback: matched.length === 0 }),
+    section('currentFocus', '当前焦点', currentFocus, virtualPath(work, 'foundation/current_focus.md'), { absent: currentFocus === '' }),
+    section('characters', '本章涉及人物', characterText, characterSource, { fallback: matched.length === 0 }),
     section('hooks', '未解伏笔', hookText, virtualPath(work, 'state/events.jsonl'), { absent: hooks.length === 0 }),
+    section('volumeMap', '卷图', volumeMap, virtualPath(work, 'foundation/volume_map.md'), { absent: volumeMap === '' }),
     await volumeSummarySection(root, manifest, number),
     await recentSummariesSection(root, manifest, number),
     await previousSection(root, manifest, number),
@@ -411,12 +432,14 @@ export async function assembleBrief(root, workId, chapter, dependencies = {}) {
   const budget = { limit: BRIEF_BUDGET_BYTES, used: 0, overBudget: false }
   const dropped = []
   const kept = [...sections]
+  const protectedNames = new Set(['storyFrame', 'bookRules'])
   const total = () => kept.reduce((sum, item) => sum + item.bytes, 0)
   while (total() > BRIEF_BUDGET_BYTES && kept.length > 1) {
-    const last = kept[kept.length - 1]
-    const bytes = last.bytes
-    kept.pop()
-    dropped.unshift({ name: last.name, bytes, reason: 'budget' })
+    let index = kept.length - 1
+    while (index > 0 && protectedNames.has(kept[index].name)) index -= 1
+    if (index <= 0) break
+    const [removed] = kept.splice(index, 1)
+    dropped.unshift({ name: removed.name, bytes: removed.bytes, reason: 'budget' })
   }
   budget.used = total()
   budget.overBudget = budget.used > BRIEF_BUDGET_BYTES

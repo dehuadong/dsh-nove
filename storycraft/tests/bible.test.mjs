@@ -74,7 +74,7 @@ try {
   await s.writePlan(root, { work, chapter: 2, perspective: '林澈', goal: '找水', obstacle: '荒原', cost: '体力', turn: '发现旧墙' })
   const brief = await b.assembleBrief(root, work, 2)
   const names = brief.sections.map(section => section.name)
-  check('brief order', names.join(',') === 'intent,plan,characters,hooks,volumeSummary,recentSummaries,previous,style,wordPolicy', names.join(','))
+  check('brief order', names.join(',') === 'intent,storyFrame,bookRules,plan,currentFocus,characters,hooks,volumeMap,volumeSummary,recentSummaries,previous,style,wordPolicy', names.join(','))
   const previous = brief.sections.find(section => section.name === 'previous')
   check('previous uses the summary', previous.source === `works/${work}/summaries/ch-0001.md` && previous.absent === false, previous.source)
   check('characters matched or fallback', brief.sections.find(section => section.name === 'characters').content.includes('林澈'))

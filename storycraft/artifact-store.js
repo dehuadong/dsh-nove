@@ -3,6 +3,7 @@
 import { StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, chapterNumber, contentVersion, now } from './domain.js'
 import { ARTIFACT_IDENTITY, validateArtifactRecord, validateChapterMemo, validateChapterMeta, validateChapterSummary } from './artifact-contract.js'
 import { openWork, touchMeta, transaction } from './db.js'
+import { syncSearchDoc } from './search-index.js'
 
 function serialize(content) {
   if (typeof content === 'string') return { contentType: 'text', text: content }
@@ -52,6 +53,10 @@ export function putArtifactOnDb(db, input, options = {}) {
     db.prepare('UPDATE chapters SET plan_approved_at = NULL, plan_revision = NULL, updated_at = ? WHERE number = ?')
       .run(now(), chapter)
   }
+  if (options.search !== undefined) {
+    syncSearchDoc(db, options.search.docId, options.search.kind, options.search.source,
+      options.search.chapter ?? 0, options.search.text)
+  }
   touchMeta(db)
   return {
     workId: envelope.workId,
@@ -65,11 +70,11 @@ export function putArtifactOnDb(db, input, options = {}) {
 }
 
 /** Store one immutable artifact revision. */
-export function putArtifact(root, input) {
+export function putArtifact(root, input, options = {}) {
   const envelope = validateArtifactRecord(input)
   const db = openWork(root, String(envelope.workId))
   try {
-    return transaction(db, () => putArtifactOnDb(db, envelope))
+    return transaction(db, () => putArtifactOnDb(db, envelope, options))
   } finally {
     db.close()
   }
@@ -146,7 +151,7 @@ function writeTyped(root, input) {
     content: input.content,
     provenance: input.provenance ?? 'generated',
     createdAt: input.createdAt ?? now(),
-  })
+  }, input.search === undefined ? {} : { search: input.search })
 }
 
 /** One typed read that refuses a mismatching kind. */
@@ -189,6 +194,7 @@ function foundationDocument(name) {
  */
 export function writeFoundationDocument(root, input) {
   const document = foundationDocument(input.name)
+  const text = typeof input.content === 'string' ? input.content : JSON.stringify(input.content)
   return writeTyped(root, {
     work: input.work,
     artifactId: document.artifactId,
@@ -196,6 +202,12 @@ export function writeFoundationDocument(root, input) {
     content: input.content,
     provenance: input.provenance,
     createdAt: input.createdAt,
+    search: {
+      docId: document.artifactId,
+      kind: document.kind,
+      source: `foundation/${input.name === 'roles_index' ? 'roles/index' : input.name}`,
+      text,
+    },
   })
 }
 
@@ -214,6 +226,14 @@ export function writeRoleCard(root, input) {
     content: input.content,
     provenance: input.provenance,
     createdAt: input.createdAt,
+    search: {
+      docId: `role:${segment}`,
+      kind: 'role_card',
+      source: `foundation/roles/${segment}`,
+      text: typeof input.content?.markdown === 'string' && input.content.markdown.trim() !== ''
+        ? input.content.markdown
+        : JSON.stringify(input.content),
+    },
   })
 }
 
@@ -221,6 +241,47 @@ export function writeRoleCard(root, input) {
 export function readRoleCard(root, input) {
   const segment = String(input.role ?? input.slug ?? '').trim()
   return readTyped(root, input, { artifactId: `role:${segment}`, kind: 'role_card' })
+}
+
+/** Latest foundation documents in one read, for brief/context/export consumers. */
+export function readFoundationDocuments(root, work) {
+  const db = openWork(root, String(work))
+  try {
+    const read = (artifactId, kind) => {
+      const row = db.prepare('SELECT content_type, content, revision_id, created_at FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
+        .get(artifactId)
+      if (row === undefined) return undefined
+      const content = row.content_type === 'json' ? JSON.parse(row.content) : row.content
+      return { content, version: row.revision_id, createdAt: row.created_at }
+    }
+    return {
+      storyFrame: read('bible:story_frame', 'story_frame'),
+      volumeMap: read('bible:volume_map', 'volume_map'),
+      bookRules: read('bible:book_rules', 'book_rules'),
+      rolesIndex: read('roles:index', 'role_index'),
+      currentFocus: read('bible:current_focus', 'current_focus'),
+    }
+  } finally {
+    db.close()
+  }
+}
+
+/** Latest role cards of one work, ascending by artifact id. */
+export function listRoleCards(root, work) {
+  const db = openWork(root, String(work))
+  try {
+    const rows = db.prepare(`SELECT a.artifact_id, a.content_type, a.content, a.revision_id FROM artifacts a
+      JOIN (SELECT artifact_id, max(rowid) AS rowid FROM artifacts
+        WHERE kind = 'role_card' GROUP BY artifact_id) latest ON a.rowid = latest.rowid
+      ORDER BY a.artifact_id`).all()
+    return rows.map(row => ({
+      artifactId: row.artifact_id,
+      revisionId: row.revision_id,
+      content: row.content_type === 'json' ? JSON.parse(row.content) : row.content,
+    }))
+  } finally {
+    db.close()
+  }
 }
 
 /** One form artifact write: `<prefix>:<id>` with content-hash revision. */

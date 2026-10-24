@@ -11,6 +11,7 @@
  */
 
 import { deriveWhitelist, readCards, summariseWhitelist } from './facts.js'
+import { readFoundationDocuments } from './artifact-store.js'
 import {
   StoryError, chapterNumber, chapterStem, formOf, planApprovalPolicy, unitOf,
 } from './domain.js'
@@ -116,7 +117,22 @@ export async function assembleRoleContext(input, dependencies = {}) {
       `第 ${number} 章章纲还没经作者确认：请在面板「章纲」里点「确认章纲」，再取写手上下文`)
   }
 
-  const characters = (await readCards(root, work)) ?? []
+/** Render one foundation artifact content: Markdown string or its readable `markdown` field. */
+function foundationText(content) {
+  if (typeof content === 'string') return content
+  if (content !== null && typeof content === 'object' && typeof content.markdown === 'string') return content.markdown
+  return content === undefined ? '' : JSON.stringify(content)
+}
+
+  const foundation = readFoundationDocuments(root, work)
+  const indexRoles = Array.isArray(foundation.rolesIndex?.content?.roles) ? foundation.rolesIndex.content.roles : undefined
+  const characters = indexRoles !== undefined && indexRoles.length > 0
+    ? indexRoles
+    : (await readCards(root, work)) ?? []
+  const storyFrameText = foundationText(foundation.storyFrame?.content)
+  const bookRulesText = foundationText(foundation.bookRules?.content)
+  const volumeMapText = foundationText(foundation.volumeMap?.content)
+  const focusText = foundationText(foundation.currentFocus?.content)
   if (characters.length === 0 && role !== 'planner' && role !== 'summarizer') {
     throw new StoryError('bible-missing', '人物卡缺失：先用 story_bible_write 建 bible/characters.json 再派活')
   }
@@ -174,6 +190,8 @@ export async function assembleRoleContext(input, dependencies = {}) {
       ...(lead.voice === undefined ? [] : [`语气：${lead.voice}`]),
     ]),
     ...(intent.trim() === '' ? [] : ['本书口径（摘自意图文件）：', intent.trim().slice(0, 600)]),
+    ...(role === 'planner' || storyFrameText === '' ? [] : ['故事框架：', storyFrameText.trim().slice(0, 1200)]),
+    ...(role === 'planner' || bookRulesText === '' ? [] : ['作品规则：', bookRulesText.trim().slice(0, 1200)]),
   ].filter(line => line !== '')
   const constraints = role === 'summarizer'
     ? undefined
@@ -261,16 +279,20 @@ export async function assembleRoleContext(input, dependencies = {}) {
   // planner-only: book plan, volume map and character cards
   const planSection = role === 'planner'
     ? section('plan', '全书计划与卷图', [
+      focusText === '' ? '' : `当前焦点：${focusText.trim()}`,
       planText === '' ? '（还没有全书计划）' : planText.trim(),
-      volumeTitles === '' ? '' : `卷图：\n${volumeTitles}`,
-    ].filter(line => line !== '').join('\n'), 'protected', `${virtualPath(work, 'bible/plan.md')} + ${virtualPath(work, 'volumes')}`)
+      storyFrameText === '' ? '' : `故事框架：\n${storyFrameText.trim()}`,
+      volumeMapText === '' ? (volumeTitles === '' ? '' : `卷图：\n${volumeTitles}`) : `卷图：\n${volumeMapText.trim()}`,
+    ].filter(line => line !== '').join('\n'), 'protected', `${virtualPath(work, 'foundation')} + ${virtualPath(work, 'outline/plan.md')}`)
     : undefined
   const characterBrief = role === 'planner'
     ? section('characters', '人物卡（节选）', characters.slice(0, 6).map(item => [
       `- ${item.name}：${item.role}`,
       ...(item.limit === undefined ? [] : [`  边界：${item.limit}`]),
       ...(item.voice === undefined ? [] : [`  语气：${item.voice}`]),
-    ].join('\n')).join('\n'), 'compressible', virtualPath(work, 'bible/characters.json'))
+    ].join('\n')).join('\n'), 'compressible', indexRoles !== undefined && indexRoles.length > 0
+      ? virtualPath(work, 'foundation/roles/index.json')
+      : virtualPath(work, 'bible/characters.json'))
     : undefined
 
   // The plan feeds writer/reviewer/reviser; writer/reviewer/reviser/summarizer read the body.

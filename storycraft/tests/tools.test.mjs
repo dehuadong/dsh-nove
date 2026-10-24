@@ -369,7 +369,7 @@ try {
   check('story_bible reads five files', bibleRead.ok === true && bibleRead.files.length === 5, JSON.stringify(bibleRead.files?.map(file => file.name)))
 
   const brief = await byName.get('story_brief').execute({ work, chapter: 1 }, exec)
-  check('story_brief returns nine sections', brief.ok === true && brief.sections.length === 9, JSON.stringify(brief.sections?.map(section => section.name)))
+  check('story_brief returns thirteen sections', brief.ok === true && brief.sections.length === 13, JSON.stringify(brief.sections?.map(section => section.name)))
   check('story_brief reports budget', brief.ok === true && brief.budget.limit > 0)
   check('story_brief declares retrieval', brief.ok === true && brief.retrieval.enabled === false
     && byName.get('story_brief').output.schema.properties.retrieval !== undefined, JSON.stringify(brief.retrieval))

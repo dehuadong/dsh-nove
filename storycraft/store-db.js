@@ -24,6 +24,7 @@ import { chapterRemap } from './chapter-edit.js'
 import { buildEpub } from './epub.js'
 import { snippetFor } from './retrieval.js'
 import { materialIndexText, searchTokens } from './search-text.js'
+import { dropSearchDoc, syncSearchDoc } from './search-index.js'
 import { STATE_LIMITS, applyFactOp, applyHookOp, mintHookId, projectState } from './state-projection.js'
 
 export { searchTokens }
@@ -2654,26 +2655,6 @@ export function deleteMaterial(root, work, id) {
 /**
  * Drop one search document and its FTS row.
  * @param {object} db - open work database.
- * @param {string} docId - document id.
- */
-export function dropSearchDoc(db, docId) {
-  const row = db.prepare('SELECT rowid, tokens FROM search_docs WHERE doc_id = ?').get(docId)
-  if (row === undefined) return
-  db.prepare("INSERT INTO search_fts(search_fts, rowid, tokens) VALUES('delete', ?, ?)").run(row.rowid, row.tokens)
-  db.prepare('DELETE FROM search_docs WHERE doc_id = ?').run(docId)
-}
-
-/** Upsert one search document and its FTS row. */
-function syncSearchDoc(db, docId, kind, source, chapter, body, indexText = body) {
-  const tokens = searchTokens(indexText)
-  dropSearchDoc(db, docId)
-  db.prepare('INSERT INTO search_docs (doc_id, kind, source, chapter, body, tokens) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(docId, kind, source, chapter, body, tokens)
-  const row = db.prepare('SELECT rowid FROM search_docs WHERE doc_id = ?').get(docId)
-  db.prepare('INSERT INTO search_fts (rowid, tokens) VALUES (?, ?)').run(row.rowid, tokens)
-}
-
-/**
  * Search one work by FTS5.
  * @param {string} root - workspace directory.
  * @param {string} work - work identity.
@@ -2740,7 +2721,7 @@ export function searchMemory(root, work, query, options = {}) {
     const candidates = []
     for (const row of rows) {
       const chapter = row.chapter
-      if (['world', 'style', 'intent', 'outline'].includes(row.kind)) {
+      if (['world', 'style', 'intent', 'outline', 'story_frame', 'volume_map', 'book_rules', 'role_index', 'role_card', 'current_focus'].includes(row.kind)) {
         candidates.push({
           id: row.id, kind: row.kind, source: row.source, sourceIds: [row.id], chapter: null,
           text: row.body, score: -row.score,
@@ -2818,7 +2799,8 @@ export function searchMemory(root, work, query, options = {}) {
 }
 
 /** Document kinds exposed to role context retrieval. */
-const MEMORY_KINDS = ['summary', 'hook', 'volume', 'material', 'world', 'style', 'intent', 'outline']
+const MEMORY_KINDS = ['summary', 'hook', 'volume', 'material', 'world', 'style', 'intent', 'outline',
+  'story_frame', 'volume_map', 'book_rules', 'role_index', 'role_card', 'current_focus']
 
 /** Query tokens; shared by search and context retrieval. */
 function queryTokens(query) {
@@ -3005,6 +2987,41 @@ export function exportWork(root, work, destination) {
         if (entry === undefined) continue
         if (name === 'plan') put(join('outline', 'plan.md'), entry.content)
         else put(join('bible', `${name}.md`), entry.content)
+      }
+      for (const [name, artifactId] of [
+        ['story_frame', 'bible:story_frame'],
+        ['volume_map', 'bible:volume_map'],
+        ['book_rules', 'bible:book_rules'],
+        ['current_focus', 'bible:current_focus'],
+      ]) {
+        const row = db.prepare('SELECT content_type, content FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
+          .get(artifactId)
+        if (row === undefined) continue
+        const content = row.content_type === 'json' ? JSON.parse(row.content) : row.content
+        const text = typeof content === 'string'
+          ? content
+          : (content !== null && typeof content === 'object' && typeof content.markdown === 'string'
+            ? content.markdown
+            : JSON.stringify(content))
+        put(join('foundation', `${name}.md`), text)
+      }
+      const rolesIndex = db.prepare(`SELECT content_type, content FROM artifacts
+        WHERE artifact_id = 'roles:index' ORDER BY rowid DESC LIMIT 1`).get()
+      if (rolesIndex !== undefined) {
+        const content = rolesIndex.content_type === 'json' ? JSON.parse(rolesIndex.content) : rolesIndex.content
+        put(join('foundation', 'roles', 'index.json'), typeof content === 'string' ? content : `${JSON.stringify(content, null, 2)}\n`)
+      }
+      const roleCards = db.prepare(`SELECT a.artifact_id, a.content_type, a.content FROM artifacts a
+        JOIN (SELECT artifact_id, max(rowid) AS rowid FROM artifacts
+          WHERE kind = 'role_card' GROUP BY artifact_id) latest ON a.rowid = latest.rowid
+        ORDER BY a.artifact_id`).all()
+      for (const row of roleCards) {
+        const slug = row.artifact_id.slice('role:'.length)
+        const content = row.content_type === 'json' ? JSON.parse(row.content) : row.content
+        const text = typeof content === 'object' && content !== null && typeof content.markdown === 'string'
+          ? content.markdown
+          : (typeof content === 'string' ? content : JSON.stringify(content))
+        put(join('foundation', 'roles', `${slug}.md`), text)
       }
       put('volumes.json', `${JSON.stringify(db.prepare('SELECT * FROM volumes ORDER BY from_ch').all(), null, 2)}\n`)
       put('state/events.jsonl', `${db.prepare('SELECT * FROM events ORDER BY seq').all()
