@@ -114,10 +114,10 @@ async function buildFixture() {
   const second = '灰旗在风里翻了一夜。火在渠里烧着。'.repeat(45)
   await store.reviseChapter(fixtureWorkspace, { work, chapter: 1, body: second, problemIds: ['Q1', 'Q2'], mode: 'rewrite' })
   await store.writeSummary(fixtureWorkspace, { work, chapter: 1, text: '甲在渠边丢了半袋粮，灰旗还挂着。' })
-  await store.foldState(fixtureWorkspace, {
+  await store.settleState(fixtureWorkspace, {
     work, chapter: 1,
-    entities: [{ name: '甲', facts: ['丢了半袋粮'] }],
-    hooks: [{ text: '灰旗是谁挂的', state: 'opened' }],
+    factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '丢了半袋粮' }] },
+    newHooks: [{ text: '灰旗是谁挂的' }],
   })
   // An unapproved book plan: the page must offer its confirmation button.
   await store.writeOutline(fixtureWorkspace, { work, mainline: '一条主线', volumes: '第一卷', ending: '开放' })
@@ -128,7 +128,7 @@ async function buildFixture() {
     title: status.title,
     words: status.chapters[0].words,
     events,
-    hooksOpen: status.hooks.opened,
+    hooksOpen: status.hooks.open,
     revision: status.chapters[0].revision,
     reviewRound: 1,
   }

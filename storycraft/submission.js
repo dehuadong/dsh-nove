@@ -117,13 +117,23 @@ function validateShape(role, payload) {
     const factOps = payload.factOps
     const hookOps = payload.hookOps
     const newHooks = payload.newHooks
+    for (const key of Object.keys(payload)) {
+      if (!['factOps', 'hookOps', 'newHooks'].includes(key)) return `settler 不接受字段 ${key}`
+    }
     if (factOps !== undefined && (factOps === null || typeof factOps !== 'object' || Array.isArray(factOps))) return 'factOps 必须是对象'
     if (hookOps !== undefined && (hookOps === null || typeof hookOps !== 'object' || Array.isArray(hookOps))) return 'hookOps 必须是对象'
     if (newHooks !== undefined && !Array.isArray(newHooks)) return 'newHooks 必须是数组'
+    for (const key of Object.keys(factOps ?? {})) {
+      if (!['upsert', 'expire'].includes(key)) return `factOps 不接受字段 ${key}`
+    }
+    for (const key of Object.keys(hookOps ?? {})) {
+      if (!['progress', 'mention', 'defer', 'resolve', 'supersede'].includes(key)) return `hookOps 不接受字段 ${key}`
+    }
     const upserts = factOps?.upsert ?? []
     const expires = factOps?.expire ?? []
     if (!Array.isArray(upserts) || !Array.isArray(expires)) return 'factOps.upsert/expire 必须是数组'
-    if (upserts.length + expires.length > STATE_LIMITS.facts) return `settler 最多 ${STATE_LIMITS.facts} 条 fact op`
+    if (upserts.length > STATE_LIMITS.facts) return `factOps.upsert 最多 ${STATE_LIMITS.facts} 条`
+    if (expires.length > STATE_LIMITS.facts) return `factOps.expire 最多 ${STATE_LIMITS.facts} 条`
     for (const [index, fact] of upserts.entries()) {
       for (const key of ['subject', 'predicate', 'object']) {
         const problem = bounded(fact?.[key], `factOps.upsert 第 ${index + 1} 条 ${key}`)
@@ -155,7 +165,7 @@ function validateShape(role, payload) {
       transitions += list.length
     }
     const candidates = newHooks ?? []
-    if (transitions + candidates.length > STATE_LIMITS.hooks) return `settler 最多 ${STATE_LIMITS.hooks} 条 hook op`
+    if (transitions > STATE_LIMITS.hooks) return `hookOps 最多 ${STATE_LIMITS.hooks} 条`
     if (candidates.length > STATE_LIMITS.newHooks) return `newHooks 最多 ${STATE_LIMITS.newHooks} 条`
     for (const [index, candidate] of candidates.entries()) {
       const problem = bounded(candidate?.text, `newHooks 第 ${index + 1} 条 text`)

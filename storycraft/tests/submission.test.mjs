@@ -231,6 +231,14 @@ try {
   check('settler accepts an empty payload', emptySettler.ok === true && emptySettler.submitted === true,
     JSON.stringify(emptySettler))
   closeSubmission(emptySettlerEntry.delegationId)
+  const legacySettlerEntry = openSubmission({ role: 'settler', workId: work, chapter: 1 })
+  const legacySettler = await submitPayload({
+    delegationId: legacySettlerEntry.delegationId, depth: 1, root,
+    payload: { entities: [], hooks: [] },
+  })
+  check('settler rejects the legacy delta shape', legacySettler.ok === false
+    && legacySettler.error.code === 'submit-invalid', JSON.stringify(legacySettler))
+  closeSubmission(legacySettlerEntry.delegationId)
   const badSettlerEntry = openSubmission({ role: 'settler', workId: work, chapter: 1 })
   const badSettler = await submitPayload({
     delegationId: badSettlerEntry.delegationId, depth: 1, root,

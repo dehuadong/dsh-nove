@@ -1750,8 +1750,11 @@ function stateOpsOf(input, chapter, projection) {
   const factOps = input.factOps ?? {}
   const upserts = Array.isArray(factOps.upsert) ? factOps.upsert : []
   const expires = Array.isArray(factOps.expire) ? factOps.expire : []
-  if (upserts.length + expires.length > STATE_LIMITS.facts) {
-    throw new StoryError('state-op-invalid', `factOps 最多 ${STATE_LIMITS.facts} 条`)
+  if (upserts.length > STATE_LIMITS.facts) {
+    throw new StoryError('state-op-invalid', `factOps.upsert 最多 ${STATE_LIMITS.facts} 条`)
+  }
+  if (expires.length > STATE_LIMITS.facts) {
+    throw new StoryError('state-op-invalid', `factOps.expire 最多 ${STATE_LIMITS.facts} 条`)
   }
   for (const fact of upserts) {
     ops.push({
@@ -1771,38 +1774,50 @@ function stateOpsOf(input, chapter, projection) {
     }
   }
   const candidates = Array.isArray(input.newHooks) ? input.newHooks : []
-  if (transitions.length + candidates.length > STATE_LIMITS.hooks) {
-    throw new StoryError('state-op-invalid', `hookOps 与 newHooks 合计最多 ${STATE_LIMITS.hooks} 条`)
+  if (transitions.length > STATE_LIMITS.hooks) {
+    throw new StoryError('state-op-invalid', `hookOps 最多 ${STATE_LIMITS.hooks} 条`)
   }
   if (candidates.length > STATE_LIMITS.newHooks) {
     throw new StoryError('state-op-invalid', `newHooks 最多 ${STATE_LIMITS.newHooks} 条`)
   }
   for (const entry of transitions) ops.push({ kind: 'hook', op: entry.op, hookId: entry.hookId, chapter })
   const byText = new Map(projection.hooks.map(hook => [hook.text, hook]))
+  const boundedField = (value, label) => {
+    const trimmed = String(value ?? '').trim()
+    if (trimmed === '') throw new StoryError('state-op-invalid', `${label} 必须是非空字符串`)
+    if ([...trimmed].length > STATE_LIMITS.text) throw new StoryError('state-op-invalid', `${label} 超过 ${STATE_LIMITS.text} 字`)
+    return trimmed
+  }
+  const optionalField = (value, label) => {
+    const trimmed = String(value ?? '').trim()
+    if ([...trimmed].length > STATE_LIMITS.text) throw new StoryError('state-op-invalid', `${label} 超过 ${STATE_LIMITS.text} 字`)
+    return trimmed
+  }
   for (const candidate of candidates) {
-    const text = String(candidate?.text ?? '').trim()
-    if (text === '') throw new StoryError('state-op-invalid', '新伏笔缺少 text')
+    const text = boundedField(candidate?.text, '新伏笔 text')
     const existing = byText.get(text)
     if (existing !== undefined) {
       ops.push({ kind: 'hook', op: 'mention', hookId: existing.hookId, chapter })
       continue
     }
+    const hookId = mintHookId(text)
     ops.push({
       kind: 'hook',
       op: 'upsert',
       hook: {
-        hookId: mintHookId(text),
+        hookId,
         startChapter: chapter,
-        type: String(candidate?.type ?? '').trim() || '未分类',
+        type: optionalField(candidate?.type, '新伏笔 type') || '未分类',
         status: 'open',
         lastAdvancedChapter: chapter,
-        expectedPayoff: String(candidate?.expectedPayoff ?? '').trim(),
-        notes: String(candidate?.notes ?? '').trim(),
+        expectedPayoff: optionalField(candidate?.expectedPayoff, '新伏笔 expectedPayoff'),
+        notes: optionalField(candidate?.notes, '新伏笔 notes'),
         text,
       },
     })
+    byText.set(text, { hookId, text })
   }
-  return { ops, counts: { facts: upserts.length, hooks: transitions.length, newHooks: candidates.length } }
+  return { ops }
 }
 
 /** Whether a chapter was reopened after its latest settlement. */
@@ -1816,7 +1831,7 @@ function chapterReopened(db, chapter) {
 function planSettlement(db, number, input, options = {}) {
   const previous = eventsOf(db)
   const projection = projectState(previous)
-  const { ops, counts } = stateOpsOf(input, number, projection)
+  const { ops } = stateOpsOf(input, number, projection)
   if (ops.length === 0 && input.allowEmpty !== true) {
     throw new StoryError('empty-state', '定稿归档至少要给出一条人物事实或伏笔变化')
   }
@@ -1831,6 +1846,11 @@ function planSettlement(db, number, input, options = {}) {
     if (result.event === null) continue
     events.push(result.event)
     appended.push(result.event)
+  }
+  const counts = {
+    facts: appended.filter(event => event.kind === 'fact').length,
+    hooks: appended.filter(event => event.kind === 'hook' && event.op !== 'upsert').length,
+    newHooks: appended.filter(event => event.kind === 'hook' && event.op === 'upsert').length,
   }
   return { counts, appended, projection: projectState(events) }
 }

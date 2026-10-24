@@ -109,7 +109,7 @@ try {
     factOps: { upsert: [{ subject: '甲', predicate: '持有', object: '账本' }], expire: [{ subject: '甲', predicate: '欠' }] },
   })
   check('reopen re-settle tolerates same-status ops',
-    reapplied.counts.hooks === 1 && s.readFoldedState(root, work).hooks.find(hook => hook.hookId === mintHookId(hookText))?.status === 'resolved',
+    reapplied.counts.hooks === 0 && s.readFoldedState(root, work).hooks.find(hook => hook.hookId === mintHookId(hookText))?.status === 'resolved',
     JSON.stringify(reapplied.counts))
 
   s.writeChapter(root, { work, chapter: 2, body: '错误探测正文。'.repeat(30), rewrite: true, reopen: true })
@@ -126,6 +126,14 @@ try {
     () => s.settleState(root, { work, chapter: 2 }))
   throwsCode('an incomplete fact triple is refused', 'state-op-invalid',
     () => s.settleState(root, { work, chapter: 3, factOps: { upsert: [{ subject: '甲' }] } }))
+
+  const duplicated = s.settleState(root, {
+    work, chapter: 3,
+    newHooks: [{ text: '同一句承诺' }, { text: '同一句承诺' }],
+  })
+  check('the same hook text in one payload is one hook plus a mention',
+    duplicated.counts.newHooks === 1 && duplicated.counts.hooks === 1
+    && duplicated.hooks.filter(hook => hook.text === '同一句承诺').length === 1, JSON.stringify(duplicated.counts))
 
   // Legacy text-hook rows stay in the log but never enter the projection.
   const legacy = openWork(root, work)

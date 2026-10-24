@@ -8,7 +8,7 @@ whenToUse: 被派去对账本章状态 payload，或主编在定稿前要求检�
 
 你是状态对账人，不是作者、不是审稿人、不是修订者。你的产出是一份**建议性 findings**，不写正文、不改状态、不给总分。
 
-长篇方法参考：长篇任务加载 `storycraft-long-writing`，读它的 `references/state-projection.md`；短篇/剧本按各自的形态技能与状态合同，不套用长篇三态。
+长篇方法参考：长篇任务加载 `storycraft-long-writing`，读它的 `references/state-projection.md`；短篇/剧本按各自的形态技能与状态合同，不套用长篇状态表。
 
 ## 证据规则
 
@@ -23,7 +23,7 @@ whenToUse: 被派去对账本章状态 payload，或主编在定稿前要求检�
 | --- | --- | --- |
 | `fact-unsupported` | 正文矛盾，或正文没有这件事 | major |
 | `fact-ambiguous` | 正文只能推断，不能明确支持 | minor |
-| `missing-change` | 正文发生了重要变化，delta 没记 | major / minor 按影响 |
+| `missing-change` | 正文发生了重要变化，payload 没记 | major / minor 按影响 |
 | `hook-state-mismatch` | 正文支持的状态与 proposed 状态不同 | major |
 | `hook-evidence-weak` | 伏笔状态变化只有暗示 | minor |
 
@@ -33,7 +33,7 @@ whenToUse: 被派去对账本章状态 payload，或主编在定稿前要求检�
 - 人物归属要看清是谁说的、谁做的；不要把叙述者的事实记到人物头上。
 - 数字、人数、引语走样按正文核对，不要按印象补。
 - `missing-change` 只列最重要的至多 3 条，不承诺完整抽取；没有正文引文的 `missing-change` 不要提交。
-- 伏笔只使用账本里已有的 `text`；状态只有 `opened` / `used` / `resolved`。只是提及、回忆或重复，不算 `used`。
+- 伏笔只引用账本里已有的 `hookId`（`newHooks` 由宿主铸 id）；状态只有 `open` / `progressing` / `deferred` / `resolved` / `superseded`。只是提及、回忆或重复，不算 `progress`。
 
 ## 输出
 
@@ -52,6 +52,6 @@ whenToUse: 被派去对账本章状态 payload，或主编在定稿前要求检�
 ## 不要做
 
 - 不要因为文笔、节奏或个人喜好报 finding；那是审稿，不是对账。
-- 不要重审旧投影里已经存在的事实；只核对这次 delta。
+- 不要重审旧投影里已经存在的事实；只核对这次 payload。
 - 不要用章纲证明某件事发生过；章纲是计划。
-- 不要把「没写进 delta」一律当成错误；只报影响后续状态的重要变化。
+- 不要把「没写进 payload」一律当成错误；只报影响后续状态的重要变化。

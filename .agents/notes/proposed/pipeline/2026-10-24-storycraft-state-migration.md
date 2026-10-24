@@ -57,14 +57,14 @@ settler 与手动 `story_state` 使用同一形状：
 ```
 
 - `hookId` 由宿主铸造：`h-<sha1(text) 的前 8 位>`；同一 text 已存在时不新建，按 `mention` 记账。
-- 限额沿用 settler：`factOps.upsert` ≤20、`hookOps` 合计 ≤30、`newHooks` ≤8，`subject`/`predicate`/`object`/`source`/`text`/`type`/`expectedPayoff`/`notes` 各 ≤240 字。
-- 空 payload（无任何 op 且无 `newHooks`）在手动路径返回 `empty-state`，在委派提交面由 `submit-invalid` 拒绝（重试可修正）。
+- 限额：`factOps.upsert` ≤20、`factOps.expire` ≤20、`hookOps` ≤30、`newHooks` ≤8，各字符串字段 ≤240 字；手动与委派两个入口共用同一组限制。
+- 空 payload（无任何 op 且无 `newHooks`）：委派提交面接受 `{}`（settler 可以报告“本章无可记录变化”），手动 `story_state` 返回 `empty-state`；`settleState` 的 `allowEmpty` 只给自动结算路径用。
 - 每个 op 走 `state-events.js` 的 `applyHookOp`/`applyFactOp`：非法转移、未知 hookId、无可失效 fact 分别返回 `hook-transition-invalid`、`hook-not-found`、`fact-not-found`，**不写任何事件**。
 - 旧形状（`entities`/`hooks`）不再出现在调用面：手动 `story_state` 由工具 schema 拒绝，委派提交返回 `submit-invalid`；不做翻译。
 
 ### 2. 单一 settle writer
 
-- store 新增 `settleState(root, input)`：`assertStateGate`（审稿、摘要）→ 校验 ops → 按顺序追加 v2 事件（同一事务内同步检索文档）→ 追加 `settle` 标记 → 设 `stage='settled'` → 返回 `{counts:{facts, hooks, newHooks}, hooks, facts, seq}`。
+- store 新增 `settleState(root, input)`：`assertStateGate`（审稿、摘要）→ 校验 ops → 按顺序追加 v2 事件（同一事务内同步检索文档）→ 追加 `settle` 标记 → 设 `stage='settled'` → 返回 `{counts:{facts, hooks, newHooks}, hooks, facts, seq}`；`counts` 按**实际写入的事件**统计，被 `allowReapply` 吞掉的 no-op 不计入。
 - 自动 settle（`state-settle.js`）与手动 `story_state` 都调用它；`foldState` 删除，不再保留第二条 settle 路径。
 - 模块边界：纯 op 校验与投影移到 store 可导入的模块（`state-projection.js`），`state-events.js` 保留面向 store 的 append 包装，避免 store 与 state-events 互相导入。
 - `settle` 标记不是 v2 op 事件，仍按现有 `kind='settle'` 写入；`appendStateEvent` 的 hook/fact 限制不变。

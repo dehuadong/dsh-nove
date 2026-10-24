@@ -2027,7 +2027,9 @@ window.__ModuleLoader__.load({
                   list.push(`${fact.predicate}：${fact.object}`)
                   groups.set(fact.subject, list)
                 }
-                if (groups.size === 0) return h('p', { className: 'sc-muted' }, '还没有定稿过人物事实。')
+                if (groups.size === 0) return h('p', { className: 'sc-muted' }, detail.state.events > 0
+                  ? '已有事件记录，但没有 v2 状态投影；旧作品需要重新结算本章。'
+                  : '还没有定稿过人物事实。')
                 return [...groups].map(([subject, facts]) => h('div', { className: 'sc-item', key: subject },
                   h('div', { className: 'sc-item-head' }, h('span', { className: 'sc-item-name' }, subject)),
                   h('ul', { className: 'sc-item-body' }, ...facts.map((fact, index) => h('li', { key: index }, fact))),
