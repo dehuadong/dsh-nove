@@ -6,7 +6,7 @@
  * boundary with these functions.
  */
 
-import { StoryError, STAGES, WORK_FORMS } from './domain.js'
+import { StoryError, STAGES, SUMMARY_FIELDS, WORK_FORMS } from './domain.js'
 
 /** Contract version carried by new works. */
 export const ARTIFACT_CONTRACT_VERSION = 2
@@ -316,7 +316,7 @@ export function validateChapterSummary(value) {
   keys(input, ['chapter', 'title', 'characters', 'events', 'stateChanges', 'hookActivity',
     'mood', 'chapterType', 'bodyRevision', 'rawText'], 'summary')
   integer(input.chapter, 'summary.chapter', 1)
-  for (const field of ['title', 'characters', 'events', 'stateChanges', 'hookActivity', 'mood', 'chapterType']) {
+  for (const field of SUMMARY_FIELDS) {
     textAllowEmpty(input[field], `summary.${field}`)
   }
   integer(input.bodyRevision, 'summary.bodyRevision', 1)

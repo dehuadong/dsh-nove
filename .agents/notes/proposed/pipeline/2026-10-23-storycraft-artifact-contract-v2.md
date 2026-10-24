@@ -219,7 +219,7 @@ updated: 2026-10-24
 }
 ```
 
-`rawText` 是摘要渲染/原文来源，不是旧格式兼容；结构化字段供检索/审稿/brief。`bodyRevision` 是摘要针对的正文版本（stale 判定用它）；`artifactId=summary:<n>` 的 revisionId 仍是内容哈希，两者不能混用。消费者：brief（可渲染）、检索、reviewer、settler。
+`rawText` 是摘要渲染/原文来源，不是旧格式兼容；结构化字段供检索/审稿/brief。`bodyRevision` 是摘要针对的正文版本（stale 判定用它）；`artifactId=summary:<n>` 的 revisionId 仍是内容哈希，两者不能混用。消费者：brief（可渲染）、检索、read/export/settle 在 S2 消费；reviewer/settler 接摘要归 #52。
 
 ```json
 // Observation

@@ -57,7 +57,7 @@ try {
     check('chapters renumber by rank', headers.map(row => `${row.number}:${row.title}:${row.current_revision}`).join(',')
       === '1:第1章:1,2:第3章:1,3:第4章:1', JSON.stringify(headers))
     check('reviews and summaries follow chapters',
-      db.prepare('SELECT text FROM summaries ORDER BY number').all().map(row => row.text.trim()).join('|') === '摘要1。|摘要3。|摘要4。'
+      [1, 2, 3].map(chapter => s.readSummary(root, work, chapter)?.trim()).join('|') === '摘要1。|摘要3。|摘要4。'
       && db.prepare('SELECT count(*) AS n FROM reviews WHERE number = 2').get().n === 1)
     check('events follow chapters',
       db.prepare("SELECT chapter FROM events WHERE kind = 'hook' AND payload LIKE '%钩子3%'").get()?.chapter === 2)

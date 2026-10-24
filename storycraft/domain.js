@@ -183,6 +183,9 @@ export function countWords(text) {
 /** Character cap of one chapter summary, counted in Unicode code points. */
 export const SUMMARY_MAX_CHARS = 400
 
+/** Structured ChapterSummary fields carried by the summarizer payload. */
+export const SUMMARY_FIELDS = ['title', 'characters', 'events', 'stateChanges', 'hookActivity', 'mood', 'chapterType']
+
 /**
  * Trim a summary and count it by Unicode code point.
  * @param {unknown} text - summary text.

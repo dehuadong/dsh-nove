@@ -81,7 +81,7 @@ delegate 不可用（`delegation-unavailable`）、作者要求你直接做，�
 | 写手 | `story_delegate(role:'writer')` | `story_context` + `subagent` | `storycraft-write-craft`；短篇/剧本再按 form 加 `storycraft-short-story` / `storycraft-short-drama` | 委派：`story_submit {title,body}`；手动：`<<<TITLE … TITLE>>>` + `<<<CHAPTER … CHAPTER>>>` |
 | 审稿 | `story_delegate(role:'reviewer')` | `story_context` + `subagent` | `storycraft-review` | 委派：`story_submit {items}`；手动：同一 JSON，最多 8 条 |
 | 修订 | `story_delegate(role:'reviser', mode)` | `story_context` + `subagent` | `storycraft-revise-craft` | 委派：`story_submit {body}`；手动：整章正文（同一对首尾标记） |
-| 摘要 | `story_delegate(role:'summarizer')` | —（仅作者显式要求时主编手动写） | — | 委派：`story_submit {summary}`，≤400 字；手动：`story_summarize` |
+| 摘要 | `story_delegate(role:'summarizer')` | —（仅作者显式要求时主编手动写） | — | 委派：`story_submit {rawText,title,characters,events,stateChanges,hookActivity,mood,chapterType}`；`rawText` ≤400 字、结构字段各 ≤120 字；手动：`story_summarize` |
 | 规划 | — | `story_context` + `subagent` | `storycraft-plan-craft` | 章纲 JSON（五项 + body + threadRefs）或全书计划 JSON（三段） |
 
 任务段一律由宿主或 `story_context` 生成，作者要求写进 `instruction`，不要在任务里另写一套上下文。

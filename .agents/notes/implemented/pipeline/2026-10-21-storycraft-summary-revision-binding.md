@@ -8,6 +8,8 @@ verification: cddc551 / 30d9be9；25 个单测 + 11 条 E2E；真实第 4 章重
 
 # Agent Note：故事工坊：摘要绑定正文 revision 与过期识别
 
+> 2026-10-24 部分替代：摘要的存储位置从 `summaries.revision` 迁到 `summary:<n>` 的 `content.bodyRevision`，由 [L-R10a S2 ChapterSummary 迁移](../../proposed/pipeline/2026-10-24-storycraft-summary-migration.md) 拥有；本 Note 的 stale 语义、manifest 的 `summaryRevision`/`summaryStale` 口径与 v1→v2 迁移结论继续适用。
+
 > 2026-10-22 补充（#30 B3）：恢复 v3 备份时走 v3→v4 迁移；摘要绑定边界不变。
 
 > 2026-10-21 导出边界已修订：`manifest.schemaVersion = 3`，在 v2 字段基础上增加 `materials` 元数据；本文其余 v2 字段不变。#26 交付后 `export-backup.test` 已改。

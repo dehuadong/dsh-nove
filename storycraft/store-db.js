@@ -28,11 +28,11 @@ import { normalizeStateDelta, validateStateDelta } from './state-validation.js'
 
 export { searchTokens }
 import {
-  StoryError, SUMMARY_MAX_CHARS, WORK_FORMS, chapterNumber, chapterStem, contentVersion, countWords, foldEvents,
+  StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, WORK_FORMS, chapterNumber, chapterStem, contentVersion, countWords, foldEvents,
   formOf, now, parseReview, planApprovalPolicy, stageOf, summaryAdmissible, trimSummary, unitOf, workIdOf,
 } from './domain.js'
 import { assertRevisionMode } from './revision.js'
-import { remapChapterArtifacts, renderChapterMemo, writeChapterMemoOnDb } from './artifact-store.js'
+import { remapChapterArtifacts, renderChapterMemo, writeChapterMemoOnDb, writeChapterSummaryOnDb } from './artifact-store.js'
 
 /** How long an unused proposal is kept before the next proposal write prunes it. */
 export const PROPOSAL_TTL_MS = 30 * 24 * 60 * 60 * 1000
@@ -121,38 +121,75 @@ export function assertPlanApproved(db, chapter) {
 }
 
 /**
+ * Latest ChapterSummary content of one chapter, parsed from `summary:<n>`.
+ * @param {import('node:sqlite').DatabaseSync} db - open work database.
+ * @param {number} number - chapter number.
+ * @returns {object|undefined} summary content, or undefined when absent.
+ */
+function latestSummaryContent(db, number) {
+  const row = db.prepare('SELECT content FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
+    .get(`summary:${number}`)
+  return row === undefined ? undefined : parseSummaryContent(row.content, `summary:${number}`)
+}
+
+/** Parse one stored summary JSON; a malformed row is reported by id. */
+function parseSummaryContent(text, artifactId) {
+  try {
+    const content = JSON.parse(text)
+    return content !== null && typeof content === 'object' ? content : undefined
+  } catch {
+    throw new StoryError('artifact-invalid', `${artifactId} 的 summary JSON 无法解析`)
+  }
+}
+
+/** Derive the summary state from chapter revision and summary content. */
+function summaryStateOfContent(content, currentRevision) {
+  const revision = Number(content?.bodyRevision)
+  const text = typeof content?.rawText === 'string' ? content.rawText : undefined
+  if (content === undefined || text === undefined || text.trim() === '' || !Number.isInteger(revision)) {
+    return { state: 'missing', text, revision: null, currentRevision }
+  }
+  const state = revision === currentRevision ? 'current' : 'stale'
+  return { state, text, revision, currentRevision }
+}
+
+/**
  * Current/stale/missing summary state for one chapter, on the caller's handle.
+ * The summary artifact is the authority; `revision` is its `bodyRevision`.
  * @param {import('node:sqlite').DatabaseSync} db - open work database.
  * @param {number} number - chapter number.
  * @returns {{state: 'current'|'stale'|'missing', text: string|undefined, revision: number|null, currentRevision: number}} state.
  */
 export function summaryStateOf(db, number) {
-  const row = db.prepare(`SELECT s.text, s.revision, c.current_revision
-    FROM chapters c LEFT JOIN summaries s ON s.number = c.number
-    WHERE c.number = ?`).get(number)
-  return summaryStateOfRow(row)
+  const entry = db.prepare('SELECT current_revision FROM chapters WHERE number = ?').get(number)
+  return summaryStateOfContent(latestSummaryContent(db, number), entry?.current_revision ?? 0)
 }
 
-/** Derive the summary state from one joined row. */
-function summaryStateOfRow(row) {
-  if (row === undefined) {
-    return { state: 'missing', text: undefined, revision: null, currentRevision: 0 }
-  }
-  const text = row.text ?? undefined
-  const revision = row.revision ?? null
-  if (text === undefined || String(text).trim() === '' || revision === null) {
-    return { state: 'missing', text, revision, currentRevision: row.current_revision }
-  }
-  const state = revision === row.current_revision ? 'current' : 'stale'
-  return { state, text, revision, currentRevision: row.current_revision }
+/** Latest stored revision row per summary artifact, ascending by chapter. */
+function latestSummaryRows(db) {
+  return db.prepare(`SELECT a.artifact_id, a.scope_chapter, a.content FROM artifacts a
+    JOIN (SELECT artifact_id, max(rowid) AS rowid FROM artifacts
+      WHERE kind = 'summary' GROUP BY artifact_id) latest ON a.rowid = latest.rowid
+    ORDER BY a.scope_chapter`).all()
 }
 
 /** Summary state for every chapter of one work, keyed by chapter number. */
 function summaryStateMap(db) {
+  const contentByChapter = new Map()
+  for (const row of latestSummaryRows(db)) {
+    const chapter = Number(row.artifact_id.slice('summary:'.length))
+    if (!Number.isInteger(chapter)) continue
+    try {
+      contentByChapter.set(chapter, parseSummaryContent(row.content, row.artifact_id))
+    } catch {
+      // A malformed summary must not break the workbench listing; direct reads
+      // still report artifact-invalid.
+      contentByChapter.set(chapter, undefined)
+    }
+  }
   const map = new Map()
-  for (const row of db.prepare(`SELECT c.number, s.text, s.revision, c.current_revision
-    FROM chapters c LEFT JOIN summaries s ON s.number = c.number ORDER BY c.number`).all()) {
-    map.set(row.number, summaryStateOfRow(row))
+  for (const row of db.prepare('SELECT number, current_revision FROM chapters ORDER BY number').all()) {
+    map.set(row.number, summaryStateOfContent(contentByChapter.get(row.number), row.current_revision))
   }
   return map
 }
@@ -1261,9 +1298,15 @@ export function readChapter(root, input) {
     const entry = chapterRow(db, number)
     if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
     if (input.view === 'summary') {
-      const row = db.prepare('SELECT text FROM summaries WHERE number = ?').get(number)
-      if (row === undefined) throw new StoryError('summary-not-found', `第 ${number} 章还没有摘要`)
-      return { path: virtualPath(workId, `summaries/${chapterStem(number)}.md`), content: row.text, revision: 0 }
+      const content = latestSummaryContent(db, number)
+      if (content === undefined || typeof content.rawText !== 'string' || content.rawText.trim() === '') {
+        throw new StoryError('summary-not-found', `第 ${number} 章还没有摘要`)
+      }
+      return {
+        path: virtualPath(workId, `summaries/${chapterStem(number)}.md`),
+        content: content.rawText,
+        revision: Number(content.bodyRevision),
+      }
     }
     if (input.view === 'plan') {
       const content = readPlan(root, workId, number)
@@ -1471,16 +1514,18 @@ export function reviseChapter(root, input) {
 // ---------------------------------------------------------------------------
 
 /**
- * Write a chapter summary. The single write owner for manual and delegated
- * summaries; {@link SUMMARY_MAX_CHARS} caps content and the receipt reports the
- * pre-truncation code-point count.
+ * Write a chapter summary as `summary:<n>`. The single write owner for manual
+ * and delegated summaries; `text` carries the manual/plain form, `content` the
+ * structured summarizer payload. {@link SUMMARY_MAX_CHARS} caps the raw text and
+ * the receipt reports the pre-truncation code-point count.
  * @param {string} root - workspace directory.
- * @param {{work: string, chapter: number|string, text: string, ifAbsent?: boolean}} input - summary input.
- * @returns {{workId: string, chapter: number, chars: number, truncated: boolean, summaryRevision: number}} receipt.
+ * @param {{work: string, chapter: number|string, text?: string, content?: object, ifAbsent?: boolean}} input - summary input.
+ * @returns {{workId: string, chapter: number, chars: number, truncated: boolean, summaryRevision: number, artifact: object}} receipt.
  */
 export function writeSummary(root, input) {
   const number = chapterNumber(input.chapter)
-  const { text } = trimSummary(input.text)
+  const source = input.content === undefined ? { rawText: input.text } : input.content
+  const { text, chars } = trimSummary(source?.rawText)
   if (text === '') throw new StoryError('empty-summary', '摘要不能为空')
   const workId = String(input.work)
   const db = openWork(root, workId)
@@ -1491,31 +1536,45 @@ export function writeSummary(root, input) {
         throw new StoryError('body-not-found', `第 ${number} 章还没有正文，不能写摘要`)
       }
       if (input.ifAbsent === true) {
-        const existing = db.prepare('SELECT text, revision FROM summaries WHERE number = ?').get(number)
-        if (existing !== undefined
-          && String(existing.text).trim() !== ''
-          && existing.revision === entry.current_revision) {
+        const existing = latestSummaryContent(db, number)
+        if (existing !== undefined && Number(existing.bodyRevision) === entry.current_revision
+          && typeof existing.rawText === 'string' && existing.rawText.trim() !== '') {
           throw new StoryError('summary-exists', `第 ${number} 章当前版本已有摘要：作者的主动重写请走手动 story_summarize`)
         }
       }
       const points = [...text]
       const truncated = points.length > SUMMARY_MAX_CHARS
-      const content = `${truncated ? points.slice(0, SUMMARY_MAX_CHARS).join('') : text}\n`
-      const at = now()
-      db.prepare(`INSERT INTO summaries (number, text, revision, written_at) VALUES (?, ?, ?, ?)
-        ON CONFLICT(number) DO UPDATE SET text = excluded.text, revision = excluded.revision, written_at = excluded.written_at`)
-        .run(number, content, entry.current_revision, at)
-      syncSearchDoc(db, `summary:${number}`, 'summary', `summaries/${chapterStem(number)}`, number, content)
-      touchMeta(db, at)
-      return { workId, chapter: number, chars: points.length, truncated, summaryRevision: entry.current_revision }
+      const rawText = truncated ? points.slice(0, SUMMARY_MAX_CHARS).join('') : text
+      const written = writeChapterSummaryOnDb(db, {
+        work: workId, chapter: number, bodyRevision: entry.current_revision, content: { ...source, rawText },
+      })
+      syncSearchDoc(db, `summary:${number}`, 'summary', `summaries/${chapterStem(number)}`, number,
+        summarySearchText(written.content))
+      touchMeta(db)
+      return {
+        workId,
+        chapter: number,
+        chars,
+        truncated,
+        summaryRevision: entry.current_revision,
+        artifact: { workId, artifactId: written.artifactId, revisionId: written.revisionId, kind: 'summary' },
+      }
     })
   } finally {
     db.close()
   }
 }
 
+/** Search document text of one summary: raw text plus the structured fields. */
+function summarySearchText(content) {
+  const structure = SUMMARY_FIELDS
+    .map(field => (typeof content[field] === 'string' ? content[field].trim() : ''))
+    .filter(text => text !== '')
+  return [content.rawText ?? '', ...structure].filter(text => text !== '').join('\n')
+}
+
 /**
- * Read one chapter summary.
+ * Read one chapter summary's raw text.
  * @param {string} root - workspace directory.
  * @param {string} work - work identity.
  * @param {number|string} chapter - chapter number.
@@ -1525,7 +1584,7 @@ export function readSummary(root, work, chapter) {
   const number = chapterNumber(chapter)
   const db = openWork(root, work)
   try {
-    return db.prepare('SELECT text FROM summaries WHERE number = ?').get(number)?.text
+    return latestSummaryContent(db, number)?.rawText
   } finally {
     db.close()
   }
@@ -1558,14 +1617,36 @@ export function listSummaryStates(root, work) {
   }
 }
 
-/** Every summary of one work, ascending. */
+/** Every summary of one work, ascending, with its structured character list. */
 export function listSummaries(root, work) {
   const db = openWork(root, work)
   try {
-    return db.prepare('SELECT number, text FROM summaries ORDER BY number').all()
+    const summaries = []
+    for (const row of latestSummaryRows(db)) {
+      const content = parseSummaryContent(row.content, row.artifact_id)
+      if (content === undefined || typeof content.rawText !== 'string' || content.rawText.trim() === '') continue
+      summaries.push({
+        number: Number(row.artifact_id.slice('summary:'.length)),
+        text: content.rawText,
+        characters: typeof content.characters === 'string' ? content.characters : '',
+      })
+    }
+    return summaries
   } finally {
     db.close()
   }
+}
+
+/** Latest summary per chapter, rendered for the export file set. */
+function exportSummaryRows(db) {
+  const summaries = []
+  for (const row of latestSummaryRows(db)) {
+    const content = parseSummaryContent(row.content, row.artifact_id)
+    if (content === undefined || typeof content.rawText !== 'string' || content.rawText.trim() === '') continue
+    const text = content.rawText.endsWith('\n') ? content.rawText : `${content.rawText}\n`
+    summaries.push({ number: Number(row.artifact_id.slice('summary:'.length)), text })
+  }
+  return summaries
 }
 
 /**
@@ -2474,9 +2555,12 @@ export function searchMemory(root, work, query, options = {}) {
       const chapter = row.chapter
       if (beforeChapter !== undefined && (chapter === null || chapter >= beforeChapter)) continue
       if (row.kind === 'summary') {
-        if (chapter === null || summaryStateOf(db, chapter).state !== 'current') continue
+        if (chapter === null) continue
+        const state = summaryStateOf(db, chapter)
+        if (state.state !== 'current') continue
         candidates.push({
-          id: row.id, kind: row.kind, source: row.source, sourceIds: [row.id], chapter, text: row.body, score: -row.score,
+          id: row.id, kind: row.kind, source: row.source, sourceIds: [row.id], chapter,
+          text: state.text ?? row.body, score: -row.score,
         })
         continue
       }
@@ -2710,7 +2794,7 @@ export function exportWork(root, work, destination) {
         }
         put(join('outline', `${chapterStem(chapter)}.plan.md`), renderChapterMemo(content))
       }
-      for (const summary of db.prepare('SELECT * FROM summaries ORDER BY number').all()) {
+      for (const summary of exportSummaryRows(db)) {
         put(join('summaries', `${chapterStem(summary.number)}.md`), summary.text)
       }
       for (const review of db.prepare('SELECT * FROM reviews ORDER BY number, round').all()) {

@@ -201,7 +201,7 @@ try {
   await rejects('summarizer reports no submission', 'delegation-no-submission',
     () => delegateRole(root, { work, chapter: 1, role: 'summarizer' }, { service: fakeService([completed({})]), agent, signal }))
   check('no submission wrote no summary', s.readSummary(root, work, 1) === undefined)
-  const summarizerService = fakeService([completed({ payload: { summary: '甲回到屋里。' } })])
+  const summarizerService = fakeService([completed({ payload: { rawText: '甲回到屋里。', title: '回屋' } })])
   const summarizer = await delegateRole(root, { work, chapter: 1, role: 'summarizer' }, { service: summarizerService, agent, signal })
   check('summarizer delegates and lands', summarizer.ok === true && summarizer.summaryChars === 6 && summarizer.artifact?.kind === 'summary', JSON.stringify(summarizer))
   check('summarizer receipt carries attempts and no text',
@@ -211,7 +211,7 @@ try {
   s.writeReview(root, { work, chapter: 1, problems: [{ location: '结尾', problem: '再收一拍', suggestion: '补一句' }] })
   s.reviseChapter(root, { work, chapter: 1, body: '甲回到屋里，又出门看了一眼。'.repeat(20), problemIds: ['Q1'], mode: 'rewrite' })
   check('a later revision makes the summary stale', s.readSummaryState(root, work, 1).state === 'stale')
-  const staleService = fakeService([completed({ payload: { summary: '甲回到屋里，又出门看了一眼。' } })])
+  const staleService = fakeService([completed({ payload: { rawText: '甲回到屋里，又出门看了一眼。' } })])
   const staleRewrite = await delegateRole(root, { work, chapter: 1, role: 'summarizer' }, { service: staleService, agent, signal })
   check('summarizer is allowed to rebind a stale summary', staleRewrite.ok === true
     && s.readSummaryState(root, work, 1).state === 'current', JSON.stringify(staleRewrite))

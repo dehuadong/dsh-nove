@@ -143,7 +143,13 @@ export async function deriveWhitelist(root, input) {
     if (current !== undefined && version.number === current) continue
     textFiles.push(version.body)
   }
-  for (const summary of listSummaries(root, work)) textFiles.push(summary.text)
+  for (const summary of listSummaries(root, work)) {
+    textFiles.push(summary.text)
+    // The structured character list is an explicit whitelist contribution.
+    for (const name of String(summary.characters ?? '').split(/[、,，\s]+/u)) {
+      if (name !== '') established.add(name)
+    }
+  }
   for (const text of textFiles) {
     for (const name of extractSpeakerNames(text, [...established])) established.add(name)
   }

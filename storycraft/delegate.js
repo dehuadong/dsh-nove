@@ -11,7 +11,7 @@
 
 import { createHash } from 'node:crypto'
 import {
-  FORM_META, StoryError, chapterNumber, formOf, latestReview, readManifest, readPlan, readSummary, readSummaryState, reviseChapter,
+  FORM_META, StoryError, chapterNumber, formOf, latestReview, readManifest, readPlan, readSummaryState, reviseChapter,
   stageOf, summaryAdmissible, unitOf, writeChapter, writeReview, writeSummary,
 } from './storage.js'
 import { loadRoleInput } from './role-input.js'
@@ -148,8 +148,8 @@ function promptFor({ input, manifest, context, delegationId }) {
     lines.push(`修订模式：${input.mode}。${modeRule}`)
     lines.push('提交成功后最终只回「已提交」；不要手动调用落盘动作。')
   } else if (input.role === 'summarizer') {
-    lines.push('payload 格式：{"summary":"本章摘要"}。')
-    lines.push('摘要只写本章发生的事实与状态变化，不超过 400 字；不评价、不补设定、不写下一章计划。')
+    lines.push('payload 格式：{"rawText":"本章摘要","title":"…","characters":"…","events":"…","stateChanges":"…","hookActivity":"…","mood":"…","chapterType":"…"}。')
+    lines.push('rawText 必填，只写本章发生的事实与状态变化，不超过 400 字；结构字段各不超过 120 字、可为空串；不评价、不补设定、不写下一章计划。')
     lines.push('提交成功后最终只回「已提交」；不要手动调用落盘动作。')
   } else {
     lines.push('payload 格式：{"items":[{"where":"正文里的具体位置","problem":"问题","impact":"读者影响","severity":"blocker|major|minor","fix":"怎么修","mode":"patch|polish|rewrite|deslop"}]}。')
@@ -414,15 +414,14 @@ export async function delegateRole(root, input, host) {
 
     if (role === 'summarizer') {
       assertActive(signal)
-      const receipt = writeSummary(root, { work, chapter, text: payload.summary, ifAbsent: true })
-      const landed = readSummary(root, work, chapter) ?? ''
+      const receipt = writeSummary(root, { work, chapter, content: payload, ifAbsent: true })
       return fitReceipt({
         ok: true,
         workId: work,
         chapter,
         role,
         stage: landedStage(root, work, chapter),
-        artifact: { workId: work, artifactId: `summary:${chapter}`, revisionId: hashText(landed), kind: 'summary' },
+        artifact: receipt.artifact,
         summaryChars: receipt.chars,
         submissionAttempts: attempts,
       })

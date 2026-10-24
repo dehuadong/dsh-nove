@@ -92,7 +92,11 @@ try {
   await s.foldState(root, { work, chapter: 3, hooks: [{ text: '备用钥匙', state: 'opened' }] })
   // Mark chapter 2's summary stale; it must not be retrieved.
   const events = openWork(root, work)
-  events.prepare('UPDATE summaries SET revision = 0 WHERE number = 2').run()
+  const summaryRow = events.prepare("SELECT artifact_id, revision_id, content FROM artifacts WHERE artifact_id = 'summary:2' ORDER BY rowid DESC LIMIT 1").get()
+  const summaryContent = JSON.parse(summaryRow.content)
+  summaryContent.bodyRevision = 0
+  events.prepare('UPDATE artifacts SET content = ? WHERE artifact_id = ? AND revision_id = ?')
+    .run(JSON.stringify(summaryContent), summaryRow.artifact_id, summaryRow.revision_id)
   events.close()
 
   const { searchMemory } = await import('../store-db.js')

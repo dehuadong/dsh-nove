@@ -1,7 +1,7 @@
 /** Immutable artifact registry: contract validation plus SQLite persistence. */
 
-import { StoryError, chapterNumber, contentVersion, now } from './domain.js'
-import { ARTIFACT_IDENTITY, validateArtifactRecord, validateChapterMemo, validateChapterMeta } from './artifact-contract.js'
+import { StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, chapterNumber, contentVersion, now } from './domain.js'
+import { ARTIFACT_IDENTITY, validateArtifactRecord, validateChapterMemo, validateChapterMeta, validateChapterSummary } from './artifact-contract.js'
 import { openWork, touchMeta, transaction } from './db.js'
 
 function serialize(content) {
@@ -18,8 +18,16 @@ export function artifactRevision(content) {
   return contentVersion(serialize(content).text)
 }
 
-/** Store one immutable artifact revision on a caller-owned handle and transaction. */
-export function putArtifactOnDb(db, input) {
+/**
+ * Store one immutable artifact revision on a caller-owned handle and transaction.
+ * A summary may be written on a settled chapter (it describes the final body),
+ * so the settled guard is opt-out for that producer only.
+ * @param {object} db - open work database.
+ * @param {object} input - artifact record.
+ * @param {{allowSettled?: boolean}} [options] - producer options.
+ * @returns {object} stored artifact identity.
+ */
+export function putArtifactOnDb(db, input, options = {}) {
   const envelope = validateArtifactRecord(input)
   const { contentType, text } = serialize(envelope.content)
   const at = envelope.createdAt
@@ -27,7 +35,7 @@ export function putArtifactOnDb(db, input) {
   if (chapter !== undefined) {
     const row = db.prepare('SELECT stage FROM chapters WHERE number = ?').get(chapter)
     if (row === undefined) throw new StoryError('chapter-not-found', `没有第 ${chapter} 章：不能写章节 artifact`)
-    if (row.stage === 'settled') {
+    if (row.stage === 'settled' && !(options.allowSettled === true && envelope.kind === 'summary')) {
       throw new StoryError('chapter-settled', `第 ${chapter} 章已定稿：先 reopen 再写章节 artifact`)
     }
   }
@@ -487,6 +495,56 @@ export function writeChapterSummary(root, input) {
 export function readChapterSummary(root, input) {
   const chapter = chapterNumber(input.chapter)
   return readTyped(root, input, { artifactId: `summary:${chapter}`, kind: 'summary' })
+}
+
+/** Per-field cap of a structured summary field, in code points. */
+const SUMMARY_FIELD_LIMIT = 120
+
+/** Clip one string to a code-point limit. */
+function clipPoints(text, limit) {
+  const points = [...String(text ?? '')]
+  return points.length > limit ? points.slice(0, limit).join('') : String(text ?? '')
+}
+
+/**
+ * Normalize and validate one ChapterSummary. `chapter` and `bodyRevision` are
+ * host-owned identity fields; structured fields are clipped, not rejected.
+ * @param {object} input - raw payload or content.
+ * @param {number} chapter - chapter number.
+ * @param {number} bodyRevision - body revision the summary describes.
+ * @returns {object} contract-valid ChapterSummary.
+ */
+export function normalizeChapterSummary(input, chapter, bodyRevision) {
+  const content = { chapter, bodyRevision, rawText: clipPoints(input?.rawText ?? '', SUMMARY_MAX_CHARS).trim() }
+  for (const field of SUMMARY_FIELDS) content[field] = clipPoints(input?.[field] ?? '', SUMMARY_FIELD_LIMIT).trim()
+  return validateChapterSummary(content)
+}
+
+/**
+ * Write one ChapterSummary as `summary:<n>` on a caller-owned handle and
+ * transaction. Identical latest content is an idempotent no-op.
+ * @param {object} db - open work database.
+ * @param {{work: string, chapter: number, bodyRevision: number, content: object, provenance?: string, createdAt?: string}} input - write input.
+ * @returns {{artifactId: string, revisionId: string, content: object, created: boolean}} written artifact.
+ */
+export function writeChapterSummaryOnDb(db, input) {
+  const chapter = chapterNumber(input.chapter)
+  const content = normalizeChapterSummary(input.content, chapter, input.bodyRevision)
+  const artifactId = `summary:${chapter}`
+  const revisionId = artifactRevision(content)
+  const latest = db.prepare('SELECT revision_id FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1').get(artifactId)
+  if (latest?.revision_id === revisionId) return { artifactId, revisionId, content, created: false }
+  putArtifactOnDb(db, {
+    workId: String(input.work),
+    artifactId,
+    kind: 'summary',
+    scope: { chapter },
+    revisionId,
+    content,
+    provenance: input.provenance ?? 'generated',
+    createdAt: input.createdAt ?? now(),
+  }, { allowSettled: true })
+  return { artifactId, revisionId, content, created: true }
 }
 
 function positiveInteger(value, label) {

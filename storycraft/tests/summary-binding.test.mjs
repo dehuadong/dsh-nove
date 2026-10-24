@@ -98,10 +98,14 @@ try {
     && s.readManifest(root, work).chapters[0].stage === 'settled', JSON.stringify(settled.counts))
 
   const raw = openDatabase(workFile(root, work))
-  raw.prepare('UPDATE summaries SET revision = NULL WHERE number = 1').run()
+  const summaryRow = raw.prepare("SELECT artifact_id, revision_id, content FROM artifacts WHERE artifact_id = 'summary:1' ORDER BY rowid DESC LIMIT 1").get()
+  const summaryContent = JSON.parse(summaryRow.content)
+  summaryContent.bodyRevision = 99
+  raw.prepare('UPDATE artifacts SET content = ? WHERE artifact_id = ? AND revision_id = ?')
+    .run(JSON.stringify(summaryContent), summaryRow.artifact_id, summaryRow.revision_id)
   raw.close()
   const unbound = s.readSummaryState(root, work, 1)
-  check('a non-empty summary with NULL revision is missing', unbound.state === 'missing', JSON.stringify(unbound))
+  check('a summary bound to another revision is stale', unbound.state === 'stale', JSON.stringify(unbound))
 } finally {
   await rm(root, { recursive: true, force: true })
 }

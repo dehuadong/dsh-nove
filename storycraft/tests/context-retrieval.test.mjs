@@ -35,7 +35,11 @@ try {
   await s.writeReview(root, { work, chapter: 1, problems: [] })
   await s.foldState(root, { work, chapter: 1, hooks: [{ text: '备用钥匙', state: 'opened' }] })
   const raw = openWork(root, work)
-  raw.prepare('UPDATE summaries SET revision = 0 WHERE number = 2').run()
+  const summaryRow = raw.prepare("SELECT artifact_id, revision_id, content FROM artifacts WHERE artifact_id = 'summary:2' ORDER BY rowid DESC LIMIT 1").get()
+  const summaryContent = JSON.parse(summaryRow.content)
+  summaryContent.bodyRevision = 0
+  raw.prepare('UPDATE artifacts SET content = ? WHERE artifact_id = ? AND revision_id = ?')
+    .run(JSON.stringify(summaryContent), summaryRow.artifact_id, summaryRow.revision_id)
   raw.close()
   await s.importMaterial(root, work, {
     name: '旧井参考.md',

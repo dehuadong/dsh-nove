@@ -21,11 +21,11 @@ import {
   StoryError, backupWork, deleteWork, exportWork, foldState, initWork, nextStep as nextStepFor,
   planApprovalPolicy,
   latestReview, readBibleEntry, readChapter, readEvents, readEventsText, readManifest, readPlan, readSessionCurrent,
-  readSummary as readSummaryRow, readSummaryState,
+  readSummaryState,
   reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter, setSessionCurrent,
   status as readStatus, updateSettings, workIdOf, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
 } from './storage.js'
-import { readChapterMemo } from './artifact-store.js'
+import { readChapterMemo, readChapterSummary } from './artifact-store.js'
 import {
   assembleBrief as assembleBriefFor, importBible as importFromDesign, readBible as readBibleEntries,
   writeBible as writeBibleEntry, writeSummary as writeSummaryEntry,
@@ -652,7 +652,8 @@ async function artifactRef(root, workId, artifact) {
     }
     if (/^summaries\/ch-\d+\.md$/u.test(rel)) {
       const chapter = Number(/ch-(\d+)/u.exec(rel)?.[1])
-      return { workId, artifactId: `summary:${chapter}`, revisionId: contentRevision(readSummaryRow(root, workId, chapter)), kind: 'summary' }
+      const summary = readChapterSummary(root, { work: workId, chapter })
+      return { workId, artifactId: `summary:${chapter}`, revisionId: summary.artifact.revisionId, kind: 'summary' }
     }
     if (/^bible\//u.test(rel)) {
       const file = rel.slice('bible/'.length).replace(/\.(?:md|json)$/u, '')
@@ -1677,8 +1678,21 @@ function rawDefinitions(ctx) {
           content = review.text
           ref = { ...ref, artifactId: `review:${chapterNumber}:r${review.revision}:${review.round}`, revisionId: contentRevision(content), kind: 'review' }
         } else if (kind === 'summary') {
-          content = readSummaryRow(root, workId, chapterNumber)
-          ref = { ...ref, artifactId: `summary:${chapterNumber}`, revisionId: contentRevision(content), kind: 'summary' }
+          let summary
+          try {
+            summary = readChapterSummary(root, {
+              work: workId,
+              chapter: chapterNumber,
+              ...(args.revisionId === undefined ? {} : { revisionId: String(args.revisionId) }),
+            })
+          } catch (error) {
+            if (error?.code === 'artifact-not-found' || error?.code === 'chapter-not-found') {
+              throw new StoryError('summary-not-found', `第 ${chapterNumber} 章还没有摘要`)
+            }
+            throw error
+          }
+          content = JSON.stringify(summary.artifact.content, null, 2)
+          ref = { ...ref, artifactId: `summary:${chapterNumber}`, revisionId: summary.artifact.revisionId, kind: 'summary' }
         } else if (kind === 'bible') {
           const file = parts.join(':')
           content = readBibleEntry(root, workId, file)?.content ?? ''

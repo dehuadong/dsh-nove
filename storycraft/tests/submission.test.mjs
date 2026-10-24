@@ -106,12 +106,12 @@ try {
 
   const summarizer = openSubmission({ role: 'summarizer', workId: work, chapter: 1 })
   const emptySummary = await submitPayload({
-    delegationId: summarizer.delegationId, depth: 1, root, payload: { summary: '   ' },
+    delegationId: summarizer.delegationId, depth: 1, root, payload: { rawText: '   ' },
   })
   check('empty summary is retryable', emptySummary.ok === false
     && emptySummary.error.code === 'submit-invalid' && emptySummary.retryable === true, JSON.stringify(emptySummary))
   const longSummary = await submitPayload({
-    delegationId: summarizer.delegationId, depth: 1, root, payload: { summary: '摘'.repeat(401) },
+    delegationId: summarizer.delegationId, depth: 1, root, payload: { rawText: '摘'.repeat(401) },
   })
   check('summary over 400 code points is retryable', longSummary.ok === false
     && longSummary.error.code === 'submit-summary-range' && longSummary.actual === '401 字'
@@ -120,11 +120,11 @@ try {
     ['ok', 'error', 'retryable', 'actual', 'limit'].every(key => SUBMIT_OUTPUT.schema.properties[key] !== undefined)
     && Object.keys(longSummary).every(key => SUBMIT_OUTPUT.schema.properties[key] !== undefined), JSON.stringify(longSummary))
   const summaryAccepted = await submitPayload({
-    delegationId: summarizer.delegationId, depth: 1, root, payload: { summary: '甲回到屋里。' },
+    delegationId: summarizer.delegationId, depth: 1, root, payload: { rawText: '甲回到屋里。', title: '回屋' },
   })
   check('summary in range is accepted', summaryAccepted.ok === true && summaryAccepted.submitted === true, JSON.stringify(summaryAccepted))
   const summaryConsumed = consumeSubmission(summarizer.delegationId)
-  check('accepted summary is consumable', summaryConsumed?.payload.summary === '甲回到屋里。', JSON.stringify(summaryConsumed))
+  check('accepted summary is consumable', summaryConsumed?.payload.rawText === '甲回到屋里。', JSON.stringify(summaryConsumed))
   closeSubmission(summarizer.delegationId)
 
   const openValidator = () => openSubmission({ role: 'validator', workId: work, chapter: 1 })

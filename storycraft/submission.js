@@ -7,7 +7,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { StoryError, SUMMARY_MAX_CHARS, countWords, trimSummary } from './domain.js'
+import { StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, countWords, trimSummary } from './domain.js'
 import { HOOK_STATES } from './state-validation.js'
 import { assertRevisionMode } from './revision.js'
 import { checkWordRange } from './landing.js'
@@ -99,7 +99,14 @@ function validateShape(role, payload) {
     return undefined
   }
   if (role === 'summarizer') {
-    if (typeof payload.summary !== 'string' || payload.summary.trim() === '') return 'summarizer 缺少 summary'
+    if (payload.rawText === undefined || typeof payload.rawText !== 'string' || payload.rawText.trim() === '') {
+      return 'summarizer 缺少 rawText'
+    }
+    for (const field of SUMMARY_FIELDS) {
+      if (payload[field] !== undefined && typeof payload[field] !== 'string') {
+        return `summarizer 的 ${field} 必须是字符串`
+      }
+    }
     return undefined
   }
   if (role === 'settler') {
@@ -199,7 +206,7 @@ export async function submitPayload(input) {
   }
 
   if (entry.role === 'summarizer') {
-    const { chars } = trimSummary(payload.summary)
+    const { chars } = trimSummary(payload.rawText)
     if (chars > SUMMARY_MAX_CHARS) {
       return entry.attempts >= MAX_ATTEMPTS
         ? failure('submit-attempts-exhausted', `提交尝试超过 ${MAX_ATTEMPTS} 次；摘要 ${chars} 字，上限 ${SUMMARY_MAX_CHARS} 字`)

@@ -52,6 +52,7 @@ A0 已登记 `summary:<n>` 身份与 ChapterSummary 字段（`rawText` 与 `body
 - `summaryStateOf` 读最新 `summary:<n>` 的 `content.bodyRevision`：无 artifact → `missing`；等于 `chapters.current_revision` → `current`；小于 → `stale`；大于按数据损坏视为 `stale`。
 - 投影里的 `revision` 继续表示**正文版本**（`bodyRevision`），不是 artifact revisionId；artifact revisionId 只在 `story_read`/`artifactRef` 暴露。两个字段名不得混用。
 - 正文 rewrite/revise 不写摘要，stale 自然产生；`summaryStateMap`/`readSummaryState`/`listSummaryStates` 保留签名，内部改读 artifact。
+- 摘要描述的是定稿正文，允许在 settled 章节写入（`putArtifactOnDb` 的定稿守卫只对 summary 生产放宽）；面板投影把无法解析的摘要行当作 `missing`，直接读取仍报 `artifact-invalid`。
 
 ### 3. 消费者
 
