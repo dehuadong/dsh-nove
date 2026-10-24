@@ -137,8 +137,12 @@ interface DshSkillProvider {
   name: string
   /** List every candidate of this provider. */
   list(): Promise<DshSkillCandidate[]>
-  /** Load one candidate's body. */
-  get(candidate: DshSkillCandidate): Promise<DshSkillDefinition | undefined>
+  /**
+   * Load one candidate's body. The registry hands back a candidate this provider
+   * produced, so the concrete fields belong to the provider.
+   * @param candidate - entry previously returned by `list`.
+   */
+  get(candidate: any): Promise<DshSkillDefinition | undefined>
 }
 
 /** Skill registry members this package calls. */

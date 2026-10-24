@@ -261,14 +261,15 @@ node scripts/pack-check.mjs
 
 ## TypeScript 接入
 
-Host 代码已迁到 TS 的 L0–L4 层：`scope`、叶子层、数据层、存储层，以及消费与 DSH 接缝（`bible`、`facts`、`landing`、`consistency`、`context`、`role-input`、`submission`、`proposals`、`state-check`、`state-settle`、`state-events`、`delegate`、`tools`、`index`）。`src/store-rows.ts` 定义 SQLite 表行类型，`types/dsh.d.ts` 声明本包实际使用的 DSH `ctx`/`exec` 面。
+Host 代码已迁到 TS 的 L0–L4 层：`scope`、叶子层、数据层、存储层，以及消费与 DSH 接缝（`bible`、`facts`、`landing`、`consistency`、`context`、`role-input`、`submission`、`proposals`、`state-check`、`state-settle`、`state-events`、`delegate`、`tools`、`index`）与技能入口 `skills`。`src/store-rows.ts` 定义 SQLite 表行类型，`types/dsh.d.ts` 声明本包实际使用的 DSH `ctx`/`exec` 面。
 
 - 源文件：`src/*.ts`，全部经 `strict` 编译；`dist/` 由构建生成，不提交；
-- 包入口：`exports` 的 `.` 指向 `dist/index.js`、`./tools` 指向 `dist/tools.js`；
+- 包入口：`exports` 的 `.` 指向 `dist/index.js`、`./tools` 指向 `dist/tools.js`、`./skills` 指向 `dist/skills.js`；
 - 安装依赖：`npm install`（`typescript` + `@types/node` 是 devDependencies，不进安装包）；
 - 编译：`npm run build` → `dist/*.js`；`prepack` 自动 build；
 - 模块之间 import 写同层 `'./<module>.js'`，编译后解析到 `dist/`；根 JS 消费者写 `'./dist/<module>.js'`，没有第二份实现；
-- `skills.js` 与 `client.js` 仍是 JavaScript；Client 单独走 esbuild，不在 Host 迁移内。
+- 技能目录固定在包根 `skills/`，`dist/skills.js` 以编译产物位置为基准上跳一级解析；
+- `client.js` 仍是 JavaScript；Client 单独走 esbuild（L5），不在 Host 迁移内。
 
 开发 `link:` 时先 build；改 `src/*.ts` 后重新 build，不手改 `dist/`。
 
