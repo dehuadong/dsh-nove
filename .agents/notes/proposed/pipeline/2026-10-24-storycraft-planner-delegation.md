@@ -96,7 +96,7 @@ planner 只产出章纲，不写正文、不写全书计划、不确认章纲。
 3. `story_next` 只在 outline 已确认且无 plan 时返回 `delegate:{role:'planner'}`；
 4. planner 提交缺字段/threadRefs 非法被拒，错误回到子代理重提；
 5. 作者确认章纲仍走面板，planner 不能代签；
-6. 单测 + `ci --no-e2e` 通过；真实链路第 2 章由 planner 产出章纲，作者确认后 writer 继续。
+6. 单测 + `ci --no-e2e` 通过；真实链路不归本项，统一并入 `#50` 的 L 验收。
 
 ## 风险
 
