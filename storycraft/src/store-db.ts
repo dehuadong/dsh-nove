@@ -1,4 +1,3 @@
-// @ts-nocheck -- P2a in progress: SQLOutputValue/projection errors tracked in #71.
 /**
  * Work-level and chapter-level store on SQLite.
  *
@@ -183,7 +182,7 @@ export function assertPlanApproved(db: Database, chapter: unknown): void {
 function latestSummaryContent(db: Database, number: number): any {
   const row = db.prepare('SELECT content FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
     .get(`summary:${number}`)
-  return row === undefined ? undefined : parseSummaryContent(row.content, `summary:${number}`)
+  return row === undefined ? undefined : parseSummaryContent(String(row.content), `summary:${number}`)
 }
 
 /** Parse one stored summary JSON; a malformed row is reported by id. */
@@ -216,7 +215,7 @@ function summaryStateOfContent(content: any, currentRevision: number): { state: 
  */
 export function summaryStateOf(db: Database, number: number): { state: 'current' | 'stale' | 'missing', text: string | undefined, revision: number | null, currentRevision: number } {
   const entry = db.prepare('SELECT current_revision FROM chapters WHERE number = ?').get(number)
-  return summaryStateOfContent(latestSummaryContent(db, number), entry?.current_revision ?? 0)
+  return summaryStateOfContent(latestSummaryContent(db, number), Number(entry?.current_revision ?? 0))
 }
 
 /** Latest stored revision row per summary artifact, ascending by chapter. */
@@ -243,7 +242,7 @@ function summaryStateMap(db: Database): Map<number, any> {
   }
   const map = new Map()
   for (const row of db.prepare('SELECT number, current_revision FROM chapters ORDER BY number').all()) {
-    map.set(row.number, summaryStateOfContent(contentByChapter.get(row.number), row.current_revision))
+    map.set(row.number, summaryStateOfContent(contentByChapter.get(row.number), Number(row.current_revision)))
   }
   return map
 }
@@ -260,8 +259,8 @@ function reviewRecords(db: any, number: any) {
   return db.prepare(`SELECT artifact_id, revision_id, content, created_at FROM artifacts
     WHERE kind = 'review' AND scope_chapter = ? ORDER BY rowid`).all(number)
     .map((row: any) => {
-      const match = /^review:(\d+):r(\d+):(\d+)$/u.exec(row.artifact_id)
-      const content = JSON.parse(row.content)
+      const match = /^review:(\d+):r(\d+):(\d+)$/u.exec(String(row.artifact_id))
+      const content = JSON.parse(String(row.content))
       return {
         artifactId: row.artifact_id,
         revisionId: row.revision_id,
@@ -286,7 +285,7 @@ function openObservations(review: any) {
 /** The current body row of one chapter. */
 function currentVersion(db: Database, chapter: ChapterRow): ChapterVersionRow | undefined {
   return db.prepare('SELECT * FROM chapter_versions WHERE number = ? AND revision = ?')
-    .get(chapter.number, chapter.current_revision)
+    .get(chapter.number, chapter.current_revision) as unknown as ChapterVersionRow | undefined
 }
 
 /**
@@ -315,7 +314,7 @@ function openProblemCountByChapter(db: any) {
       ON a.rowid = latest.rowid`).all()
   const counts = new Map()
   for (const row of rows) {
-    const content = JSON.parse(row.content)
+    const content = JSON.parse(String(row.content))
     counts.set(row.chapter, openObservations({ observations: content.observations }).length)
   }
   return counts
@@ -324,14 +323,14 @@ function openProblemCountByChapter(db: any) {
 /** Serialize every event row as JSONL for export and `story_read(state)`. */
 function eventsText(db: Database): string {
   return db.prepare('SELECT * FROM events ORDER BY seq').all()
-    .map(row => JSON.stringify({ seq: row.seq, at: row.at, chapter: row.chapter, kind: row.kind, ...JSON.parse(row.payload) }))
+    .map((row: any) => JSON.stringify({ seq: row.seq, at: row.at, chapter: row.chapter, kind: row.kind, ...JSON.parse(String(row.payload)) }))
     .join('\n')
 }
 
 /** Flatten every event row into the shape the v2 projection consumes. */
 function eventsOf(db: Database): any[] {
   return db.prepare('SELECT seq, chapter, kind, payload FROM events ORDER BY seq')
-    .all().map(row => ({ seq: row.seq, chapter: row.chapter, kind: row.kind, ...JSON.parse(row.payload) }))
+    .all().map((row: any) => ({ seq: row.seq, chapter: row.chapter, kind: row.kind, ...JSON.parse(String(row.payload)) }))
 }
 
 /** Project one work's event log: hook/fact events are the only source. */
@@ -389,7 +388,7 @@ export function readManifest(root: string, work: unknown): any {
           const memoRevision = memos.get(`plan:${chapter.number}`)
           return {
             number: chapter.number,
-            id: chapterStem(chapter.number),
+            id: chapterStem(Number(chapter.number)),
             title: chapter.title,
             status: chapter.status,
             stage: chapter.stage,
@@ -426,7 +425,7 @@ export function initWork(root: string, input: any): any {
   const title = String(input.title ?? '').trim()
   if (title === '') throw new StoryError('invalid-title', '作品需要标题')
   const form = input.form === undefined ? 'longform' : String(input.form)
-  if (!WORK_FORMS.includes(form)) throw new StoryError('form-invalid', `作品形态只能是 ${WORK_FORMS.join(' / ')}：收到 ${String(input.form)}`)
+  if (!(WORK_FORMS as readonly string[]).includes(form)) throw new StoryError('form-invalid', `作品形态只能是 ${WORK_FORMS.join(' / ')}：收到 ${String(input.form)}`)
   if (input.wordRange !== undefined) {
     const min = Number(input.wordRange?.min)
     const max = Number(input.wordRange?.max)
@@ -463,7 +462,7 @@ export function initWork(root: string, input: any): any {
                 .run(name, content, contentVersion(content), at)
               continue
             }
-            const truth = TRUTH_ARTIFACTS[name]
+            const truth = (TRUTH_ARTIFACTS as Record<string, any>)[name]
             writeTextArtifactOnDb(db, {
               work: workId, artifactId: truth.artifactId, kind: truth.kind, content, createdAt: at,
             })
@@ -625,7 +624,7 @@ export function listWorks(root: string): any[] {
           title: row.title,
           form: formOf(row),
           chapters: chapters.length,
-          writtenChapters: chapters.filter(chapter => chapter.current_revision > 0).length,
+          writtenChapters: chapters.filter((chapter: any) => Number(chapter.current_revision) > 0).length,
           latestChapter: chapters.length === 0 ? 0 : chapters[chapters.length - 1].number,
           openProblems,
           updatedAt: meta.updated_at,
@@ -700,7 +699,7 @@ export function readWork(root: string, work: unknown): any {
       }
     })
     const folded = foldedOf(db)
-    const eventCount = db.prepare('SELECT count(*) AS n FROM events').get().n
+    const eventCount = (db.prepare('SELECT count(*) AS n FROM events').get() as { n: number }).n
     return {
       manifest: {
         version: manifest.version,
@@ -802,7 +801,7 @@ function delegateOf(step: any, last: any, candidate: any) {
     if (step.foundationStage === undefined) return undefined
     return { role: 'architect', stage: step.foundationStage }
   }
-  const role = { story_write: 'writer', story_review: 'reviewer', story_revise: 'reviser', story_summarize: 'summarizer' }[step.action]
+  const role = ({ story_write: 'writer', story_review: 'reviewer', story_revise: 'reviser', story_summarize: 'summarizer' } as Record<string, string>)[step.action]
   if (role === undefined) return undefined
   const missing = Array.isArray(step.missing) ? step.missing : []
   const blocked = Array.isArray(step.blocked) ? step.blocked : []
@@ -843,8 +842,8 @@ function foundationStateOf(db: any) {
     roles: has('roles:index'),
     cards: db.prepare("SELECT 1 FROM artifacts WHERE kind = 'role_card' LIMIT 1").get() !== undefined,
   }
-  const complete = FOUNDATION_STAGES.every(stage => stages[stage] === true)
-  const nextStage = FOUNDATION_STAGES.find(stage => stages[stage] !== true)
+  const complete = FOUNDATION_STAGES.every(stage => (stages as Record<string, boolean>)[stage] === true)
+  const nextStage = FOUNDATION_STAGES.find(stage => (stages as Record<string, boolean>)[stage] !== true)
   return {
     stages,
     complete,
@@ -922,7 +921,7 @@ export function writeFoundationStage(root: any, input: any) {
         const index = db.prepare("SELECT content FROM artifacts WHERE artifact_id = 'roles:index' ORDER BY rowid DESC LIMIT 1").get()
         const majorNames = new Set()
         if (index !== undefined) {
-          for (const role of JSON.parse(index.content).roles ?? []) {
+          for (const role of JSON.parse(String(index.content)).roles ?? []) {
             if (role.tier === 'major') majorNames.add(role.name)
           }
         }
@@ -948,7 +947,7 @@ export function writeFoundationStage(root: any, input: any) {
         }
       }
       let anyWritten = false
-      const artifacts = records.map(({ envelope, source, text }) => {
+      const artifacts = records.map(({ envelope, source, text }: any) => {
         const existing = db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ? AND revision_id = ?')
           .get(envelope.artifactId, envelope.revisionId)
         if (existing === undefined) {
@@ -1626,7 +1625,7 @@ export function readChapter(root: string, input: ReadChapterInput): { path: stri
     if (row === undefined) throw new StoryError('body-not-found', `第 ${number} 章没有版本 ${revision}`)
     return {
       path: virtualPath(workId, `chapters/${revision === 1 ? `${chapterStem(number)}.md` : `${chapterStem(number)}.r${revision}.md`}`),
-      content: row.body,
+      content: String(row.body),
       revision,
     }
   } finally {
@@ -1669,8 +1668,8 @@ export function writeReview(root: string, input: WriteReviewInput): any {
       }))
       const previousIssues = new Set(openObservations(latestReviewRow(db, number)).map((observation: any) => observation.id))
       for (const observation of normalized) {
-        if (observation.assessment === 'resolved' && !previousIssues.has(observation.resolves)) {
-          throw new StoryError('artifact-invalid', `resolved observation 的 resolves 不是上一轮的 issue：${String(observation.resolves)}`)
+        if (observation.assessment === 'resolved' && !previousIssues.has((observation as any).resolves)) {
+          throw new StoryError('artifact-invalid', `resolved observation 的 resolves 不是上一轮的 issue：${String((observation as any).resolves)}`)
         }
       }
       const written = writeChapterObservationsOnDb(db, root, {
@@ -1707,7 +1706,7 @@ function reviewItems(observations: any) {
     assessment: observation.assessment,
     severity: observation.severity,
     evidence: observation.evidence ?? [],
-    resolves: observation.resolves,
+    resolves: (observation as any).resolves,
     location: observation.sourceRefs?.[0]?.quote ?? observation.scope ?? '',
     problem: observation.summary,
     suggestion: observation.fix ?? '',
@@ -1800,7 +1799,7 @@ export function reviseChapter(root: string, input: ReviseChapterInput): any {
   if (!['patch', 'polish', 'rewrite', 'deslop'].includes(mode)) {
     throw new StoryError('revise-mode-violation', `未知修订模式：${mode}`)
   }
-  const problemIds = Array.isArray(input.problemIds) ? input.problemIds.map(String) : []
+  const problemIds = Array.isArray((input as any).problemIds) ? (input as any).problemIds.map(String) : []
   if (mode === 'patch' && problemIds.length === 0) {
     throw new StoryError('missing-problems', 'patch 模式要指定至少一条问题')
   }
@@ -1824,8 +1823,8 @@ export function reviseChapter(root: string, input: ReviseChapterInput): any {
       const missing = problemIds.filter((id: any) => !open.includes(id))
       if (missing.length > 0) throw new StoryError('problem-not-found', `问题不存在或已处理：${missing.join('、')}`)
       const current = currentVersion(db, entry)
-      if (current.body === body) throw new StoryError('unchanged-body', '修订后的正文与当前版本相同')
-      assertRevisionMode({ mode, chapter: number, oldBody: current.body, body })
+      if (current!.body === body) throw new StoryError('unchanged-body', '修订后的正文与当前版本相同')
+      assertRevisionMode({ mode, chapter: number, oldBody: current!.body, body })
       const revision = entry.current_revision + 1
       const words = countWords(body)
       const at = now()
@@ -1871,7 +1870,7 @@ export function reviseChapter(root: string, input: ReviseChapterInput): any {
  */
 export function writeSummary(root: string, input: WriteSummaryInput): any {
   const number = chapterNumber(input.chapter)
-  const source = input.content === undefined ? { rawText: input.text } : input.content
+  const source = (input as any).content === undefined ? { rawText: input.text } : (input as any).content
   const { text, chars } = trimSummary(source?.rawText)
   if (text === '') throw new StoryError('empty-summary', '摘要不能为空')
   const workId = String(input.work)
@@ -1882,7 +1881,7 @@ export function writeSummary(root: string, input: WriteSummaryInput): any {
       if (entry === undefined || entry.current_revision === 0) {
         throw new StoryError('body-not-found', `第 ${number} 章还没有正文，不能写摘要`)
       }
-      if (input.ifAbsent === true) {
+      if ((input as any).ifAbsent === true) {
         const existing = latestSummaryContent(db, number)
         if (existing !== undefined && Number(existing.bodyRevision) === entry.current_revision
           && typeof existing.rawText === 'string' && existing.rawText.trim() !== '') {
@@ -2008,7 +2007,7 @@ function assertStateGate(db: any, number: any, options = {}) {
   if (stageOf(entry) === 'settled') {
     throw new StoryError('chapter-settled', `第 ${number} 章已定稿：不能重复归档；改稿请先 reopen`)
   }
-  if (options.requireBody === true && entry.current_revision === 0) {
+  if ((options as any).requireBody === true && Number(entry.current_revision) === 0) {
     throw new StoryError('chapter-not-written', `第 ${number} 章还没有正文：先写正文，审稿与修订后再定稿`)
   }
   const review = latestReviewRow(db, number)
@@ -2062,7 +2061,7 @@ export function appendStateEvent(root: any, input: any) {
           throw new StoryError('chapter-settled', `第 ${chapter} 章已定稿：先 reopen 再追加状态事件`)
         }
       }
-      const seq = (db.prepare('SELECT max(seq) AS n FROM events').get()?.n ?? 0) + 1
+      const seq = Number((db.prepare('SELECT max(seq) AS n FROM events').get() as { n: number } | undefined)?.n ?? 0) + 1
       const payload = JSON.stringify(input.payload)
       db.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
         .run(seq, now(), chapter, kind, payload)
@@ -2131,7 +2130,7 @@ function stateOpsOf(input: any, chapter: any, projection: any) {
     const text = boundedField(candidate?.text, '新伏笔 text')
     const existing = byText.get(text)
     if (existing !== undefined) {
-      ops.push({ kind: 'hook', op: 'mention', hookId: existing.hookId, chapter })
+      ops.push({ kind: 'hook', op: 'mention', hookId: (existing as any)?.hookId, chapter })
       continue
     }
     const hookId = mintHookId(text)
@@ -2169,7 +2168,7 @@ function planSettlement(db: any, number: any, input: any, options = {}) {
   if (ops.length === 0 && input.allowEmpty !== true) {
     throw new StoryError('empty-state', '定稿归档至少要给出一条人物事实或伏笔变化')
   }
-  if (typeof options.beforeApply === 'function') options.beforeApply()
+  if (typeof (options as any).beforeApply === 'function') (options as any).beforeApply()
   const allowReapply = chapterReopened(db, number)
   const events = [...previous]
   const appended = []
@@ -2231,13 +2230,13 @@ export function settleState(root: string, input: any): any {
       let seq = db.prepare('SELECT max(seq) AS n FROM events').get()?.n ?? 0
       const at = now()
       for (const event of appended) {
-        seq += 1
+        seq = Number(seq) + 1
         const { kind, ...payload } = event
         db.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
           .run(seq, at, number, kind, JSON.stringify(payload))
         syncSearchDoc(db, `event:${seq}`, kind, 'state/events', number, JSON.stringify(payload))
       }
-      seq += 1
+      seq = Number(seq) + 1
       db.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
         .run(seq, at, number, 'settle', JSON.stringify({ kind: 'settle' }))
       db.prepare("UPDATE chapters SET stage = 'settled', status = 'settled', updated_at = ? WHERE number = ?").run(at, number)
@@ -2282,13 +2281,13 @@ export function statePreflight(root: any, input: any) {
  * @param {number|string} [upToChapter] - highest chapter to include.
  * @returns {Array<object>} events.
  */
-export function readEvents(root: any, work: any, upToChapter: any) {
+export function readEvents(root: any, work: any, upToChapter: any = undefined) {
   const db = openWork(root, work)
   try {
     const rows = upToChapter === undefined
       ? db.prepare('SELECT * FROM events ORDER BY seq').all()
       : db.prepare('SELECT * FROM events WHERE chapter <= ? ORDER BY seq').all(chapterNumber(upToChapter))
-    return rows.map(row => ({ seq: row.seq, chapter: row.chapter, kind: row.kind, ...JSON.parse(row.payload) }))
+    return rows.map((row: any) => ({ seq: row.seq, chapter: row.chapter, kind: row.kind, ...JSON.parse(String(row.payload)) }))
   } finally {
     db.close()
   }
@@ -2319,7 +2318,7 @@ export function writeVolume(root: any, input: any) {
       if (title === '') throw new StoryError('volume-invalid', '卷需要一个标题')
       const others = db.prepare('SELECT * FROM volumes WHERE id != ?').all(id)
       for (const other of others) {
-        if (from <= other.to_ch && other.from_ch <= to) {
+        if (from <= Number(other.to_ch) && Number(other.from_ch) <= to) {
           throw new StoryError('volume-overlap',
             `卷「${title}」(${from}–${to}) 与「${other.title}」(${other.from_ch}–${other.to_ch}) 重叠`)
         }
@@ -2394,7 +2393,7 @@ export function writeBible(root: any, input: any) {
   try {
     return transaction(db, () => {
       if (name === 'plan') throw new StoryError('approval-moved', '全书计划只能通过 story_outline 写入')
-      const truth = TRUTH_ARTIFACTS[name]
+      const truth = (TRUTH_ARTIFACTS as Record<string, any>)[name]
       if (truth === undefined && name !== 'characters') {
         throw new StoryError('bible-invalid', `未知的真值文件：${name}`)
       }
@@ -2446,7 +2445,7 @@ export function readBibleEntry(root: any, work: any, name: any) {
   const db = openWork(root, work)
   try {
     const key = String(name)
-    const truth = TRUTH_ARTIFACTS[key]
+    const truth = (TRUTH_ARTIFACTS as Record<string, any>)[key]
     if (truth !== undefined) return readTextArtifactOnDb(db, truth.artifactId)
     return db.prepare('SELECT content, version, updated_at FROM bible WHERE name = ?').get(key) as Pick<BibleRow, 'content' | 'version' | 'updated_at'> | undefined
   } finally {
@@ -2463,7 +2462,7 @@ export function readBibleEntries(root: any, work: any) {
   try {
     const entries = []
     for (const name of TRUTH_NAMES) {
-      const truth = TRUTH_ARTIFACTS[name]
+      const truth = (TRUTH_ARTIFACTS as Record<string, any>)[name]
       const entry = truth === undefined
         ? db.prepare('SELECT content, version, updated_at FROM bible WHERE name = ?').get(name)
         : readTextArtifactOnDb(db, truth.artifactId)
@@ -2482,7 +2481,7 @@ export function readBibleEntries(root: any, work: any) {
  * @returns {Map<string, string>} truth content.
  */
 export function readBibleMap(root: any, work: any) {
-  return new Map(readBibleEntries(root, work).map(row => [row.name, row.content]))
+  return new Map(readBibleEntries(root, work).map((row: any) => [row.name, row.content]))
 }
 
 /**
@@ -2527,7 +2526,7 @@ export function readPlan(root: any, work: any, chapter: any) {
     if (row.content_type !== 'json') throw new StoryError('artifact-invalid', `plan:${number} 不是结构化 memo`)
     let memo
     try {
-      memo = JSON.parse(row.content)
+      memo = JSON.parse(String(row.content))
     } catch {
       throw new StoryError('artifact-invalid', `plan:${number} 的 memo JSON 无法解析`)
     }
@@ -2570,7 +2569,7 @@ export function reopenChapter(root: any, input: any) {
         throw new StoryError('not-settled', `第 ${number} 章还没定稿（当前阶段：${stageOf(entry)}），不需要重开`)
       }
       const at = now()
-      const seq = (db.prepare('SELECT max(seq) AS n FROM events').get()?.n ?? 0) + 1
+      const seq = Number((db.prepare('SELECT max(seq) AS n FROM events').get() as { n: number } | undefined)?.n ?? 0) + 1
       db.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
         .run(seq, at, number, 'reopen', JSON.stringify({ kind: 'reopen' }))
       db.prepare("UPDATE chapters SET stage = 'written', status = 'written', updated_at = ? WHERE number = ?").run(at, number)
@@ -2674,7 +2673,7 @@ export function importMaterial(root: any, work: any, input: any) {
   const db = openWork(root, work)
   try {
     return transaction(db, () => {
-      const existing = db.prepare('SELECT * FROM materials WHERE hash = ?').get(prepared.hash)
+      const existing = db.prepare('SELECT * FROM materials WHERE hash = ?').get(prepared.hash) as unknown as MaterialRow | undefined
       if (existing !== undefined) return { material: materialMetadata(existing), duplicate: true }
       const copy = writeManagedCopy(root, prepared)
       try {
@@ -2685,7 +2684,7 @@ export function importMaterial(root: any, work: any, input: any) {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
             .run(id, prepared.title, prepared.format, copy.origin, prepared.bytes, prepared.hash, at, prepared.content, prepared.purpose)
         } catch (error: any) {
-          const raced = db.prepare('SELECT * FROM materials WHERE hash = ?').get(prepared.hash)
+          const raced = db.prepare('SELECT * FROM materials WHERE hash = ?').get(prepared.hash) as unknown as MaterialRow | undefined
           if (raced !== undefined) {
             if (copy.created) {
               try {
@@ -2704,7 +2703,7 @@ export function importMaterial(root: any, work: any, input: any) {
         syncSearchDoc(db, `material:${id}`, 'material', `materials/${id}`, 0, prepared.content,
           materialIndexText(prepared.title, prepared.content))
         return {
-          material: materialMetadata(db.prepare('SELECT * FROM materials WHERE id = ?').get(id)),
+          material: materialMetadata(db.prepare('SELECT * FROM materials WHERE id = ?').get(id) as unknown as MaterialRow),
           duplicate: false,
         }
       } catch (error: any) {
@@ -2737,7 +2736,7 @@ export function listMaterials(root: any, work: any, purpose: any) {
     const rows = clean === undefined
       ? db.prepare('SELECT * FROM materials ORDER BY created_at, id').all()
       : db.prepare('SELECT * FROM materials WHERE purpose = ? ORDER BY created_at, id').all(clean)
-    return (rows as MaterialRow[]).map(materialMetadata)
+    return (rows as unknown as MaterialRow[]).map(materialMetadata)
   } finally {
     db.close()
   }
@@ -2756,12 +2755,12 @@ export function renameMaterial(root: any, work: any, id: any, title: any) {
   const db = openWork(root, work)
   try {
     return transaction(db, () => {
-      const row = db.prepare('SELECT * FROM materials WHERE id = ?').get(String(id))
+      const row = db.prepare('SELECT * FROM materials WHERE id = ?').get(String(id)) as unknown as MaterialRow | undefined
       if (row === undefined) throw new StoryError('material-not-found', `没有素材：${String(id)}`)
       db.prepare('UPDATE materials SET title = ? WHERE id = ?').run(clean, row.id)
       syncSearchDoc(db, `material:${row.id}`, 'material', `materials/${row.id}`, 0,
-        row.content, materialIndexText(clean, row.content))
-      return materialMetadata({ ...row, title: clean })
+        String(row.content), materialIndexText(clean, String(row.content)))
+      return materialMetadata({ ...row, title: clean } as MaterialRow)
     })
   } finally {
     db.close()
@@ -2784,7 +2783,7 @@ export function setMaterialPurpose(root: any, work: any, id: any, purpose: any) 
       const row = db.prepare('SELECT * FROM materials WHERE id = ?').get(String(id))
       if (row === undefined) throw new StoryError('material-not-found', `没有素材：${String(id)}`)
       db.prepare('UPDATE materials SET purpose = ? WHERE id = ?').run(clean, row.id)
-      return materialMetadata({ ...row, purpose: clean })
+      return materialMetadata({ ...row, purpose: clean } as MaterialRow)
     })
   } finally {
     db.close()
@@ -3061,12 +3060,12 @@ export function searchMemory(root: any, work: any, query: any, options: any = {}
       }
       if (row.kind === 'hook') {
         const seq = Number(/^event:(\d+)$/u.exec(row.id)?.[1])
-        if (!Number.isInteger(seq) || seq <= (reopened.get(chapter) ?? -1)) continue
+        if (!Number.isInteger(seq) || seq <= Number(reopened.get(chapter) ?? -1)) continue
         const event = db.prepare('SELECT chapter, payload FROM events WHERE seq = ?').get(seq)
         if (event === undefined) continue
         let payload
         try {
-          payload = JSON.parse(event.payload)
+          payload = JSON.parse(String(event.payload))
         } catch {
           continue
         }
@@ -3087,9 +3086,9 @@ export function searchMemory(root: any, work: any, query: any, options: any = {}
         continue
       }
       if (row.kind === 'volume') {
-        const id = row.id.startsWith('volume:') ? row.id.slice('volume:'.length) : undefined
+        const id = String(row.id).startsWith('volume:') ? String(row.id).slice('volume:'.length) : undefined
         if (id === undefined || !volumes.has(id)) continue
-        if (beforeChapter !== undefined && volumes.get(id) >= beforeChapter) continue
+        if (beforeChapter !== undefined && Number(volumes.get(id)) >= beforeChapter) continue
         candidates.push({
           id: row.id, kind: row.kind, source: row.source, sourceIds: [row.id], chapter, text: row.body, score: -row.score,
         })
@@ -3138,7 +3137,7 @@ function matchOf(query: any) {
 }
 
 /** One FTS query with the shared projection, ordering and limit. */
-function queryDocs(db: any, { match, kinds, beforeChapter, limit }) {
+function queryDocs(db: any, { match, kinds, beforeChapter, limit }: any) {
   const clauses = ['search_fts MATCH ?']
   const params = [match]
   if (Array.isArray(kinds) && kinds.length > 0) {
@@ -3279,16 +3278,16 @@ export function exportWork(root: string, work: unknown, destination: string): an
       }))
       for (const version of db.prepare('SELECT * FROM chapter_versions ORDER BY number, revision').all()) {
         put(join('chapters', `${versionStem(version.number, version.revision)}.md`),
-          version.body.endsWith('\n') ? version.body : `${version.body}\n`)
+          String(version.body).endsWith('\n') ? String(version.body) : `${String(version.body)}\n`)
       }
       for (const memo of db.prepare(`SELECT a.artifact_id, a.content FROM artifacts a
         JOIN (SELECT artifact_id, max(rowid) AS rowid FROM artifacts
           WHERE kind = 'plan' GROUP BY artifact_id) latest ON a.rowid = latest.rowid
         WHERE a.kind = 'plan' AND a.scope_chapter IS NOT NULL ORDER BY a.scope_chapter`).all()) {
-        const chapter = Number(memo.artifact_id.slice('plan:'.length))
+        const chapter = Number(String(memo.artifact_id).slice('plan:'.length))
         let content
         try {
-          content = JSON.parse(memo.content)
+          content = JSON.parse(String(memo.content))
         } catch {
           throw new StoryError('artifact-invalid', `${memo.artifact_id} 的 memo JSON 无法解析`)
         }
@@ -3299,10 +3298,10 @@ export function exportWork(root: string, work: unknown, destination: string): an
       }
       for (const row of db.prepare(`SELECT artifact_id, content FROM artifacts
         WHERE kind = 'review' ORDER BY scope_chapter, rowid`).all()) {
-        const match = /^review:(\d+):r(\d+):(\d+)$/u.exec(row.artifact_id)
+        const match = /^review:(\d+):r(\d+):(\d+)$/u.exec(String(row.artifact_id))
         if (match === null) continue
         const number = Number(match[1])
-        const content = JSON.parse(row.content)
+        const content = JSON.parse(String(row.content))
         put(join('reviews', `${chapterStem(number)}.r${Number(match[3])}.json`), `${JSON.stringify(content, null, 2)}\n`)
         put(join('reviews', `${chapterStem(number)}.r${Number(match[3])}.md`), renderReviewMarkdown(number, {
           round: Number(match[3]),
@@ -3311,7 +3310,7 @@ export function exportWork(root: string, work: unknown, destination: string): an
         }))
       }
       const characters = db.prepare('SELECT content FROM bible WHERE name = ?').get('characters')
-      if (characters !== undefined) put(join('bible', 'characters.json'), characters.content)
+      if (characters !== undefined) put(join('bible', 'characters.json'), String(characters.content))
       for (const [name, truth] of Object.entries(TRUTH_ARTIFACTS)) {
         const entry = readTextArtifactOnDb(db, truth.artifactId)
         if (entry === undefined) continue
@@ -3322,7 +3321,7 @@ export function exportWork(root: string, work: unknown, destination: string): an
         const row = db.prepare('SELECT content_type, content FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
           .get(document.artifactId)
         if (row === undefined) continue
-        const content = row.content_type === 'json' ? JSON.parse(row.content) : row.content
+        const content = row.content_type === 'json' ? JSON.parse(String(row.content)) : String(row.content)
         const file = name === 'roles_index' ? null : `foundation/${name}.md`
         if (file !== null) put(file, renderFoundationContent(content))
       }
@@ -3331,7 +3330,7 @@ export function exportWork(root: string, work: unknown, destination: string): an
       const rolesIndex = db.prepare(`SELECT content_type, content FROM artifacts
         WHERE artifact_id = 'roles:index' ORDER BY rowid DESC LIMIT 1`).get()
       if (rolesIndex !== undefined) {
-        const content = rolesIndex.content_type === 'json' ? JSON.parse(rolesIndex.content) : rolesIndex.content
+        const content = rolesIndex.content_type === 'json' ? JSON.parse(String(rolesIndex.content)) : String(rolesIndex.content)
         put(join('foundation', 'roles', 'index.json'), typeof content === 'string' ? content : `${JSON.stringify(content, null, 2)}\n`)
       }
       const roleCards = db.prepare(`SELECT a.artifact_id, a.content_type, a.content FROM artifacts a
@@ -3339,8 +3338,8 @@ export function exportWork(root: string, work: unknown, destination: string): an
           WHERE kind = 'role_card' GROUP BY artifact_id) latest ON a.rowid = latest.rowid
         ORDER BY a.artifact_id`).all()
       for (const row of roleCards) {
-        const slug = row.artifact_id.slice('role:'.length)
-        const content = row.content_type === 'json' ? JSON.parse(row.content) : row.content
+        const slug = String(row.artifact_id).slice('role:'.length)
+        const content = row.content_type === 'json' ? JSON.parse(String(row.content)) : String(row.content)
         const text = typeof content === 'object' && content !== null && typeof content.markdown === 'string'
           ? content.markdown
           : (typeof content === 'string' ? content : JSON.stringify(content))
@@ -3348,10 +3347,10 @@ export function exportWork(root: string, work: unknown, destination: string): an
       }
       put('volumes.json', `${JSON.stringify(db.prepare('SELECT * FROM volumes ORDER BY from_ch').all(), null, 2)}\n`)
       put('state/events.jsonl', `${db.prepare('SELECT * FROM events ORDER BY seq').all()
-        .map(event => JSON.stringify({ seq: event.seq, at: event.at, chapter: event.chapter, kind: event.kind, ...JSON.parse(event.payload) }))
+        .map(event => JSON.stringify({ seq: event.seq, at: event.at, chapter: event.chapter, kind: event.kind, ...JSON.parse(String(event.payload)) }))
         .join('\n')}\n`)
       for (const material of db.prepare('SELECT * FROM materials ORDER BY created_at, id').all()) {
-        put(join('materials', `${material.id}.${material.format}`), material.content)
+        put(join('materials', `${material.id}.${material.format}`), String(material.content))
       }
       for (const proposal of catalog.prepare('SELECT * FROM proposals WHERE used_work_id = ? ORDER BY created_at').all(row.work_id)) {
         put(join('proposals', `${proposal.id}.json`), `${JSON.stringify({
@@ -3390,7 +3389,7 @@ export async function exportWorkAtomic(root: string, work: unknown, options: any
   const write = typeof options.exportTree === 'function' ? options.exportTree : exportWork
   const key = `${root}\0${work}`
   const previous = exportLocks.get(key) ?? Promise.resolve()
-  let release
+  let release!: (value?: unknown) => void
   const gate = new Promise(resolve => { release = resolve })
   const tail = previous.then(() => gate)
   exportLocks.set(key, tail)
@@ -3503,7 +3502,7 @@ function backupFiles(root: any, workId: any) {
     .map(name => {
       const file = join(directory, name)
       const info = statSync(file)
-      return { file, name, token: pattern.exec(name)[1], bytes: info.size, createdAt: info.mtime.toISOString() }
+      return { file, name, token: pattern.exec(name)![1], bytes: info.size, createdAt: info.mtime.toISOString() }
     })
 }
 
@@ -3533,7 +3532,7 @@ function resolveBackupFile(root: any, workId: any, backupId: any) {
 async function withWorkLock(root: any, work: any, fn: any) {
   const key = `${root}\0${work}`
   const previous = exportLocks.get(key) ?? Promise.resolve()
-  let release
+  let release!: (value?: unknown) => void
   const gate = new Promise(resolve => { release = resolve })
   const tail = previous.then(() => gate)
   exportLocks.set(key, tail)
@@ -3684,7 +3683,7 @@ export async function restoreBackup(root: any, work: any, backupId: any, options
  * @param {string} [destination] - backup file.
  * @returns {Promise<{file: string, integrity: string}>} backup result.
  */
-export async function backupWork(root: any, work: any, destination: any) {
+export async function backupWork(root: any, work: any, destination: any = undefined) {
   const catalog = openCatalog(root, { create: false })
   if (catalog === undefined) throw new StoryError('work-not-found', `没有作品：${String(work)}`)
   try {
@@ -3737,7 +3736,7 @@ export function createProposal(root: any, input: any) {
       const title = String(input.title ?? '').trim()
       if (title === '') throw new StoryError('proposal-invalid', '提案需要作品标题')
       const form = input.form === undefined ? 'longform' : String(input.form)
-      if (!WORK_FORMS.includes(form)) throw new StoryError('proposal-invalid', `提案形态不合法：${form}`)
+      if (!(WORK_FORMS as readonly string[]).includes(form)) throw new StoryError('proposal-invalid', `提案形态不合法：${form}`)
       const premise = String(input.premise ?? '').trim()
       if (premise === '') throw new StoryError('proposal-invalid', '提案需要一句话前提或核心冲突')
       const exists = catalog.prepare('SELECT 1 FROM works WHERE title = ? AND trashed_at IS NULL').get(title)
@@ -3910,9 +3909,9 @@ export function readSessionCurrent(root: any) {
   const catalog = openCatalog(root, { create: false })
   if (catalog === undefined) return {}
   try {
-    const out = {}
+    const out: Record<string, string> = {}
     for (const row of catalog.prepare('SELECT session_id, work_id FROM session_current').all()) {
-      if (typeof row.work_id === 'string' && row.work_id !== '') out[row.session_id] = row.work_id
+      if (typeof row.work_id === 'string' && row.work_id !== '') out[String(row.session_id)] = String(row.work_id)
     }
     return out
   } finally {

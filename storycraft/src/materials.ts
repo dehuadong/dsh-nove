@@ -118,7 +118,7 @@ export function prepareMaterial(input: { name?: unknown, contentBase64?: unknown
  * Metadata shown to the panel/model boundary. Never includes content or origin.
  */
 export interface MaterialRow {
-  id: number
+  id: string
   title: string
   format: string
   purpose: string
@@ -128,7 +128,7 @@ export interface MaterialRow {
 }
 
 export interface MaterialMetadata {
-  id: number
+  id: string
   title: string
   format: string
   purpose: string
