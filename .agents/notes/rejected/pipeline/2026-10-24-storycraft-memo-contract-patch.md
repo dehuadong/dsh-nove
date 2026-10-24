@@ -1,11 +1,14 @@
 ---
 title: 故事工坊：L-R10a S1a-demo 合同补丁
-status: proposed
+status: rejected
 created: 2026-10-24
 updated: 2026-10-24
+reason: 由 #55《L-R10a 章节身份与批准合同》取代；missing/blocked、章节编辑阻断与批准入口以 #55 为准，本提案不再实施。
 ---
 
 # Agent Note：故事工坊：L-R10a S1a-demo 合同补丁
+
+> **已由 #55 取代**（2026-10-24）：`missing`/`blocked`、章节编辑阻断与批准入口以 [`2026-10-24-storycraft-chapter-identity-approval.md`](../../proposed/pipeline/2026-10-24-storycraft-chapter-identity-approval.md) 为准。本 Note 仅保留历史决策依据，不再实施。
 
 ## 问题
 
@@ -19,9 +22,9 @@ S1a-demo 的三条链路卡在既有接口上：
 
 ## 与既有记录
 
-- S1a-demo 的范围与验收见 [`2026-10-24-storycraft-memo-migration.md`](2026-10-24-storycraft-memo-migration.md)；本 Note 是它的前置合同。
-- [`2026-10-24-storycraft-chapter-identity-approval.md`](2026-10-24-storycraft-chapter-identity-approval.md)（#55）**部分替代**本 Note 的 `missing`/`blocked`、章节编辑阻断与批准入口条款；冲突以 #55 为准，实施时同步删改本 Note 对应段。
-- 作者闸门归 #45；memo 字段归 [`2026-10-23-storycraft-artifact-contract-v2.md`](2026-10-23-storycraft-artifact-contract-v2.md)。
+- S1a-demo 的范围与验收见 [`2026-10-24-storycraft-memo-migration.md`](../../proposed/pipeline/2026-10-24-storycraft-memo-migration.md)；本 Note 是它的前置合同。
+- [`2026-10-24-storycraft-chapter-identity-approval.md`](../../proposed/pipeline/2026-10-24-storycraft-chapter-identity-approval.md)（#55）**部分替代**本 Note 的 `missing`/`blocked`、章节编辑阻断与批准入口条款；冲突以 #55 为准，实施时同步删改本 Note 对应段。
+- 作者闸门归 #45；memo 字段归 [`2026-10-23-storycraft-artifact-contract-v2.md`](../../proposed/pipeline/2026-10-23-storycraft-artifact-contract-v2.md)。
 - 章节编辑重映射归 S0；本 Note 只定义“有 memo 时阻断”的合同，不实现重映射。
 
 ## 提案

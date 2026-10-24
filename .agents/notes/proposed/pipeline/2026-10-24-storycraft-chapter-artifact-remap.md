@@ -24,7 +24,7 @@ S1a-demo 只能临时阻断有 memo 的删/移。本 Note 规划 S1b：把章节
 
 ### 1. 重映射对象
 
-- 全部 chapter-scoped artifact：`plan:<n>`、`summary:<n>`、`review:<n>:r<rev>:<round>`，以及任何 `scope_chapter` 非空的 artifact（state/context/trace 等）。
+- 全部 chapter-scoped artifact：`plan:<n>`、`summary:<n>`、`review:<n>:r<rev>:<round>`，以及任何 `scope_chapter` 非空的 artifact（context/trace 等）；state 是作品级（无 scope_chapter、rev seq），不参与。
 - **只保留最新 revision**：章节重编号是 identity-change，旧 revision 删除，不搬到新 ID；编号可被新章重用，但必须新内容/新 revision。
 - artifactId 的章号段、`scope_chapter`、`content.chapter`（plan/summary 有）一起更新；review 的 bodyRev/round 不变，只改章号段。
 - **approval**：所有 `old !== new` 或被删章的 `chapters.plan_approved_at`/`plan_revision` 清空；作者需要重新确认。
@@ -32,10 +32,10 @@ S1a-demo 只能临时阻断有 memo 的删/移。本 Note 规划 S1b：把章节
 
 ### 2. 算法
 
-1. 计算 `mapping`（旧→新）与 `deleted`（被删章号）；mapping 含所有幸存章，identity 项可忽略。
-2. 开事务；按映射把受影响章的最新 artifact 读到临时结构。
-3. 删除受影响章在旧 ID 下的全部 artifact revision 与检索文档。
-4. 对每个幸存章的最新 artifact：
+1. 计算 `mapping`（旧→新）与 `deleted`（被删章号）；`affected = deleted ∪ {old !== new}`，identity 项（old===new）不参与。
+2. 开事务；按 `affected` 把最新 artifact 读到临时结构。
+3. 删除 `affected` 章在旧 ID 下的全部 artifact revision 与检索文档；identity 项不动。
+4. 对每个 `old !== new` 的幸存章最新 artifact：
    - 生成新 artifactId；
    - 更新 `content.chapter`/`scope_chapter`/review target；
    - 重算 content-hash revision；
@@ -45,7 +45,7 @@ S1a-demo 只能临时阻断有 memo 的删/移。本 Note 规划 S1b：把章节
 6. 提交；任一步失败回滚，章节与 artifact 保持原状。
 
 - 临时 ID 只在事务内使用，避免 `plan:4→plan:5` 主键冲突；不把临时 ID 暴露给模型。
-- 删除/移动的 backup 仍在事务前；backup 是旧状态，恢复时按旧状态回滚。
+- 删除/移动都在事务前 `backupWork`（当前 move 无 backup，S1b 一并补上）；backup 是旧状态，恢复时按旧状态回滚。
 - `search_docs` 若存在 artifact 文档，同步删除/重建；当前未索引的 artifact 不新增索引（S0.5 再统一）。
 
 ### 3. 与章节编辑阻断
@@ -76,7 +76,7 @@ S1a-demo 只能临时阻断有 memo 的删/移。本 Note 规划 S1b：把章节
 3. 受影响章的 `plan_approved_at`/`plan_revision` 清空；未受影响章不变。
 4. review target 指向被移动 memo 时重绑到新 revision；无法解析时清空；不定义新 observation 语义。
 5. `chapter-edit-blocked` 在同一交付移除；删/移恢复；backup 仍是旧状态。
-6. 测试覆盖 memo/summary/review 移动/删除、identity 项、冲突回滚、审批清空、search docs、无 artifact 的行为；`node storycraft/scripts/ci.mjs --no-e2e` 通过。
+6. 测试覆盖 plan/summary/review 移动/删除、identity 项、冲突回滚、审批清空、search docs、无 artifact、move/delete 都有 backup；`node storycraft/scripts/ci.mjs --no-e2e` 通过。
 7. 不引入 chapter UUID；不迁移旧作品；不改 stage 闸门。
 
 ## 风险

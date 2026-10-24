@@ -90,7 +90,7 @@ updated: 2026-10-24
 
 `scope.chapter` 对按章 artifact 必填；`state` 的 revision 是事件序号，正文是真实版本，静态文本是内容哈希。
 
-章节重编号/删除是 **identity 变更**：按章号编码的 artifact（plan/summary/review）不保留旧 chapter ID 下的历史 revision；旧 ID 的内容不保留，编号可被后续新章重新使用，但必须是新内容/新 revision，不得把旧 memo 复制给新章。该例外的 memo 部分由 [L-R10a S1](2026-10-24-storycraft-memo-migration.md) 实现，summary/review 部分分别由 S0/#52 实现。
+章节重编号/删除是 **identity 变更**：按章号编码的 artifact（plan/summary/review）不保留旧 chapter ID 下的历史 revision；旧 ID 的内容不保留，编号可被后续新章重新使用，但必须是新内容/新 revision，不得把旧 memo 复制给新章。该例外由 [L-R10a S1b](2026-10-24-storycraft-chapter-artifact-remap.md) 统一实现（全部 chapter-scoped artifact）；S0 只负责非 artifact 章节字段，#52 只拥有 observation 语义。
 
 新库没有 `bible` 兼容 kind：`bible:world` 等只作为 artifactId 前缀，kind 使用具体的 `world`/`story_frame`/`book_rules`；不再产生旧 `bible` kind。
 

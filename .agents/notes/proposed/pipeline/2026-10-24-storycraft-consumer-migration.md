@@ -46,16 +46,15 @@ A0 只负责字段合同、v6 registry、消费者映射与可测试的消费契
 
 每个切片一次切换一个产物组：生产、读取、测试、导出在同一提交完成；旧结构在成功切片后不再写、不再读。
 
-**S0 章节编辑与 artifact 生命周期**
+**S0 章节编辑的非 artifact 部分**
 
-- 删除、移动、重排章节时，按 `scope_chapter` 扫描（不按 kind 枚举）处理 **memo 以外**的 chapter-scoped artifacts（summary 等；review 归 #52）、v2 hook 事件的 `startChapter`/`lastAdvancedChapter`、fact 事件的 `chapter` 及检索文档；`artifacts` 无外键，必须由 store 事务负责。memo 生命周期归 S1。
-- 移动算法：先把受影响 artifact 改到事务内临时 ID（避免 `summary:4`→`summary:5` 主键冲突），更新 `content.chapter`/`scope_chapter`/检索文档，再落到新 ID；删除则按 `scope_chapter` 删除。
-- `content.chapter` 改变会使 content-hash revision 变化，必须清理/重绑引用该 revision 的 observation target；plan/memo 的批准 rebind 归 S1。无法安全重绑时清空，不允许悬空 revision。
-- 测试：`store-chapter` 增补 artifact 生命周期用例。
+- 删除、移动、重排章节时，只处理 chapters/versions、v2 hook/fact 事件字段与检索文档等非 artifact 数据；并对被删章/每个 `old !== new` 章无条件清空 `plan_revision`/`plan_approved_at`（无 artifact 也清）。
+- **全部 chapter-scoped artifact（plan/summary/review/state/context/trace）的重映射归 S1b**，[Note](2026-10-24-storycraft-chapter-artifact-remap.md) 是唯一 owner；S0 不拥有 memo/artifact remap。
+- 测试：`store-chapter` 保留章节/事件用例；artifact 生命周期用例归 S1b。
 
 **S0.5 检索与导出基础设施**
 
-- artifact 写入时同步检索文档；导出提供统一的 artifact 投影，供 S2/S4 在各自切片内接入；memo 导出归 S1，不在 S0.5 重复。
+- artifact 写入时同步检索文档；导出提供统一的 artifact 投影，供 S2/S4 在各自切片内接入；memo/章节 artifact 导出归 S1a-demo/S1b，不在 S0.5 重复。
 - 测试：`artifact-export.test.mjs`（索引同步、删除清理、导出 ID/内容）。
 - 该切片先于 S2；S2/S4 不再各自造一套导出。
 
