@@ -1,80 +1,76 @@
 ---
-title: 故事工坊：TypeScript 试点（scope）
+title: 故事工坊：TypeScript 单模块接入试验（scope）
 status: proposed
 created: 2026-10-24
 updated: 2026-10-24
 ---
 
-# Agent Note：故事工坊：TypeScript 试点（scope）
+# Agent Note：故事工坊：TypeScript 单模块接入试验（scope）
 
 ## 问题
 
-插件当前是纯 JavaScript + JSDoc。直接全量转 TS 会同时改变 Host、Client 与打包路径，风险太大；先选一个无 DSH 依赖、已有测试的 Host 模块验证：
+要决定的是：**故事工坊是否值得从 JS + JSDoc 迁到 TypeScript，以及如果值得，采用哪种接入方式**。不是“能不能把某个文件改名成 `.ts` 再编译”。
 
-- 编译器与产物路径；
-- DSH 从 tarball 加载 `dist` 的方式；
-- `files`/pack-check 对生成物的约束；
-- 现有测试与 import 是否无需改动。
+当前 `scope.js` 的改造只能证明最弱的一环：一个纯函数模块能被 `tsc` 编译、被 DSH 加载、被打进 tarball。它不能证明 TypeScript 对真实 DSH 契约（Host Service、Tool 参数、Client slot）有类型收益，也没有覆盖 Client 构建、开发热更新和全量迁移成本。
 
-试点选 `scope.js`：纯函数、无外部依赖、`scope.test.mjs` 覆盖完整。
+因此本记录先明确试点要回答的问题；当前实现只作为**单模块接入原型**，不是“全量迁移可行”的证据。
 
 ## 对拍参考
 
-- 无参考实现：`inkos-master` 的插件是 JS/构建产物，没有可迁移的“单模块 TS + dist”设计；DSH 自身使用 TypeScript + tsdown（`deepseek-harness/docs/development.md`），但那是包内构建，不是外部插件试点。
-- 裁决：借鉴 DSH 的“源文件 TS、产物 JS”原则，但不引入 tsdown/完整构建链；试点只用 `tsc`。
+- 无参考实现：`inkos-master` 的插件是 JS/构建产物，没有可迁移的“单模块 TS + dist”设计。
+- DSH 自身使用 TypeScript + tsdown（`deepseek-harness/docs/development.md`），但那是 DSH 包内构建，不能直接证明外部插件的收益/成本。
+- 裁决：只借鉴“源文件 TS、产物 JS”的原则；是否迁移由本试点的判定问题决定，不预先采纳全量方案。
 
 ## 提案
 
-### 1. 目录与入口
+### 1. 试点必须回答的问题
 
-- 源文件：`src/scope.ts`；
-- 产物：`dist/scope.js`（试点提交产物，保证 `link:` 与 tarball 在没有构建时也能加载）；
-- 稳定入口：根 `scope.js` 只 `export { SCOPE_MESSAGES, scopeDenial } from './dist/scope.js'`，现有 import 不变；
-- `tsconfig.json` 只 include `src/**/*.ts`，`module/moduleResolution: NodeNext`，`strict: true`。
+| 问题 | 为什么重要 | 当前 scope 试验能否回答 |
+| --- | --- | --- |
+| DSH Host 类型是否可用且值得 | 工具参数、Service、事件才可能抓出真实错误 | **否**：`scope` 不依赖 DSH |
+| Client 能否用 TS + 单文件 bundle | `client.js` 是浏览器入口，和 Host 构建不同 | **否**：未做 |
+| 开发循环是否可接受 | `tsc`/watch/HMR、测试路径、构建耗时 | 部分：只验证了一次 `tsc` |
+| 打包与安装是否稳定 | `dist` 提交、tarball、`link:`、CI | 是：已验证 |
+| 类型收益是否大于双源/构建成本 | 是否值得全量迁移 | **否**：没有 DSH 类型样本 |
 
-### 2. 构建与依赖
+结论：**当前证据只能支持“单模块可以这样接入”，不支持“全量迁移可行”。**
 
-- `scripts/build-ts.mjs` 调用本机 `tsc -p tsconfig.json`；
-- 试点把 `tsc` 作为开发机前置，不引入 `typescript` devDependency；README 写明要求；
-- 后续全量迁移再评估本地依赖与分发。
+### 2. 当前原型的接入方式
 
-### 3. Node 类型
+- `src/scope.ts` 是唯一实现；根 `scope.js` 只 re-export `dist/scope.js`；
+- `npm run build` 用本机 `tsc` 生成 `dist/scope.js`；
+- 产物提交，保证 `link:`/tarball 无构建可加载；
+- CI：build → `check-dist` → pack-check → 50 单元；
+- Node 类型暂用 `src/node-shim.d.ts`，全量迁移时换 `@types/node`。
 
-- 试点不装 `@types/node`，用 `src/node-shim.d.ts` 声明 `node:path` 与 `process.platform`；
-- 全量迁移时替换为 `@types/node`，删除 shim。
+这是**单模块接入原型**，不是最终目录规范；如果后续不做全量迁移，应评估是否回退到 JS，避免长期双源。
 
-### 4. 打包与 CI
+### 3. 下一步的真实试点（另立工作项）
 
-- `files` 增加 `dist`，`pack-check` 要求 `dist/scope.js`；
-- CI 顺序：build → pack-check → 50 单元测试；
-- 构建后检查 `git diff --exit-code -- dist`，防止提交的 dist 与源码漂移；
-- 根 `scope.js` 仍由 `*.js` 覆盖。
+若要继续评估全量 TS，必须选一个**依赖 DSH 契约的 Host 模块**（例如 `tools.js` 的一个 action 或 `index.js` 的路由类型），并明确：
 
-### 5. 非目标
-
-- 全量 Host TS；
-- Client esbuild；
-- 改公共导出、DSH 加载路径或运行行为；
-- 把 `dist` 变成第二个源码真源。
+- 类型定义来源（DSH 包的 `.d.ts` 或本地声明）；
+- 编译前后 LOC、测试改动、构建耗时；
+- 是否能在不提交 `dist` 的情况下开发/安装；
+- Client 是否另做 esbuild 试点。
 
 ## 备选方案
 
-- **不提交 dist**：`link:` 直接运行会缺 `dist/scope.js`，每次开发都要先 build；否决，试点先提交。
-- **引入 typescript devDependency**：更可复现，但当前包没有依赖安装流程；试点先用本机 `tsc`，全量迁移再补。
-- **不改根入口，直接 import dist**：会让所有调用方知道生成路径；否决，保留根入口。
-- **用 tsdown/完整 DSH 构建**：超出试点范围；否决。
+- **全量迁移**：证据不足；否决于当前阶段。
+- **保持 JS + JSDoc**：零构建、零双源，但类型收益有限；作为默认基线。
+- **单模块 TS 接入**：当前原型的做法；只适合作为例外，需明确维护成本。
+- **先做 Client esbuild 试点**：如果目标是浏览器端类型/打包，应先于 Host 全量；未排期。
 
 ## 验收条件
 
-1. `src/scope.ts` 是实现唯一来源，根 `scope.js` 只 re-export；
-2. `npm run build` 生成 `dist/scope.js`；
-3. `scope.test.mjs`、`ci --no-e2e`、pack-check 通过；
-4. tarball 含 `dist/scope.js`/`.d.ts`，不含 tests/e2e；
-5. 构建后 `git diff --exit-code -- dist` 无差异；
-6. DSH 从 tarball 加载仍成功。
+1. 试点记录明确回答上表五个问题，而不是只证明“能编译”；
+2. 当前原型有明确处置：保留为单模块例外，或回退；
+3. 若进入全量评估，另立工作项并选 DSH 契约模块；
+4. `scope.test`、`ci --no-e2e`、pack-check、tarball 加载仍通过（原型本身）；
+5. 文档不再把“单模块编译成功”写成“全量 TS 可行”。
 
 ## 风险
 
-- 提交生成的 dist 会与源码重复；用 CI diff 检查约束，正式方案可改为发布时构建。
-- 本机 `tsc` 版本差异可能改变产物；试点固定当前环境，后续补 devDependency。
-- 手写 Node shim 在引入 `@types/node` 时需删除，否则类型冲突。
+- 提交 `dist` 会形成双源；若长期保留，必须自动化一致性检查（已加 `check-dist`）。
+- 本机 `tsc` 版本不可复现；全量迁移前必须补 devDependency。
+- `scope` 太简单，容易让人误以为 DSH 类型问题也解决了；这是本记录要纠正的主要误判。
