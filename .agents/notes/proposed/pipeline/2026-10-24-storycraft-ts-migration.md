@@ -75,7 +75,7 @@ updated: 2026-10-24
 - 未迁移模块保持 `../<module>.js`；
 - `ci.mjs` 先 build，再跑测试/pack；
 - 每层新增类型/行为断言，不减少现有 50 个单元文件；
-- E2E 在 T4 前保持现有路径。
+- E2E 在 T4 前保持现有路径。面板 harness 也读编译产物：fixture 与 spec 用 `../dist/<module>.js`，并且要把 `files` 清单里的 `*.js` glob 展开，否则临时 profile 缺 `client.js`、工作台不挂载。只跑 `ci --no-e2e` 时这两处不会暴露。
 
 ### 5. Client（T4）
 
