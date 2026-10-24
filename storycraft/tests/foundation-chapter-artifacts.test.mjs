@@ -4,15 +4,15 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { validateChapterMeta } from '../dist/artifact-contract.js'
-import { initWork } from '../storage.js'
+import { initWork } from '../dist/storage.js'
 import {
   approveChapterPlan, approveOutline, readManifest, updateSettings, writeChapter, writeOutline, writePlan,
-} from '../store-db.js'
+} from '../dist/store-db.js'
 import {
   FOUNDATION_DOCUMENTS, artifactRevision, listArtifacts,
   putArtifact, readChapterMemo, readChapterMeta, readChapterSummary, readFoundationDocument,
   readRoleCard, writeChapterMemo, writeChapterSummary, writeFoundationDocument, writeRoleCard,
-} from '../artifact-store.js'
+} from '../dist/artifact-store.js'
 
 let failures = 0
 function check(name, condition, detail) {

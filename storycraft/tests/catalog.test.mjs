@@ -3,7 +3,7 @@ import { copyFile, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { WORK_SCHEMA_VERSION, openCatalog, openWork, trashDir, trashFile, workFile } from '../dist/db.js'
-import * as store from '../store-db.js'
+import * as store from '../dist/store-db.js'
 
 let failures = 0
 function check(name, condition, detail) {

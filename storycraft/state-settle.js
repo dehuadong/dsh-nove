@@ -7,10 +7,10 @@
  * fallback when reconciliation cannot be resolved.
  */
 
-import { StoryError, chapterNumber } from './storage.js'
+import { StoryError, chapterNumber } from './dist/storage.js'
 import {
   previewState, readChapter, readEvents, readFoldedState, readManifest, readPlan, readSummary, settleState, statePreflight,
-} from './storage.js'
+} from './dist/storage.js'
 import { readCards } from './facts.js'
 import { closeSubmission, consumeSubmission, openSubmission } from './submission.js'
 import { runChild } from './delegate.js'

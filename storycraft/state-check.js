@@ -11,7 +11,7 @@
 import {
   StoryError, chapterNumber, previewState, readChapter, readFoldedState, readManifest, readPlan, readSummary,
   readSummaryState, stageOf,
-} from './storage.js'
+} from './dist/storage.js'
 import { readCards } from './facts.js'
 import { closeSubmission, consumeSubmission, openSubmission, STATE_CHECK_NO_EVIDENCE } from './submission.js'
 import { runChild } from './delegate.js'

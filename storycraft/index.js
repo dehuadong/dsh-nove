@@ -13,13 +13,13 @@
 
 import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, resolve } from 'node:path'
-import { approveChapterPlan, approveFoundation, approveOutline, createBackup, deleteBackup, deleteChapter, deleteMaterial, ensureReconciled, exportWorkAtomic, importMaterial, moveChapter, listMaterials, listTrash, listWorks, nextStep, purgeTrash, readFoundationState, readManifest, restoreBackup, listBackups, readChapter, readReview, readWork, renameMaterial, restoreWork, setMaterialPurpose, status as readStatus, StoryError } from './storage.js'
+import { approveChapterPlan, approveFoundation, approveOutline, createBackup, deleteBackup, deleteChapter, deleteMaterial, ensureReconciled, exportWorkAtomic, importMaterial, moveChapter, listMaterials, listTrash, listWorks, nextStep, purgeTrash, readFoundationState, readManifest, restoreBackup, listBackups, readChapter, readReview, readWork, renameMaterial, restoreWork, setMaterialPurpose, status as readStatus, StoryError } from './dist/storage.js'
 import { critique } from './dist/critique.js'
 import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent } from './dist/current.js'
-import { readVolumes } from './volumes.js'
-import { clearSessionCurrent, readSessionCurrent, setSessionCurrent } from './store-db.js'
+import { readVolumes } from './dist/volumes.js'
+import { clearSessionCurrent, readSessionCurrent, setSessionCurrent } from './dist/store-db.js'
 import { assembleBrief, extractStyleSamples, readBible, writeBible } from './bible.js'
-import { listRoleCards, readFoundationDocuments, renderFoundationContent } from './artifact-store.js'
+import { listRoleCards, readFoundationDocuments, renderFoundationContent } from './dist/artifact-store.js'
 import { backupsDir, exportsDir } from './dist/db.js'
 
 /** Requires the host web server; without it the browser surface has no data. */

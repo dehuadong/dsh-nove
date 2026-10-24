@@ -1,21 +1,21 @@
 /** Immutable artifact registry: contract validation plus SQLite persistence. */
 
-import { StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, chapterNumber, contentVersion, now } from './dist/domain.js'
-import { ARTIFACT_IDENTITY, validateArtifactRecord, validateChapterMemo, validateChapterMeta, validateChapterSummary } from './dist/artifact-contract.js'
-import { openWork, touchMeta, transaction } from './dist/db.js'
-import { syncSearchDoc } from './dist/search-index.js'
+import { StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, chapterNumber, contentVersion, now } from './domain.js'
+import { ARTIFACT_IDENTITY, validateArtifactRecord, validateChapterMemo, validateChapterMeta, validateChapterSummary } from './artifact-contract.js'
+import { openWork, touchMeta, transaction } from './db.js'
+import { syncSearchDoc } from './search-index.js'
 
-function serialize(content) {
+function serialize(content: any) {
   if (typeof content === 'string') return { contentType: 'text', text: content }
   return { contentType: 'json', text: JSON.stringify(content) }
 }
 
-function deserialize(row) {
-  return row.content_type === 'json' ? JSON.parse(row.content) : row.content
+function deserialize(row: any) {
+  return row.content_type === 'json' ? JSON.parse(String(row.content)) : String(row.content)
 }
 
 /** Canonical revisionId of one artifact content: the hash of its stored bytes. */
-export function artifactRevision(content) {
+export function artifactRevision(content: any) {
   return contentVersion(serialize(content).text)
 }
 
@@ -28,7 +28,7 @@ export function artifactRevision(content) {
  * @param {{allowSettled?: boolean}} [options] - producer options.
  * @returns {object} stored artifact identity.
  */
-export function putArtifactOnDb(db, input, options = {}) {
+export function putArtifactOnDb(db: any, input: any, options: any = {}) {
   const envelope = validateArtifactRecord(input)
   const { contentType, text } = serialize(envelope.content)
   const at = envelope.createdAt
@@ -70,7 +70,7 @@ export function putArtifactOnDb(db, input, options = {}) {
 }
 
 /** Store one immutable artifact revision. */
-export function putArtifact(root, input, options = {}) {
+export function putArtifact(root: any, input: any, options: any = {}) {
   const envelope = validateArtifactRecord(input)
   const db = openWork(root, String(envelope.workId))
   try {
@@ -81,7 +81,7 @@ export function putArtifact(root, input, options = {}) {
 }
 
 /** Read one revision, or the latest revision when revisionId is omitted. */
-export function readArtifact(root, input) {
+export function readArtifact(root: any, input: any) {
   const workId = String(input.work)
   const artifactId = String(input.artifactId)
   const db = openWork(root, workId)
@@ -113,7 +113,7 @@ export function readArtifact(root, input) {
 }
 
 /** List the latest revision of each artifact, optionally filtered by kind. */
-export function listArtifacts(root, input) {
+export function listArtifacts(root: any, input: any) {
   const workId = String(input.work)
   const db = openWork(root, workId)
   try {
@@ -141,7 +141,7 @@ export function listArtifacts(root, input) {
 }
 
 /** One typed write: fill the canonical ID, kind and content-hash revision. */
-function writeTyped(root, input) {
+function writeTyped(root: any, input: any) {
   return putArtifact(root, {
     workId: String(input.work),
     artifactId: input.artifactId,
@@ -155,7 +155,7 @@ function writeTyped(root, input) {
 }
 
 /** One typed read that refuses a mismatching kind. */
-function readTyped(root, input, expected) {
+function readTyped(root: any, input: any, expected: any) {
   const result = readArtifact(root, {
     work: input.work,
     artifactId: expected.artifactId,
@@ -180,7 +180,7 @@ export const FOUNDATION_DOCUMENTS = Object.freeze(Object.fromEntries(
   Object.entries(FOUNDATION_KINDS).map(([name, kind]) => [name, { kind, artifactId: ARTIFACT_IDENTITY[kind].artifactId }]),
 ))
 
-function foundationDocument(name) {
+function foundationDocument(name: any) {
   const document = FOUNDATION_DOCUMENTS[name]
   if (document === undefined) {
     throw new StoryError('artifact-invalid', `未知的 foundation 文档名：${String(name)}`)
@@ -192,7 +192,7 @@ function foundationDocument(name) {
  * Write one foundation document (story_frame, volume_map, book_rules or the
  * roles index). Content is validated by the artifact contract.
  */
-export function writeFoundationDocument(root, input) {
+export function writeFoundationDocument(root: any, input: any) {
   const document = foundationDocument(input.name)
   const text = renderFoundationContent(input.content)
   return writeTyped(root, {
@@ -212,12 +212,12 @@ export function writeFoundationDocument(root, input) {
 }
 
 /** Read one foundation document, latest or an explicit revision. */
-export function readFoundationDocument(root, input) {
+export function readFoundationDocument(root: any, input: any) {
   return readTyped(root, input, foundationDocument(input.name))
 }
 
 /** Write one role card; the contract binds `role:<slug>` to content.slug. */
-export function writeRoleCard(root, input) {
+export function writeRoleCard(root: any, input: any) {
   const segment = String(input.role ?? input.content?.slug ?? '').trim()
   return writeTyped(root, {
     work: input.work,
@@ -238,27 +238,27 @@ export function writeRoleCard(root, input) {
 }
 
 /** Render foundation artifact content: Markdown string or its readable `markdown` field. */
-export function renderFoundationContent(content) {
+export function renderFoundationContent(content: any) {
   if (typeof content === 'string') return content
   if (content !== null && typeof content === 'object' && typeof content.markdown === 'string') return content.markdown
   return content === undefined ? '' : JSON.stringify(content)
 }
 
 /** Read one role card by its `role:<slug>` identity. */
-export function readRoleCard(root, input) {
+export function readRoleCard(root: any, input: any) {
   const segment = String(input.role ?? input.slug ?? '').trim()
   return readTyped(root, input, { artifactId: `role:${segment}`, kind: 'role_card' })
 }
 
 /** Latest foundation documents in one read, for brief/context/export consumers. */
-export function readFoundationDocuments(root, work) {
+export function readFoundationDocuments(root: any, work: any) {
   const db = openWork(root, String(work))
   try {
-    const read = (artifactId) => {
+    const read = (artifactId: any) => {
       const row = db.prepare('SELECT content_type, content, revision_id, created_at FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
         .get(artifactId)
       if (row === undefined) return undefined
-      const content = row.content_type === 'json' ? JSON.parse(row.content) : row.content
+      const content = row.content_type === 'json' ? JSON.parse(String(row.content)) : String(row.content)
       return { content, version: row.revision_id, createdAt: row.created_at }
     }
     return {
@@ -274,7 +274,7 @@ export function readFoundationDocuments(root, work) {
 }
 
 /** Latest role cards of one work, ascending by artifact id. */
-export function listRoleCards(root, work) {
+export function listRoleCards(root: any, work: any) {
   const db = openWork(root, String(work))
   try {
     const rows = db.prepare(`SELECT a.artifact_id, a.content_type, a.content, a.revision_id FROM artifacts a
@@ -284,7 +284,7 @@ export function listRoleCards(root, work) {
     return rows.map(row => ({
       artifactId: row.artifact_id,
       revisionId: row.revision_id,
-      content: row.content_type === 'json' ? JSON.parse(row.content) : row.content,
+      content: row.content_type === 'json' ? JSON.parse(String(row.content)) : String(row.content),
     }))
   } finally {
     db.close()
@@ -292,7 +292,7 @@ export function listRoleCards(root, work) {
 }
 
 /** One form artifact write: `<prefix>:<id>` with content-hash revision. */
-function writeFormArtifact(root, input, prefix, kind) {
+function writeFormArtifact(root: any, input: any, prefix: any, kind: any) {
   return writeTyped(root, {
     work: input.work,
     artifactId: `${prefix}:${String(input.id ?? '').trim()}`,
@@ -304,32 +304,32 @@ function writeFormArtifact(root, input, prefix, kind) {
 }
 
 /** One form artifact read by `<prefix>:<id>`. */
-function readFormArtifact(root, input, prefix, kind) {
+function readFormArtifact(root: any, input: any, prefix: any, kind: any) {
   return readTyped(root, input, { artifactId: `${prefix}:${String(input.id ?? '').trim()}`, kind })
 }
 
 /** Write one short story as `short:<id>`; it never maps to a chapter row. */
-export function writeShortStory(root, input) {
+export function writeShortStory(root: any, input: any) {
   return writeFormArtifact(root, input, 'short', 'short_story')
 }
 
 /** Read one short story, latest or an explicit revision. */
-export function readShortStory(root, input) {
+export function readShortStory(root: any, input: any) {
   return readFormArtifact(root, input, 'short', 'short_story')
 }
 
 /** Write one script as `script:<id>`; it never maps to a chapter row. */
-export function writeScript(root, input) {
+export function writeScript(root: any, input: any) {
   return writeFormArtifact(root, input, 'script', 'script')
 }
 
 /** Read one script, latest or an explicit revision. */
-export function readScript(root, input) {
+export function readScript(root: any, input: any) {
   return readFormArtifact(root, input, 'script', 'script')
 }
 
 /** Render a structured ChapterMemo as the text view old consumers expect. */
-export function renderChapterMemo(memo) {
+export function renderChapterMemo(memo: any) {
   if (memo === null || typeof memo !== 'object'
     || typeof memo.goal !== 'string' || memo.goal === ''
     || typeof memo.body !== 'string' || memo.body === '') {
@@ -351,7 +351,7 @@ export function renderChapterMemo(memo) {
  * an idempotent no-op; a different content writes a new revision and clears
  * the author's earlier confirmation.
  */
-export function writeChapterMemoOnDb(db, input) {
+export function writeChapterMemoOnDb(db: any, input: any) {
   const chapter = chapterNumber(input.chapter)
   const content = input.content
   const entry = db.prepare('SELECT stage FROM chapters WHERE number = ?').get(chapter)
@@ -381,7 +381,7 @@ export function writeChapterMemoOnDb(db, input) {
 }
 
 /** Write one chapter memo as `plan:<n>`, scoped to that chapter. */
-export function writeChapterMemo(root, input) {
+export function writeChapterMemo(root: any, input: any) {
   const workId = String(input.work)
   const db = openWork(root, workId)
   try {
@@ -395,7 +395,7 @@ export function writeChapterMemo(root, input) {
  * Move/delete chapter-scoped artifacts after a chapter renumber.
  * Only the latest revision survives; affected approvals are cleared.
  */
-export function remapChapterArtifacts(db, input) {
+export function remapChapterArtifacts(db: any, input: any) {
   const mapping = input.mapping
   const deleted = new Set(input.deleted ?? [])
   const affected = new Set([
@@ -409,7 +409,7 @@ export function remapChapterArtifacts(db, input) {
   const latest = new Map()
   for (const row of rows) latest.set(row.artifact_id, row)
   const order = { plan: 0, summary: 1, review: 2 }
-  const ordered = [...latest.values()].sort((left, right) => (order[left.kind] ?? 9) - (order[right.kind] ?? 9))
+  const ordered = [...latest.values()].sort((left, right) => ((order as Record<string, number>)[left.kind] ?? 9) - ((order as Record<string, number>)[right.kind] ?? 9))
   const deletions = new Set()
   const inserts = []
   const planRevisions = new Map()
@@ -530,7 +530,7 @@ export function remapChapterArtifacts(db, input) {
 }
 
 /** Read one chapter memo, latest or an explicit revision. */
-export function readChapterMemo(root, input) {
+export function readChapterMemo(root: any, input: any) {
   const chapter = chapterNumber(input.chapter)
   let result
   try {
@@ -538,15 +538,15 @@ export function readChapterMemo(root, input) {
     validateChapterMemo(result.artifact.content)
   } catch (error) {
     if (error instanceof SyntaxError) throw new StoryError('artifact-invalid', `plan:${chapter} 的 memo JSON 无法解析`)
-    if (error?.code === 'artifact-invalid') throw error
-    if (error?.code === undefined) throw new StoryError('artifact-invalid', `plan:${chapter} 的 memo 内容不符合 ChapterMemo 合同`)
+    if ((error as any)?.code === 'artifact-invalid') throw error
+    if ((error as any)?.code === undefined) throw new StoryError('artifact-invalid', `plan:${chapter} 的 memo 内容不符合 ChapterMemo 合同`)
     throw error
   }
   return result
 }
 
 /** Write one structured chapter summary as `summary:<n>`. */
-export function writeChapterSummary(root, input) {
+export function writeChapterSummary(root: any, input: any) {
   const chapter = chapterNumber(input.chapter)
   return writeTyped(root, {
     work: input.work,
@@ -560,7 +560,7 @@ export function writeChapterSummary(root, input) {
 }
 
 /** Read one structured chapter summary, latest or an explicit revision. */
-export function readChapterSummary(root, input) {
+export function readChapterSummary(root: any, input: any) {
   const chapter = chapterNumber(input.chapter)
   return readTyped(root, input, { artifactId: `summary:${chapter}`, kind: 'summary' })
 }
@@ -569,7 +569,7 @@ export function readChapterSummary(root, input) {
 const SUMMARY_FIELD_LIMIT = 120
 
 /** Clip one string to a code-point limit. */
-function clipPoints(text, limit) {
+function clipPoints(text: any, limit: any) {
   const points = [...String(text ?? '')]
   return points.length > limit ? points.slice(0, limit).join('') : String(text ?? '')
 }
@@ -582,9 +582,9 @@ function clipPoints(text, limit) {
  * @param {number} bodyRevision - body revision the summary describes.
  * @returns {object} contract-valid ChapterSummary.
  */
-export function normalizeChapterSummary(input, chapter, bodyRevision) {
+export function normalizeChapterSummary(input: any, chapter: any, bodyRevision: any) {
   const content = { chapter, bodyRevision, rawText: clipPoints(input?.rawText ?? '', SUMMARY_MAX_CHARS).trim() }
-  for (const field of SUMMARY_FIELDS) content[field] = clipPoints(input?.[field] ?? '', SUMMARY_FIELD_LIMIT).trim()
+  for (const field of SUMMARY_FIELDS) (content as Record<string, any>)[field] = clipPoints(input?.[field] ?? '', SUMMARY_FIELD_LIMIT).trim()
   return validateChapterSummary(content)
 }
 
@@ -595,7 +595,7 @@ export function normalizeChapterSummary(input, chapter, bodyRevision) {
  * @param {{work: string, chapter: number, bodyRevision: number, content: object, provenance?: string, createdAt?: string}} input - write input.
  * @returns {{artifactId: string, revisionId: string, content: object, created: boolean}} written artifact.
  */
-export function writeChapterSummaryOnDb(db, input) {
+export function writeChapterSummaryOnDb(db: any, input: any) {
   const chapter = chapterNumber(input.chapter)
   const content = normalizeChapterSummary(input.content, chapter, input.bodyRevision)
   const artifactId = `summary:${chapter}`
@@ -615,7 +615,7 @@ export function writeChapterSummaryOnDb(db, input) {
   return { artifactId, revisionId, content, created: true }
 }
 
-function positiveInteger(value, label) {
+function positiveInteger(value: any, label: any) {
   const number = Number(value)
   if (!Number.isInteger(number) || number < 1) {
     throw new StoryError('artifact-invalid', `${label} 必须是正整数`)
@@ -623,12 +623,12 @@ function positiveInteger(value, label) {
   return number
 }
 
-function compactText(value) {
+function compactText(value: any) {
   return String(value ?? '').replace(/\s+/gu, '')
 }
 
 /** Refuse an observation whose quote is not in the reviewed body or plan. */
-function verifyObservationSources(root, work, chapter, bodyRevision, observations, handle) {
+function verifyObservationSources(root: any, work: any, chapter: any, bodyRevision: any, observations: any, handle?: any) {
   if (!Array.isArray(observations)) return
   const db = handle ?? openWork(root, String(work))
   try {
@@ -678,7 +678,7 @@ function verifyObservationSources(root, work, chapter, bodyRevision, observation
  * @param {{work: string, artifactId: string, kind: string, content: string, provenance?: string, createdAt?: string}} input - write input.
  * @returns {{artifactId: string, kind: string, revisionId: string, content: string, created: boolean}} written artifact.
  */
-export function writeTextArtifactOnDb(db, input) {
+export function writeTextArtifactOnDb(db: any, input: any) {
   const content = String(input.content ?? '')
   const revisionId = artifactRevision(content)
   const latest = db.prepare('SELECT revision_id FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
@@ -712,7 +712,7 @@ export function writeTextArtifactOnDb(db, input) {
  * @param {{work: string, artifactId: string, kind: string, revisionId?: string}} input - read input.
  * @returns {{artifact: object}} artifact payload.
  */
-export function readTextArtifact(root, input) {
+export function readTextArtifact(root: any, input: any) {
   return readTyped(root, input, { artifactId: input.artifactId, kind: input.kind })
 }
 
@@ -722,7 +722,7 @@ export function readTextArtifact(root, input) {
  * @param {string} artifactId - artifact identity.
  * @returns {{content: string, version: string, updated_at: string}|undefined} entry.
  */
-export function readTextArtifactOnDb(db, artifactId) {
+export function readTextArtifactOnDb(db: any, artifactId: any) {
   const row = db.prepare('SELECT content, revision_id, created_at FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
     .get(artifactId)
   return row === undefined
@@ -734,7 +734,7 @@ export function readTextArtifactOnDb(db, artifactId) {
  * Write one review round's observations as `review:<n>:r<bodyRev>:<round>`.
  * Each observation is validated, including its source refs.
  */
-export function writeChapterObservations(root, input) {
+export function writeChapterObservations(root: any, input: any) {
   const chapter = chapterNumber(input.chapter)
   const bodyRevision = positiveInteger(input.bodyRevision, 'bodyRevision')
   const round = positiveInteger(input.round, 'round')
@@ -751,7 +751,7 @@ export function writeChapterObservations(root, input) {
 }
 
 /** Write one review round on a caller-owned handle and transaction. */
-export function writeChapterObservationsOnDb(db, root, input) {
+export function writeChapterObservationsOnDb(db: any, root: any, input: any) {
   const chapter = chapterNumber(input.chapter)
   const bodyRevision = positiveInteger(input.bodyRevision, 'bodyRevision')
   const round = positiveInteger(input.round, 'round')
@@ -772,7 +772,7 @@ export function writeChapterObservationsOnDb(db, root, input) {
 }
 
 /** Read one review round's observations by chapter, body revision and round. */
-export function readChapterObservations(root, input) {
+export function readChapterObservations(root: any, input: any) {
   const chapter = chapterNumber(input.chapter)
   const bodyRevision = positiveInteger(input.bodyRevision, 'bodyRevision')
   const round = positiveInteger(input.round, 'round')
@@ -789,7 +789,7 @@ export function readChapterObservations(root, input) {
  * list the review artifacts of this chapter (their contents arrive with the
  * observation contract).
  */
-export function readChapterMeta(root, input) {
+export function readChapterMeta(root: any, input: any) {
   const workId = String(input.work)
   const number = chapterNumber(input.chapter)
   const db = openWork(root, workId)

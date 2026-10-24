@@ -14,8 +14,8 @@ import {
   FORM_META, StoryError, chapterNumber, formOf, latestReview, readFoundationState,
   readManifest, readPlan, readSummaryState, reviseChapter, stageOf, summaryAdmissible, unitOf, writeChapter, writeFoundationStage,
   writeReview, writeSummary, writePlan,
-} from './storage.js'
-import { readFoundationDocuments } from './artifact-store.js'
+} from './dist/storage.js'
+import { readFoundationDocuments } from './dist/artifact-store.js'
 import { loadRoleInput } from './role-input.js'
 import { checkDraft } from './landing.js'
 import { closeSubmission, consumeSubmission, openSubmission } from './submission.js'

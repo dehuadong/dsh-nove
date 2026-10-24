@@ -12,7 +12,7 @@ import { parseCharacters } from './bible.js'
 import { chapterNumber } from './dist/domain.js'
 import {
   listBodies, listSummaries, readBibleEntry, readBibleMap, readFoldedState, readManifest, readPlan, readVolumes,
-} from './store-db.js'
+} from './dist/store-db.js'
 
 /** Chinese digit values used to normalise numerals before comparison. */
 const DIGITS = { 零: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 }

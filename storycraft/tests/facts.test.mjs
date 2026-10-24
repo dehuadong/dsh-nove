@@ -2,10 +2,10 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import * as s from '../storage.js'
+import * as s from '../dist/storage.js'
 import * as b from '../bible.js'
 import { deriveWhitelist, summariseWhitelist } from '../facts.js'
-import { writeVolume } from '../volumes.js'
+import { writeVolume } from '../dist/volumes.js'
 
 let failures = 0
 function check(name, condition, detail) {

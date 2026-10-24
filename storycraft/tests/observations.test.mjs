@@ -3,14 +3,14 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { initWork } from '../storage.js'
+import { initWork } from '../dist/storage.js'
 import {
   approveChapterPlan, writeBible, writeChapter, writePlan, writeReview,
-} from '../store-db.js'
+} from '../dist/store-db.js'
 import { openWork } from '../dist/db.js'
 import {
   readChapterMeta, readChapterObservations, writeChapterObservations,
-} from '../artifact-store.js'
+} from '../dist/artifact-store.js'
 import { loadRoleInput } from '../role-input.js'
 
 let failures = 0

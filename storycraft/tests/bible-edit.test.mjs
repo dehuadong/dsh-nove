@@ -2,7 +2,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import * as s from '../storage.js'
+import * as s from '../dist/storage.js'
 import { assertEditableBible, EDITABLE_BIBLE_FILES, readBible, writeBible } from '../bible.js'
 
 let failures = 0

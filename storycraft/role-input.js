@@ -8,7 +8,7 @@
  */
 
 import { StoryError, chapterNumber } from './dist/domain.js'
-import { latestReview, readChapter, readManifest } from './storage.js'
+import { latestReview, readChapter, readManifest } from './dist/storage.js'
 import { assembleRoleContext } from './context.js'
 
 /**

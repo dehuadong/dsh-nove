@@ -3,7 +3,7 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import * as s from '../storage.js'
+import * as s from '../dist/storage.js'
 import * as b from '../bible.js'
 import { mintHookId } from '../dist/state-projection.js'
 import { checkDraft } from '../landing.js'

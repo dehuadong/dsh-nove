@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { closeSubmission, consumeSubmission, openSubmission, submitPayload } from '../submission.js'
 import { SUBMIT_OUTPUT } from '../tools.js'
-import * as s from '../storage.js'
+import * as s from '../dist/storage.js'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0

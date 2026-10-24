@@ -29,7 +29,7 @@ export const QUERY_INSTRUCTION_LIMIT = 600
  * @param {string} text - input.
  * @returns {number} code point count.
  */
-export function codePointLength(text) {
+export function codePointLength(text: any) {
   return [...String(text ?? '')].length
 }
 
@@ -42,11 +42,11 @@ export function codePointLength(text) {
  * @param {string} [input.instruction] - author instruction.
  * @returns {string} query text, empty when there is nothing to search.
  */
-export function buildQuery(input) {
+export function buildQuery(input: any) {
   const parts = [
     String(input.taskText ?? '').trim(),
     String(input.chapterPlan ?? '').trim(),
-    ...(Array.isArray(input.openHooks) ? input.openHooks.map(hook => String(hook?.text ?? '').trim()) : []),
+    ...(Array.isArray(input.openHooks) ? input.openHooks.map((hook: any) => String(hook?.text ?? '').trim()) : []),
     [...String(input.instruction ?? '').trim()].slice(0, QUERY_INSTRUCTION_LIMIT).join(''),
   ]
   return parts.filter(part => part !== '').join('\n')
@@ -59,14 +59,14 @@ export function buildQuery(input) {
  * @param {number} [max] - maximum excerpt length in code points.
  * @returns {string} excerpt.
  */
-export function snippetFor(text, tokens, max = 400) {
+export function snippetFor(text: any, tokens: any, max: any = 400) {
   const limit = Number.isInteger(max) && max > 0 ? max : 400
   const source = String(text ?? '').replace(/\s+/gu, ' ').trim()
   if (source === '') return ''
-  const all = [...new Set((tokens ?? []).map(token => String(token ?? '').toLowerCase()).filter(token => token !== ''))]
+  const all: string[] = [...new Set<string>((tokens ?? []).map((token: any) => String(token ?? '').toLowerCase()).filter((token: any) => token !== ''))]
   const strong = all.filter(token => [...token].length >= 2)
   const anchors = (strong.length > 0 ? strong : all)
-    .sort((left, right) => right.length - left.length || left.localeCompare(right))
+    .sort((left: any, right: any) => right.length - left.length || left.localeCompare(right))
     .slice(0, 32)
   const lower = source.toLowerCase()
   let anchor = -1
@@ -92,7 +92,7 @@ export function snippetFor(text, tokens, max = 400) {
  * @param {number} [options.perKindLimit] - maximum sent items per kind.
  * @returns {{text: string, hits: object[], chars: number}} selected section.
  */
-export function select(candidates, options = {}) {
+export function select(candidates: any, options: any = {}) {
   const exclude = new Set(options.excludeIds ?? [])
   const limit = Math.min(Number.isInteger(options.limit) && options.limit > 0 ? options.limit : RETRIEVAL_LIMIT, RETRIEVAL_LIMIT)
   const budget = Number.isInteger(options.budget) && options.budget > 0 ? options.budget : RETRIEVAL_BUDGET
@@ -129,7 +129,7 @@ export function select(candidates, options = {}) {
   for (const candidate of sent) {
     if (!hitCandidates.some(item => item.id === candidate.id)) hitCandidates.push(candidate)
   }
-  hitCandidates.sort((left, right) => rank.get(left.id) - rank.get(right.id))
+  hitCandidates.sort((left, right) => rank.get(left.id)! - rank.get(right.id)!)
   const hits = hitCandidates.slice(0, RETRIEVAL_HITS_LIMIT).map(candidate => ({
     id: candidate.id,
     kind: candidate.kind,

@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { delegateRole } from '../delegate.js'
 import { checkWordRange } from '../landing.js'
 import { submitPayload } from '../submission.js'
-import * as s from '../storage.js'
+import * as s from '../dist/storage.js'
 import { writeBible } from '../bible.js'
 import { reviewFixture } from './review-fixture.mjs'
 

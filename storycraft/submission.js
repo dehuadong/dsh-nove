@@ -14,7 +14,7 @@ import {
   validateBookRules, validateRoleCard, validateRolesIndex, validateStoryFrame, validateVolumeMap,
 } from './dist/artifact-contract.js'
 import { checkWordRange } from './landing.js'
-import { readChapter } from './storage.js'
+import { readChapter } from './dist/storage.js'
 
 /** Entries live long enough for a slow child, never beyond the host run. */
 const SUBMISSION_TTL_MS = 10 * 60 * 1000

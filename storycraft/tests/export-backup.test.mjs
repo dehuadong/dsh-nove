@@ -5,7 +5,7 @@ import { crc32, inflateRawSync } from 'node:zlib'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { openDatabase } from '../dist/db.js'
-import * as store from '../store-db.js'
+import * as store from '../dist/store-db.js'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0

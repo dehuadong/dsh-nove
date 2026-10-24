@@ -2,9 +2,9 @@
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import * as s from '../storage.js'
+import * as s from '../dist/storage.js'
 import * as b from '../bible.js'
-import { readTextArtifact } from '../artifact-store.js'
+import { readTextArtifact } from '../dist/artifact-store.js'
 import { openWork } from '../dist/db.js'
 
 let failures = 0

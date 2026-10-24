@@ -2,10 +2,10 @@
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import * as s from '../storage.js'
+import * as s from '../dist/storage.js'
 import * as b from '../bible.js'
 import { assembleRoleContext } from '../context.js'
-import { putArtifact, writeFoundationDocument, writeRoleCard } from '../artifact-store.js'
+import { putArtifact, writeFoundationDocument, writeRoleCard } from '../dist/artifact-store.js'
 import { contentVersion } from '../dist/domain.js'
 
 let failures = 0

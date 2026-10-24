@@ -24,13 +24,13 @@ import {
   readSummaryState,
   reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter, setSessionCurrent,
   status as readStatus, updateSettings, workIdOf, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
-} from './storage.js'
-import { readChapterMemo, readChapterSummary, readTextArtifact } from './artifact-store.js'
+} from './dist/storage.js'
+import { readChapterMemo, readChapterSummary, readTextArtifact } from './dist/artifact-store.js'
 import {
   assembleBrief as assembleBriefFor, readBible as readBibleEntries,
   writeBible as writeBibleEntry, writeSummary as writeSummaryEntry,
 } from './bible.js'
-import { readVolumes, writeVolume } from './volumes.js'
+import { readVolumes, writeVolume } from './dist/volumes.js'
 import { critique } from './dist/critique.js'
 import { loadRoleInput } from './role-input.js'
 import { delegateRole } from './delegate.js'

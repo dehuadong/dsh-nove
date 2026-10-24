@@ -7,7 +7,7 @@
  * projection and never translated.
  */
 
-import { readEvents, appendStateEvent } from './store-db.js'
+import { readEvents, appendStateEvent } from './dist/store-db.js'
 import { applyFactOp, applyHookOp } from './dist/state-projection.js'
 
 export {

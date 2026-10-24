@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { settleChapterState } from '../state-settle.js'
 import { submitPayload } from '../submission.js'
-import * as s from '../storage.js'
+import * as s from '../dist/storage.js'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0

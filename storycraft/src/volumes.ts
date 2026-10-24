@@ -6,7 +6,7 @@
  * in the same transaction as the write.
  */
 
-import { chapterNumber } from './dist/domain.js'
+import { chapterNumber } from './domain.js'
 import { readManifest, readVolumes as readVolumeRows, writeVolume as writeVolumeRow } from './store-db.js'
 
 /**
@@ -15,7 +15,7 @@ import { readManifest, readVolumes as readVolumeRows, writeVolume as writeVolume
  * @param {string} workId - work identity.
  * @returns {Promise<Array<object>>} volumes, ascending by `from`.
  */
-export async function readVolumes(root, workId) {
+export async function readVolumes(root: any, workId: any) {
   const manifest = readManifest(root, workId)
   return readVolumeRows(root, manifest.workId)
 }
@@ -26,13 +26,13 @@ export async function readVolumes(root, workId) {
  * @param {{work: string, id?: string, title: string, from: number|string, to: number|string, summary?: string}} input - volume input.
  * @returns {Promise<{volumes: object[], volume: object}>} the whole set and the written volume.
  */
-export async function writeVolume(root, input) {
+export async function writeVolume(root: any, input: any) {
   const manifest = readManifest(root, input.work)
   const volumes = readVolumeRows(root, manifest.workId)
   const id = typeof input.id === 'string' && input.id.trim() !== ''
     ? input.id.trim()
     : `v${volumes.length + 1}`
-  const candidate = {
+  const candidate: any = {
     id,
     title: String(input.title ?? '').trim(),
     from: Number(chapterNumber(input.from)),
@@ -48,6 +48,6 @@ export async function writeVolume(root, input) {
  * @param {number} chapter - chapter number.
  * @returns {object|undefined} the owning volume.
  */
-export function volumeOf(volumes, chapter) {
-  return volumes.find(volume => chapter >= volume.from && chapter <= volume.to)
+export function volumeOf(volumes: any, chapter: any) {
+  return volumes.find((volume: any) => chapter >= volume.from && chapter <= volume.to)
 }

@@ -4,10 +4,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { delegateRole } from '../delegate.js'
 import { submitPayload } from '../submission.js'
-import * as s from '../storage.js'
+import * as s from '../dist/storage.js'
 import * as b from '../bible.js'
 import { assembleRoleContext } from '../context.js'
-import { readFoundationDocuments, readTextArtifact } from '../artifact-store.js'
+import { readFoundationDocuments, readTextArtifact } from '../dist/artifact-store.js'
 
 let failures = 0
 function check(name, condition, detail) {

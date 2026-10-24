@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { checkChapterState } from '../state-check.js'
 import { submitPayload } from '../submission.js'
 import { openWork } from '../dist/db.js'
-import * as s from '../storage.js'
+import * as s from '../dist/storage.js'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0

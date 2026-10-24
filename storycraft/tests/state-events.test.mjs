@@ -4,9 +4,9 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { appendFactOp, appendHookOp, applyFactOp, applyHookOp, projectFacts, projectHooks } from '../state-events.js'
-import { initWork, readFoldedState } from '../storage.js'
+import { initWork, readFoldedState } from '../dist/storage.js'
 import { openWork } from '../dist/db.js'
-import { readEvents, writePlan } from '../store-db.js'
+import { readEvents, writePlan } from '../dist/store-db.js'
 
 let failures = 0
 function check(name, condition, detail) {

@@ -8,14 +8,14 @@
  */
 
 import { StoryError, chapterNumber, chapterStem, contentVersion } from './dist/domain.js'
-import { buildQuery, select } from './retrieval.js'
+import { buildQuery, select } from './dist/retrieval.js'
 import { mergeBlock, styleBlock, styleProfile } from './dist/style.js'
 import {
   listBodies, listSummaries, listSummaryStates, readBibleEntries, readBibleEntry, readBibleMap, readChapter as readChapterRow, readFoldedState,
   readManifest, readPlan, readSummary as readSummaryRow, readSummaryState, readVolumes, searchMemory, virtualPath,
   writeBible as writeBibleRow, writeSummary as writeSummaryRow,
-} from './store-db.js'
-import { readFoundationDocuments, renderFoundationContent } from './artifact-store.js'
+} from './dist/store-db.js'
+import { readFoundationDocuments, renderFoundationContent } from './dist/artifact-store.js'
 
 /** Every truth file, with how its content is validated. */
 export const BIBLE_FILES = {

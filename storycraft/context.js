@@ -11,15 +11,15 @@
  */
 
 import { deriveWhitelist, readCards, summariseWhitelist } from './facts.js'
-import { readFoundationDocuments, renderFoundationContent } from './artifact-store.js'
+import { readFoundationDocuments, renderFoundationContent } from './dist/artifact-store.js'
 import {
   StoryError, chapterNumber, chapterStem, formOf, planApprovalPolicy, unitOf,
 } from './dist/domain.js'
 import {
   readBibleMap, readChapter as readChapterRow, readFoldedState, readManifest, readPlan,
   readVolumes, readSummaryState, searchMemory, virtualPath,
-} from './store-db.js'
-import { buildQuery, select } from './retrieval.js'
+} from './dist/store-db.js'
+import { buildQuery, select } from './dist/retrieval.js'
 
 /** Default budget for one role context, in characters. */
 export const DEFAULT_CONTEXT_BUDGET = 8000
