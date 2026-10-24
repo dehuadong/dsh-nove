@@ -1637,8 +1637,9 @@ function rawDefinitions(ctx) {
           }
         }
         if (kind === 'outline') {
-          content = readBibleEntry(root, workId, 'plan')?.content ?? ''
-          ref = { ...ref, artifactId: 'outline', revisionId: contentRevision(content), kind: 'outline' }
+          const entry = readBibleEntry(root, workId, 'plan')
+          content = entry?.content ?? ''
+          ref = { ...ref, artifactId: 'outline', revisionId: entry?.version ?? 'current', kind: 'outline' }
         } else if (kind === 'plan') {
           let memo
           try {
@@ -1686,8 +1687,14 @@ function rawDefinitions(ctx) {
           ref = { ...ref, artifactId: `summary:${chapterNumber}`, revisionId: summary.artifact.revisionId, kind: 'summary' }
         } else if (kind === 'bible') {
           const file = parts.join(':')
-          content = readBibleEntry(root, workId, file)?.content ?? ''
-          ref = { ...ref, artifactId: `bible:${file}`, revisionId: contentRevision(content), kind: 'bible' }
+          const entry = readBibleEntry(root, workId, file)
+          content = entry?.content ?? ''
+          ref = {
+            ...ref,
+            artifactId: file === 'plan' ? 'outline' : `bible:${file}`,
+            revisionId: entry?.version ?? 'current',
+            kind: file === 'plan' ? 'outline' : file,
+          }
         } else if (kind === 'state') {
           content = readEventsText(root, workId)
           const events = readEvents(root, workId)

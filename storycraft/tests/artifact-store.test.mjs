@@ -64,7 +64,9 @@ try {
   const plans = listArtifacts(root, { work, kind: 'plan' })
   check('list by kind', plans.artifacts.length === 1 && plans.artifacts[0].artifactId === 'plan:1', JSON.stringify(plans))
   const all = listArtifacts(root, { work })
-  check('list latest of each artifact', all.artifacts.length === 2, JSON.stringify(all))
+  check('list latest of each artifact', all.artifacts.length === 6
+    && ['outline', 'bible:world', 'bible:style', 'bible:intent'].every(id => all.artifacts.some(item => item.artifactId === id))
+    && all.artifacts.some(item => item.artifactId === 'plan:1') && all.artifacts.some(item => item.artifactId === 'bible:story_frame'), JSON.stringify(all))
 
   rejects('missing revision is revision-not-found', 'revision-not-found',
     () => readArtifact(root, { work, artifactId: 'plan:1', revisionId: 'missing' }))

@@ -13,7 +13,7 @@ import { StoryError, chapterNumber, chapterStem, contentVersion } from './domain
 import { buildQuery, select } from './retrieval.js'
 import { mergeBlock, styleBlock, styleProfile } from './style.js'
 import {
-  listBodies, listSummaries, listSummaryStates, readBibleEntry, readBibleMap, readChapter as readChapterRow, readFoldedState,
+  listBodies, listSummaries, listSummaryStates, readBibleEntries, readBibleEntry, readBibleMap, readChapter as readChapterRow, readFoldedState,
   readManifest, readPlan, readSummary as readSummaryRow, readSummaryState, readVolumes, searchMemory, virtualPath,
   writeBible as writeBibleRow, writeSummary as writeSummaryRow,
 } from './store-db.js'
@@ -128,21 +128,21 @@ export async function readBible(root, workId, only) {
   if (names.some(name => BIBLE_FILES[name] === undefined)) {
     throw new StoryError('bible-invalid', `未知的真值文件：${String(only)}`)
   }
-  const rows = readBibleMap(root, manifest.workId)
+  const rows = new Map(readBibleEntries(root, manifest.workId).map(row => [row.name, row]))
   const files = []
   const missing = []
   for (const name of names) {
-    const content = rows.get(name)
-    if (content === undefined) {
+    const row = rows.get(name)
+    if (row === undefined) {
       missing.push(name)
       continue
     }
     files.push({
       name,
       path: biblePath(manifest.workId, name),
-      version: contentVersion(content),
-      content,
-      draft: isDraft(content),
+      version: row.version,
+      content: row.content,
+      draft: isDraft(row.content),
     })
   }
   if (missing.length > 0 && only !== undefined) {
@@ -164,13 +164,13 @@ export async function writeBible(root, workId, name, content, options = {}) {
   if (typeof content !== 'string') throw new StoryError('bible-invalid', '真值内容必须是字符串')
   validateBibleContent(name, content)
   const manifest = readManifest(root, workId)
-  writeBibleRow(root, {
+  const receipt = writeBibleRow(root, {
     work: manifest.workId,
     name,
     content,
     ...(options.expectedVersion === undefined ? {} : { expectedVersion: options.expectedVersion }),
   })
-  return { name, path: biblePath(manifest.workId, name), version: contentVersion(content) }
+  return { name, path: biblePath(manifest.workId, name), version: receipt.version }
 }
 
 /**

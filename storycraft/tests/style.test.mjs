@@ -61,9 +61,7 @@ try {
   }
   await writeBible(root, work, 'style', author)
   const first = await extractStyleSamples(root, work)
-  const db = openWork(root, work)
-  const style = db.prepare("SELECT content, version FROM bible WHERE name = 'style'").get()
-  db.close()
+  const style = await (await import('../bible.js')).readBible(root, work, 'style').then(result => result.files[0])
   check('extract writes samples into style', first.sampleCount === 3 && first.sampleChars > 0
     && style.content.startsWith(author) && style.content.includes(STYLE_START), JSON.stringify(first))
   check('version is the content hash', style.version === first.version)
@@ -72,9 +70,7 @@ try {
   await s.writeChapter(root, { work, chapter: 1, body: `改后的正文。${'另一句。'.repeat(80)}`, rewrite: true })
   const changed = await extractStyleSamples(root, work)
   check('changed body changes the version', changed.version !== first.version, `${first.version} ${changed.version}`)
-  const changedDb = openWork(root, work)
-  const changedStyle = changedDb.prepare("SELECT content FROM bible WHERE name = 'style'").get().content
-  changedDb.close()
+  const changedStyle = (await (await import('../bible.js')).readBible(root, work, 'style')).files[0].content
   check('author text survives re-extraction', changedStyle.startsWith(author), changedStyle.slice(0, 60))
   check('old revision is not sampled after rewrite', !changedStyle.includes('第1章用于测试'), changedStyle.slice(0, 300))
   const brief = await assembleBrief(root, work, 3)
@@ -92,7 +88,7 @@ try {
   check('no bodies is style-no-source', noSource === 'style-no-source', String(noSource))
 
   const missing = openWork(root, work)
-  missing.prepare("DELETE FROM bible WHERE name = 'style'").run()
+  missing.prepare("DELETE FROM artifacts WHERE artifact_id = 'bible:style'").run()
   missing.close()
   let missingStyle
   try {

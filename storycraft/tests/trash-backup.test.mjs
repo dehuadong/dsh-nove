@@ -44,7 +44,7 @@ try {
   await s.restoreBackup(root, restore, saved.backupId)
   const restored = openWork(root, restore)
   try {
-    check('restore brings back the backup content', restored.prepare("SELECT content FROM bible WHERE name = 'world'").get().content === '# 旧世界\n')
+    check('restore brings back the backup content', restored.prepare("SELECT content FROM artifacts WHERE artifact_id = 'bible:world' ORDER BY rowid DESC LIMIT 1").get().content === '# 旧世界\n')
   } finally {
     restored.close()
   }
@@ -66,7 +66,7 @@ try {
   const legacyCurrent = openWork(root, legacy)
   try {
     check('refused backup leaves the current work intact',
-      legacyCurrent.prepare("SELECT content FROM bible WHERE name = 'world'").get().content === '# 当前世界\n')
+      legacyCurrent.prepare("SELECT content FROM artifacts WHERE artifact_id = 'bible:world' ORDER BY rowid DESC LIMIT 1").get().content === '# 当前世界\n')
   } finally {
     legacyCurrent.close()
   }
@@ -79,7 +79,7 @@ try {
   await s.restoreBackup(root, corrupt, corruptId)
   const recovered = openWork(root, corrupt)
   try {
-    check('corrupt current can be restored', recovered.prepare("SELECT content FROM bible WHERE name = 'world'").get().content === '# 损坏前\n')
+    check('corrupt current can be restored', recovered.prepare("SELECT content FROM artifacts WHERE artifact_id = 'bible:world' ORDER BY rowid DESC LIMIT 1").get().content === '# 损坏前\n')
   } finally {
     recovered.close()
   }

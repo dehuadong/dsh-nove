@@ -603,6 +603,56 @@ function verifyObservationSources(root, work, chapter, bodyRevision, observation
 }
 
 /**
+ * Write one Markdown truth artifact (`bible:world`/`bible:style`/`bible:intent`/
+ * `outline`) on a caller-owned handle and transaction. The same content is an
+ * idempotent no-op; content always ends with a newline before hashing.
+ * @param {object} db - open work database.
+ * @param {{work: string, artifactId: string, kind: string, content: string, provenance?: string, createdAt?: string}} input - write input.
+ * @returns {{artifactId: string, kind: string, revisionId: string, content: string, created: boolean}} written artifact.
+ */
+export function writeTextArtifactOnDb(db, input) {
+  const content = String(input.content ?? '')
+  const revisionId = artifactRevision(content)
+  const latest = db.prepare('SELECT revision_id FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
+    .get(input.artifactId)
+  if (latest?.revision_id === revisionId) {
+    return { artifactId: input.artifactId, kind: input.kind, revisionId, content, created: false }
+  }
+  // Reverting to an older text is a legitimate author action: move that exact
+  // content revision to the end so it becomes the current one again. The
+  // revisionId stays the content hash and history stays readable.
+  const older = db.prepare('SELECT created_at, provenance FROM artifacts WHERE artifact_id = ? AND revision_id = ?')
+    .get(input.artifactId, revisionId)
+  if (older !== undefined) {
+    db.prepare('DELETE FROM artifacts WHERE artifact_id = ? AND revision_id = ?').run(input.artifactId, revisionId)
+  }
+  putArtifactOnDb(db, {
+    workId: String(input.work),
+    artifactId: input.artifactId,
+    kind: input.kind,
+    revisionId,
+    content,
+    provenance: older?.provenance ?? input.provenance ?? 'generated',
+    createdAt: input.createdAt ?? now(),
+  })
+  return { artifactId: input.artifactId, kind: input.kind, revisionId, content, created: true }
+}
+
+/**
+ * Read the latest content of one truth artifact.
+ * @param {object} db - open work database.
+ * @param {string} artifactId - artifact identity.
+ * @returns {{content: string, version: string, updated_at: string}|undefined} entry.
+ */
+export function readTextArtifactOnDb(db, artifactId) {
+  const row = db.prepare('SELECT content, revision_id, created_at FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
+    .get(artifactId)
+  return row === undefined
+    ? undefined
+    : { content: row.content, version: row.revision_id, updated_at: row.created_at }
+}
+
+/**
  * Write one review round's observations as `review:<n>:r<bodyRev>:<round>`.
  * Each observation is validated, including its source refs.
  */

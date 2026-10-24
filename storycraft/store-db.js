@@ -32,7 +32,7 @@ import {
   formOf, now, parseReview, planApprovalPolicy, stageOf, summaryAdmissible, trimSummary, unitOf, workIdOf,
 } from './domain.js'
 import { assertRevisionMode } from './revision.js'
-import { remapChapterArtifacts, renderChapterMemo, writeChapterMemoOnDb, writeChapterSummaryOnDb } from './artifact-store.js'
+import { remapChapterArtifacts, renderChapterMemo, writeChapterMemoOnDb, writeChapterSummaryOnDb, writeTextArtifactOnDb, readTextArtifactOnDb } from './artifact-store.js'
 
 /** How long an unused proposal is kept before the next proposal write prunes it. */
 export const PROPOSAL_TTL_MS = 30 * 24 * 60 * 60 * 1000
@@ -366,8 +366,15 @@ export function initWork(root, input) {
       try {
         transaction(db, () => {
           for (const [name, content] of Object.entries(DEFAULT_BIBLE)) {
-            db.prepare('INSERT INTO bible (name, content, version, updated_at) VALUES (?, ?, ?, ?)')
-              .run(name, content, contentVersion(content), at)
+            if (name === 'characters') {
+              db.prepare('INSERT INTO bible (name, content, version, updated_at) VALUES (?, ?, ?, ?)')
+                .run(name, content, contentVersion(content), at)
+              continue
+            }
+            const truth = TRUTH_ARTIFACTS[name]
+            writeTextArtifactOnDb(db, {
+              work: workId, artifactId: truth.artifactId, kind: truth.kind, content, createdAt: at,
+            })
           }
         })
       } finally {
@@ -916,11 +923,14 @@ export function writeOutline(root, input) {
         String(input.volumes ?? '').trim() || '（暂未划分）', '', '## 结局方向',
         String(input.ending ?? '').trim() || '（暂未确定）', ''].join('\n')
       const at = now()
-      db.prepare(`INSERT INTO bible (name, content, version, updated_at) VALUES ('plan', ?, ?, ?)
-        ON CONFLICT(name) DO UPDATE SET content = excluded.content, version = excluded.version, updated_at = excluded.updated_at`)
-        .run(text, randomUUID(), at)
+      const written = writeTextArtifactOnDb(db, {
+        work: workId, artifactId: 'outline', kind: 'outline', content: text, createdAt: at,
+      })
+      if (written.created) {
+        syncSearchDoc(db, 'outline', 'outline', 'outline/plan', 0, written.content)
+      }
       db.prepare('UPDATE meta SET outline_written_at = ?, outline_approved_at = NULL, updated_at = ? WHERE id = 1').run(at, at)
-      return { workId, outline: { writtenAt: at } }
+      return { workId, outline: { writtenAt: at, revision: written.revisionId } }
     })
   } finally {
     db.close()
@@ -2027,8 +2037,26 @@ export function readVolumes(root, work) {
 // Truth files and chapter plans, read sides
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Truth files: characters stay in the bible table; the four editable text
+// entries are artifacts (world/style/intent) plus the approved book plan
+// (outline). They share one read/write surface here.
+// ---------------------------------------------------------------------------
+
+/** Artifact identity of every non-character truth entry. */
+const TRUTH_ARTIFACTS = {
+  world: { artifactId: 'bible:world', kind: 'world' },
+  style: { artifactId: 'bible:style', kind: 'style' },
+  intent: { artifactId: 'bible:intent', kind: 'intent' },
+  plan: { artifactId: 'outline', kind: 'outline' },
+}
+
+/** All truth names in the order the bible surface lists them. */
+const TRUTH_NAMES = ['characters', 'intent', 'plan', 'style', 'world']
+
 /**
- * Write one bible entry; character cards also feed the search projection.
+ * Write one truth entry. Characters keep the table (the six-field contract);
+ * world/style/intent write a text artifact; plan is owned by `writeOutline`.
  * @param {string} root - workspace directory.
  * @param {{work: string, name: string, content: string, expectedVersion?: string}} input - entry input.
  * @returns {{workId: string, name: string, version: string}} receipt.
@@ -2041,6 +2069,27 @@ export function writeBible(root, input) {
   const db = openWork(root, workId)
   try {
     return transaction(db, () => {
+      if (name === 'plan') throw new StoryError('approval-moved', '全书计划只能通过 story_outline 写入')
+      const truth = TRUTH_ARTIFACTS[name]
+      if (truth === undefined && name !== 'characters') {
+        throw new StoryError('bible-invalid', `未知的真值文件：${name}`)
+      }
+      if (truth !== undefined) {
+        if (input.expectedVersion !== undefined) {
+          const current = readTextArtifactOnDb(db, truth.artifactId)
+          if (current?.version !== input.expectedVersion) {
+            throw new StoryError('bible-conflict', '真值已被修改；请刷新后再保存')
+          }
+        }
+        const written = writeTextArtifactOnDb(db, {
+          work: workId, artifactId: truth.artifactId, kind: truth.kind, content,
+        })
+        if (written.created) {
+          syncSearchDoc(db, truth.artifactId, truth.kind, `bible/${name === 'plan' ? 'plan' : name}`, 0, written.content)
+        }
+        touchMeta(db)
+        return { workId, name, version: written.revisionId }
+      }
       if (input.expectedVersion !== undefined) {
         const current = db.prepare('SELECT version FROM bible WHERE name = ?').get(name)
         if (current?.version !== input.expectedVersion) {
@@ -2052,10 +2101,8 @@ export function writeBible(root, input) {
       db.prepare(`INSERT INTO bible (name, content, version, updated_at) VALUES (?, ?, ?, ?)
         ON CONFLICT(name) DO UPDATE SET content = excluded.content, version = excluded.version, updated_at = excluded.updated_at`)
         .run(name, content, version, at)
-      if (name === 'characters') {
-        dropSearchDoc(db, 'card:characters')
-        syncSearchDoc(db, 'card:characters', 'card', 'bible/characters', 0, content)
-      }
+      dropSearchDoc(db, 'card:characters')
+      syncSearchDoc(db, 'card:characters', 'card', 'bible/characters', 0, content)
       touchMeta(db, at)
       return { workId, name, version }
     })
@@ -2065,7 +2112,7 @@ export function writeBible(root, input) {
 }
 
 /**
- * Read one bible entry.
+ * Read one truth entry.
  * @param {string} root - workspace directory.
  * @param {string} work - work identity.
  * @param {string} name - entry name.
@@ -2074,17 +2121,31 @@ export function writeBible(root, input) {
 export function readBibleEntry(root, work, name) {
   const db = openWork(root, work)
   try {
-    return db.prepare('SELECT content, version, updated_at FROM bible WHERE name = ?').get(String(name))
+    const key = String(name)
+    const truth = TRUTH_ARTIFACTS[key]
+    if (truth !== undefined) return readTextArtifactOnDb(db, truth.artifactId)
+    return db.prepare('SELECT content, version, updated_at FROM bible WHERE name = ?').get(key)
   } finally {
     db.close()
   }
 }
 
-/** Read every bible entry of one work. */
+/**
+ * Read every truth entry of one work.
+ * Characters come from the bible table; the rest from artifacts.
+ */
 export function readBibleEntries(root, work) {
   const db = openWork(root, work)
   try {
-    return db.prepare('SELECT name, content, version, updated_at FROM bible ORDER BY name').all()
+    const entries = []
+    for (const name of TRUTH_NAMES) {
+      const truth = TRUTH_ARTIFACTS[name]
+      const entry = truth === undefined
+        ? db.prepare('SELECT content, version, updated_at FROM bible WHERE name = ?').get(name)
+        : readTextArtifactOnDb(db, truth.artifactId)
+      if (entry !== undefined) entries.push({ name, ...entry })
+    }
+    return entries
   } finally {
     db.close()
   }
@@ -2676,6 +2737,13 @@ export function searchMemory(root, work, query, options = {}) {
     const candidates = []
     for (const row of rows) {
       const chapter = row.chapter
+      if (['world', 'style', 'intent', 'outline'].includes(row.kind)) {
+        candidates.push({
+          id: row.id, kind: row.kind, source: row.source, sourceIds: [row.id], chapter: null,
+          text: row.body, score: -row.score,
+        })
+        continue
+      }
       if (beforeChapter !== undefined && (chapter === null || chapter >= beforeChapter)) continue
       if (row.kind === 'summary') {
         if (chapter === null) continue
@@ -2747,7 +2815,7 @@ export function searchMemory(root, work, query, options = {}) {
 }
 
 /** Document kinds exposed to role context retrieval. */
-const MEMORY_KINDS = ['summary', 'hook', 'volume', 'material']
+const MEMORY_KINDS = ['summary', 'hook', 'volume', 'material', 'world', 'style', 'intent', 'outline']
 
 /** Query tokens; shared by search and context retrieval. */
 function queryTokens(query) {
@@ -2927,9 +2995,13 @@ export function exportWork(root, work, destination) {
       for (const review of db.prepare('SELECT * FROM reviews ORDER BY number, round').all()) {
         put(join('reviews', `${chapterStem(review.number)}.r${review.round}.md`), review.text)
       }
-      for (const entry of db.prepare('SELECT * FROM bible ORDER BY name').all()) {
-        const name = entry.name === 'characters' ? 'characters.json' : `${entry.name}.md`
-        put(join('bible', name), entry.content)
+      const characters = db.prepare('SELECT content FROM bible WHERE name = ?').get('characters')
+      if (characters !== undefined) put(join('bible', 'characters.json'), characters.content)
+      for (const [name, truth] of Object.entries(TRUTH_ARTIFACTS)) {
+        const entry = readTextArtifactOnDb(db, truth.artifactId)
+        if (entry === undefined) continue
+        if (name === 'plan') put(join('outline', 'plan.md'), entry.content)
+        else put(join('bible', `${name}.md`), entry.content)
       }
       put('volumes.json', `${JSON.stringify(db.prepare('SELECT * FROM volumes ORDER BY from_ch').all(), null, 2)}\n`)
       put('state/events.jsonl', `${db.prepare('SELECT * FROM events ORDER BY seq').all()
