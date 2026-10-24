@@ -106,7 +106,7 @@ function applyFactEvent(facts, event) {
 
 /**
  * Fold new-contract hook/fact events into current projections.
- * Events without a v2 `op` are legacy and are ignored, never translated.
+ * Events without a v2 `op` are outside the contract and are ignored, never translated.
  * @param {object[]} events - event records, in any order.
  * @returns {{hooks: object[], facts: object[]}} projections.
  */

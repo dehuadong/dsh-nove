@@ -1,6 +1,6 @@
 /**
- * Pure search text helpers shared by the store, migrations and retrieval.
- * No I/O and no database dependency, so the migration can import it safely.
+ * Pure search text helpers shared by the store and retrieval.
+ * No I/O and no database dependency.
  */
 
 /**

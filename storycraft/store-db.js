@@ -507,7 +507,7 @@ export function listWorks(root) {
       try {
         db = openWork(root, row.work_id)
       } catch (error) {
-        // Keep a broken or unmigrated work visible so the panel can explain it,
+        // Keep a broken work visible so the panel can explain it,
         // instead of silently dropping it from the list.
         const code = error?.code ?? 'work-open-failed'
         works.push({
@@ -521,7 +521,7 @@ export function listWorks(root) {
           updatedAt: row.updated_at,
           degraded: true,
           schemaVersion: row.schema_version,
-          migrationError: {
+          openError: {
             code,
             message: error instanceof Error ? error.message : String(error),
             retryable: code === 'work-busy',

@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS session_current (
 );
 `
 
-/** v6 artifact registry: canonical artifacts with immutable revisions. */
+/** Current artifact registry: canonical artifacts with immutable revisions. */
 const ARTIFACT_SCHEMA = `
 CREATE TABLE IF NOT EXISTS artifacts (
   artifact_id TEXT NOT NULL,
@@ -359,19 +359,19 @@ export function openCatalog(root, options = {}) {
   return db
 }
 
-/** Columns the v6 shape needs; a v6 file without them predates the A0 schema. */
+/** Columns the current shape needs; a file without them predates the A0 schema. */
 const WORK_SCHEMA_REQUIRED_COLUMNS = Object.freeze({
   chapters: ['plan_revision', 'provenance'],
 })
 
-/** Reject a stale v6 file instead of letting a raw SQLite error surface later. */
+/** Reject a stale work file instead of letting a raw SQLite error surface later. */
 function assertWorkShape(db, workId) {
   for (const [table, required] of Object.entries(WORK_SCHEMA_REQUIRED_COLUMNS)) {
     const names = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map(row => row.name))
     const missing = required.filter(name => !names.has(name))
     if (missing.length > 0) {
       throw new StoryError('schema-version-mismatch',
-        `作品 ${workId} 的 v6 库缺少 A0 字段 ${missing.join('、')}：测试作品请删除重建，不做兼容迁移`)
+        `作品 ${workId} 的库缺少 A0 字段 ${missing.join('、')}：测试作品请删除重建，不做兼容迁移`)
     }
   }
 }

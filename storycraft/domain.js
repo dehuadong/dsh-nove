@@ -138,14 +138,12 @@ export function chapterNumber(value) {
 export const STAGES = ['planned', 'written', 'reviewed', 'revised', 'settled']
 
 /**
- * Read a chapter's stage, falling back to the legacy `status` field.
+ * Read a chapter's stage.
  * @param {object} entry - chapter entry.
  * @returns {string} one of {@link STAGES}.
  */
 export function stageOf(entry) {
-  if (entry !== null && typeof entry === 'object' && STAGES.includes(entry.stage)) return entry.stage
-  const legacy = entry?.status
-  return STAGES.includes(legacy) ? legacy : 'planned'
+  return entry !== null && typeof entry === 'object' && STAGES.includes(entry.stage) ? entry.stage : 'planned'
 }
 
 /**

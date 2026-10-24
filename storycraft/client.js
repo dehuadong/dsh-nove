@@ -626,11 +626,11 @@ window.__ModuleLoader__.load({
               h('span', { className: 'sc-project-title' }, work.title),
               h('span', { className: 'sc-work-meta' },
                 work.degraded === true
-                  ? `需升级/升级失败：${work.migrationError?.code ?? 'unknown'}`
+                  ? `作品库打开失败：${work.openError?.code ?? 'unknown'}`
                   : `已写 ${work.writtenChapters}/${work.chapters} 章 · 最新第 ${work.latestChapter} 章`),
               h('span', { className: 'sc-work-meta' },
                 work.degraded === true
-                  ? work.migrationError?.retryable === true ? '库忙，稍后重试' : '请备份后重试或联系维护者'
+                  ? work.openError?.retryable === true ? '库忙，稍后重试' : '请备份后重试或联系维护者'
                   : `未处理 ${work.openProblems} · 更新 ${String(work.updatedAt ?? '').replace('T', ' ').slice(0, 16)}`),
             )),
           ),
@@ -2084,7 +2084,7 @@ window.__ModuleLoader__.load({
                   groups.set(fact.subject, list)
                 }
                 if (groups.size === 0) return h('p', { className: 'sc-muted' }, detail.state.events > 0
-                  ? '已有事件记录，但没有 v2 状态投影；旧作品需要重新结算本章。'
+                  ? '已有事件记录，但没有 v2 状态投影；请重新结算本章。'
                   : '还没有定稿过人物事实。')
                 return [...groups].map(([subject, facts]) => h('div', { className: 'sc-item', key: subject },
                   h('div', { className: 'sc-item-head' }, h('span', { className: 'sc-item-name' }, subject)),

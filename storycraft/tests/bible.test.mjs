@@ -1,5 +1,5 @@
 // Truth files, summaries, and the pre-write brief.
-import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../storage.js'
@@ -209,21 +209,6 @@ try {
   await rejects('missing truth refuses a brief', 'bible-missing', () => b.assembleBrief(root, work, 1))
   await rejects('unknown chapter refused', 'chapter-not-found', () => b.assembleBrief(root, work, 9))
 
-  // Import from an older file work's design/ folder.
-  const older = await s.initWork(root, { title: '旧作' })
-  const olderDir = join(root, 'works', older.workId)
-  await mkdir(join(olderDir, 'design'), { recursive: true })
-  await writeFile(join(olderDir, 'design', 'world.md'), '# 世界观\n\n旧稿的世界。\n')
-  await writeFile(join(olderDir, 'design', 'outline.md'), '# 大纲\n\n第一章：开局。\n')
-  await writeFile(join(olderDir, 'design', 'cast.md'), '# 人物\n\n## 沈彻\n## 齐大山\n')
-  const report = await b.importBible(root, older.workId)
-  check('import copies world only', report.imported.length === 1 && report.imported[0].to === 'bible:world', JSON.stringify(report.imported))
-  check('import does not import outline', report.skipped.some(item => item.includes('outline-import-blocked')), JSON.stringify(report.skipped))
-  check('import extracts names', report.names.join(',') === '沈彻,齐大山', report.names.join(','))
-  check('import reports pending', report.pending.some(item => item.includes('characters')))
-  const imported = (await b.readBible(root, older.workId, 'world')).files[0].content
-  check('imported content landed', imported.includes('旧稿的世界'))
-  check('import never fabricates characters', (await b.readBible(root, older.workId, 'characters')).files[0].content.trim() === '[]')
 
   // Review round 1 additions.
   await rejects('world refuses pending markers', 'bible-invalid', () => b.writeBible(root, work, 'world', '# 世界观\n\n待定：主角身世\n'))
@@ -255,11 +240,6 @@ try {
   const fallback = await b.assembleBrief(root, work, 4)
   check('fallback section is marked', fallback.sections.find(section => section.name === 'characters').fallback === true)
 
-  // Import must not overwrite a truth entry that already holds content.
-  await b.writeBible(root, older.workId, 'world', '# 世界观\n\n作者已经改过的版本。\n')
-  const second = await b.importBible(root, older.workId)
-  check('import skips existing content', second.skipped.length === 2 && second.skipped.some(item => item.includes('bible:world')), JSON.stringify(second.skipped))
-  check('import keeps author content', (await b.readBible(root, older.workId, 'world')).files[0].content.includes('作者已经改过'))
 
   // Previous chapter falls back to the body tail when no summary exists.
   const noSummary = await b.assembleBrief(root, work, 3)

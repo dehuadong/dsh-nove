@@ -92,7 +92,7 @@ try {
   const degraded = store.listWorks(root).find(item => item.workId === '另一本')
   check('an unopenable work stays in the list as degraded',
     degraded?.degraded === true && degraded.chapters === null && degraded.writtenChapters === null
-    && degraded.migrationError?.code === 'schema-version-mismatch', JSON.stringify(degraded))
+    && degraded.openError?.code === 'schema-version-mismatch', JSON.stringify(degraded))
   check('the other work is unaffected', store.readManifest(root, '改名作品').title === '改名作品')
   const repaired = openDatabase(workFile(root, '另一本'))
   repaired.exec(`PRAGMA user_version = ${WORK_SCHEMA_VERSION}`)

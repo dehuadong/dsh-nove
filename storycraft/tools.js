@@ -27,7 +27,7 @@ import {
 } from './storage.js'
 import { readChapterMemo, readChapterSummary, readTextArtifact } from './artifact-store.js'
 import {
-  assembleBrief as assembleBriefFor, importBible as importFromDesign, readBible as readBibleEntries,
+  assembleBrief as assembleBriefFor, readBible as readBibleEntries,
   writeBible as writeBibleEntry, writeSummary as writeSummaryEntry,
 } from './bible.js'
 import { readVolumes, writeVolume } from './volumes.js'
@@ -1629,28 +1629,6 @@ function rawDefinitions(ctx) {
         }
         const written = await writeBibleEntry(root, args.work, args.file, args.content)
         return { ok: true, workId: args.work, artifact: { path: written.path }, version: written.version }
-      },
-    }),
-
-    action({
-      name: 'story_bible_import',
-      mutates: true,
-      description: '把旧文件作品里的世界观收编进真值，并列出仍需作者补的项；不导入 plan/outline，不返回路径。',
-      parameters: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          work: { type: 'string', description: '作品 id。' },
-        },
-        required: ['work'],
-      },
-      async execute(args, exec) {
-        const root = workspaceOf(exec)
-        const report = await importFromDesign(root, args.work)
-        return {
-          ok: true, workId: args.work, imported: report.imported, pending: report.pending,
-          names: report.names, skipped: report.skipped,
-        }
       },
     }),
 

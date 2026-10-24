@@ -3,8 +3,8 @@
  *
  * The pure contract (ops, transitions, projections, hook id minting) lives in
  * `state-projection.js`; this module adds the append wrappers that read and
- * write the work event log. Legacy text-hook/string-fact events are ignored by
- * the v2 projection and never translated.
+ * write the work event log. Events outside the v2 contract are ignored by the
+ * projection and never translated.
  */
 
 import { readEvents, appendStateEvent } from './store-db.js'

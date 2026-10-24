@@ -151,7 +151,7 @@ story_delegate(
 - `delegation-failed`：启动失败、取消、超时、`stopReason !== 'completed'`；
 - `delegation-output-invalid`：缺少首尾标记、正文为空、审稿 JSON 不合契约；不做自动重试；
 - `delegation-word-range`：writer/reviser 超 min/max；不落库。错误消息给出实际字数、范围。校验失败由 #23 的 `story_submit` 回给子代理，子代理在最多 3 次提交内自我修正；主编不重试、不换 mode、不手动搬运正文；
-- 现有业务错误码（`plan-not-approved`、`chapter-not-written`、`chapter-exists`、`chapter-settled`、`review-required`、`revise-mode-violation`、`empty-review`（兼容保留，不再用于清稿）、`bible-missing` 等）原样透传；`bible-missing` 可能来自角色上下文缺人物卡，行为与手动路径一致；
+- 现有业务错误码（`plan-not-approved`、`chapter-not-written`、`chapter-exists`、`chapter-settled`、`review-required`、`revise-mode-violation`、`bible-missing` 等）原样透传；`bible-missing` 可能来自角色上下文缺人物卡，行为与手动路径一致；
 - reviser 的 `revise-mode-violation` 由 #23 的 `story_submit` 回给子代理；子代理在最多 3 次提交内修正；主编不重试、不自动换 mode；
 - 失败时现有手动路径仍可用：主编可调 `story_context` + 官方 `subagent` + `story_write`，或直接调用底层动作；`story_delegate` 不自动回退，以免再次把正文带回主上下文。
 

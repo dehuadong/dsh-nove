@@ -471,11 +471,11 @@ export function validateChapterTrace(value) {
   if (input.dropped === undefined) invalid('trace.dropped 缺失')
   strings(input.dropped, 'trace.dropped')
   if (input.budget !== undefined) {
-    const legacyBudget = object(input.budget, 'trace.budget')
-    keys(legacyBudget, ['limit', 'used', 'unit'], 'trace.budget')
-    integer(legacyBudget.limit, 'trace.budget.limit')
-    integer(legacyBudget.used, 'trace.budget.used')
-    oneOf(legacyBudget.unit, ['characters', 'tokens'], 'trace.budget.unit')
+    const budget = object(input.budget, 'trace.budget')
+    keys(budget, ['limit', 'used', 'unit'], 'trace.budget')
+    integer(budget.limit, 'trace.budget.limit')
+    integer(budget.used, 'trace.budget.used')
+    oneOf(budget.unit, ['characters', 'tokens'], 'trace.budget.unit')
   }
   return input
 }

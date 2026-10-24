@@ -68,7 +68,7 @@ A0 已登记 `world`/`style`/`intent`/`outline` artifact 与消费矩阵，但�
 
 ### 3. 旧数据与边界
 
-- 不迁移旧作品：`bible` 表的 world/style/plan/intent 行不再读，旧作品的这四个条目显示为空、需要重新填写；characters 行继续有效。与 S2/S3 的旧数据边界同一口径。
+- 没有旧作品：`bible` 表的 world/style/plan/intent 行不再读，也不保留旧行兼容路径；characters 行继续有效。与 S2/S3 的旧数据边界同一口径。
 - `bible` 表保留（characters 仍用），不删列、不改 schema；world/style/plan/intent 行成为历史。
 - 不写 foundation 四类 artifact（S4b/#44）；不改 characters 字段合同；不改 outline 闸门位置与“模型不能代签”。
 
@@ -78,7 +78,7 @@ A0 已登记 `world`/`style`/`intent`/`outline` artifact 与消费矩阵，但�
 - **outline 也留在 bible 表，只迁 world/style/intent**：闸门与导出仍走两套路径；否决。
 - **新增 `outline_revision` 列做批准绑定**：需要作品 schema 升级与旧库迁移，而 outline 只有单一写入口、写入即清批准，时间戳已足够；否决，避免无收益的 v7。
 - **把 characters 也搬成 `role_index`/`role_card`**：characters 的六字段与 roles 的 tier/卡片不同构，生产归 R10b；否决（S4b/#44）。
-- **迁移旧 bible 行**：全项目不做旧作品迁移；否决。
+- **读取或迁移旧 bible 行**：没有旧作品，保留旧行兼容层只会掩盖双权威；否决。
 - **参考实现的整目录文件权威**：我们的工作库是 SQLite，文件只是导出产物；否决。
 
 ## 验收条件
@@ -90,12 +90,12 @@ A0 已登记 `world`/`style`/`intent`/`outline` artifact 与消费矩阵，但�
 5. brief/context/检索/导出/`story_read` 消费 artifact；虚拟路径与现有测试口径一致。
 6. 导出目录含 `bible/world.md`、`bible/style.md`、`bible/intent.md`、`bible/characters.json`、`outline/plan.md`，内容来自对应 artifact。
 7. 旧 `bible` 行的 world/style/plan/intent 不再被读取；characters 行继续生效。
-8. `bible-artifacts.test.mjs` 覆盖生产、revision、闸门、消费者、导出、旧行忽略；更新 `bible`/`tools`/`storage`/`foundation-chapter-artifacts`/`export-*`/`retrieval`/`context` 中受影响断言；`node storycraft/scripts/ci.mjs --no-e2e` 通过。
-9. 不写 foundation 四类 artifact；不改 characters 合同；不做旧作品迁移；不改闸门位置。
+8. `bible-artifacts.test.mjs` 覆盖生产、revision、闸门、消费者、导出、旧行不读；更新 `bible`/`tools`/`storage`/`foundation-chapter-artifacts`/`export-*`/`retrieval`/`context` 中受影响断言；`node storycraft/scripts/ci.mjs --no-e2e` 通过。
+9. 不写 foundation 四类 artifact；不改 characters 合同；不保留旧行兼容读取；不改闸门位置。
 
 ## 风险
 
-- 旧作品的 world/style/intent/plan 显示为空，作者需要重填；面板要说明原因，不能静默当“未填”。
+- 没有旧作品；新作品的 world/style/intent/plan 从未写过时按“未填”显示，不能静默当已生成。
 - outline 批准仍是时间戳绑定：若将来出现第二个 outline 写入口，必须补 revision 绑定；本项以“唯一写入口”为前提。
 - 检索把四类文本加入 FTS 后，短作品可能出现摘要/真值重复命中；需要类目上限沿用现有 per-kind 规则。
 - characters 与四类 artifact 的读写路径分叉，`readBible` 的返回形状虽不变，实现要避免两套缓存/两套错误码。

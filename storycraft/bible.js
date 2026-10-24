@@ -7,8 +7,6 @@
  * always assemble the same brief byte for byte.
  */
 
-import { join } from 'node:path'
-import { readFile } from 'node:fs/promises'
 import { StoryError, chapterNumber, chapterStem, contentVersion } from './domain.js'
 import { buildQuery, select } from './retrieval.js'
 import { mergeBlock, styleBlock, styleProfile } from './style.js'
@@ -203,66 +201,6 @@ export async function extractStyleSamples(root, workId) {
     chapters: bodies.map(row => row.number),
     version,
   }
-}
-
-/**
- * Import what can be imported from an older file work's `design/` folder.
- *
- * Old file works are not migrated, so this is the one read path that still
- * looks at `<workspace>/works/<workId>/`: it copies known structure into the new
- * work database and never fabricates a character sheet.
- * @param {string} root - workspace directory.
- * @param {string} workId - work identity.
- * @returns {Promise<{imported: object[], pending: string[], names: string[], skipped: string[]}>} import report.
- */
-export async function importBible(root, workId) {
-  const manifest = readManifest(root, workId)
-  const design = join(root, 'works', manifest.workId, 'design')
-  const readOptional = async (file) => {
-    try {
-      return await readFile(file, 'utf8')
-    } catch (error) {
-      if (error?.code === 'ENOENT') return undefined
-      throw error
-    }
-  }
-  const world = await readOptional(join(design, 'world.md'))
-  const outline = await readOptional(join(design, 'outline.md'))
-  const cast = await readOptional(join(design, 'cast.md'))
-  if (world === undefined && outline === undefined && cast === undefined) {
-    throw new StoryError('nothing-to-import', '没有可收编的旧稿内容')
-  }
-  const imported = []
-  const skipped = []
-  const targets = [
-    { name: 'world', from: 'bible:world', content: world },
-  ]
-  if (outline !== undefined) {
-    skipped.push('outline-import-blocked（旧大纲不导入；请走 story_outline + 作者确认）')
-  }
-  for (const target of targets) {
-    if (target.content === undefined) continue
-    const spec = BIBLE_FILES[target.name]
-    const existing = readBibleEntry(root, manifest.workId, target.name)?.content
-    if (existing !== undefined && !isDraft(existing)) {
-      skipped.push(`bible:${target.name}（已有内容，未覆盖）`)
-      continue
-    }
-    const receipt = writeBibleRow(root, { work: manifest.workId, name: target.name, content: target.content })
-    imported.push({ from: target.from, to: `bible:${target.name}`, version: receipt.version })
-  }
-  const headings = (pattern) => cast === undefined
-    ? []
-    : [...cast.matchAll(pattern)]
-      .map(match => match[1].trim())
-      .filter(name => name !== '' && !/^[\d.、\s]+$/.test(name))
-  const deep = headings(/^###\s+(.+)$/gm)
-  const names = deep.length > 0 ? deep : headings(/^##\s+(.+)$/gm)
-  const pending = []
-  if (names.length > 0) pending.push('characters（已抽出人名，缺 role/want/fear/limit/voice）')
-  else pending.push('characters')
-  pending.push('style', 'intent')
-  return { imported, pending, names, skipped }
 }
 
 /**

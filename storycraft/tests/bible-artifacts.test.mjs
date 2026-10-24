@@ -1,5 +1,5 @@
 // S4a: world/style/intent/outline live as artifacts; bible keeps characters only.
-import { mkdtemp, readFile, rm, stat, mkdir, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../storage.js'
@@ -98,12 +98,6 @@ try {
   check('export projects truth artifacts', worldFile.includes('荒原上以前有过城') && outlineFile.includes('改过的计划'), JSON.stringify({ worldFile, outlineFile }))
   check('export no longer writes bible/plan.md', legacyPlanMissing)
 
-  const legacy = openWork(root, work)
-  legacy.prepare("INSERT INTO bible (name, content, version, updated_at) VALUES ('world', '# 旧行', 'v-old', '2026-01-01T00:00:00.000Z')").run()
-  legacy.close()
-  check('legacy bible rows are ignored for migrated entries',
-    s.readBibleEntry(root, work, 'world').content.includes('荒原上以前有过城'))
-
   const characters = await b.writeBible(root, work, 'characters', JSON.stringify([
     { name: '林澈', role: '主角', want: '活下来', fear: '塌方', limit: '不拿人命换进度', voice: '短句' },
   ]))
@@ -112,15 +106,7 @@ try {
 
   throwsCode('writeBible refuses plan', 'approval-moved', () => s.writeBible(root, { work, name: 'plan', content: 'x' }))
 
-  const legacyWork = await s.initWork(root, { title: '旧文件导入' })
-  await mkdir(join(root, 'works', legacyWork.workId, 'design'), { recursive: true })
-  await writeFile(join(root, 'works', legacyWork.workId, 'design', 'world.md'), '# 导入世界\n\n有井台。\n')
-  const report = await b.importBible(root, legacyWork.workId)
-  check('import writes the world artifact and it is readable',
-    report.imported.length === 1 && s.readBibleEntry(root, legacyWork.workId, 'world').content.includes('有井台'),
-    JSON.stringify(report.imported))
-  check('import reports the artifact revision',
-    report.imported[0].version === s.readBibleEntry(root, legacyWork.workId, 'world').version, JSON.stringify(report.imported[0]))
+
 } finally {
   await rm(root, { recursive: true, force: true })
 }
