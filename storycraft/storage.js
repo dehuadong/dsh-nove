@@ -10,5 +10,5 @@
  * in `.storycraft/works/<workId>.db`, not in files on disk.
  */
 
-export * from './domain.js'
+export * from './dist/domain.js'
 export * from './store-db.js'

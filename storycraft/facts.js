@@ -9,7 +9,7 @@
  */
 
 import { parseCharacters } from './bible.js'
-import { chapterNumber } from './domain.js'
+import { chapterNumber } from './dist/domain.js'
 import {
   listBodies, listSummaries, readBibleEntry, readBibleMap, readFoldedState, readManifest, readPlan, readVolumes,
 } from './store-db.js'

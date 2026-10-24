@@ -1,6 +1,6 @@
 // The work mode mounts one skill row that serves every form and every role.
 import { apply } from '../skills.js'
-import { FORM_META } from '../domain.js'
+import { FORM_META, planApprovalPolicy } from '../dist/domain.js'
 import { ROLE_META, writerSkills } from '../delegate.js'
 
 let failures = 0
@@ -44,6 +44,13 @@ check('no warning for all', all.warnings.length === 0, all.warnings.join('; '))
 const routed = [...Object.values(ROLE_META).map(meta => meta.skill), ...Object.values(FORM_META).map(meta => meta.skill)].filter(Boolean)
 check('every routed role/form skill is mounted', routed.every(name => names.includes(name)), routed.join(','))
 check('writerSkills dedupes longform and adds short/script skills', writerSkills('longform').length === 1 && writerSkills('short').length === 2 && writerSkills('script').length === 2)
+check('plan approval defaults to required and honors off', planApprovalPolicy({}) === 'required' && planApprovalPolicy({ planApproval: 'off' }) === 'off')
+try {
+  planApprovalPolicy(undefined)
+  check('plan approval requires a manifest', false, 'did not throw')
+} catch (error) {
+  check('plan approval requires a manifest', error instanceof TypeError, String(error))
+}
 
 const write = mount('write')
 const writeNames = (await write.provider.list()).map(skill => skill.name)

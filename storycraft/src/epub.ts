@@ -13,6 +13,9 @@ const STORED = 0
 const DEFLATED = 8
 const MODIFIED = '2000-01-01T00:00:00Z'
 
+type Chapter = { number: number, title: string, body: string }
+type ZipEntry = { name: string, data: Buffer, method: number }
+
 const CRC_TABLE = new Uint32Array(256)
 for (let index = 0; index < 256; index += 1) {
   let value = index
@@ -21,19 +24,19 @@ for (let index = 0; index < 256; index += 1) {
 }
 
 /** CRC32 of one buffer. */
-function crc32(buffer) {
+function crc32(buffer: Uint8Array): number {
   let crc = 0xffffffff
   for (const byte of buffer) crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8)
   return (crc ^ 0xffffffff) >>> 0
 }
 
 /** Collapse a title to one trimmed line. */
-function oneLine(value) {
+function oneLine(value: unknown): string {
   return String(value ?? '').replace(/\r\n?|\n/gu, ' ').replace(/\s+/gu, ' ').trim()
 }
 
 /** XML/HTML escape one text value. */
-function escapeXml(value) {
+function escapeXml(value: unknown): string {
   return String(value ?? '')
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
@@ -43,18 +46,18 @@ function escapeXml(value) {
 }
 
 /** Normalize a body to LF and strip trailing newlines. */
-function normalizeBody(value) {
+function normalizeBody(value: unknown): string {
   return String(value ?? '').replace(/\r\n?|\n/gu, '\n').replace(/\n+$/u, '')
 }
 
 /** One paragraph block as XHTML, preserving single line breaks. */
-function paragraphBlock(text) {
+function paragraphBlock(text: string): string {
   const paragraph = text.split('\n').map(line => escapeXml(line)).join('<br/>')
   return `<p>${paragraph}</p>`
 }
 
 /** XHTML document shell. */
-function xhtml(title, body) {
+function xhtml(title: string, body: string): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="zh-CN" lang="zh-CN">
@@ -67,7 +70,7 @@ ${body}
 }
 
 /** Build one chapter XHTML. */
-function chapterXhtml(chapter) {
+function chapterXhtml(chapter: Chapter): string {
   const heading = oneLine(chapter.title)
   const label = `第 ${chapter.number} 章${heading === '' ? '' : ` ${heading}`}`
   const blocks = normalizeBody(chapter.body)
@@ -80,12 +83,12 @@ function chapterXhtml(chapter) {
 }
 
 /** Build the fixed title page. */
-function titleXhtml(title) {
+function titleXhtml(title: string): string {
   return xhtml(title, `<h1>${escapeXml(title)}</h1>`)
 }
 
 /** Build the EPUB3 navigation document. */
-function navXhtml(title, chapters) {
+function navXhtml(title: string, chapters: Chapter[]): string {
   const items = [
     `<li><a href="title.xhtml">${escapeXml(title)}</a></li>`,
     ...chapters.map(chapter => {
@@ -98,7 +101,7 @@ function navXhtml(title, chapters) {
 }
 
 /** Build the OPF package document. */
-function opf(title, identifier, chapters) {
+function opf(title: string, identifier: string, chapters: Chapter[]): string {
   const items = [
     '<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>',
     '<item id="css" href="style.css" media-type="text/css"/>',
@@ -128,7 +131,7 @@ function opf(title, identifier, chapters) {
 }
 
 /** Build the central directory and EOCD. */
-function zipArchive(entries) {
+function zipArchive(entries: ZipEntry[]): Buffer {
   const locals = []
   const centrals = []
   let offset = 0
@@ -186,10 +189,8 @@ function zipArchive(entries) {
 
 /**
  * Build one EPUB 3 file.
- * @param {{title: string, identifier: string, chapters: Array<{number: number, title: string, body: string}>}} input - book snapshot.
- * @returns {Buffer} EPUB bytes.
  */
-export function buildEpub(input) {
+export function buildEpub(input: { title: string, identifier: string, chapters: Chapter[] }): Buffer {
   const title = oneLine(input.title) || '未命名'
   const chapters = [...(input.chapters ?? [])].sort((left, right) => left.number - right.number)
   const entries = [

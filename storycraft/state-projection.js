@@ -7,7 +7,7 @@
  */
 
 import { createHash } from 'node:crypto'
-import { StoryError, chapterNumber } from './domain.js'
+import { StoryError, chapterNumber } from './dist/domain.js'
 import { assertHookTransition, validateFact, validateHook } from './artifact-contract.js'
 
 /** Operations that only change hook metadata. */

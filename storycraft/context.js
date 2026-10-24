@@ -14,7 +14,7 @@ import { deriveWhitelist, readCards, summariseWhitelist } from './facts.js'
 import { readFoundationDocuments, renderFoundationContent } from './artifact-store.js'
 import {
   StoryError, chapterNumber, chapterStem, formOf, planApprovalPolicy, unitOf,
-} from './domain.js'
+} from './dist/domain.js'
 import {
   readBibleMap, readChapter as readChapterRow, readFoldedState, readManifest, readPlan,
   readVolumes, readSummaryState, searchMemory, virtualPath,

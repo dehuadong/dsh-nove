@@ -11,7 +11,7 @@
 
 import { existsSync, mkdirSync, renameSync, rmSync, unlinkSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { StoryError, isWorkId, now } from './domain.js'
+import { StoryError, isWorkId, now } from './dist/domain.js'
 
 let DatabaseSync
 try {

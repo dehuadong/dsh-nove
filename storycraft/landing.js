@@ -5,7 +5,7 @@
  * `consistency.js` can stay a pure comparator. It does not write anything.
  */
 
-import { StoryError, countWords } from './domain.js'
+import { StoryError, countWords } from './dist/domain.js'
 import { deriveWhitelist } from './facts.js'
 import { checkConsistency } from './consistency.js'
 

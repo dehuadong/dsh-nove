@@ -6,7 +6,7 @@ import * as s from '../storage.js'
 import * as b from '../bible.js'
 import { assembleRoleContext } from '../context.js'
 import { putArtifact, writeFoundationDocument, writeRoleCard } from '../artifact-store.js'
-import { contentVersion } from '../domain.js'
+import { contentVersion } from '../dist/domain.js'
 
 let failures = 0
 function check(name, condition, detail) {

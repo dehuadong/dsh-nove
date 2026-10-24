@@ -6,6 +6,8 @@
  * compared across revisions. Nothing here edits prose.
  */
 
+import { countWords } from './domain.js'
+
 /** Phrases that tend to mark machine-written Chinese prose. */
 const AI_PHRASES = [
   '不禁',
@@ -34,19 +36,27 @@ export const SENTENCE_BREAK = /[。！？…；\n]+/u
 const DIALOGUE_MARKS = /[「」『』“”"]/u
 
 /** Characters used for equality in repetition checks (letters and digits only). */
-function normalizeSentence(sentence) {
+function normalizeSentence(sentence: string): string {
   return sentence.replace(/[^\p{L}\p{N}]/gu, '')
+}
+
+export interface CritiqueMetrics {
+  words: number
+  chars: number
+  sentences: { count: number, averageLength: number, longest: number }
+  repeated: Array<{ text: string, count: number }>
+  aiPhrases: { count: number, hits: Array<{ phrase: string, count: number }> }
+  dialogueRatio: number
+  wordRange?: { min: number, max: number }
+  withinRange?: boolean
+  shortBy?: number
+  longBy?: number
 }
 
 /**
  * Score one body of text.
- * @param {string} text - chapter body.
- * @param {{min?: number, max?: number}|undefined} wordRange - the work's own range, if any.
- * @returns {object} metrics.
  */
-import { countWords } from './domain.js'
-
-export function critique(text, wordRange) {
+export function critique(text: unknown, wordRange?: { min?: number, max?: number }): CritiqueMetrics {
   const body = String(text ?? '')
   // One counting rule for the whole plugin: the same number story_write records.
   const words = countWords(body)
@@ -72,7 +82,7 @@ export function critique(text, wordRange) {
     .sort((left, right) => right.count - left.count || left.text.localeCompare(right.text))
 
   const lowered = body.toLowerCase()
-  const aiPhrases = { count: 0, hits: [] }
+  const aiPhrases: { count: number, hits: Array<{ phrase: string, count: number }> } = { count: 0, hits: [] }
   for (const phrase of AI_PHRASES) {
     let index = lowered.indexOf(phrase)
     let count = 0
@@ -93,6 +103,8 @@ export function critique(text, wordRange) {
   const min = wordRange?.min
   const max = wordRange?.max
   const hasRange = Number.isInteger(min) && Number.isInteger(max)
+  const minValue = min as number
+  const maxValue = max as number
   return {
     words,
     chars,
@@ -105,10 +117,10 @@ export function critique(text, wordRange) {
     aiPhrases,
     dialogueRatio,
     ...(hasRange ? {
-      wordRange: { min, max },
-      withinRange: words >= min && words <= max,
-      ...(words < min ? { shortBy: min - words } : {}),
-      ...(words > max ? { longBy: words - max } : {}),
+      wordRange: { min: minValue, max: maxValue },
+      withinRange: words >= minValue && words <= maxValue,
+      ...(words < minValue ? { shortBy: minValue - words } : {}),
+      ...(words > maxValue ? { longBy: words - maxValue } : {}),
     } : {}),
   }
 }

@@ -7,7 +7,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, countWords, trimSummary } from './domain.js'
+import { StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, countWords, trimSummary } from './dist/domain.js'
 import { STATE_LIMITS } from './state-projection.js'
 import { assertRevisionMode } from './revision.js'
 import {

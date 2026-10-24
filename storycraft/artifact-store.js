@@ -1,6 +1,6 @@
 /** Immutable artifact registry: contract validation plus SQLite persistence. */
 
-import { StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, chapterNumber, contentVersion, now } from './domain.js'
+import { StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, chapterNumber, contentVersion, now } from './dist/domain.js'
 import { ARTIFACT_IDENTITY, validateArtifactRecord, validateChapterMemo, validateChapterMeta, validateChapterSummary } from './artifact-contract.js'
 import { openWork, touchMeta, transaction } from './db.js'
 import { syncSearchDoc } from './search-index.js'

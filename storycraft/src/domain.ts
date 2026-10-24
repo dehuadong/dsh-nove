@@ -7,13 +7,23 @@
 
 import { createHash } from 'node:crypto'
 
+export type Form = 'longform' | 'short' | 'script'
+export type Stage = 'planned' | 'written' | 'reviewed' | 'revised' | 'settled'
+
+export interface ChapterEntry {
+  currentRevision?: number
+  stage?: string
+}
+
+export interface ReviewLike {
+  revision?: number
+  observations?: Array<{ assessment?: string }>
+}
+
 /** Failure carrying a stable code for the actions' structured results. */
 export class StoryError extends Error {
-  /**
-   * @param {string} code - stable machine code.
-   * @param {string} message - user-facing message.
-   */
-  constructor(code, message) {
+  code: string
+  constructor(code: string, message: string) {
     super(message)
     this.name = 'StoryError'
     this.code = code
@@ -21,7 +31,7 @@ export class StoryError extends Error {
 }
 
 /** Forms a work may declare; the form is data on the work, not a preset. */
-export const WORK_FORMS = ['longform', 'short', 'script']
+export const WORK_FORMS = ['longform', 'short', 'script'] as const
 
 /** Display label and form-specific writing skill for each form. */
 export const FORM_META = Object.freeze({
@@ -37,10 +47,8 @@ export function now() {
 
 /**
  * The unit one form calls its chapters: 章 / 篇 / 集.
- * @param {string} form - work form.
- * @returns {string} unit noun.
  */
-export function unitOf(form) {
+export function unitOf(form: unknown): string {
   if (form === 'script') return '集'
   if (form === 'short') return '篇'
   return '章'
@@ -48,27 +56,23 @@ export function unitOf(form) {
 
 /**
  * The form of one work, defaulting to the long-form flow for older works.
- * @param {object} manifest - work manifest.
- * @returns {'longform'|'short'|'script'} the form.
  */
-export function formOf(manifest) {
-  return WORK_FORMS.includes(manifest?.form) ? manifest.form : 'longform'
+export function formOf(manifest: unknown): Form {
+  const form = (manifest as { form?: unknown } | null | undefined)?.form
+  return typeof form === 'string' && (WORK_FORMS as readonly string[]).includes(form) ? form as Form : 'longform'
 }
 
 /** Whether a new chapter needs the author's plan confirmation.
- * @param {object} manifest - work manifest.
- * @returns {'required'|'off'} the current policy.
  */
-export function planApprovalPolicy(manifest) {
-  return manifest.planApproval === 'off' ? 'off' : 'required'
+export function planApprovalPolicy(manifest: unknown): 'required' | 'off' {
+  const value = (manifest as { planApproval?: unknown }).planApproval
+  return value === 'off' ? 'off' : 'required'
 }
 
 /**
  * Turn a title into a file-safe work identity.
- * @param {string} title - work title.
- * @returns {string} lowercase kebab slug; falls back to `work`.
  */
-export function slugify(title) {
+export function slugify(title: unknown): string {
   const slug = String(title ?? '')
     .toLowerCase()
     .replace(/[^\p{Letter}\p{Number}]+/gu, '-')
@@ -82,10 +86,8 @@ const RESERVED_IDS = new Set(['works', 'trash', 'catalog', 'exports', 'backups']
 
 /**
  * Whether a value is already a canonical work identity (file stem / URL segment).
- * @param {unknown} value - candidate identity.
- * @returns {boolean} true for letters/numbers with inner hyphens and no reserved name.
  */
-export function isWorkId(value) {
+export function isWorkId(value: unknown): boolean {
   return typeof value === 'string'
     && /^[\p{Letter}\p{Number}][\p{Letter}\p{Number}-]*$/u.test(value)
     && !RESERVED_IDS.has(value)
@@ -97,10 +99,8 @@ export function isWorkId(value) {
  * An identity is both a file stem and a URL-safe segment, so it may only hold
  * letters, numbers and inner hyphens; reserved names would collide with the
  * store's own directories.
- * @param {string} value - requested identity.
- * @returns {string} the normalised identity.
  */
-export function workIdOf(value) {
+export function workIdOf(value: unknown): string {
   const id = slugify(value)
   if (!isWorkId(id)) {
     throw new StoryError('invalid-work-id', `作品 id 不合法：${String(value)}`)
@@ -109,21 +109,19 @@ export function workIdOf(value) {
 }
 
 /** A file's content version: first 12 hex digits of its SHA-256. */
-export function contentVersion(text) {
+export function contentVersion(text: unknown): string {
   return createHash('sha256').update(String(text), 'utf8').digest('hex').slice(0, 12)
 }
 
 /** Zero-padded chapter file stem: 1 → `ch-0001`. */
-export function chapterStem(number) {
+export function chapterStem(number: number | string): string {
   return `ch-${String(number).padStart(4, '0')}`
 }
 
 /**
  * Parse a chapter number.
- * @param {unknown} value - model-supplied chapter number.
- * @returns {number} a positive integer.
  */
-export function chapterNumber(value) {
+export function chapterNumber(value: unknown): number {
   const number = Number(value)
   if (!Number.isInteger(number) || number < 1) {
     throw new StoryError('invalid-chapter', `章号必须是正整数，收到：${String(value)}`)
@@ -135,15 +133,14 @@ export function chapterNumber(value) {
  * The ordered stage of one chapter. Stages only move forward unless a settled
  * chapter is explicitly reopened.
  */
-export const STAGES = ['planned', 'written', 'reviewed', 'revised', 'settled']
+export const STAGES = ['planned', 'written', 'reviewed', 'revised', 'settled'] as const
 
 /**
  * Read a chapter's stage.
- * @param {object} entry - chapter entry.
- * @returns {string} one of {@link STAGES}.
  */
-export function stageOf(entry) {
-  return entry !== null && typeof entry === 'object' && STAGES.includes(entry.stage) ? entry.stage : 'planned'
+export function stageOf(entry: unknown): Stage {
+  const stage = (entry as ChapterEntry | null | undefined)?.stage
+  return typeof stage === 'string' && (STAGES as readonly string[]).includes(stage) ? stage as Stage : 'planned'
 }
 
 /**
@@ -153,11 +150,8 @@ export function stageOf(entry) {
  * never disagrees with the admission check: revised or settled chapters pass;
  * a reviewed chapter passes only when its latest review is clean and targets
  * the current revision.
- * @param {object|undefined} entry - chapter entry.
- * @param {{text: string, revision: number}|undefined} latest - latest review.
- * @returns {boolean} true when a summarizer delegation would pass preflight.
  */
-export function summaryAdmissible(entry, latest) {
+export function summaryAdmissible(entry: ChapterEntry | undefined, latest: ReviewLike | undefined): boolean {
   if (entry === undefined || entry.currentRevision === 0) return false
   const stage = stageOf(entry)
   if (stage === 'revised' || stage === 'settled') return true
@@ -169,10 +163,8 @@ export function summaryAdmissible(entry, latest) {
 
 /**
  * Count characters of the body (CJK-aware: whitespace is excluded).
- * @param {string} text - body text.
- * @returns {number} character count.
  */
-export function countWords(text) {
+export function countWords(text: unknown): number {
   const cjk = String(text).match(/[\u3400-\u4dbf\u4e00-\u9fff]/g)?.length ?? 0
   const latin = String(text).match(/[A-Za-z][A-Za-z'-]*/g)?.length ?? 0
   return cjk + latin
@@ -186,10 +178,8 @@ export const SUMMARY_FIELDS = ['title', 'characters', 'events', 'stateChanges', 
 
 /**
  * Trim a summary and count it by Unicode code point.
- * @param {unknown} text - summary text.
- * @returns {{text: string, chars: number}} trimmed text and its code-point length.
  */
-export function trimSummary(text) {
+export function trimSummary(text: unknown): { text: string, chars: number } {
   const trimmed = String(text ?? '').trim()
   return { text: trimmed, chars: [...trimmed].length }
 }

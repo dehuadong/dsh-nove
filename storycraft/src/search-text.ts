@@ -5,10 +5,8 @@
 
 /**
  * Tokenize text for FTS5: CJK bigrams + unigrams, latin words.
- * @param {string} text - source text.
- * @returns {string} space-separated tokens.
  */
-export function searchTokens(text) {
+export function searchTokens(text: unknown): string {
   const tokens = []
   for (const match of String(text).matchAll(/[\u4e00-\u9fa5]+/gu)) {
     const run = match[0]
@@ -24,10 +22,7 @@ export function searchTokens(text) {
 /**
  * One material's indexed text: title and body, newline-separated so CJK
  * bigrams do not bridge the boundary.
- * @param {string} title - material title.
- * @param {string} content - material body.
- * @returns {string} text to tokenize.
  */
-export function materialIndexText(title, content) {
+export function materialIndexText(title: unknown, content: unknown): string {
   return `${String(title ?? '')}\n${String(content ?? '')}`
 }

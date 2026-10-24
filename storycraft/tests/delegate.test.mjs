@@ -400,7 +400,7 @@ try {
     get: name => (name === 'subagents' ? hostService : undefined),
   })
   const delegateAction = registered.find(definition => definition.name === 'story_delegate')
-  const { setCurrent } = await import('../current.js')
+  const { setCurrent } = await import('../dist/current.js')
   setCurrent('action-parent', work)
   const actionResult = await delegateAction.execute(
     { work, chapter: 2, role: 'writer' },

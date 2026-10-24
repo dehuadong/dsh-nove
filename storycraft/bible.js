@@ -7,7 +7,7 @@
  * always assemble the same brief byte for byte.
  */
 
-import { StoryError, chapterNumber, chapterStem, contentVersion } from './domain.js'
+import { StoryError, chapterNumber, chapterStem, contentVersion } from './dist/domain.js'
 import { buildQuery, select } from './retrieval.js'
 import { mergeBlock, styleBlock, styleProfile } from './style.js'
 import {

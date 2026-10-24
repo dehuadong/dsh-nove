@@ -6,7 +6,7 @@ import * as s from '../storage.js'
 import * as b from '../bible.js'
 import { openCatalog } from '../db.js'
 import { countWords } from '../storage.js'
-import { critique } from '../critique.js'
+import { critique } from '../dist/critique.js'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0
@@ -35,6 +35,10 @@ check('chars includes punctuation', metrics.chars >= metrics.words, `${metrics.c
 check('sentences counted', metrics.sentences.count === 5, JSON.stringify(metrics.sentences))
 check('repeated sentence detected', metrics.repeated.some(item => item.count === 3), JSON.stringify(metrics.repeated))
 check('ai phrases detected', metrics.aiPhrases.count >= 3, JSON.stringify(metrics.aiPhrases))
+check('critique exposes the typed metric shape', typeof metrics.aiPhrases.count === 'number'
+  && Array.isArray(metrics.aiPhrases.hits)
+  && metrics.aiPhrases.hits.every(item => typeof item.phrase === 'string' && typeof item.count === 'number'),
+JSON.stringify(metrics.aiPhrases))
 check('dialogue ratio is a number', typeof metrics.dialogueRatio === 'number')
 const again = critique(prose)
 check('metrics are deterministic', JSON.stringify(again) === JSON.stringify(again) && JSON.stringify(again) === JSON.stringify(metrics))

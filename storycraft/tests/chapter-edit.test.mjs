@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../storage.js'
 import { backupsDir, openWork } from '../db.js'
-import { chapterRemap } from '../chapter-edit.js'
+import { chapterRemap } from '../dist/chapter-edit.js'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0

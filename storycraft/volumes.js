@@ -6,7 +6,7 @@
  * in the same transaction as the write.
  */
 
-import { chapterNumber } from './domain.js'
+import { chapterNumber } from './dist/domain.js'
 import { readManifest, readVolumes as readVolumeRows, writeVolume as writeVolumeRow } from './store-db.js'
 
 /**

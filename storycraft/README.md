@@ -271,16 +271,15 @@ node scripts/pack-check.mjs
 
 ## TypeScript 接入
 
-当前只有 `scope` 一个 Host 模块用 TypeScript 开发：
+当前已迁移到 TS：`scope`（L0）以及 L1 叶子层 `domain`、`chapter-edit`、`search-text`、`critique`、`materials`、`current`、`epub`。
 
-- 唯一实现：`src/scope.ts`；
+- 源文件：`src/*.ts`；`dist/` 由构建生成，不提交；
 - 安装依赖：`npm install`（`typescript` + `@types/node` 是 devDependencies，不进安装包）；
-- 编译：`npm run build` → `dist/scope.js`；`dist/` 不提交；
-- `tools.js` 和 `scope.test` 直接 import `dist/scope.js`，没有根 `scope.js` 的第二份实现；
-- `prepack` 自动 build，`npm pack` 的 tarball 一定含 `dist/scope.js`；
+- 编译：`npm run build` → `dist/*.js`；`prepack` 自动 build；
+- 消费者直接 import `./dist/<module>.js`，没有根 JS 第二份实现；
 - 其他 Host 模块和 `client.js` 仍是 JavaScript；Client 的 esbuild 不在本次接入内。
 
-开发 `link:` 时先 build；改 `src/scope.ts` 后重新 build，不手改 `dist/`。
+开发 `link:` 时先 build；改 `src/*.ts` 后重新 build，不手改 `dist/`。
 
 ## 改动与生效
 

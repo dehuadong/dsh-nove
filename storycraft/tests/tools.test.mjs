@@ -6,7 +6,7 @@ import * as tools from '../tools.js'
 import * as s from '../storage.js'
 import { openWork } from '../db.js'
 import { readProposal } from '../proposals.js'
-import { clearCurrent, setCurrent } from '../current.js'
+import { clearCurrent, setCurrent } from '../dist/current.js'
 import { checkDraft } from '../landing.js'
 import { submitPayload } from '../submission.js'
 

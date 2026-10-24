@@ -21,10 +21,8 @@ export const MATERIAL_PURPOSE_DEFAULT = 'reference'
 
 /**
  * Validate one explicitly supplied material purpose; empty is invalid.
- * @param {unknown} value - proposed purpose.
- * @returns {string} one of MATERIAL_PURPOSES.
  */
-export function normalizeMaterialPurpose(value) {
+export function normalizeMaterialPurpose(value: unknown): string {
   const purpose = String(value ?? '').trim()
   if (!MATERIAL_PURPOSES.includes(purpose)) {
     throw new StoryError('material-purpose-invalid', `素材用途必须是 ${MATERIAL_PURPOSES.join(' / ')}`)
@@ -33,7 +31,7 @@ export function normalizeMaterialPurpose(value) {
 }
 
 /** Import default: absent/empty becomes reference. */
-export function materialPurposeOrDefault(value) {
+export function materialPurposeOrDefault(value: unknown): string {
   const purpose = String(value ?? '').trim()
   return purpose === '' ? MATERIAL_PURPOSE_DEFAULT : normalizeMaterialPurpose(purpose)
 }
@@ -42,16 +40,14 @@ const WINDOWS_RESERVED = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu
 const UNSAFE_NAME = /[\u0000-\u001f<>:"/\\|?*]/u
 
 /** Count code points. */
-function codePointLength(text) {
+function codePointLength(text: unknown): number {
   return [...String(text)].length
 }
 
 /**
  * Take the last path segment of a browser-supplied name and make it safe.
- * @param {string} name - original file name.
- * @returns {string} safe file name including extension.
  */
-export function safeMaterialName(name) {
+export function safeMaterialName(name: unknown): string {
   const raw = String(name ?? '')
   if (raw.includes('/') || raw.includes('\\')) {
     throw new StoryError('material-name-invalid', '素材文件名不能包含路径')
@@ -75,13 +71,8 @@ export function safeMaterialName(name) {
 
 /**
  * Validate uploaded bytes and build the metadata used by the store.
- * @param {object} input - upload.
- * @param {string} input.name - browser file name.
- * @param {string} input.contentBase64 - base64 of the uploaded bytes.
- * @param {string} [input.title] - optional display title.
- * @returns {{content: string, buffer: Buffer, hash: string, bytes: number, format: string, title: string, fileName: string}} prepared data.
  */
-export function prepareMaterial(input) {
+export function prepareMaterial(input: { name?: unknown, contentBase64?: unknown, title?: unknown, purpose?: unknown }): { content: string, buffer: Buffer, hash: string, bytes: number, format: string, title: string, fileName: string, purpose: string } {
   const fileName = safeMaterialName(input?.name)
   const encoded = String(input?.contentBase64 ?? '').replace(/\s+/gu, '')
   if (encoded === '') throw new StoryError('material-empty', '素材内容为空')
@@ -125,10 +116,28 @@ export function prepareMaterial(input) {
 
 /**
  * Metadata shown to the panel/model boundary. Never includes content or origin.
- * @param {object} row - materials row.
- * @returns {object} public metadata.
  */
-export function materialMetadata(row) {
+export interface MaterialRow {
+  id: number
+  title: string
+  format: string
+  purpose: string
+  bytes: number
+  hash: string
+  created_at: string
+}
+
+export interface MaterialMetadata {
+  id: number
+  title: string
+  format: string
+  purpose: string
+  bytes: number
+  hashPrefix: string
+  createdAt: string
+}
+
+export function materialMetadata(row: MaterialRow): MaterialMetadata {
   return {
     id: row.id,
     title: row.title,

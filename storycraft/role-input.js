@@ -7,7 +7,7 @@
  * chapter body to the established `chapter-not-written` business code.
  */
 
-import { StoryError, chapterNumber } from './domain.js'
+import { StoryError, chapterNumber } from './dist/domain.js'
 import { latestReview, readChapter, readManifest } from './storage.js'
 import { assembleRoleContext } from './context.js'
 
