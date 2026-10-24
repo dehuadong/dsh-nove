@@ -56,6 +56,16 @@ const rows = db.prepare(sql).all() as ChapterRow[]
 | P2 | 移除 `@ts-nocheck`，修正剩余隐式 any；导出类型给 L4 | 严格编译 + 全 CI + 安装 smoke |
 | P3 | 删除重复 JSDoc 类型，README/Note 更新 | docs 检查 |
 
+P2 拆分（2026-10-24，按第一次去 `@ts-nocheck` 的 130 个错误）：
+
+| 子阶段 | 范围 | 门 |
+| --- | --- | --- |
+| P2a 边界与可空 | `asRow`/`asRows`/`requireCatalog` 集中 cast；catalog 可空；`SQLOutputValue`→string/number；`prepare().run` 多参数；catch unknown、`error.code` | `ci --no-e2e`；nocheck 仍在 |
+| P2b 行投影与输入 | `MaterialRow` 局部 SELECT、`BibleRow` spread、chapter version/volume/event 投影、`WriteSummaryInput`/`ReviseChapterInput`/state options 字段 | 事务/导出/材料测试；nocheck 仍在 |
+| P2c 去 nocheck | 移除 `@ts-nocheck`，修剩余严格错误 | 严格 tsc + 50 单元 + pack-check + 安装 smoke |
+
+P2a/P2b 期间 `@ts-nocheck` 仍在，类型修正不能靠编译器全量验证；P2c 是唯一完成门槛，必须在同一分支连续完成，不能停在 P2a/P2b。
+
 P0/P1 期间 `@ts-nocheck` 不能作为最终状态；P2 是完成门槛。
 
 ### 4. 非目标
