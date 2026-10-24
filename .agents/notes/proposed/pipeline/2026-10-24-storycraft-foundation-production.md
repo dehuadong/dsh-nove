@@ -70,7 +70,7 @@ R10 旧方案（一次生成 world/characters/plan/text-hook）已被对拍审�
 
 ### 6. 边界
 
-- 不迁移旧作品；旧作品没有 foundation 时按“未生成”处理，不阻断 story_outline/写作。
+- 没有旧作品，不做迁移；新作品在 foundation 未生成时按“未完成”处理，作者仍可手动写 `story_outline`。
 - 不改审稿/结算标准；不新增短篇/剧本 foundation（S/D）。
 - 不改 S4b 的消费段序与保护级别；只保证新产物被现有消费读取。
 - 生成质量只做结构校验与作者确认，不在本项做模型评测。
@@ -98,7 +98,7 @@ R10 旧方案（一次生成 world/characters/plan/text-hook）已被对拍审�
 
 ## 风险
 
-- 落地需要一个 additive schema 变更：v7 给 `meta` 加 `foundation_approved_at`；v6 作品首次打开自动补列（v6→v7），不改其他表。
+- 落地需要一次 schema 变更：v7 给 `meta` 加 `foundation_approved_at`。没有旧作品，不做迁移或兼容分支。
 - 四 stage 增加往返；必须有“已完成 stage 不重复”与断点续跑，否则作者会重复付费。
 - 子代理输出长度/质量波动；合同校验会拒绝，但需要错误可读、可重试。
 - foundation 确认增加一个作者闸门，面板不明显会卡流程；`story_next` 必须写清 blocked。

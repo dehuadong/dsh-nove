@@ -390,14 +390,7 @@ export function openWork(root, workId) {
   const db = openDatabase(file)
   try {
     const version = userVersion(db)
-    if (version === 6) {
-      // v6 → v7: foundation approval timestamp is additive; existing works migrate in place.
-      // Future bumps need their own branch so an exists column is never added twice.
-      transaction(db, () => {
-        db.exec('ALTER TABLE meta ADD COLUMN foundation_approved_at TEXT')
-      })
-      db.exec(`PRAGMA user_version = ${WORK_SCHEMA_VERSION}`)
-    } else if (version !== WORK_SCHEMA_VERSION) {
+    if (version !== WORK_SCHEMA_VERSION) {
       throw new StoryError('schema-version-mismatch',
         `作品 ${workId} 的库版本 ${version} 不是支持的 ${WORK_SCHEMA_VERSION}：测试作品请删除重建，不做兼容迁移`)
     }

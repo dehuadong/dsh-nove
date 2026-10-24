@@ -15,7 +15,7 @@ updated: 2026-10-24
 - artifact 合同里的 Observation 没有稳定 `id`，`assessment` 语义也没有消费者；
 - `reviews` 表与 observation artifact 双写/双读，迟早不一致。
 
-`#52` 要把审稿事实收敛为一份：observation artifact；`reviews` 表退役；阶段机、门禁、reviser、读取、面板、导出都读同一份。
+`#52` 要把审稿事实收敛为一份：observation artifact；`reviews` 表直接删除（没有旧作品，不需要保留历史表、迁移或兼容读取）；阶段机、门禁、reviser、读取、面板、导出都读同一份。
 
 ## 对拍参考
 
@@ -63,7 +63,7 @@ updated: 2026-10-24
 - 内容固定为 `{ "observations": [Observation...] }`；空数组表示**清稿审稿**（允许定稿）。
 - ID 仍为 `review:<n>:r<bodyRev>:<round>`，round 从 1 递增；round = 本章已有 review artifact 数 + 1。
 - reviewer 提交的 payload 改为观察项数组（含 quote），宿主补 `id`/`target`/`sourceRefs` 后写入；`reviews` 表不再写。
-- 旧 `reviews` 表保留为历史表，不迁移、不读、不写；测试作品重建。
+- `reviews` 表从 schema 删除；没有旧作品，不保留历史表、不做迁移。
 
 ### 3. 解决与定稿门禁
 
@@ -82,7 +82,7 @@ updated: 2026-10-24
 
 - 不新增角色/动作；`story_review` 仍是手动入口，reviewer 委派仍走 `story_delegate`。
 - 不改 settle 的 state 投影与 validator；只换审稿证据来源。
-- 不迁移旧作品；旧 `reviews` 表不再读取。
+- 没有旧作品：不做迁移；`reviews` 表随本项删除，不保留兼容读取。
 - 短篇/剧本审稿仍走同一 observation 合同，不另立格式。
 
 ## 备选方案
@@ -90,7 +90,7 @@ updated: 2026-10-24
 - **保留 reviews 表并加 ID 列**：双权威继续存在，阶段机仍可能读旧文本；否决。
 - **reviser 自报 resolved 即放行**：等于让被审者自己结案；否决，改为下一轮审稿确认。
 - **每轮 review 用可编辑 revision 覆盖**：review 是历史证据，覆盖会丢失“上一轮说了什么”；否决，追加新轮次。
-- **用文本勾选迁移旧 reviews**：旧作品不迁移，且 `[x]` 无法稳定映射 ID；否决。
+- **保留旧 reviews 表或迁移文本勾选**：没有旧作品，保留历史表只会留下双权威与误读路径；否决。
 
 ## 验收条件
 
@@ -99,7 +99,7 @@ updated: 2026-10-24
 3. reviser 读当前 review 的 `issue` 条目并可按 ID 提交 `resolved`；无 issue 时拒绝。
 4. `nextStep`/`status`/`readWork`/settle 门禁只读 artifact：当前 revision 的 review 无 `issue` 才可定稿；清稿审稿（空）可定稿；修订后必须重审。
 5. `readChapter(view:'review')`、`story_read`、面板、导出都从 artifact 渲染；`reviews` 表无读写。
-6. 旧作品不迁移；`reviews` 表保留但被忽略；测试作品重建。
+6. 没有旧作品：`reviews` 表随 schema 删除，不保留历史表；测试作品全新创建。
 7. 测试：`observation-consumers.test.mjs` 覆盖 id/assessment/resolves、review→reviser→re-review→settle、清稿、门禁、读取/导出/面板；更新 reviewer/reviser/阶段机/工具/导出测试；`node storycraft/scripts/ci.mjs --no-e2e` 通过。
 8. 合同 Note §4 与本 Note 同步；不新增角色/动作；不改 state/summary/memo 合同。
 
@@ -107,5 +107,5 @@ updated: 2026-10-24
 
 - 审稿 payload 从 `{items:[{where,...}]}` 改为带 `quote` 的观察项，reviewer 技能与测试都要同步；prompt 过松会频繁 `observation-source-unverified`。
 - 修订后必须重审会增加一轮；作者可能觉得慢，但这是“证据在审稿方”的代价。
-- 旧 `reviews` 表仍在库里；任何遗漏的读路径会静默显示空审稿，需要一次全局 grep/测试兜底。
+- 删除 `reviews` 表需要一次 schema 变更；没有旧作品，直接改 schema，不做迁移分支。
 - resolved 语义若被误用为“跳过重审”，门禁会退化；必须只认当前 revision 的 review artifact。
