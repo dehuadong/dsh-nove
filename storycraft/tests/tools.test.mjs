@@ -295,9 +295,9 @@ try {
   check('rewrite creates revision 2', rewrite.ok === true && rewrite.artifact.revisionId === 'r2', JSON.stringify(rewrite))
 
   const review = await byName.get('story_review').execute({
-    work, chapter: 1, problems: [{ location: '结尾', problem: '钩子虚', suggestion: '落到合同上' }],
+    work, chapter: 1, problems: [{ quote: body.slice(0, 12), problem: '钩子虚', fix: '落到合同上' }],
   }, exec)
-  check('story_review ok', review.ok === true && review.problems[0].id === 'Q1', JSON.stringify(review))
+  check('story_review ok', review.ok === true && review.problems.total === 1, JSON.stringify(review))
   const afterReviewNext = await byName.get('story_next').execute({ work }, exec)
   check('story_next offers reviser delegation after the review',
     afterReviewNext.action === 'story_revise' && afterReviewNext.delegate?.role === 'reviser', JSON.stringify(afterReviewNext))
@@ -305,26 +305,28 @@ try {
   const reviewerContext = await byName.get('story_context').execute({ work, chapter: 1, role: 'reviewer' }, exec)
   const reviewerTask = reviewerContext.sections?.find(section => section.name === 'task')?.content ?? ''
   check('reviewer context carries the review item text',
-    reviewerContext.ok === true && reviewerTask.includes('Q1') && reviewerTask.includes('钩子虚') && !reviewerTask.includes('undefined'),
+    reviewerContext.ok === true && reviewerTask.includes('O1') && reviewerTask.includes('钩子虚') && !reviewerTask.includes('undefined'),
     reviewerTask.slice(0, 200))
   const reviserContext = await byName.get('story_context').execute({ work, chapter: 1, role: 'reviser', mode: 'patch' }, exec)
   const reviserTask = reviserContext.sections?.find(section => section.name === 'task')?.content ?? ''
   check('reviser context carries the review item text',
-    reviserContext.ok === true && reviserTask.includes('Q1') && reviserTask.includes('钩子虚') && !reviserTask.includes('undefined'),
+    reviserContext.ok === true && reviserTask.includes('O1') && reviserTask.includes('钩子虚') && !reviserTask.includes('undefined'),
     reviserTask.slice(0, 200))
 
   const noIds = await byName.get('story_revise').execute({ work, chapter: 1, body: `${body}（再改）` }, exec)
   check('revise without ids refused', noIds.ok === false && noIds.error.code === 'missing-problems', JSON.stringify(noIds))
 
   const unchanged = await byName.get('story_revise').execute({
-    work, chapter: 1, body, problemIds: ['Q1'],
+    work, chapter: 1, body, problemIds: ['O1'],
   }, exec)
   check('unchanged body refused', unchanged.ok === false && unchanged.error.code === 'unchanged-body', JSON.stringify(unchanged))
 
   const revise = await byName.get('story_revise').execute({
-    work, chapter: 1, body: `${body}（改）`, problemIds: ['Q1'],
+    work, chapter: 1, body: `${body}（改）`, problemIds: ['O1'],
   }, exec)
-  check('story_revise ok', revise.ok === true && revise.resolved[0] === 'Q1', JSON.stringify(revise))
+  check('story_revise ok', revise.ok === true && revise.resolved[0] === 'O1', JSON.stringify(revise))
+  const afterReviseReview = await byName.get('story_review').execute({ work, chapter: 1, problems: [] }, exec)
+  check('a revised chapter is reviewed again', afterReviseReview.ok === true, JSON.stringify(afterReviseReview))
   const afterReviseNext = await byName.get('story_next').execute({ work }, exec)
   check('story_next offers summarizer after revision',
     afterReviseNext.action === 'story_summarize' && afterReviseNext.delegate?.role === 'summarizer', JSON.stringify(afterReviseNext))
@@ -513,7 +515,7 @@ try {
     && secondWrite.artifact.artifactId === 'chapter:2', JSON.stringify(secondWrite))
   check('delegated write receipt carries no body', !JSON.stringify(secondWrite).includes('第二章正文'), JSON.stringify(secondWrite))
   const secondReview = await byName.get('story_review').execute({
-    work, chapter: 2, problems: [{ location: '开头', problem: '进得太慢' }],
+    work, chapter: 2, problems: [{ quote: '第二章正文', problem: '进得太慢' }],
   }, exec)
   check('second review written', secondReview.ok === true, JSON.stringify(secondReview))
 
@@ -553,7 +555,7 @@ try {
 
   const inventedRevise = `周三说：“改。”`.repeat(30)
   const warnedRevise = await byName.get('story_revise').execute({
-    work, chapter: 2, body: inventedRevise, problemIds: ['Q1'], mode: 'rewrite',
+    work, chapter: 2, body: inventedRevise, problemIds: ['O1'], mode: 'rewrite',
   }, exec)
   check('a revision with an unlisted speaker warns but still lands',
     warnedRevise.ok === true && warnedRevise.warnings.some(text => text.includes('周三')), JSON.stringify(warnedRevise))
@@ -590,7 +592,7 @@ try {
   check('story_write warns on an unlisted name without blocking',
     warnWrite.ok === true && warnWrite.warnings?.some(text => text.includes('住户')), JSON.stringify(warnWrite))
   const cleanReview = await byName.get('story_review').execute({ work: warnWork, chapter: 1, problems: [] }, exec)
-  check('story_review records a clean round', cleanReview.ok === true && cleanReview.problems.length === 0, JSON.stringify(cleanReview))
+  check('story_review records a clean round', cleanReview.ok === true && cleanReview.problems.total === 0, JSON.stringify(cleanReview))
   const cleanNext = await byName.get('story_next').execute({ work: warnWork }, exec)
   check('story_next routes a clean review to summary', cleanNext.ok === true && cleanNext.action === 'story_summarize', JSON.stringify(cleanNext))
   setCurrent('test-session', work)

@@ -7,6 +7,7 @@ import * as b from '../bible.js'
 import { openCatalog } from '../db.js'
 import { countWords } from '../storage.js'
 import { critique } from '../critique.js'
+import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -99,31 +100,31 @@ try {
   check('settings clear the range', afterClear.wordRange === undefined, JSON.stringify(afterClear.wordRange))
 
   // Revision modes.
-  await s.writeReview(root, { work, chapter: 1, problems: [{ problem: '一处' }] })
+  await reviewFixture(root, { work, chapter: 1, problems: [{ problem: '一处' }] })
   await rejects('patch rejects a large rewrite', 'revise-mode-violation', () => s.reviseChapter(root, {
-    work, chapter: 1, body: '字'.repeat(400), problemIds: ['Q1'], mode: 'patch',
+    work, chapter: 1, body: '字'.repeat(400), problemIds: ['O1'], mode: 'patch',
   }))
   const polish = await s.reviseChapter(root, {
-    work, chapter: 1, body: '字'.repeat(300), problemIds: ['Q1'], mode: 'polish',
+    work, chapter: 1, body: '字'.repeat(300), problemIds: ['O1'], mode: 'polish',
   })
   check('polish accepts a 20% change', polish.artifact.revision === 2)
   check('mode recorded on the entry', polish.entry.lastReviseMode === 'polish')
 
-  await s.writeReview(root, { work, chapter: 1, problems: [{ problem: '两处' }] })
+  await reviewFixture(root, { work, chapter: 1, problems: [{ problem: '两处' }] })
   const rewritten = await s.reviseChapter(root, {
-    work, chapter: 1, body: `${'字'.repeat(600)}他心中不禁一沉。`, problemIds: ['Q1'], mode: 'rewrite',
+    work, chapter: 1, body: `${'字'.repeat(600)}他心中不禁一沉。`, problemIds: ['O1'], mode: 'rewrite',
   })
   check('rewrite accepts a big change', rewritten.entry.lastReviseMode === 'rewrite')
 
-  await s.writeReview(root, { work, chapter: 1, problems: [{ problem: '三处' }] })
+  await reviewFixture(root, { work, chapter: 1, problems: [{ problem: '三处' }] })
   await rejects('deslop must reduce the phrase hits', 'revise-mode-violation', () => s.reviseChapter(root, {
-    work, chapter: 1, body: `${'字'.repeat(600)}他不禁又心中一沉，仿佛空气凝固。`, problemIds: ['Q1'], mode: 'deslop',
+    work, chapter: 1, body: `${'字'.repeat(600)}他不禁又心中一沉，仿佛空气凝固。`, problemIds: ['O1'], mode: 'deslop',
   }))
 
   // A polish pass needs no new review items: it improves prose, not findings.
-  await s.writeReview(root, { work, chapter: 1, problems: [{ problem: '四处' }] })
+  await reviewFixture(root, { work, chapter: 1, problems: [{ problem: '四处' }] })
   const patched = await s.reviseChapter(root, {
-    work, chapter: 1, body: `${'字'.repeat(600)}换了一处说法，别的不动。`, problemIds: ['Q1'], mode: 'patch',
+    work, chapter: 1, body: `${'字'.repeat(600)}换了一处说法，别的不动。`, problemIds: ['O1'], mode: 'patch',
   })
   check('patch lands', patched.entry.lastReviseMode === 'patch')
   const polishedAgain = await s.reviseChapter(root, {
@@ -136,9 +137,9 @@ try {
   await s.writePlan(root, { ...plan, work: clean, chapter: 1 })
   await s.approveChapterPlan(root, { work: clean, chapter: 1 })
   await s.writeChapter(root, { work: clean, chapter: 1, body: '他把工具收进包里。'.repeat(20) })
-  await s.writeReview(root, { work: clean, chapter: 1, problems: [{ problem: '一处' }] })
+  await reviewFixture(root, { work: clean, chapter: 1, problems: [{ problem: '一处' }] })
   const deslopped = await s.reviseChapter(root, {
-    work: clean, chapter: 1, body: '他把工具收进包里，抬头看了一眼天。'.repeat(20), problemIds: ['Q1'], mode: 'deslop',
+    work: clean, chapter: 1, body: '他把工具收进包里，抬头看了一眼天。'.repeat(20), problemIds: ['O1'], mode: 'deslop',
   })
   check('deslop accepts a body with no hits', deslopped.entry.lastReviseMode === 'deslop')
 } finally {

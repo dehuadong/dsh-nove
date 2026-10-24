@@ -61,11 +61,12 @@ whenToUse: 被派去审一章、需要给出问题清单、或作者要求诊断
 委派子代理：调用 `story_submit`，payload 为 `{"items":[...]}`；手动 subagent：只输出 JSON，不要解释、不要 markdown 代码块之外的文字：
 
 ```json
-{"items":[{"problem":"一句问题","where":"正文里的具体位置","impact":"读者会怎样","severity":"blocker|major|minor","fix":"怎么修","mode":"patch|polish|rewrite|deslop"}]}
+{"items":[{"quote":"正文或章纲里的逐字引文","problem":"一句问题","impact":"读者会怎样","severity":"blocker|major|minor","fix":"怎么修","mode":"patch|polish|rewrite|deslop","resolves":"可选：上一轮 observation id"}]}
 ```
 
 - 最多 8 条，按严重度降序；
 - `blocker` 只给「不改就不能定稿」的问题（事实冲突、因果断裂、视角穿帮）；
+- `quote` 必须逐字出现在正文或本章章纲里；修复上一轮已列问题时，填 `resolves`=上一轮 id。
 - 没有问题时输出 `{"items":[]}`。
 
 ## 不要做

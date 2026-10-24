@@ -8,6 +8,7 @@ import * as b from '../bible.js'
 import { mintHookId } from '../state-projection.js'
 import { checkDraft } from '../landing.js'
 import { openWork } from '../db.js'
+import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -35,7 +36,7 @@ try {
     s.writePlan(root, { work, chapter, perspective: '甲', goal: `g${chapter}`, obstacle: 'o', cost: 'c', turn: 't' })
     s.approveChapterPlan(root, { work, chapter })
     s.writeChapter(root, { work, chapter, body })
-    s.writeReview(root, { work, chapter, problems: [] })
+    reviewFixture(root, { work, chapter, observations: [] })
     s.writeSummary(root, { work, chapter, text: `第${chapter}章摘要。` })
   }
   writeChapter(1)
@@ -101,7 +102,7 @@ try {
 
   // Reopen + re-settle: same-status ops are idempotent under allowReapply.
   s.writeChapter(root, { work, chapter: 2, body: '第二章改版正文。'.repeat(30), rewrite: true, reopen: true })
-  s.writeReview(root, { work, chapter: 2, problems: [] })
+  reviewFixture(root, { work, chapter: 2, observations: [] })
   s.writeSummary(root, { work, chapter: 2, text: '第二章改版摘要。' })
   const reapplied = s.settleState(root, {
     work, chapter: 2,
@@ -113,12 +114,12 @@ try {
     JSON.stringify(reapplied.counts))
 
   s.writeChapter(root, { work, chapter: 2, body: '错误探测正文。'.repeat(30), rewrite: true, reopen: true })
-  s.writeReview(root, { work, chapter: 2, problems: [] })
+  reviewFixture(root, { work, chapter: 2, observations: [] })
   s.writeSummary(root, { work, chapter: 2, text: '错误探测摘要。' })
   throwsCode('an unknown hook is refused', 'hook-not-found',
     () => s.settleState(root, { work, chapter: 2, hookOps: { progress: ['h-missing'] } }))
   s.writeChapter(root, { work, chapter: 3, body: '第三章正文。'.repeat(30) })
-  s.writeReview(root, { work, chapter: 3, problems: [] })
+  reviewFixture(root, { work, chapter: 3, observations: [] })
   s.writeSummary(root, { work, chapter: 3, text: '第三章摘要。' })
   throwsCode('an unknown fact expiration is refused', 'fact-not-found',
     () => s.settleState(root, { work, chapter: 3, factOps: { expire: [{ subject: '甲', predicate: '没有这条' }] } }))

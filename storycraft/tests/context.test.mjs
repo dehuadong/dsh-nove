@@ -109,10 +109,10 @@ try {
 
   const review = await assembleRoleContext({
     root, work, chapter: 2, role: 'reviewer', body: '这一章正文。'.repeat(100),
-    review: { round: 1, revision: 1, open: [{ id: 'Q1', problem: '节奏慢' }] },
+    review: { round: 1, revision: 1, open: [{ id: 'O1', problem: '节奏慢' }] },
   })
   check('reviewer gets the body as protected', review.trace.sections.some(item => item.name === 'body' && item.protection === 'protected'))
-  check('reviewer task carries the items', review.text.includes('Q1'), review.text.slice(0, 300))
+  check('reviewer task carries the items', review.text.includes('O1'), review.text.slice(0, 300))
   check('reviewer gets the chapter plan before the body',
     review.trace.sections.map(item => item.name).indexOf('plan') < review.trace.sections.map(item => item.name).indexOf('body'))
   check('reviewer gets a standards segment', review.trace.sections.some(item => item.name === 'standard' && item.protection === 'protected'))

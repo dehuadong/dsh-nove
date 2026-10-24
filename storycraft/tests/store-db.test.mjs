@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { WORK_SCHEMA_VERSION, openCatalog, openDatabase, openWork, trashFile, workFile } from '../db.js'
 import * as store from '../store-db.js'
+import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -180,13 +181,13 @@ try {
   store.writePlan(root, { work: clean, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   store.approveChapterPlan(root, { work: clean, chapter: 1 })
   store.writeChapter(root, { work: clean, chapter: 1, title: '清稿章', body: '正文。'.repeat(50) })
-  store.writeReview(root, { work: clean, chapter: 1, problems: [] })
+  reviewFixture(root, { work: clean, chapter: 1, observations: [] })
   const cleanNext = store.nextStep(root, clean)
   check('a clean review goes to summary without revise', cleanNext.action === 'story_summarize', JSON.stringify(cleanNext))
   store.writeChapter(root, { work: clean, chapter: 1, title: '清稿章', body: '正文改。'.repeat(50), rewrite: true })
   await rejects('a stale clean review cannot settle', 'review-required',
     () => store.settleState(root, { work: clean, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '活着' }] } }))
-  store.writeReview(root, { work: clean, chapter: 1, problems: [] })
+  reviewFixture(root, { work: clean, chapter: 1, observations: [] })
   store.writeSummary(root, { work: clean, chapter: 1, text: '摘要' })
   const cleanSettle = store.nextStep(root, clean)
   check('a clean review then goes to automatic settlement', cleanSettle.action === 'story_settle', JSON.stringify(cleanSettle))

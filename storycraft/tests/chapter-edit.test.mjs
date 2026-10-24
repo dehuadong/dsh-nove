@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import * as s from '../storage.js'
 import { backupsDir, openWork } from '../db.js'
 import { chapterRemap } from '../chapter-edit.js'
+import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -29,7 +30,7 @@ async function seed() {
     await s.writePlan(root, { work, chapter: number, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
     await s.approveChapterPlan(root, { work, chapter: number })
     await s.writeChapter(root, { work, chapter: number, title: `第${number}章`, body: `正文${number}。`.repeat(20) })
-    await s.writeReview(root, { work, chapter: number, problems: [] })
+    await reviewFixture(root, { work, chapter: number, observations: [] })
     await s.writeSummary(root, { work, chapter: number, text: `摘要${number}。` })
     await s.settleState(root, { work, chapter: number, newHooks: [{ text: `钩子${number}` }] })
   }
@@ -58,7 +59,7 @@ try {
       === '1:第1章:1,2:第3章:1,3:第4章:1', JSON.stringify(headers))
     check('reviews and summaries follow chapters',
       [1, 2, 3].map(chapter => s.readSummary(root, work, chapter)?.trim()).join('|') === '摘要1。|摘要3。|摘要4。'
-      && db.prepare('SELECT count(*) AS n FROM reviews WHERE number = 2').get().n === 1)
+      && db.prepare("SELECT count(*) AS n FROM artifacts WHERE kind = 'review' AND scope_chapter = 2").get().n === 1)
     check('events follow chapters',
       db.prepare("SELECT chapter FROM events WHERE kind = 'hook' AND payload LIKE '%钩子3%'").get()?.chapter === 2)
     check('search docs follow chapters',

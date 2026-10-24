@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { mintHookId } from '../state-projection.js'
 import * as s from '../storage.js'
+import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -60,41 +61,42 @@ try {
   const versions = (await s.readManifest(root, work)).chapters[0].currentRevision
   check('rejected write left the revision untouched', versions === 1, String(versions))
 
-  await rejects('review without body rejected', 'body-not-found', () => s.writeReview(root, { work, chapter: 2, problems: [{ location: 'x', problem: 'y' }] }))
-  const review = await s.writeReview(root, {
+  await rejects('review without body rejected', 'body-not-found', () => reviewFixture(root, { work, chapter: 2, problems: [{ location: 'x', problem: 'y' }] }))
+  const review = await reviewFixture(root, {
     work, chapter: 1, problems: [
       { location: '第 3 段', problem: '视角跳到了路人', suggestion: '改回林澈视角' },
       { location: '结尾', problem: '钩子太虚', suggestion: '落到合同这一具体物上' },
     ],
   })
-  check('review items persisted', review.problems.length === 2 && review.problems[0].id === 'Q1')
-  check('review path is virtual', review.artifact.path === `works/${work}/reviews/ch-0001.r1.md`, review.artifact.path)
+  check('review items persisted', review.observations.length === 2 && review.observations[0].id === 'O1')
+  check('review path is virtual', review.path === `works/${work}/reviews/ch-0001.r1.md`, review.path)
 
   await rejects('revise with unknown problem rejected', 'problem-not-found', () => s.reviseChapter(root, {
-    work, chapter: 1, body: '改后正文', problemIds: ['Q9'],
+    work, chapter: 1, body: '改后正文', problemIds: ['O9'],
   }))
   const rev = await s.reviseChapter(root, {
-    work, chapter: 1, body: '改后正文，视角统一。'.repeat(20), problemIds: ['Q1'], mode: 'rewrite',
+    work, chapter: 1, body: '改后正文，视角统一。'.repeat(20), problemIds: ['O1'], mode: 'rewrite',
   })
   check('revision 2 written', rev.artifact.revision === 2)
   check('old revision kept', (await s.readChapter(root, { work, chapter: 1, revision: 1 })).content.startsWith('他站在雨里'))
   const reviewItems = (await s.readReview(root, work, 1)).items
-  check('Q1 marked done', reviewItems.find(item => item.id === 'Q1')?.done === true)
-  check('Q2 still open', reviewItems.find(item => item.id === 'Q2')?.done === false)
+  check('old review stays open', reviewItems.find(item => item.id === 'O1')?.done === false)
+  check('second item still open', reviewItems.find(item => item.id === 'O2')?.done === false)
 
   await rejects('settle blocked while review items are open', 'review-required', () => s.settleState(root, {
     work, chapter: 1, newHooks: [{ text: '合同是假的' }],
   }))
   // The body changed, so the old list no longer describes it: review again.
   await rejects('stale review cannot drive another patch', 'review-required', () => s.reviseChapter(root, {
-    work, chapter: 1, body: '再改一版，补上母亲的旧照片。'.repeat(20), problemIds: ['Q2'],
+    work, chapter: 1, body: '再改一版，补上母亲的旧照片。'.repeat(20), problemIds: ['O2'],
   }))
-  await s.writeReview(root, {
+  await reviewFixture(root, {
     work, chapter: 1, problems: [{ location: '结尾', problem: '照片收得太快', suggestion: '补一拍' }],
   })
   await s.reviseChapter(root, {
-    work, chapter: 1, body: '再改一版，补上母亲的旧照片。'.repeat(20), problemIds: ['Q1'], mode: 'rewrite',
+    work, chapter: 1, body: '再改一版，补上母亲的旧照片。'.repeat(20), problemIds: ['O1'], mode: 'rewrite',
   })
+  await reviewFixture(root, { work, chapter: 1, observations: [] })
 
   let missingSummary
   try {

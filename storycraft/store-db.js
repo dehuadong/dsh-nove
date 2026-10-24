@@ -36,7 +36,7 @@ import { assertRevisionMode } from './revision.js'
 import { validateArtifactRecord } from './artifact-contract.js'
 import {
   artifactRevision, FOUNDATION_DOCUMENTS, putArtifactOnDb, remapChapterArtifacts, renderChapterMemo, renderFoundationContent,
-  writeChapterMemoOnDb, writeChapterSummaryOnDb, writeTextArtifactOnDb, readTextArtifactOnDb,
+  writeChapterMemoOnDb, writeChapterObservationsOnDb, writeChapterSummaryOnDb, writeTextArtifactOnDb, readTextArtifactOnDb,
 } from './artifact-store.js'
 
 /** How long an unused proposal is kept before the next proposal write prunes it. */
@@ -206,9 +206,32 @@ function summaryStateFrom(map, number) {
   return state
 }
 
-/** The newest review row of one chapter. */
+/** All review artifacts of one chapter, oldest first. */
+function reviewRecords(db, number) {
+  return db.prepare(`SELECT artifact_id, revision_id, content, created_at FROM artifacts
+    WHERE kind = 'review' AND scope_chapter = ? ORDER BY rowid`).all(number)
+    .map((row) => {
+      const match = /^review:(\d+):r(\d+):(\d+)$/u.exec(row.artifact_id)
+      const content = JSON.parse(row.content)
+      return {
+        artifactId: row.artifact_id,
+        revisionId: row.revision_id,
+        round: Number(match?.[3] ?? 0),
+        revision: Number(match?.[2] ?? 0),
+        observations: Array.isArray(content.observations) ? content.observations : [],
+      }
+    })
+}
+
+/** The newest review artifact of one chapter. */
 function latestReviewRow(db, number) {
-  return db.prepare('SELECT * FROM reviews WHERE number = ? ORDER BY round DESC LIMIT 1').get(number)
+  const records = reviewRecords(db, number)
+  return records.length === 0 ? undefined : records[records.length - 1]
+}
+
+/** Observations still blocking settlement. */
+function openObservations(review) {
+  return (review?.observations ?? []).filter(observation => observation.assessment === 'issue')
 }
 
 /** The current body row of one chapter. */
@@ -230,9 +253,23 @@ function reviewCovers(review, chapter, allowPrevious = false) {
   return review.revision === current || (allowPrevious && review.revision === current - 1)
 }
 
-/** A clean review records zero problems and authorizes the clean settlement path. */
+/** A clean review records zero observations and authorizes the clean settlement path. */
 function isCleanReview(review) {
-  return typeof review?.text === 'string' && review.text.includes('- 清稿：无问题')
+  return review !== undefined && review.observations.length === 0
+}
+
+/** Open observation count per chapter, from each chapter's newest review artifact. */
+function openProblemCountByChapter(db) {
+  const rows = db.prepare(`SELECT a.scope_chapter AS chapter, a.content FROM artifacts a
+    JOIN (SELECT scope_chapter, max(rowid) AS rowid FROM artifacts
+      WHERE kind = 'review' AND scope_chapter IS NOT NULL GROUP BY scope_chapter) latest
+      ON a.rowid = latest.rowid`).all()
+  const counts = new Map()
+  for (const row of rows) {
+    const content = JSON.parse(row.content)
+    counts.set(row.chapter, openObservations({ observations: content.observations }).length)
+  }
+  return counts
 }
 
 /** Serialize every event row as JSONL for export and `story_read(state)`. */
@@ -533,11 +570,7 @@ export function listWorks(root) {
         const meta = metaOf(db)
         const chapters = db.prepare('SELECT number, current_revision FROM chapters ORDER BY number').all()
         let openProblems = 0
-        for (const review of db.prepare(`SELECT r.text FROM reviews r
-          JOIN (SELECT number, max(round) AS round FROM reviews GROUP BY number) newest
-            ON newest.number = r.number AND newest.round = r.round`).all()) {
-          openProblems += parseReview(review.text).filter(item => !item.done).length
-        }
+        for (const current of openProblemCountByChapter(db).values()) openProblems += current
         works.push({
           workId: row.work_id,
           title: row.title,
@@ -613,7 +646,7 @@ export function readWork(root, work) {
         summaryRevision: summary.revision,
         summaryStale: summary.state === 'stale',
         reviewRound: review?.round ?? 0,
-        openProblems: review === undefined ? 0 : parseReview(review.text).filter(item => !item.done).length,
+        openProblems: openObservations(review).length,
         updatedAt: chapter.updatedAt,
       }
     })
@@ -656,11 +689,7 @@ export function status(root, work) {
     const folded = foldedOf(db)
     const summaryStates = summaryStateMap(db)
     let openProblems = 0
-    for (const review of db.prepare(`SELECT r.text FROM reviews r
-      JOIN (SELECT number, max(round) AS round FROM reviews GROUP BY number) newest
-        ON newest.number = r.number AND newest.round = r.round`).all()) {
-      openProblems += parseReview(review.text).filter(item => !item.done).length
-    }
+    for (const current of openProblemCountByChapter(db).values()) openProblems += current
     const written = manifest.chapters.filter(chapter => chapter.currentRevision > 0)
     return {
       workId: manifest.workId,
@@ -1030,15 +1059,12 @@ export function nextStep(root, work) {
       }
       const blocked = planApprovalPolicy(manifest) === 'required' && last.planApproved !== true
         ? { blocked: ['plan-approval'] } : {}
-      const open = parseReview(candidate.text).filter(item => !item.done)
+      const open = openObservations(candidate)
       if (open.length > 0) {
         return {
           chapter: last.number, stage, action: 'story_revise',
           reason: `第 ${last.number} 章还有 ${open.length} 条未处理审稿`, missing: open.map(item => item.id), ...blocked,
         }
-      }
-      if (!isCleanReview(candidate) && stage !== 'revised') {
-        return { chapter: last.number, stage, action: 'story_revise', reason: `第 ${last.number} 章审稿条目已处理完，但还没提交修订`, missing: ['revision'], ...blocked }
       }
       const summary = summaryOf(last.number)
       if (summary.state !== 'current') {
@@ -1548,14 +1574,15 @@ export function readChapter(root, input) {
 // ---------------------------------------------------------------------------
 
 /**
- * Persist one review round.
+ * Persist one review round as `review:<n>:r<bodyRev>:<round>`.
+ * Clean reviews (empty observations) authorize the clean settlement path.
  * @param {string} root - workspace directory.
- * @param {{work: string, chapter: number|string, problems: Array<{location: string, problem: string, suggestion: string}>}} input - findings.
- * @returns {object} result with a virtual artifact path.
+ * @param {{work: string, chapter: number|string, observations: object[]}} input - observations.
+ * @returns {object} review receipt.
  */
 export function writeReview(root, input) {
   const number = chapterNumber(input.chapter)
-  const problems = Array.isArray(input.problems) ? input.problems : []
+  const observations = Array.isArray(input.observations) ? input.observations : []
   const workId = String(input.work)
   const db = openWork(root, workId)
   try {
@@ -1563,30 +1590,37 @@ export function writeReview(root, input) {
       const entry = chapterRow(db, number)
       if (entry === undefined || entry.current_revision === 0) throw new StoryError('body-not-found', `第 ${number} 章还没有正文，不能审稿`)
       if (stageOf(entry) === 'settled') throw new StoryError('chapter-settled', `第 ${number} 章已定稿：改审稿要先带 reopen`)
-      const round = (db.prepare('SELECT max(round) AS n FROM reviews WHERE number = ?').get(number)?.n ?? 0) + 1
-      const lines = [`# 第 ${number} 章 审稿（第 ${round} 轮）`, '', `- 正文版本：${entry.current_revision}`, '']
-      if (problems.length === 0) lines.push('- 清稿：无问题')
-      const recorded = problems.map((problem, index) => {
-        const id = `Q${index + 1}`
-        const location = String(problem?.location ?? '').trim() || '未标注'
-        const text = String(problem?.problem ?? '').trim()
-        const suggestion = String(problem?.suggestion ?? '').trim() || '未给出建议'
-        if (text === '') throw new StoryError('empty-problem', `${id} 缺少问题描述`)
-        lines.push(`- [ ] ${id} :: ${location} :: ${text} :: ${suggestion}`)
-        return { id, location, problem: text, suggestion, done: false }
+      const round = reviewRecords(db, number).length + 1
+      const normalized = observations.map((observation, index) => ({
+        ...observation,
+        id: observation?.id ?? `O${index + 1}`,
+        assessment: observation?.assessment ?? 'issue',
+        target: observation?.target ?? {
+          workId,
+          artifactId: `chapter:${number}`,
+          revisionId: `r${entry.current_revision}`,
+        },
+        sourceRefs: Array.isArray(observation?.sourceRefs) ? observation.sourceRefs : [],
+      }))
+      const written = writeChapterObservationsOnDb(db, root, {
+        work: workId,
+        chapter: number,
+        bodyRevision: entry.current_revision,
+        round,
+        observations: normalized,
       })
-      lines.push('')
       const at = now()
-      db.prepare('INSERT INTO reviews (number, round, text, revision, created_at) VALUES (?, ?, ?, ?, ?)')
-        .run(number, round, lines.join('\n'), entry.current_revision, at)
       db.prepare("UPDATE chapters SET status = 'reviewed', stage = 'reviewed', updated_at = ? WHERE number = ?").run(at, number)
       touchMeta(db, at)
       return {
         workId,
         chapter: number,
         round,
-        problems: recorded,
-        artifact: { path: virtualPath(workId, `reviews/${chapterStem(number)}.r${round}.md`) },
+        revision: entry.current_revision,
+        observations: normalized,
+        artifactId: written.artifactId,
+        revisionId: written.revisionId,
+        path: virtualPath(workId, `reviews/${chapterStem(number)}.r${round}.md`),
       }
     })
   } finally {
@@ -1594,26 +1628,53 @@ export function writeReview(root, input) {
   }
 }
 
+/** Project review observations into the compact item view used by tools and UI. */
+function reviewItems(observations) {
+  return observations.map(observation => ({
+    id: observation.id,
+    done: observation.assessment !== 'issue',
+    location: observation.sourceRefs?.[0]?.quote ?? observation.scope ?? '',
+    problem: observation.summary,
+    suggestion: observation.fix ?? '',
+  }))
+}
+
+/** Render one review round for export and reading. */
+function renderReviewMarkdown(number, record) {
+  const lines = [`# 第 ${number} 章 审稿（第 ${record.round} 轮）`, '', `- 正文版本：${record.revision}`, '']
+  if (record.observations.length === 0) lines.push('- 清稿：无问题')
+  for (const observation of record.observations) {
+    lines.push(`## ${observation.id}（${observation.assessment}${observation.severity === undefined ? '' : ` / ${observation.severity}`}）`)
+    lines.push(observation.summary)
+    for (const ref of observation.sourceRefs ?? []) lines.push(`- 证据：${ref.quote}`)
+    if (observation.fix !== undefined) lines.push(`- 修法：${observation.fix}`)
+    lines.push('')
+  }
+  return lines.join('\n')
+}
+
 /**
- * Latest review of one chapter, accepting a work id, a manifest or a chapter entry.
+ * Latest review of one chapter.
  * @param {string} root - workspace directory.
  * @param {string|object} work - work id or manifest.
  * @param {number|string|object} chapter - chapter number or entry.
- * @returns {{round: number, text: string, revision?: number, path: string, items: object[]}|undefined} review.
+ * @returns {{round: number, revision: number, path: string, observations: object[], items: object[]}|undefined} review.
  */
 export function latestReview(root, work, chapter) {
   const workId = typeof work === 'string' ? work : work?.workId
   const number = chapterNumber(typeof chapter === 'object' && chapter !== null ? chapter.number : chapter)
   const db = openWork(root, workId)
   try {
-    const row = latestReviewRow(db, number)
-    if (row === undefined) return undefined
+    const record = latestReviewRow(db, number)
+    if (record === undefined) return undefined
     return {
-      round: row.round,
-      text: row.text,
-      revision: row.revision,
-      path: virtualPath(workId, `reviews/${chapterStem(number)}.r${row.round}.md`),
-      items: parseReview(row.text),
+      round: record.round,
+      revision: record.revision,
+      path: virtualPath(workId, `reviews/${chapterStem(number)}.r${record.round}.md`),
+      artifactId: record.artifactId,
+      revisionId: record.revisionId,
+      observations: record.observations,
+      items: reviewItems(record.observations),
     }
   } finally {
     db.close()
@@ -1621,31 +1682,29 @@ export function latestReview(root, work, chapter) {
 }
 
 /**
- * Read the latest review of a chapter with its full items and round count.
+ * Read the latest review of a chapter with its observations and round count.
  * @param {string} root - workspace directory.
  * @param {string} work - work identity.
  * @param {number|string} chapter - chapter number.
- * @returns {{path: string, round: number, items: object[], rounds: number}} review payload.
+ * @returns {{path: string, round: number, revision: number, rounds: number, observations: object[], items: object[]}} review payload.
  */
 export function readReview(root, work, chapter) {
   const number = chapterNumber(chapter)
   const db = openWork(root, work)
   try {
     if (chapterRow(db, number) === undefined) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
-    const row = latestReviewRow(db, number)
-    const rounds = db.prepare('SELECT count(*) AS n FROM reviews WHERE number = ?').get(number).n
-    if (row === undefined) return { path: '', round: 0, revision: 0, items: [], rounds }
+    const records = reviewRecords(db, number)
+    const record = records[records.length - 1]
+    if (record === undefined) return { path: '', round: 0, revision: 0, rounds: 0, observations: [], items: [] }
     return {
-      path: virtualPath(work, `reviews/${chapterStem(number)}.r${row.round}.md`),
-      round: row.round,
-      revision: row.revision,
-      rounds,
-      items: String(row.text).split(/\r?\n/).flatMap((line) => {
-        const match = /^- \[( |x)\] (Q\d+) :: (.*?) :: (.*?) :: (.*)$/u.exec(line)
-        return match === null
-          ? []
-          : [{ id: match[2], done: match[1] === 'x', location: match[3], problem: match[4], suggestion: match[5] }]
-      }),
+      path: virtualPath(work, `reviews/${chapterStem(number)}.r${record.round}.md`),
+      round: record.round,
+      revision: record.revision,
+      rounds: records.length,
+      artifactId: record.artifactId,
+      revisionId: record.revisionId,
+      observations: record.observations,
+      items: reviewItems(record.observations),
     }
   } finally {
     db.close()
@@ -1686,15 +1745,12 @@ export function reviseChapter(root, input) {
       if (!reviewCovers(review, entry, mode !== 'patch')) {
         throw new StoryError('review-required', `第 ${number} 章的审稿针对旧版本 r${review.revision}：先重新审稿`)
       }
-      const open = parseReview(review.text).filter(item => !item.done).map(item => item.id)
+      const open = openObservations(review).map(observation => observation.id)
       const missing = problemIds.filter(id => !open.includes(id))
       if (missing.length > 0) throw new StoryError('problem-not-found', `问题不存在或已处理：${missing.join('、')}`)
       const current = currentVersion(db, entry)
       if (current.body === body) throw new StoryError('unchanged-body', '修订后的正文与当前版本相同')
       assertRevisionMode({ mode, chapter: number, oldBody: current.body, body })
-      let text = review.text
-      for (const id of problemIds) text = text.replace(new RegExp(`^- \\[ \\] ${id} ::`, 'mu'), `- [x] ${id} ::`)
-      db.prepare('UPDATE reviews SET text = ? WHERE number = ? AND round = ?').run(text, number, review.round)
       const revision = entry.current_revision + 1
       const words = countWords(body)
       const at = now()
@@ -1883,7 +1939,7 @@ function assertStateGate(db, number, options = {}) {
   const review = latestReviewRow(db, number)
   if (review === undefined) throw new StoryError('review-required', `第 ${number} 章还没有审稿清单：先审稿与修订，再定稿`)
   const covers = reviewCovers(review, entry, true)
-  const open = parseReview(review.text).filter(item => !item.done)
+  const open = openObservations(review)
   if (open.length > 0) {
     throw new StoryError('review-required',
       `第 ${number} 章还有 ${open.length} 条未处理审稿：${open.map(item => item.id).join('、')}；先修订再定稿`)
@@ -1891,10 +1947,6 @@ function assertStateGate(db, number, options = {}) {
   if (!covers) throw new StoryError('review-required', `第 ${number} 章的审稿针对旧版本 r${review.revision}：先重新审稿`)
   if (isCleanReview(review) && review.revision !== entry.current_revision) {
     throw new StoryError('review-required', `第 ${number} 章的清稿审稿针对旧版本 r${review.revision}：先重新审稿`)
-  }
-  if (stageOf(entry) !== 'revised' && !isCleanReview(review)) {
-    throw new StoryError('review-required',
-      `第 ${number} 章还没走完修订（当前阶段：${stageOf(entry)}）：先 story_revise 提交改动，再定稿`)
   }
   const summaryState = summaryStateOf(db, number)
   if (summaryState.state === 'missing') {
@@ -2697,7 +2749,7 @@ function rewriteChapterDocs(db, mapping) {
 function applyChapterMapping(db, mapping) {
   if (mapping.size === 0) return
   db.exec('PRAGMA defer_foreign_keys = ON')
-  for (const table of ['chapters', 'chapter_versions', 'chapter_plans', 'summaries', 'reviews']) {
+  for (const table of ['chapters', 'chapter_versions', 'chapter_plans', 'summaries']) {
     for (const [oldNumber, newNumber] of mapping) {
       db.prepare(`UPDATE ${table} SET number = ? WHERE number = ?`).run(-newNumber, oldNumber)
     }
@@ -3170,8 +3222,17 @@ export function exportWork(root, work, destination) {
       for (const summary of exportSummaryRows(db)) {
         put(join('summaries', `${chapterStem(summary.number)}.md`), summary.text)
       }
-      for (const review of db.prepare('SELECT * FROM reviews ORDER BY number, round').all()) {
-        put(join('reviews', `${chapterStem(review.number)}.r${review.round}.md`), review.text)
+      for (const row of db.prepare(`SELECT artifact_id, content FROM artifacts
+        WHERE kind = 'review' ORDER BY scope_chapter, rowid`).all()) {
+        const match = /^review:(\d+):r(\d+):(\d+)$/u.exec(row.artifact_id)
+        if (match === null) continue
+        const number = Number(match[1])
+        const content = JSON.parse(row.content)
+        put(join('reviews', `${chapterStem(number)}.r${Number(match[3])}.md`), renderReviewMarkdown(number, {
+          round: Number(match[3]),
+          revision: Number(match[2]),
+          observations: Array.isArray(content.observations) ? content.observations : [],
+        }))
       }
       const characters = db.prepare('SELECT content FROM bible WHERE name = ?').get('characters')
       if (characters !== undefined) put(join('bible', 'characters.json'), characters.content)

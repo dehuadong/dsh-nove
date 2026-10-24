@@ -32,7 +32,7 @@ function rejects(name, code, fn) {
 }
 
 const observation = {
-  code: 'hook-unsupported', summary: '伏笔没有推进', evidence: ['账本没有出现'],
+  id: 'O1', code: 'hook-unsupported', summary: '伏笔没有推进', evidence: ['账本没有出现'],
   category: 'quality', assessment: 'issue',
   sourceRefs: [{ sourceId: 'chapter:1', quote: '甲把账本收好。' }],
   severity: 'major', fix: '补账本内容', mode: 'patch',
@@ -51,11 +51,6 @@ try {
     content: JSON.stringify([{ name: '甲', role: '主角', want: '救父', fear: '失去', limit: '不杀人', voice: '短句' }]),
   })
   writeChapter(root, { work, chapter: 1, title: '账本', body: '甲把账本收好。然后离开当铺。' })
-  writeReview(root, {
-    work, chapter: 1,
-    problems: [{ location: '结尾', problem: '伏笔没有推进', suggestion: '补账本内容' }],
-  })
-
   const written = writeChapterObservations(root, {
     work, chapter: 1, bodyRevision: 1, round: 1, observations: [observation],
   })

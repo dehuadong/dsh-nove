@@ -224,11 +224,13 @@ updated: 2026-10-24
 ```json
 // Observation
 {
-  "code": "string",
+  "id": "O1",
+  "code": "string?",
   "summary": "string",
   "evidence": ["string"],
   "category": "execution|quality|scope",
   "assessment": "issue|resolved|unavailable|observation",
+  "resolves": "O1?",
   "scope": "string?",
   "target": { "workId": "string", "artifactId": "string", "revisionId": "string" }?,
   "sourceRefs": [{ "sourceId": "string", "quote": "string" }],
@@ -238,7 +240,7 @@ updated: 2026-10-24
 }
 ```
 
-`severity/fix/mode` 保留现有审稿契约；`sourceRefs` 必须落在可核对的正文/计划文本上。消费者：reviewer、reviser、UI、导出。
+`id` 在一份 review artifact 内唯一（`O<正整数>`），`code` 是可选的机器代码；`assessment` 只有 `issue` 阻断定稿，`resolved` 必须带 `resolves` 指向上一轮的 issue；`severity/fix/mode` 保留现有审稿契约；`sourceRefs` 必须落在可核对的正文/计划文本上。`reviews` 表已删除，审稿事实只存 `{observations}`。消费者：reviewer、reviser、阶段机、UI、导出。
 
 ### 5. 状态：fact 与 hook
 

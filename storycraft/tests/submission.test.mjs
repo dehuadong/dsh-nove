@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { closeSubmission, consumeSubmission, openSubmission, submitPayload } from '../submission.js'
 import { SUBMIT_OUTPUT } from '../tools.js'
 import * as s from '../storage.js'
+import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -24,7 +25,7 @@ try {
   s.writePlan(root, { work, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   s.approveChapterPlan(root, { work, chapter: 1 })
   s.writeChapter(root, { work, chapter: 1, title: '一', body: '旧'.repeat(60) })
-  s.writeReview(root, { work, chapter: 1, problems: [{ location: '开头', problem: '慢', suggestion: '快' }] })
+  reviewFixture(root, { work, chapter: 1, problems: [{ location: '开头', problem: '慢', suggestion: '快' }] })
 
   const writer = openSubmission({ role: 'writer', workId: work, chapter: 1, wordRange: { min: 50, max: 80 } })
   const tooShort = await submitPayload({

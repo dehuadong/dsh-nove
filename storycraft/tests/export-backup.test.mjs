@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { openDatabase } from '../db.js'
 import * as store from '../store-db.js'
+import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0
 /** Test-local ZIP reader: enough to validate the EPUB container. */
@@ -88,8 +89,9 @@ try {
   store.writePlan(root, { work, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   store.approveChapterPlan(root, { work, chapter: 1 })
   store.writeChapter(root, { work, chapter: 1, title: '第一章', body: '正文一。'.repeat(20) })
-  store.writeReview(root, { work, chapter: 1, problems: [{ location: '开头', problem: '慢', suggestion: '快' }] })
-  store.reviseChapter(root, { work, chapter: 1, body: '正文二。'.repeat(20), problemIds: ['Q1'], mode: 'rewrite' })
+  reviewFixture(root, { work, chapter: 1, problems: [{ location: '开头', problem: '慢', suggestion: '快' }] })
+  store.reviseChapter(root, { work, chapter: 1, body: '正文二。'.repeat(20), problemIds: ['O1'], mode: 'rewrite' })
+  reviewFixture(root, { work, chapter: 1, observations: [] })
   store.writeSummary(root, { work, chapter: 1, text: '摘要一。' })
   store.settleState(root, { work, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '到场' }] }, newHooks: [{ text: '一个钩子' }] })
   store.writeVolume(root, { work, id: 'v1', title: '第一卷', from: 1, to: 1, summary: '开局' })

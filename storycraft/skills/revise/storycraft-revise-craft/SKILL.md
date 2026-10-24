@@ -37,7 +37,7 @@ whenToUse: 被派去按审稿条目改一章、或作者要求润色/去 AI 味/
 
 ## 交付
 
-> 委派子代理：调用 `story_submit`，payload 为 `{"body":"完整新版本正文"}`。
+> 委派子代理：调用 `story_submit`，payload 为 `{"body":"完整新版本正文","resolved":["可选：本轮处理的 observation id"]}`。
 > 手动 subagent：输出完整的新版本正文，用 `<<<CHAPTER` 与 `CHAPTER>>>` 包住，前后不写解释。
 
 - 不要输出 diff、不要输出说明、不要只给改动的段落；

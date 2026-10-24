@@ -164,7 +164,7 @@ export function summaryAdmissible(entry, latest) {
   return stage === 'reviewed'
     && latest !== undefined
     && latest.revision === entry.currentRevision
-    && parseReview(latest.text).filter(item => !item.done).length === 0
+    && (latest.observations ?? []).filter(item => item.assessment === 'issue').length === 0
 }
 
 /**

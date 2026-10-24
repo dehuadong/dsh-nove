@@ -628,9 +628,9 @@ function compactText(value) {
 }
 
 /** Refuse an observation whose quote is not in the reviewed body or plan. */
-function verifyObservationSources(root, work, chapter, bodyRevision, observations) {
+function verifyObservationSources(root, work, chapter, bodyRevision, observations, handle) {
   if (!Array.isArray(observations)) return
-  const db = openWork(root, String(work))
+  const db = handle ?? openWork(root, String(work))
   try {
     if (db.prepare('SELECT 1 FROM chapters WHERE number = ?').get(chapter) === undefined) {
       throw new StoryError('chapter-not-found', `没有第 ${chapter} 章`)
@@ -666,7 +666,7 @@ function verifyObservationSources(root, work, chapter, bodyRevision, observation
       }
     }
   } finally {
-    db.close()
+    if (handle === undefined) db.close()
   }
 }
 
@@ -748,6 +748,27 @@ export function writeChapterObservations(root, input) {
     provenance: input.provenance,
     createdAt: input.createdAt,
   })
+}
+
+/** Write one review round on a caller-owned handle and transaction. */
+export function writeChapterObservationsOnDb(db, root, input) {
+  const chapter = chapterNumber(input.chapter)
+  const bodyRevision = positiveInteger(input.bodyRevision, 'bodyRevision')
+  const round = positiveInteger(input.round, 'round')
+  verifyObservationSources(root, input.work, chapter, bodyRevision, input.observations, db)
+  const artifactId = `review:${chapter}:r${bodyRevision}:${round}`
+  const content = { observations: input.observations }
+  putArtifactOnDb(db, {
+    workId: String(input.work),
+    artifactId,
+    kind: 'review',
+    scope: { chapter },
+    revisionId: artifactRevision(content),
+    content,
+    provenance: input.provenance ?? 'generated',
+    createdAt: input.createdAt ?? now(),
+  })
+  return { artifactId, revision: round, revisionId: artifactRevision(content) }
 }
 
 /** Read one review round's observations by chapter, body revision and round. */

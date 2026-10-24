@@ -48,7 +48,7 @@ try {
   writeChapterObservations(root, {
     work, chapter: 1, bodyRevision: 1, round: 1,
     observations: [{
-      code: 'Q1', summary: '目标不清', evidence: ['e'], category: 'quality', assessment: 'issue',
+      id: 'O1', summary: '目标不清', evidence: ['e'], category: 'quality', assessment: 'issue',
       target: { workId: work, artifactId: 'plan:1', revisionId: planOne.artifact.revisionId },
       sourceRefs: [{ sourceId: 'plan:1', quote: 'g1' }],
     }],
@@ -57,7 +57,7 @@ try {
   writeChapterObservations(root, {
     work, chapter: 3, bodyRevision: 1, round: 1,
     observations: [{
-      code: 'Q2', summary: '跨章引用', evidence: ['e'], category: 'quality', assessment: 'issue',
+      id: 'O2', summary: '跨章引用', evidence: ['e'], category: 'quality', assessment: 'issue',
       target: { workId: work, artifactId: 'plan:1', revisionId: planOne.artifact.revisionId },
       sourceRefs: [{ sourceId: 'chapter:3', quote: '正文3。' }],
     }],

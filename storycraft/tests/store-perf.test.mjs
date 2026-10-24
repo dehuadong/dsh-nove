@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import * as bible from '../bible.js'
 import * as store from '../store-db.js'
 import { select } from '../retrieval.js'
+import { reviewFixture } from './review-fixture.mjs'
 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-perf-'))
 let failures = 0
@@ -50,7 +51,7 @@ try {
     store.writeSummary(root, { work, chapter: number, text: `第 ${number} 章摘要：周砚在井台边找到一把旧钥匙。` })
   }
   for (let number = 1; number <= 20; number += 1) {
-    store.writeReview(root, { work, chapter: number, problems: [] })
+    reviewFixture(root, { work, chapter: number, observations: [] })
     store.settleState(root, { work, chapter: number, newHooks: [{ text: '旧钥匙' }] })
   }
   store.reopenChapter(root, { work, chapter: 10 })

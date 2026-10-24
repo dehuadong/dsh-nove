@@ -51,7 +51,7 @@ try {
   })
   const db = openWork(root, '测试书')
   const workTables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all().map(row => row.name)
-  const expected = ['artifacts', 'bible', 'chapter_plans', 'chapter_versions', 'chapters', 'events', 'materials', 'meta', 'reviews',
+  const expected = ['artifacts', 'bible', 'chapter_plans', 'chapter_versions', 'chapters', 'events', 'materials', 'meta',
     'search_docs', 'search_fts', 'summaries', 'volumes']
   check('all work tables exist', expected.every(name => workTables.includes(name)), workTables.join(','))
   check('work schema version recorded', Number(db.prepare('PRAGMA user_version').get().user_version) === WORK_SCHEMA_VERSION)

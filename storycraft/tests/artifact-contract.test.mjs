@@ -57,7 +57,7 @@ const fact = {
 }
 
 const observation = {
-  code: 'hook-unsupported', summary: '伏笔没有推进', evidence: ['账本没有出现'],
+  id: 'O1', code: 'hook-unsupported', summary: '伏笔没有推进', evidence: ['账本没有出现'],
   category: 'quality', assessment: 'issue', sourceRefs: [{ sourceId: 'chapter:1', quote: '甲把账本收好。' }],
   severity: 'major', fix: '补账本内容', mode: 'patch',
 }

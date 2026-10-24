@@ -121,8 +121,8 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 - 没有审稿清单不能定稿（`review-required`）；没有摘要返回 `summary-required`，摘要过期返回 `summary-stale`；`story_state` 在写库前做确定性预检：重复 fact 三元组按投影去重，未知 hookId、非法转移、无可失效 fact 与二次归档直接拒绝；
 - 定稿优先用 `story_settle` 自动结算：settler 抽取 `factOps`/`hookOps`/`newHooks`，确定性预检 + `story_state_check`，major/确定性差异带反馈重算一次；仍不一致返回 `settled:false`，不写库；首次空 payload 可定稿，但被 major 拒绝后的第二次空 payload 仍视为未解决；
 - 手动修正仍用 `story_state`，payload 与 settler 同形；`story_state_check` 可在写前只读核对 payload，findings 只作建议，不阻断 `story_state`；
-- 审稿条目没处理完不能定稿，错误里列出条目 id；
-- 审稿只对「它记录的那个正文版本」有效：改过正文后要重新审稿才能再修订；清稿审稿必须针对当前版本；定稿允许「有问题的审稿针对上一版、条目已全处理」；
+- 定稿要求当前正文版本的审稿没有 `issue` observation；修订后必须再跑一次审稿（新一轮用 `resolved` 指向上一轮 id），清稿审稿直接放行；
+- 审稿只对「它记录的那个正文版本」有效：改过正文后要重新审稿才能再修订；定稿只认当前正文版本的 review artifact，且其中没有 `issue`；`reviews` 表已删除；
 - 已定稿章改章纲要先带 `reopen: true` 重写正文回退（`chapter-settled`）；
 - `reopen` 会追加一条 `reopen`；既有状态事件不撤回，重新结算时同状态 op 与重复 fact 按幂等处理。
 
@@ -135,8 +135,8 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 | `story_init` | 建作品库、真值与检索表；无当前作品时设为当前 | 标题为空；同 id 已存在；会话已有其他当前作品（`work-mismatch`，请新建会话） |
 | `story_plan` | 写章纲 | 五项（视角/目标/阻力/代价/结尾变化）缺一；`body` 为空；`threadRefs` 不是数组；已定稿 |
 | `story_write` | 写正文并更新字数与版本 | 正文为空；已有正文且未声明 `rewrite`；已定稿且未 `reopen` |
-| `story_review` | 写问题清单（轮次按章独立编号；空清单表示清稿） | 正文不存在；已定稿；**不改正文** |
-| `story_revise` | 生成新版本正文并把条目改为已处理 | 没有审稿清单；未指定条目；条目不存在；正文与当前版本相同；模式与改动幅度不符 |
+| `story_review` | 写一轮 observation（逐字引文/问题/修法；轮次按章独立编号；空数组合法=清稿） | 正文不存在；已定稿；引文不在正文或章纲；**不改正文** |
+| `story_revise` | 生成新版本正文，回执列出本轮处理（resolved）的 observation id | 没有未处理审稿；未指定条目；条目不存在；正文与当前版本相同；模式与改动幅度不符 |
 | `story_state_check` | 只读语义对账：把拟写入的 `factOps`/`hookOps`/`newHooks` 交给 validator 子代理核对正文，返回最多 8 条建议性 findings 与正文引文校验；不写库 | 子代理调用 `state-check-parent-denied`；空 payload `empty-state`；缺正文 `chapter-not-written`；已定稿 `chapter-settled`；服务缺失/超时/无提交/正文改版分别返回错误，不返回干净结果 |
 | `story_settle` | 自动结算：settler 从正文抽取 v2 操作，确定性预检 + 语义检查；major/确定性差异带反馈重算一次；成功写事件并定稿，未解决返回 `settled:false`、proposed 与 findings，不写库 | 子代理调用 `subagent-cannot-land`；闸门同 `story_state`，另要求章已有正文（`chapter-not-written`）；服务缺失/超时/无提交/正文改版分别返回 `state-settle-*`，不产生半成品 |
 | `story_state` | 手动追加 v2 hook/fact 操作，返回 `counts.facts`/`counts.hooks`/`counts.newHooks`（实际写入的事件数）与 `warnings` | 作品或章不存在；未知 hookId `hook-not-found`；非法转移 `hook-transition-invalid`；无可失效 fact `fact-not-found`；空 payload `empty-state`；已定稿重复归档 `chapter-settled`；未修订完成或未清稿；无摘要 `summary-required`；摘要过期 `summary-stale` |
@@ -157,7 +157,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 侧栏入口「故事工坊」打开一个面板：
 
 - 左侧：「作品 / 回收站」视图与类型筛选；作品列表显示标题、形态、已写/总章数、最新章号、最近更新时间、未处理问题数；底部显示工作区路径与会话状态。回收站可恢复或彻底删除，彻底删除不可撤销。
-- 右侧：作品详情——顶部作品栏 + 六个标签「章节 / 真值 / 写前上下文 / 素材 / 导出 / 备份」；章节列表倒序、20 章/页，可翻页，选中旧章自动跳页；章节行可「前移/后移」；章节点开后可切「正文 / 章纲」两视图、看审稿清单。
+- 右侧：作品详情——顶部作品栏 + 六个标签「章节 / 真值 / 写前上下文 / 素材 / 导出 / 备份」；章节列表倒序、20 章/页，可翻页，选中旧章自动跳页；章节行可「前移/后移」；章节点开后可切「正文 / 章纲」两视图、看审稿 observation（id/评估/证据/修法）。
 - 「真值」：五张中文卡片（世界观/人物档案/文风基准/全书计划/作者意图），world/characters/style/intent 用右侧抽屉编辑保存，plan 只读；写前上下文是独立标签，选择目标章后装配。
 - 「备份」：创建、恢复、删除、保留最近 N 份；恢复前自动备份当前版本；导出仍是覆盖快照，备份是历史副本。
 

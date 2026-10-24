@@ -29,7 +29,7 @@ export const STORE_DIR = '.storycraft'
 export const CATALOG_SCHEMA_VERSION = 1
 
 /** Schema version of one work database. */
-export const WORK_SCHEMA_VERSION = 7
+export const WORK_SCHEMA_VERSION = 8
 
 /** Final material table with purpose, used by new databases. */
 const MATERIALS_SCHEMA_V4 = `
@@ -156,16 +156,6 @@ CREATE TABLE IF NOT EXISTS summaries (
   FOREIGN KEY (number) REFERENCES chapters(number) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS reviews (
-  number INTEGER NOT NULL,
-  round INTEGER NOT NULL,
-  text TEXT NOT NULL,
-  revision INTEGER NOT NULL,
-  created_at TEXT NOT NULL,
-  PRIMARY KEY (number, round),
-  FOREIGN KEY (number) REFERENCES chapters(number) ON DELETE CASCADE
-);
-
 CREATE TABLE IF NOT EXISTS events (
   seq INTEGER PRIMARY KEY,
   at TEXT NOT NULL,
@@ -205,7 +195,6 @@ CREATE TABLE IF NOT EXISTS search_docs (
 CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(tokens, content='search_docs', content_rowid='rowid');
 
 CREATE INDEX IF NOT EXISTS idx_versions_number ON chapter_versions(number);
-CREATE INDEX IF NOT EXISTS idx_reviews_number ON reviews(number);
 CREATE INDEX IF NOT EXISTS idx_events_chapter ON events(chapter);
 CREATE INDEX IF NOT EXISTS idx_search_chapter ON search_docs(chapter);
 `

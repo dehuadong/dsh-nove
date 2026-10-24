@@ -7,9 +7,8 @@
  * chapter body to the established `chapter-not-written` business code.
  */
 
-import { StoryError, chapterNumber, parseReview } from './domain.js'
+import { StoryError, chapterNumber } from './domain.js'
 import { latestReview, readChapter, readManifest } from './storage.js'
-import { readChapterObservations } from './artifact-store.js'
 import { assembleRoleContext } from './context.js'
 
 /**
@@ -51,26 +50,17 @@ export async function loadRoleInput(root, input) {
     }
     if (role !== 'summarizer') {
       latest = latestReview(root, manifest, entry)
-      let observations
-      if (latest !== undefined) {
-        try {
-          observations = readChapterObservations(root, {
-            work: input.work, chapter: number, bodyRevision: latest.revision, round: latest.round,
-          }).artifact.content.observations
-        } catch (error) {
-          if (error?.code !== 'artifact-not-found') throw error
-        }
-      }
-      const open = observations !== undefined
-        ? observations.map((item, index) => ({ id: item.code ?? `O${index + 1}`, problem: item.summary }))
-        : latest === undefined ? [] : parseReview(latest.text).filter(item => !item.done)
+      const observations = latest?.observations ?? []
+      const open = observations
+        .filter(observation => observation.assessment === 'issue')
+        .map(observation => ({ id: observation.id, problem: observation.summary }))
       if (role === 'reviser' && open.length === 0) {
         throw new StoryError('review-required', `第 ${number} 章没有未处理的审稿条目：先 story_review，再修订`)
       }
       review = {
         round: latest?.round,
         revision: latest?.revision,
-        open: open.map(item => ({ id: item.id, problem: item.problem })),
+        open,
       }
     }
   }

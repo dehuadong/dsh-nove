@@ -1422,7 +1422,7 @@ function rawDefinitions(ctx) {
     action({
       name: 'story_review',
       mutates: true,
-      description: '把审稿发现落盘成问题清单。只写清单，绝不修改正文；每条含位置、问题、建议。'
+      description: '把审稿发现落盘成一轮 observation。只写审稿，绝不修改正文；每条含逐字引文、问题与修法。'
         + ' 空数组合法，表示清稿审稿；正文不存在时会被拒绝。',
       parameters: {
         type: 'object',
@@ -1437,11 +1437,12 @@ function rawDefinitions(ctx) {
               type: 'object',
               additionalProperties: false,
               properties: {
-                location: { type: 'string', description: '位置：段落、场景或引用原文。' },
+                quote: { type: 'string', description: '正文或章纲里的逐字引文。' },
                 problem: { type: 'string', description: '问题是什么。' },
-                suggestion: { type: 'string', description: '建议怎么改。' },
+                fix: { type: 'string', description: '建议怎么改。' },
+                severity: { type: 'string', enum: ['blocking', 'major', 'minor'] },
               },
-              required: ['location', 'problem'],
+              required: ['quote', 'problem'],
             },
           },
         },
@@ -1449,8 +1450,26 @@ function rawDefinitions(ctx) {
       },
       async execute(args, exec) {
         const root = workspaceOf(exec)
-        const result = await writeReview(root, args)
-        return { ok: true, workId: args.work, artifact: result.artifact, problems: result.problems }
+        const manifest = await readManifest(root, args.work)
+        const entry = manifest.chapters.find(item => item.number === args.chapter)
+        if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${args.chapter} 章`)
+        const observations = args.problems.map((problem, index) => ({
+          id: `O${index + 1}`,
+          summary: problem.problem,
+          evidence: [],
+          category: 'quality',
+          assessment: 'issue',
+          ...(problem.severity === undefined ? {} : { severity: problem.severity }),
+          ...(problem.fix === undefined ? {} : { fix: problem.fix }),
+          sourceRefs: [{ sourceId: `chapter:${args.chapter}:r${entry.currentRevision}`, quote: problem.quote }],
+        }))
+        const result = await writeReview(root, { work: args.work, chapter: args.chapter, observations })
+        return {
+          ok: true,
+          workId: args.work,
+          artifact: { workId: args.work, artifactId: result.artifactId, revisionId: result.revisionId, kind: 'review' },
+          problems: { total: observations.length, open: observations.length },
+        }
       },
     }),
 
@@ -1698,8 +1717,8 @@ function rawDefinitions(ctx) {
           if ((parts[1] !== undefined && parts[1] !== `r${review.revision}`) || (parts[2] !== undefined && parts[2] !== String(review.round))) {
             throw new StoryError('artifact-not-readable', '只保留当前审稿版本与轮次；旧版本不提供读取')
           }
-          content = review.text
-          ref = { ...ref, artifactId: `review:${chapterNumber}:r${review.revision}:${review.round}`, revisionId: contentRevision(content), kind: 'review' }
+          content = JSON.stringify({ observations: review.observations }, null, 2)
+          ref = { ...ref, artifactId: review.artifactId, revisionId: review.revisionId, kind: 'review' }
         } else if (kind === 'summary') {
           let summary
           try {

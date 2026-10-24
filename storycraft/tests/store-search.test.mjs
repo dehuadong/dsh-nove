@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as store from '../store-db.js'
+import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -19,8 +20,9 @@ try {
   store.writePlan(root, { work, chapter: 1, perspective: '周砚', goal: '摸井台', obstacle: '巡夜', cost: '暴露', turn: '第三人' })
   store.approveChapterPlan(root, { work, chapter: 1 })
   store.writeChapter(root, { work, chapter: 1, body: '周砚带人复摸井台，记下十六口人，井深二丈二尺。' })
-  store.writeReview(root, { work, chapter: 1, problems: [{ location: '结尾', problem: '收得太快' }] })
-  store.reviseChapter(root, { work, chapter: 1, body: '周砚带人复摸井台，记下十六口人，井深二丈二尺。又在井边停了一拍。', problemIds: ['Q1'], mode: 'rewrite' })
+  reviewFixture(root, { work, chapter: 1, problems: [{ location: '结尾', problem: '收得太快' }] })
+  store.reviseChapter(root, { work, chapter: 1, body: '周砚带人复摸井台，记下十六口人，井深二丈二尺。又在井边停了一拍。', problemIds: ['O1'], mode: 'rewrite' })
+  reviewFixture(root, { work, chapter: 1, observations: [] })
   store.writeSummary(root, { work, chapter: 1, text: '周砚摸井台，发现第三人。' })
   store.settleState(root, { work, chapter: 1, factOps: { upsert: [{ subject: '周砚', predicate: '状态', object: '摸过井台' }] } })
   store.writeVolume(root, { work, id: 'v1', title: '第一卷', from: 1, to: 1, summary: '井台开局' })
@@ -40,7 +42,7 @@ try {
   check('old revision leaves the search projection', !stale.some(hit => hit.kind === 'chapter'))
   const fresh = store.search(root, work, '河工', 5)
   check('new revision is searchable', fresh.some(hit => hit.kind === 'chapter'))
-  store.writeReview(root, { work, chapter: 1, problems: [{ location: '结尾', problem: '收得太快' }] })
+  reviewFixture(root, { work, chapter: 1, problems: [{ location: '结尾', problem: '收得太快' }] })
   const byVolume = store.search(root, work, '开局', 5)
   check('volume is searchable', byVolume.some(hit => hit.kind === 'volume'))
   check('empty query returns nothing', store.search(root, work, '  ', 5).length === 0)

@@ -10,6 +10,7 @@ import { readChapterSummary } from '../artifact-store.js'
 import { setCurrent } from '../current.js'
 import { checkDraft } from '../landing.js'
 import { openWork } from '../db.js'
+import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -164,8 +165,9 @@ try {
     manifest.chapters[1].summaryRevision === 1 && manifest.chapters[1].summaryStale === false,
     JSON.stringify(manifest.chapters[1]))
 
-  s.writeReview(root, { work, chapter: 1, problems: [{ location: '开头', problem: '慢', suggestion: '快' }] })
-  s.reviseChapter(root, { work, chapter: 1, body: '第三次正文。'.repeat(40), problemIds: ['Q1'], mode: 'rewrite' })
+  reviewFixture(root, { work, chapter: 1, problems: [{ location: '开头', problem: '慢', suggestion: '快' }] })
+  s.reviseChapter(root, { work, chapter: 1, body: '第三次正文。'.repeat(40), problemIds: ['O1'], mode: 'rewrite' })
+  reviewFixture(root, { work, chapter: 1, observations: [] })
   let staleError
   try {
     s.settleState(root, { work, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '走到门口' }] } })

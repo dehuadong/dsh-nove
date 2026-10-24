@@ -8,6 +8,7 @@ import { checkChapterState } from '../state-check.js'
 import { submitPayload } from '../submission.js'
 import { openWork } from '../db.js'
 import * as s from '../storage.js'
+import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -137,7 +138,7 @@ try {
   s.writePlan(root, { work: settled.workId, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   s.approveChapterPlan(root, { work: settled.workId, chapter: 1 })
   s.writeChapter(root, { work: settled.workId, chapter: 1, title: '一', body: '甲回来。' })
-  s.writeReview(root, { work: settled.workId, chapter: 1, problems: [] })
+  reviewFixture(root, { work: settled.workId, chapter: 1, observations: [] })
   s.writeSummary(root, { work: settled.workId, chapter: 1, text: '甲回来。' })
   s.settleState(root, { work: settled.workId, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '回来了' }] } })
   await rejects('a settled chapter is refused', 'chapter-settled',
@@ -199,7 +200,7 @@ try {
   check('absence of a passage is not a failed quote',
     nullReceipt.items[0].evidenceVerified === null, JSON.stringify(nullReceipt.items[0]))
 
-  s.writeReview(root, { work, chapter: 3, problems: [] })
+  reviewFixture(root, { work, chapter: 3, observations: [] })
   s.writeSummary(root, { work, chapter: 3, text: '另一章。' })
   s.settleState(root, { work, chapter: 3, factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '已知' }] } })
   const duplicate = fakeService([completed({ items: [] })])

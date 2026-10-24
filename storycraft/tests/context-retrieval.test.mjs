@@ -6,6 +6,7 @@ import * as s from '../storage.js'
 import * as b from '../bible.js'
 import { openWork } from '../db.js'
 import { assembleRoleContext } from '../context.js'
+import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -32,7 +33,7 @@ try {
   }
   await s.writePlan(root, { work, chapter: 5, perspective: '甲', goal: '找旧井', obstacle: 'o', cost: 'c', turn: 't' })
   await s.approveChapterPlan(root, { work, chapter: 5 })
-  await s.writeReview(root, { work, chapter: 1, problems: [] })
+  await reviewFixture(root, { work, chapter: 1, observations: [] })
   await s.settleState(root, { work, chapter: 1, newHooks: [{ text: '备用钥匙' }] })
   const raw = openWork(root, work)
   const summaryRow = raw.prepare("SELECT artifact_id, revision_id, content FROM artifacts WHERE artifact_id = 'summary:2' ORDER BY rowid DESC LIMIT 1").get()

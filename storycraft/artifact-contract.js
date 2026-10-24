@@ -327,13 +327,20 @@ export function validateChapterSummary(value) {
 /** Validate an observation. */
 export function validateObservation(value) {
   const input = object(value, 'observation')
-  keys(input, ['code', 'summary', 'evidence', 'category', 'assessment', 'scope', 'target',
+  keys(input, ['id', 'code', 'summary', 'evidence', 'category', 'assessment', 'resolves', 'scope', 'target',
     'sourceRefs', 'severity', 'fix', 'mode'], 'observation')
-  text(input.code, 'observation.code')
+  text(input.id, 'observation.id')
+  if (!/^O[1-9]\d*$/u.test(input.id)) invalid('observation.id 必须是 O<正整数>')
+  if (input.code !== undefined) text(input.code, 'observation.code')
   text(input.summary, 'observation.summary')
   strings(input.evidence, 'observation.evidence')
   oneOf(input.category, OBSERVATION_CATEGORIES, 'observation.category')
   oneOf(input.assessment, OBSERVATION_ASSESSMENTS, 'observation.assessment')
+  if (input.resolves !== undefined) {
+    text(input.resolves, 'observation.resolves')
+    if (!/^O[1-9]\d*$/u.test(input.resolves)) invalid('observation.resolves 必须是 O<正整数>')
+  }
+  if (input.assessment === 'resolved' && input.resolves === undefined) invalid('resolved observation 必须带 resolves')
   if (input.scope !== undefined) text(input.scope, 'observation.scope')
   if (input.target !== undefined) {
     const target = object(input.target, 'observation.target')
@@ -359,6 +366,11 @@ export function validateReviewObservations(value) {
   const input = object(value, 'review')
   keys(input, ['observations'], 'review')
   list(input.observations, 'review.observations', validateObservation)
+  const ids = new Set()
+  for (const observation of input.observations) {
+    if (ids.has(observation.id)) invalid(`review 内 observation.id 重复：${observation.id}`)
+    ids.add(observation.id)
+  }
   return input
 }
 

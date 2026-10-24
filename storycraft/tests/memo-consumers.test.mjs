@@ -91,7 +91,7 @@ try {
     () => s.writeChapter(root, { work, chapter: 1, body: '正文三。'.repeat(20), rewrite: true, requirePlanApproval: true }))
   await throws('memo rewrite also blocks revision', 'plan-not-approved',
     () => s.reviseChapter(root, {
-      work, chapter: 1, body: '正文四。'.repeat(20), problemIds: ['Q1'], mode: 'patch', requirePlanApproval: true,
+      work, chapter: 1, body: '正文四。'.repeat(20), problemIds: ['O1'], mode: 'patch', requirePlanApproval: true,
     }))
   check('memo rewrite records a new revision', rewrittenPlan.artifact.revisionId !== plan.artifact.revisionId)
 

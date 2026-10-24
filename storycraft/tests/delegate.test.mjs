@@ -7,6 +7,7 @@ import { checkWordRange } from '../landing.js'
 import { submitPayload } from '../submission.js'
 import * as s from '../storage.js'
 import { writeBible } from '../bible.js'
+import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -154,7 +155,7 @@ try {
   check('script writer prompt names form and unit', scriptPrompt.startsWith('你是剧本《剧本委派》') && scriptPrompt.includes('负责第 1 集。'), scriptPrompt.split('\n')[0])
   check('script writer prompt loads generic and script skills', scriptPrompt.includes('storycraft-write-craft') && scriptPrompt.includes('storycraft-short-drama'), scriptPrompt.split('\n')[1])
 
-  const shortReviewService = fakeService([completed({ structured: { items: [{ where: '结尾', problem: '太快', impact: '读者跟不上', severity: 'minor', fix: '补一拍', mode: 'patch' }] } })])
+  const shortReviewService = fakeService([completed({ structured: { items: [{ quote: '甲推开门，雨声进来了。', problem: '太快', impact: '读者跟不上', severity: 'minor', fix: '补一拍', mode: 'patch' }] } })])
   await delegateRole(root, { work: short, chapter: 1, role: 'reviewer' }, { service: shortReviewService, agent, signal })
   const shortReviewPrompt = shortReviewService.specs[0].request.prompt[0].text
   check('short reviewer prompt keeps form label and role skill only',
@@ -170,13 +171,13 @@ try {
 
   // Reviewer: structured result maps where/problem/fix into the stored review.
   const reviewService = fakeService([completed({
-    structured: { items: [{ where: '结尾', problem: '太快', impact: '读者跟不上', severity: 'major', fix: '补一拍', mode: 'patch' }] },
+    structured: { items: [{ quote: '甲推开门，雨声进来了。', problem: '太快', impact: '读者跟不上', severity: 'major', fix: '补一拍', mode: 'patch' }] },
     output: [],
   })])
   const reviewer = await delegateRole(root, { work, chapter: 1, role: 'reviewer' }, { service: reviewService, agent, signal })
   check('reviewer delegates and lands one round', reviewer.ok === true && reviewer.reviewRound === 1 && reviewer.problems.total === 1, JSON.stringify(reviewer))
   const review = s.readReview(root, work, 1)
-  check('review maps where/problem/fix', review.items[0].location === '结尾' && review.items[0].problem === '太快' && review.items[0].suggestion === '补一拍', JSON.stringify(review.items))
+  check('review maps where/problem/fix', review.items[0].location === '甲推开门，雨声进来了。' && review.items[0].problem === '太快' && review.items[0].suggestion === '补一拍', JSON.stringify(review.items))
   check('reviewer prompt carries story_submit', reviewService.specs[0].request.prompt[0].text.includes('story_submit'))
   const afterReview = s.nextStep(root, work)
   check('nextStep advertises reviser delegation', afterReview.action === 'story_revise' && afterReview.delegate?.role === 'reviser', JSON.stringify(afterReview))
@@ -187,9 +188,11 @@ try {
   })])
   const reviser = await delegateRole(root, { work, chapter: 1, role: 'reviser', mode: 'rewrite' }, { service: reviserService, agent, signal })
   check('reviser delegates and lands r2', reviser.ok === true && reviser.revision === 2 && reviser.stage === 'revised', JSON.stringify(reviser))
-  check('reviser resolves open items', Array.isArray(reviser.resolved) && reviser.resolved.includes('Q1'), JSON.stringify(reviser.resolved))
+  check('reviser resolves open items', Array.isArray(reviser.resolved) && reviser.resolved.includes('O1'), JSON.stringify(reviser.resolved))
   check('reviser receipt carries mode and attempts', reviser.lastMode === 'rewrite' && reviser.submissionAttempts === 1, JSON.stringify(reviser))
   check('reviser receipt stays compact', JSON.stringify(reviser).length <= 1500)
+  const cleanService = fakeService([completed({ structured: { items: [] } })])
+  await delegateRole(root, { work, chapter: 1, role: 'reviewer' }, { service: cleanService, agent, signal })
 
   // Summarizer: the chapter is revised and still has no summary.
   const beforeSummary = s.nextStep(root, work)
@@ -208,9 +211,11 @@ try {
     summarizer.submissionAttempts === 1 && !JSON.stringify(summarizer).includes('甲回到屋里。'), JSON.stringify(summarizer))
   check('summarizer wrote the summary', s.readSummary(root, work, 1)?.includes('甲回到屋里'), s.readSummary(root, work, 1))
   check('summary step moves to automatic settlement', s.nextStep(root, work).action === 'story_settle', JSON.stringify(s.nextStep(root, work)))
-  s.writeReview(root, { work, chapter: 1, problems: [{ location: '结尾', problem: '再收一拍', suggestion: '补一句' }] })
-  s.reviseChapter(root, { work, chapter: 1, body: '甲回到屋里，又出门看了一眼。'.repeat(20), problemIds: ['Q1'], mode: 'rewrite' })
+  reviewFixture(root, { work, chapter: 1, problems: [{ location: '结尾', problem: '再收一拍', suggestion: '补一句' }] })
+  s.reviseChapter(root, { work, chapter: 1, body: '甲回到屋里，又出门看了一眼。'.repeat(20), problemIds: ['O1'], mode: 'rewrite' })
   check('a later revision makes the summary stale', s.readSummaryState(root, work, 1).state === 'stale')
+  const cleanAgain = fakeService([completed({ structured: { items: [] } })])
+  await delegateRole(root, { work, chapter: 1, role: 'reviewer' }, { service: cleanAgain, agent, signal })
   const staleService = fakeService([completed({ payload: { rawText: '甲回到屋里，又出门看了一眼。' } })])
   const staleRewrite = await delegateRole(root, { work, chapter: 1, role: 'summarizer' }, { service: staleService, agent, signal })
   check('summarizer is allowed to rebind a stale summary', staleRewrite.ok === true
@@ -265,7 +270,7 @@ try {
   })])
   const rangedWrite = await delegateRole(root, { work: rangeWork.workId, chapter: 1, role: 'writer' }, { service: rangedWriterService, agent, signal })
   check('writer in range lands', rangedWrite.ok === true && rangedWrite.words >= 50 && rangedWrite.words <= 80, JSON.stringify(rangedWrite))
-  s.writeReview(root, { work: rangeWork.workId, chapter: 1, problems: [{ location: '开头', problem: '慢' }] })
+  reviewFixture(root, { work: rangeWork.workId, chapter: 1, problems: [{ location: '开头', problem: '慢' }] })
 
   const overMaxService = fakeService([completed({
     output: [{ type: 'text', text: `<<<CHAPTER ${'字'.repeat(100)} CHAPTER>>>` }],

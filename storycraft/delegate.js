@@ -23,6 +23,11 @@ import { closeSubmission, consumeSubmission, openSubmission } from './submission
 /** One child run's budget; the timer is cleared before landing. */
 const DELEGATE_TIMEOUT_MS = 600000
 
+/** Observations that still block settlement. */
+function openObservationsOf(review) {
+  return (review?.observations ?? []).filter(observation => observation.assessment === 'issue')
+}
+
 /** Short hash for a review receipt revision. */
 function hashText(text) {
   return createHash('sha256').update(String(text ?? '')).digest('hex').slice(0, 12)
@@ -142,7 +147,7 @@ function promptFor({ input, manifest, context, delegationId }) {
     lines.push('payload 格式：{"title":"本章标题","body":"整章正文"}。')
     lines.push('不要省略正文，不要把正文作为最终回答；提交成功后最终只回「已提交」。')
   } else if (input.role === 'reviser') {
-    lines.push('payload 格式：{"body":"修订后的整章正文"}。')
+    lines.push('payload 格式：{"body":"修订后的整章正文","resolved":["可选：本轮处理的 observation id"]}。')
     const modeRule = input.mode === 'rewrite'
       ? '可以重组段落与场景，但必须保留章纲事实、人物动机与章末落点；'
       : input.mode === 'deslop'
@@ -155,7 +160,8 @@ function promptFor({ input, manifest, context, delegationId }) {
     lines.push('rawText 必填，只写本章发生的事实与状态变化，不超过 400 字；结构字段各不超过 120 字、可为空串；不评价、不补设定、不写下一章计划。')
     lines.push('提交成功后最终只回「已提交」；不要手动调用落盘动作。')
   } else {
-    lines.push('payload 格式：{"items":[{"where":"正文里的具体位置","problem":"问题","impact":"读者影响","severity":"blocker|major|minor","fix":"怎么修","mode":"patch|polish|rewrite|deslop"}]}。')
+    lines.push('payload 格式：{"items":[{"quote":"正文或章纲里的逐字引文","problem":"问题","impact":"读者影响","severity":"blocker|major|minor","fix":"怎么修","mode":"patch|polish|rewrite|deslop","resolves":"可选：上一轮的 observation id"}]}。')
+    lines.push('quote 必须逐字出现在正文或本章章纲里；已修复的上一轮 issue 用 assessment resolved 的方式提交：填 resolves=上一轮 id，quote 填修复后的正文引文。')
     lines.push('没有问题时 payload 为 {"items":[]}；提交成功后最终只回「已提交」。')
   }
   lines.push('story_submit 返回 ok:false 时，按 error.retryable 修正 payload 后重提，最多 3 次；不要把工具错误当成最终失败。')
@@ -490,13 +496,20 @@ export async function delegateRole(root, input, host) {
     }
 
     if (role === 'reviewer') {
-      const problems = payload.items.map(item => ({
-        location: item.where,
-        problem: item.problem,
-        suggestion: item.fix,
+      const entry = chapterEntryOf(loaded.manifest, chapter)
+      const observations = payload.items.map((item, index) => ({
+        id: `O${index + 1}`,
+        summary: item.problem,
+        evidence: typeof item.impact === 'string' && item.impact.trim() === '' ? [] : [item.impact],
+        category: 'quality',
+        assessment: item.resolves === undefined ? 'issue' : 'resolved',
+        ...(item.resolves === undefined ? {} : { resolves: item.resolves }),
+        ...(item.severity === undefined ? {} : { severity: item.severity }),
+        ...(item.fix === undefined ? {} : { fix: item.fix }),
+        ...(item.mode === undefined ? {} : { mode: item.mode }),
+        sourceRefs: [{ sourceId: `chapter:${chapter}:r${entry.currentRevision}`, quote: item.quote }],
       }))
-      const written = writeReview(root, { work, chapter, problems })
-      const latest = latestReview(root, work, chapter)
+      const written = writeReview(root, { work, chapter, observations })
       return fitReceipt({
         ok: true,
         workId: work,
@@ -504,8 +517,11 @@ export async function delegateRole(root, input, host) {
         role,
         stage: landedStage(root, work, chapter),
         reviewRound: written.round,
-        artifact: { workId: work, artifactId: `review:${chapter}:r${latest.revision}:${written.round}`, revisionId: hashText(latest.text), kind: 'review' },
-        problems: { total: written.problems.length, open: written.problems.length },
+        artifact: { workId: work, artifactId: written.artifactId, revisionId: written.revisionId, kind: 'review' },
+        problems: {
+          total: written.observations.length,
+          open: written.observations.filter(observation => observation.assessment === 'issue').length,
+        },
         submissionAttempts: attempts,
       })
     }
@@ -528,9 +544,11 @@ export async function delegateRole(root, input, host) {
     const { body } = payload
     const { warnings } = await checkDraft(root, { work, chapter, body })
     assertActive(signal)
-    const open = latestReview(root, work, chapter).items.filter(item => !item.done).map(item => item.id)
+    const open = openObservationsOf(latestReview(root, work, chapter)).map(observation => observation.id)
+    const requested = Array.isArray(payload.resolved) ? payload.resolved.map(String) : open
+    const problemIds = requested.filter(id => open.includes(id))
     const revised = reviseChapter(root, {
-      work, chapter, body, problemIds: open, mode,
+      work, chapter, body, problemIds, mode,
       requirePlanApproval: readManifest(root, work).planApproval === 'required',
     })
     return fitReceipt({

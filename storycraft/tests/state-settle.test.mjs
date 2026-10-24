@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { settleChapterState } from '../state-settle.js'
 import { submitPayload } from '../submission.js'
 import * as s from '../storage.js'
+import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -79,7 +80,7 @@ try {
     s.writePlan(root, { work, chapter: number, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
     s.approveChapterPlan(root, { work, chapter: number })
     s.writeChapter(root, { work, chapter: number, title: `第${number}章`, body: text })
-    s.writeReview(root, { work, chapter: number, problems: [] })
+    reviewFixture(root, { work, chapter: number, observations: [] })
     s.writeSummary(root, { work, chapter: number, text: '本章摘要。' })
   }
 
@@ -202,7 +203,7 @@ try {
   s.writePlan(root, { work: noSummaryWork, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   s.approveChapterPlan(root, { work: noSummaryWork, chapter: 1 })
   s.writeChapter(root, { work: noSummaryWork, chapter: 1, title: '一', body: '甲推开门。' })
-  s.writeReview(root, { work: noSummaryWork, chapter: 1, problems: [] })
+  reviewFixture(root, { work: noSummaryWork, chapter: 1, observations: [] })
   const noSummaryService = fakeService([])
   await rejects('a missing summary is refused before a child', 'summary-required',
     () => settleChapterState(root, { work: noSummaryWork, chapter: 1 }, { service: noSummaryService, agent, signal }))
@@ -212,7 +213,7 @@ try {
   s.writePlan(root, { work: openReviewWork, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   s.approveChapterPlan(root, { work: openReviewWork, chapter: 1 })
   s.writeChapter(root, { work: openReviewWork, chapter: 1, title: '一', body: '甲推开门。' })
-  s.writeReview(root, { work: openReviewWork, chapter: 1, problems: [{ location: '开头', problem: '慢' }] })
+  reviewFixture(root, { work: openReviewWork, chapter: 1, problems: [{ location: '开头', problem: '慢' }] })
   s.writeSummary(root, { work: openReviewWork, chapter: 1, text: '摘要。' })
   const openReviewService = fakeService([])
   await rejects('unprocessed review is refused before a child', 'review-required',
@@ -231,7 +232,7 @@ try {
   const staleSummaryWork = makeWork('摘要过期')
   makeChapter(staleSummaryWork)
   s.writeChapter(root, { work: staleSummaryWork, chapter: 1, title: '一', body: '改版后的正文。', rewrite: true })
-  s.writeReview(root, { work: staleSummaryWork, chapter: 1, problems: [] })
+  reviewFixture(root, { work: staleSummaryWork, chapter: 1, observations: [] })
   const staleSummaryService = fakeService([])
   await rejects('a stale summary is refused before a child', 'summary-stale',
     () => settleChapterState(root, { work: staleSummaryWork, chapter: 1 }, { service: staleSummaryService, agent, signal }))

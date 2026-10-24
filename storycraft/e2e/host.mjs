@@ -106,13 +106,14 @@ async function buildFixture() {
   await store.writeChapter(fixtureWorkspace, { work, chapter: 1, title: '灰旗', body: first })
   await store.writeReview(fixtureWorkspace, {
     work, chapter: 1,
-    problems: [
-      { location: '开头', problem: '光线写得太满', suggestion: '收一收' },
-      { location: '结尾', problem: '收束太快', suggestion: '补一拍' },
+    observations: [
+      { id: 'O1', summary: '光线写得太满', evidence: [], category: 'quality', assessment: 'issue', fix: '收一收', sourceRefs: [{ sourceId: 'chapter:1:r1', quote: first.slice(0, 20) }] },
+      { id: 'O2', summary: '收束太快', evidence: [], category: 'quality', assessment: 'issue', fix: '补一拍', sourceRefs: [{ sourceId: 'chapter:1:r1', quote: first.slice(0, 20) }] },
     ],
   })
   const second = '灰旗在风里翻了一夜。火在渠里烧着。'.repeat(45)
-  await store.reviseChapter(fixtureWorkspace, { work, chapter: 1, body: second, problemIds: ['Q1', 'Q2'], mode: 'rewrite' })
+  await store.reviseChapter(fixtureWorkspace, { work, chapter: 1, body: second, problemIds: ['O1', 'O2'], mode: 'rewrite' })
+  await store.writeReview(fixtureWorkspace, { work, chapter: 1, observations: [] })
   await store.writeSummary(fixtureWorkspace, { work, chapter: 1, text: '甲在渠边丢了半袋粮，灰旗还挂着。' })
   await store.settleState(fixtureWorkspace, {
     work, chapter: 1,

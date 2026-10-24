@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import * as s from '../storage.js'
 import * as b from '../bible.js'
 import { openDatabase, workFile } from '../db.js'
+import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -66,8 +67,9 @@ try {
   throwsCode('delegated write refuses a current summary', 'summary-exists',
     () => s.writeSummary(root, { work, chapter: 1, text: '第三次摘要。', ifAbsent: true }))
 
-  s.writeReview(root, { work, chapter: 1, problems: [{ location: '开头', problem: '慢', suggestion: '快' }] })
-  s.reviseChapter(root, { work, chapter: 1, body: '第三版正文，节奏更快。'.repeat(20), problemIds: ['Q1'], mode: 'rewrite' })
+  reviewFixture(root, { work, chapter: 1, problems: [{ location: '开头', problem: '慢', suggestion: '快' }] })
+  s.reviseChapter(root, { work, chapter: 1, body: '第三版正文，节奏更快。'.repeat(20), problemIds: ['O1'], mode: 'rewrite' })
+  reviewFixture(root, { work, chapter: 1, observations: [] })
   const staleAgain = s.readSummaryState(root, work, 1)
   check('revise makes the summary stale again',
     staleAgain.state === 'stale' && staleAgain.revision === 2 && staleAgain.currentRevision === 3, JSON.stringify(staleAgain))

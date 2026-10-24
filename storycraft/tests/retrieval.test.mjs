@@ -6,6 +6,7 @@ import { mintHookId } from '../state-projection.js'
 import * as s from '../storage.js'
 import { openWork } from '../db.js'
 import { buildQuery, codePointLength, select, snippetFor } from '../retrieval.js'
+import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -85,11 +86,11 @@ try {
   await s.writePlan(root, { work, chapter: 5, perspective: '甲', goal: '找旧井', obstacle: 'o', cost: 'c', turn: 't' })
   await s.approveChapterPlan(root, { work, chapter: 5 })
   await s.writeVolume(root, { work, id: 'v1', title: '第一卷', from: 1, to: 2, summary: '旧井第一次出现。' })
-  await s.writeReview(root, { work, chapter: 1, problems: [] })
+  await reviewFixture(root, { work, chapter: 1, observations: [] })
   await s.settleState(root, { work, chapter: 1, newHooks: [{ text: '旧井的水位' }] })
-  await s.writeReview(root, { work, chapter: 2, problems: [] })
+  await reviewFixture(root, { work, chapter: 2, observations: [] })
   await s.settleState(root, { work, chapter: 2, hookOps: { resolve: [mintHookId('旧井的水位')] } })
-  await s.writeReview(root, { work, chapter: 3, problems: [] })
+  await reviewFixture(root, { work, chapter: 3, observations: [] })
   await s.settleState(root, { work, chapter: 3, newHooks: [{ text: '备用钥匙' }] })
   // Mark chapter 2's summary stale; it must not be retrieved.
   const events = openWork(root, work)
