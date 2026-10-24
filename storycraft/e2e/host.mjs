@@ -24,9 +24,26 @@ const projectRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
 const repoRoot = path.resolve(projectRoot, '..')
 const packageName = 'dsh-storycraft'
 
-// What the host reads out of the package: its manifest lists the shipped files.
+// What the host reads out of the package: its manifest lists the shipped files,
+// including globs such as `*.js`, which the copy below has to expand the way npm
+// does when it packs.
+function expandArtifacts(entries) {
+  const names = []
+  for (const entry of entries) {
+    if (!entry.includes('*')) {
+      names.push(entry)
+      continue
+    }
+    const pattern = new RegExp(`^${entry.replaceAll('.', '\\.').replaceAll('*', '.*')}$`, 'u')
+    for (const name of readdirSync(projectRoot)) {
+      if (pattern.test(name)) names.push(name)
+    }
+  }
+  return names
+}
+
 const ARTIFACTS = [
-  ...(JSON.parse(readFileSync(path.join(projectRoot, 'package.json'), 'utf8')).files ?? []),
+  ...expandArtifacts(JSON.parse(readFileSync(path.join(projectRoot, 'package.json'), 'utf8')).files ?? []),
   'package.json',
 ]
 
@@ -98,7 +115,9 @@ async function buildFixture() {
   await store.writePlan(fixtureWorkspace, {
     work, chapter: 1, perspective: '甲', goal: '救火', obstacle: '断电', cost: '时间', turn: '找到出口',
   })
-  // Chapter 2 has a plan but no body: the page must offer its confirmation.
+  // A body needs its chapter plan confirmed; chapter 2 keeps an unconfirmed plan
+  // so the panel has something to offer a confirmation button for.
+  await store.approveChapterPlan(fixtureWorkspace, { work, chapter: 1 })
   await store.writePlan(fixtureWorkspace, {
     work, chapter: 2, perspective: '甲', goal: '找回灰旗', obstacle: '渠水', cost: '脚伤', turn: '旗是空的',
   })
@@ -123,6 +142,7 @@ async function buildFixture() {
   // An unapproved book plan: the page must offer its confirmation button.
   await store.writeOutline(fixtureWorkspace, { work, mainline: '一条主线', volumes: '第一卷', ending: '开放' })
   const status = await store.status(fixtureWorkspace, work)
+  const detail = store.readWork(fixtureWorkspace, work)
   const events = store.readEvents(fixtureWorkspace, work).length
   return {
     workId: status.workId,
@@ -131,7 +151,7 @@ async function buildFixture() {
     events,
     hooksOpen: status.hooks.open,
     revision: status.chapters[0].revision,
-    reviewRound: 1,
+    reviewRound: detail.chapters[0].reviewRound,
   }
 }
 
