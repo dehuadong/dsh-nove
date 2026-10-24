@@ -86,9 +86,11 @@ R10 旧方案（一次生成 world/characters/plan/text-hook）已被对拍审�
 
 ## 后果
 
-该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+architect 四阶段生产 foundation，作者确认后才进入全书计划。
 
 ## 验证
+
+实际验证：真实会话跑通 frame/rules/roles/cards 四阶段；证据见 #44。
 
 1. `story_delegate` 接受 `role:'architect'` + `stage`，四个 stage 分别落地合同产物；非法 payload 整批拒绝且不产生任何 revision。
 2. 每个 stage 可独立重跑；重跑生成新 revision、清 `foundation.approvedAt`；旧 revision 可读。

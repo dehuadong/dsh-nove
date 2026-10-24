@@ -80,9 +80,11 @@ corpus.collect(root, work, { beforeChapter, role })
 
 ## 后果
 
-该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+检索段由 FTS5/BM25 提供，`story_context` 与素材检索使用同一索引；未引入语义重排。
 
 ## 验证
+
+实际验证：`search.test.mjs` 与 `ci --no-e2e` 50 个单元文件通过；证据见 #16。
 
 产品行为与验收由 #16 拥有。本设计只证明以下实现性质：
 

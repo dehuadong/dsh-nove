@@ -191,9 +191,11 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
 
 ## 后果
 
-该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+模型只看到 artifact ID 与阶段上下文，不拿 `works/` 路径；brief/read 走同一投影。
 
 ## 验证
+
+实际验证：artifact 消费者测试与 `ci --no-e2e` 通过；证据见 #22。
 
 本 Note 证明设计自洽；产品验收见 #22。
 

@@ -400,9 +400,11 @@ Storyboard / interactive film / play / translation / cover 是 R8 产物：A0 �
 
 ## 后果
 
-该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+v2 registry 成为 artifact 的唯一读写入口；各切片内旧表退役，不保留双读。
 
 ## 验证
+
+实际验证：artifact 消费者/初始化测试与 `ci --no-e2e` 通过；证据见 #45–#49。
 
 1. A0 覆盖的每个 artifact（world/style/intent/current_focus/story_frame/volume_map/book_rules/roles/plan/summary/hooks/facts/observations/context/trace/short_story/script）都有字段、权威、生命周期、消费者；R8 的 storyboard/interactive_film/play_world/cover/translation 在 A0 只验收 kind/envelope/identity，字段与消费者验收明确归 R8；
 2. 只支持 v6；旧版本/测试旧作品直接报 `schema-version-mismatch` 并重建，没有兼容/迁移路径；

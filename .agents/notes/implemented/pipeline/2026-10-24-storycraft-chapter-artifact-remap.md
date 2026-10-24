@@ -82,9 +82,11 @@ S1a-demo 只能临时阻断有 memo 的删/移。本 Note 规划 S1b：把章节
 
 ## 后果
 
-该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+删除/重排章节时 plan/summary/review 重映射，受影响批准清空。
 
 ## 验证
+
+实际验证：章节编辑/重映射测试与 `ci --no-e2e` 通过；证据见 #56。
 
 1. 删除/移动后，`plan`/`summary`/`review` 的 artifactId 章号段、`scope_chapter`、`content.chapter` 与新章号一致；旧 ID 不可读；`context`/`trace` 只同步 `scope_chapter`。
 2. 只保留每章最新 revision；旧 revision 删除；不得把旧 revision 搬到新 ID。

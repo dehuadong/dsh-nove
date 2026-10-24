@@ -95,9 +95,11 @@ verification: observation/review 生命周期已落地，真实审稿轮次产�
 
 ## 后果
 
-该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+审稿写 observation；reviser 按 id 处理，重审标 resolved，阶段机只认当前 revision。
 
 ## 验证
+
+实际验证：真实审稿轮次产生 issue/resolved 证据；证据见 #52。
 
 1. Observation 合同含必填 `id` 与 `resolves`；review artifact 内容 `{observations}`；`id` 在 artifact 内唯一，`code` 不再当 ID。
 2. reviewer 委派/`story_review` 写 observation artifact，`reviews` 表不再写；非法 quote/缺 id 被拒。

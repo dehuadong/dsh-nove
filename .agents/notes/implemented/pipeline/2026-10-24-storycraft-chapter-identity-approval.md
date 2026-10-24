@@ -107,9 +107,11 @@ S1a/S1a-demo/合同补丁反复卡在同一组基础合同：章号既是章节�
 
 ## 后果
 
-该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+章节身份与批准合同固定，面板/API 对同一章使用同一身份与批准时间。
 
 ## 验证
+
+实际验证：批准 API/面板测试与 `ci --no-e2e` 通过；证据见 #55。
 
 1. 章节号身份、identity-change 例外、S1b 为 `plan`/`summary`/`review` 重映射唯一 owner、`state` 不参与、`context`/`trace` ID 归 R12，在合同 v2、consumer-migration、S1b Note 与 #51 中表述一致。
 2. 删除/移动后，`plan`/`summary`/`review` 的 artifactId 章号段、`scope_chapter`、`content.chapter` 与新章号一致；旧 ID 不可读；identity 章不变；未受影响章不变；`context`/`trace` 只随 `scope_chapter`。

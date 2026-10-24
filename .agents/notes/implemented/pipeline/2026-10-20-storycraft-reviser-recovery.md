@@ -98,9 +98,11 @@ verification: reviser 模式/字数恢复校验已并入 story_submit，测试�
 
 ## 后果
 
-该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+修订模式与字数恢复由 `story_submit` 校验，失败在同次运行内修正后重提。
 
 ## 验证
+
+实际验证：submission/reviser 测试与 `ci --no-e2e` 通过；证据见 #23。
 
 1. 委派 reviser 低于 min 返回 `submit-word-range`，不落盘；
 2. 8 字 rewrite 回归测试被拒绝，不再成功；

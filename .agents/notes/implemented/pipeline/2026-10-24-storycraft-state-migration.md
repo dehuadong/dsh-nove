@@ -107,9 +107,11 @@ settler 与手动 `story_state` 使用同一形状：
 
 ## 后果
 
-该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+hooks/facts 写 v2 事件；自动 settle 与手动 `story_state` 共用同一 writer。
 
 ## 验证
+
+实际验证：state/settle 测试与 `ci --no-e2e` 通过；证据见 #58。
 
 1. settler 与手动 `story_state` 只写 v2 hook/fact 事件；`entities`/`hooks` 旧形状被拒，错误码稳定。
 2. `hookId` 由宿主铸造、同 text 复用；`progress`/`mention`/`defer`/`resolve`/`supersede` 按转移表更新投影；非法转移不写事件。

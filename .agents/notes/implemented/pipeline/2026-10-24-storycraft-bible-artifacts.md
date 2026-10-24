@@ -84,9 +84,11 @@ A0 已登记 `world`/`style`/`intent`/`outline` artifact 与消费矩阵，但�
 
 ## 后果
 
-该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+world/style/intent/outline 写 bible/outline artifact，旧条目不再写读。
 
 ## 验证
+
+实际验证：bible/consumer 测试与 `ci --no-e2e` 通过；证据见 #59。
 
 1. world/style/intent 只写 artifact、不写 `bible` 表；characters 仍写表；`bible` 表不再出现 plan 行写入。
 2. 四类 artifact 的 revisionId 是内容哈希；旧 revision 可读；同内容重复写入是幂等 no-op。

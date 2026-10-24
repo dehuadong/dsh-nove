@@ -103,9 +103,11 @@ A0 已交付 ChapterMemo 合同、`plan:<n>` 身份与写入 registry 的 API，
 
 ## 后果
 
-该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+`story_plan` 写 `plan:<n>`，brief/context/read/export 统一走 `renderChapterMemo`。
 
 ## 验证
+
+实际验证：`ci --no-e2e` 50 个单元文件通过；证据见 #53。
 
 1. `story_plan` 只写 `plan:<n>`，`chapter_plans` 不再写；测试断言旧表写入为 0。
 2. `readPlan`/brief/context/`readChapter(view:'plan')`/export 从 memo 渲染，包含五项、body、threadRefs；可选字段缺失时省略行。

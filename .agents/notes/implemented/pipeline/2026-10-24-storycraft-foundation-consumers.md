@@ -79,9 +79,11 @@ S4b 只接消费（brief/context/检索/审稿/结算/导出），不生产。
 
 ## 后果
 
-该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+foundation 产物进入 brief/context/检索/审稿/导出消费路径。
 
 ## 验证
+
+实际验证：foundation 消费者测试与 `ci --no-e2e` 通过；证据见 #60。
 
 1. brief 输出 13 段且顺序如上；缺失 foundation 时对应段 `absent:true`，brief 仍成功。
 2. `storyFrame`/`bookRules` 为 protected；预算不足时裁剪在 protected 段前停止并报 `overBudget`，不被静默删除。

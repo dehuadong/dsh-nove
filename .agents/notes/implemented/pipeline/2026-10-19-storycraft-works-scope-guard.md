@@ -71,9 +71,11 @@ scopeDenial({ tool, arguments, cwd, worksRoot, dbRoot, currentWork }) -> string 
 
 ## 后果
 
-该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+路径、检索与命令动作在进入工具前受 scope 守卫；跨作品与作品库直读被拒绝。
 
 ## 验证
+
+实际验证：`scope.test.mjs` 与 `ci --no-e2e` 通过；证据见 #17。
 
 产品行为与验收由 #17 拥有。本设计只证明：
 

@@ -90,9 +90,11 @@ A0 已登记 `summary:<n>` 身份与 ChapterSummary 字段（`rawText` 与 `body
 
 ## 后果
 
-该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+摘要写结构化 `summary:<n>` 并绑定正文 revision，过期由消费者识别。
 
 ## 验证
+
+实际验证：summary/revision 测试与 `ci --no-e2e` 通过；证据见 #57。
 
 1. 摘要只写 `summary:<n>`；测试断言 `summaries` 写入为 0。
 2. 委派 summarizer 提交结构字段后落盘 ChapterSummary；`chapter`/`bodyRevision` 由 host 盖章，child 伪造值被忽略。
