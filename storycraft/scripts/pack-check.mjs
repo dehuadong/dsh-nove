@@ -45,7 +45,7 @@ if (paths.length === 0) {
 }
 
 const failures = []
-const required = ['package.json', 'README.md', 'cordis.patch.yml', 'icon.svg']
+const required = ['package.json', 'README.md', 'cordis.patch.yml', 'icon.svg', 'dist/scope.js']
 for (const path of required) {
   if (!paths.includes(path)) failures.push(`缺少 ${path}`)
 }

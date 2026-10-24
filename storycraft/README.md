@@ -269,6 +269,18 @@ node scripts/pack-check.mjs
 
 安装时用 `npm pack` 产出的 tarball（DSH 的 bundle 安装入口），不要直接把仓库目录当安装包。回滚时重新安装上一个 tarball；开发环境切回 `link:`。
 
+## TypeScript 试点
+
+当前只有 `scope.js` 一个 Host 模块走 TypeScript：
+
+- 实现：`src/scope.ts`；
+- 编译：`npm run build`（需要本机 `tsc`）→ `dist/scope.js`；
+- 稳定入口：根 `scope.js` 只 re-export `dist/scope.js`，现有 import 不变；
+- `dist` 进 tarball，`scripts/pack-check.mjs` 检查 `dist/scope.js`；
+- 其他 Host 模块和 `client.js` 仍是 JavaScript；Client 的 esbuild 打包不在试点内。
+
+不要手改 `dist/`；改 `src/scope.ts` 后重新 build。
+
 ## 改动与生效
 
 包以 `link:` 装入 profile，改 `client.js` 后刷新窗口即可；改 `cordis.patch.yml` 或 Host 半边（`index.js`、`tools.js`、`delegate.js`、`db.js`、`store-db.js`）需要重启应用，或让 `plugin_manager` 把 bundle 关→开重载补丁。停用用 `set_bundle enabled:false`，卸载用 `remove_bundle`。
