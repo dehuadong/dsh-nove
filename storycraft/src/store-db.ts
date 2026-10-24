@@ -1,4 +1,4 @@
-// @ts-nocheck -- L3: behavior migration; row-level typing tracked separately.
+// @ts-nocheck -- P2 in progress: remaining SQL row/projection errors tracked in #71.
 /**
  * Work-level and chapter-level store on SQLite.
  *
@@ -141,7 +141,7 @@ function ensureChapter(db: Database, number: number): ChapterRow | undefined {
  * A chapter without a memo uses the legacy confirmation (the plan text action);
  * once `plan:<n>` exists, the confirmed revision must be its latest revision.
  */
-function planGateSatisfied(db, entry) {
+function planGateSatisfied(db: any, entry: any) {
   return planApprovalState(db, entry.number).approved
 }
 
@@ -191,7 +191,7 @@ function parseSummaryContent(text: string, artifactId: string): any {
 }
 
 /** Derive the summary state from chapter revision and summary content. */
-function summaryStateOfContent(content, currentRevision) {
+function summaryStateOfContent(content: any, currentRevision: any) {
   const revision = Number(content?.bodyRevision)
   const text = typeof content?.rawText === 'string' ? content.rawText : undefined
   if (content === undefined || text === undefined || text.trim() === '' || !Number.isInteger(revision)) {
@@ -214,7 +214,7 @@ export function summaryStateOf(db: Database, number: number): { state: 'current'
 }
 
 /** Latest stored revision row per summary artifact, ascending by chapter. */
-function latestSummaryRows(db) {
+function latestSummaryRows(db: any) {
   return db.prepare(`SELECT a.artifact_id, a.scope_chapter, a.content FROM artifacts a
     JOIN (SELECT artifact_id, max(rowid) AS rowid FROM artifacts
       WHERE kind = 'summary' GROUP BY artifact_id) latest ON a.rowid = latest.rowid
@@ -243,17 +243,17 @@ function summaryStateMap(db: Database): Map<number, any> {
 }
 
 /** Read one chapter's state from a map that covers every chapter row. */
-function summaryStateFrom(map, number) {
+function summaryStateFrom(map: any, number: any) {
   const state = map.get(number)
   if (state === undefined) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
   return state
 }
 
 /** All review artifacts of one chapter, oldest first. */
-function reviewRecords(db, number) {
+function reviewRecords(db: any, number: any) {
   return db.prepare(`SELECT artifact_id, revision_id, content, created_at FROM artifacts
     WHERE kind = 'review' AND scope_chapter = ? ORDER BY rowid`).all(number)
-    .map((row) => {
+    .map((row: any) => {
       const match = /^review:(\d+):r(\d+):(\d+)$/u.exec(row.artifact_id)
       const content = JSON.parse(row.content)
       return {
@@ -267,14 +267,14 @@ function reviewRecords(db, number) {
 }
 
 /** The newest review artifact of one chapter. */
-function latestReviewRow(db, number) {
+function latestReviewRow(db: any, number: any) {
   const records = reviewRecords(db, number)
   return records.length === 0 ? undefined : records[records.length - 1]
 }
 
 /** Observations still blocking settlement. */
-function openObservations(review) {
-  return (review?.observations ?? []).filter(observation => observation.assessment === 'issue')
+function openObservations(review: any) {
+  return (review?.observations ?? []).filter((observation: any) => observation.assessment === 'issue')
 }
 
 /** The current body row of one chapter. */
@@ -290,19 +290,19 @@ function currentVersion(db: Database, chapter: ChapterRow): ChapterVersionRow | 
  * @param {boolean} [allowPrevious] - accept the revision just replaced.
  * @returns {boolean} true when the review covers the chapter.
  */
-function reviewCovers(review, chapter, allowPrevious = false) {
+function reviewCovers(review: any, chapter: any, allowPrevious = false) {
   const current = chapter.currentRevision ?? chapter.current_revision
   if (review === undefined || current === undefined) return false
   return review.revision === current || (allowPrevious && review.revision === current - 1)
 }
 
 /** A clean review records zero observations and authorizes the clean settlement path. */
-function isCleanReview(review) {
+function isCleanReview(review: any) {
   return review !== undefined && review.observations.length === 0
 }
 
 /** Open observation count per chapter, from each chapter's newest review artifact. */
-function openProblemCountByChapter(db) {
+function openProblemCountByChapter(db: any) {
   const rows = db.prepare(`SELECT a.scope_chapter AS chapter, a.content FROM artifacts a
     JOIN (SELECT scope_chapter, max(rowid) AS rowid FROM artifacts
       WHERE kind = 'review' AND scope_chapter IS NOT NULL GROUP BY scope_chapter) latest
@@ -329,7 +329,7 @@ function eventsOf(db: Database): any[] {
 }
 
 /** Project one work's event log: hook/fact events are the only source. */
-function foldedOf(db) {
+function foldedOf(db: any) {
   return projectState(eventsOf(db))
 }
 
@@ -436,7 +436,7 @@ export function initWork(root: string, input: any): any {
     if (catalogRow(catalog, workId) !== undefined) throw new StoryError('work-exists', `作品已存在：${workId}`)
     if (existsSync(workFile(root, workId))) throw new StoryError('work-exists', `作品已存在：${workId}`)
     const at = now()
-    const tags = Array.isArray(input.tags) ? input.tags.map(tag => String(tag)) : undefined
+    const tags = Array.isArray(input.tags) ? input.tags.map((tag: any) => String(tag)) : undefined
     createWorkDatabase(root, workId, {
       workId,
       title,
@@ -670,7 +670,7 @@ export function readWork(root: string, work: unknown): any {
     const planRows = new Set(db.prepare(`SELECT scope_chapter FROM artifacts
       WHERE kind = 'plan' AND scope_chapter IS NOT NULL`).all().map(row => row.scope_chapter))
     const summaryStates = summaryStateMap(db)
-    const chapters = manifest.chapters.map(chapter => {
+    const chapters = manifest.chapters.map((chapter: any) => {
       const review = latestReviewRow(db, chapter.number)
       const summary = summaryStateFrom(summaryStates, chapter.number)
       return {
@@ -733,7 +733,7 @@ export function status(root: any, work: any) {
     const summaryStates = summaryStateMap(db)
     let openProblems = 0
     for (const current of openProblemCountByChapter(db).values()) openProblems += current
-    const written = manifest.chapters.filter(chapter => chapter.currentRevision > 0)
+    const written = manifest.chapters.filter((chapter: any) => chapter.currentRevision > 0)
     return {
       workId: manifest.workId,
       planApproval: planApprovalPolicy(manifest),
@@ -744,7 +744,7 @@ export function status(root: any, work: any) {
             ...(manifest.outline.approvedAt === undefined ? {} : { approvedAt: manifest.outline.approvedAt }),
           },
       title: manifest.title,
-      chapters: manifest.chapters.map(chapter => {
+      chapters: manifest.chapters.map((chapter: any) => {
         const summary = summaryStateFrom(summaryStates, chapter.number)
         return {
           number: chapter.number,
@@ -790,7 +790,7 @@ export function status(root: any, work: any) {
  * @param {object|undefined} candidate - latest review row.
  * @returns {{role: 'writer'|'reviewer'|'reviser'|'summarizer'}|undefined} delegate hint.
  */
-function delegateOf(step, last, candidate) {
+function delegateOf(step: any, last: any, candidate: any) {
   if (step.action === 'story_architect') {
     if (Array.isArray(step.blocked) && step.blocked.length > 0) return undefined
     if (step.foundationStage === undefined) return undefined
@@ -829,8 +829,8 @@ const FOUNDATION_STAGE_ARTIFACTS = {
 }
 
 /** Derived foundation state of one open work. */
-function foundationStateOf(db) {
-  const has = artifactId => db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ? LIMIT 1').get(artifactId) !== undefined
+function foundationStateOf(db: any) {
+  const has = (artifactId: any) => db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ? LIMIT 1').get(artifactId) !== undefined
   const stages = {
     frame: FOUNDATION_STAGE_ARTIFACTS.frame.every(has),
     rules: has('bible:book_rules'),
@@ -881,7 +881,7 @@ export function writeFoundationStage(root: any, input: any) {
         throw new StoryError('foundation-order', '先生成 roles 索引，再生成角色卡')
       }
       const at = now()
-      const record = (artifactId, kind, content, source) => {
+      const record = (artifactId: any, kind: any, content: any, source: any) => {
         const value = {
           workId,
           artifactId,
@@ -922,7 +922,7 @@ export function writeFoundationStage(root: any, input: any) {
         }
         const names = new Set()
         const slugs = new Set()
-        records = cards.map((card) => {
+        records = cards.map((card: any) => {
           if (!majorNames.has(card?.name)) {
             throw new StoryError('artifact-invalid', `角色卡 ${String(card?.name)} 不在 roles 索引的 major 条目里`)
           }
@@ -988,8 +988,8 @@ export function nextStep(root: any, work: any) {
   const plannerDelegate = formOf(manifest) === 'longform' ? { delegate: { role: 'planner' } } : {}
   const db = openWork(root, manifest.workId)
   try {
-    const hasPlan = number => db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ?').get(`plan:${number}`) !== undefined
-    const summaryOf = number => summaryStateOf(db, number)
+    const hasPlan = (number: any) => db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ?').get(`plan:${number}`) !== undefined
+    const summaryOf = (number: any) => summaryStateOf(db, number)
     const chapters = manifest.chapters
     const last = chapters.length === 0 ? undefined : chapters[chapters.length - 1]
     const chapter = last === undefined ? 1 : last.number
@@ -1107,7 +1107,7 @@ export function nextStep(root: any, work: any) {
       if (open.length > 0) {
         return {
           chapter: last.number, stage, action: 'story_revise',
-          reason: `第 ${last.number} 章还有 ${open.length} 条未处理审稿`, missing: open.map(item => item.id), ...blocked,
+          reason: `第 ${last.number} 章还有 ${open.length} 条未处理审稿`, missing: open.map((item: any) => item.id), ...blocked,
         }
       }
       const summary = summaryOf(last.number)
@@ -1661,7 +1661,7 @@ export function writeReview(root: string, input: WriteReviewInput): any {
         },
         sourceRefs: Array.isArray(observation?.sourceRefs) ? observation.sourceRefs : [],
       }))
-      const previousIssues = new Set(openObservations(latestReviewRow(db, number)).map(observation => observation.id))
+      const previousIssues = new Set(openObservations(latestReviewRow(db, number)).map((observation: any) => observation.id))
       for (const observation of normalized) {
         if (observation.assessment === 'resolved' && !previousIssues.has(observation.resolves)) {
           throw new StoryError('artifact-invalid', `resolved observation 的 resolves 不是上一轮的 issue：${String(observation.resolves)}`)
@@ -1694,8 +1694,8 @@ export function writeReview(root: string, input: WriteReviewInput): any {
 }
 
 /** Project review observations into the compact item view used by tools and UI. */
-function reviewItems(observations) {
-  return observations.map(observation => ({
+function reviewItems(observations: any) {
+  return observations.map((observation: any) => ({
     id: observation.id,
     done: observation.assessment !== 'issue',
     assessment: observation.assessment,
@@ -1709,7 +1709,7 @@ function reviewItems(observations) {
 }
 
 /** Render one review round for export and reading. */
-function renderReviewMarkdown(number, record) {
+function renderReviewMarkdown(number: any, record: any) {
   const lines = [`# 第 ${number} 章 审稿（第 ${record.round} 轮）`, '', `- 正文版本：${record.revision}`, '']
   if (record.observations.length === 0) lines.push('- 清稿：无问题')
   for (const observation of record.observations) {
@@ -1814,8 +1814,8 @@ export function reviseChapter(root: string, input: ReviseChapterInput): any {
       if (!reviewCovers(review, entry, mode !== 'patch')) {
         throw new StoryError('review-required', `第 ${number} 章的审稿针对旧版本 r${review.revision}：先重新审稿`)
       }
-      const open = openObservations(review).map(observation => observation.id)
-      const missing = problemIds.filter(id => !open.includes(id))
+      const open = openObservations(review).map((observation: any) => observation.id)
+      const missing = problemIds.filter((id: any) => !open.includes(id))
       if (missing.length > 0) throw new StoryError('problem-not-found', `问题不存在或已处理：${missing.join('、')}`)
       const current = currentVersion(db, entry)
       if (current.body === body) throw new StoryError('unchanged-body', '修订后的正文与当前版本相同')
@@ -1907,7 +1907,7 @@ export function writeSummary(root: string, input: WriteSummaryInput): any {
 }
 
 /** Search document text of one summary: raw text plus the structured fields. */
-function summarySearchText(content) {
+function summarySearchText(content: any) {
   const structure = SUMMARY_FIELDS
     .map(field => (typeof content[field] === 'string' ? content[field].trim() : ''))
     .filter(text => text !== '')
@@ -1979,7 +1979,7 @@ export function listSummaries(root: any, work: any) {
 }
 
 /** Latest summary per chapter, rendered for the export file set. */
-function exportSummaryRows(db) {
+function exportSummaryRows(db: any) {
   const summaries = []
   for (const row of latestSummaryRows(db)) {
     const content = parseSummaryContent(row.content, row.artifact_id)
@@ -1996,7 +1996,7 @@ function exportSummaryRows(db) {
  * @param {number} number - chapter number.
  * @returns {{entry: object, review: object, summaryState: object}} gate context.
  */
-function assertStateGate(db, number, options = {}) {
+function assertStateGate(db: any, number: any, options = {}) {
   const entry = chapterRow(db, number)
   if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
   if (stageOf(entry) === 'settled') {
@@ -2011,7 +2011,7 @@ function assertStateGate(db, number, options = {}) {
   const open = openObservations(review)
   if (open.length > 0) {
     throw new StoryError('review-required',
-      `第 ${number} 章还有 ${open.length} 条未处理审稿：${open.map(item => item.id).join('、')}；先修订再定稿`)
+      `第 ${number} 章还有 ${open.length} 条未处理审稿：${open.map((item: any) => item.id).join('、')}；先修订再定稿`)
   }
   if (!covers) throw new StoryError('review-required', `第 ${number} 章的审稿针对旧版本 r${review.revision}：先重新审稿`)
   if (isCleanReview(review) && review.revision !== entry.current_revision) {
@@ -2073,7 +2073,7 @@ export function appendStateEvent(root: any, input: any) {
  * Normalize one settlement payload into ordered v2 ops.
  * `newHooks` candidates are minted host-side; an existing text becomes a mention.
  */
-function stateOpsOf(input, chapter, projection) {
+function stateOpsOf(input: any, chapter: any, projection: any) {
   const ops = []
   const factOps = input.factOps ?? {}
   const upserts = Array.isArray(factOps.upsert) ? factOps.upsert : []
@@ -2109,14 +2109,14 @@ function stateOpsOf(input, chapter, projection) {
     throw new StoryError('state-op-invalid', `newHooks 最多 ${STATE_LIMITS.newHooks} 条`)
   }
   for (const entry of transitions) ops.push({ kind: 'hook', op: entry.op, hookId: entry.hookId, chapter })
-  const byText = new Map(projection.hooks.map(hook => [hook.text, hook]))
-  const boundedField = (value, label) => {
+  const byText = new Map(projection.hooks.map((hook: any) => [hook.text, hook]))
+  const boundedField = (value: any, label: any) => {
     const trimmed = String(value ?? '').trim()
     if (trimmed === '') throw new StoryError('state-op-invalid', `${label} 必须是非空字符串`)
     if ([...trimmed].length > STATE_LIMITS.text) throw new StoryError('state-op-invalid', `${label} 超过 ${STATE_LIMITS.text} 字`)
     return trimmed
   }
-  const optionalField = (value, label) => {
+  const optionalField = (value: any, label: any) => {
     const trimmed = String(value ?? '').trim()
     if ([...trimmed].length > STATE_LIMITS.text) throw new StoryError('state-op-invalid', `${label} 超过 ${STATE_LIMITS.text} 字`)
     return trimmed
@@ -2149,14 +2149,14 @@ function stateOpsOf(input, chapter, projection) {
 }
 
 /** Whether a chapter was reopened after its latest settlement. */
-function chapterReopened(db, chapter) {
+function chapterReopened(db: any, chapter: any) {
   const settle = db.prepare("SELECT max(seq) AS n FROM events WHERE chapter = ? AND kind = 'settle'").get(chapter)?.n ?? 0
   const reopen = db.prepare("SELECT max(seq) AS n FROM events WHERE chapter = ? AND kind = 'reopen'").get(chapter)?.n ?? 0
   return reopen > settle
 }
 
 /** Validate and plan one settlement without writing anything. */
-function planSettlement(db, number, input, options = {}) {
+function planSettlement(db: any, number: any, input: any, options = {}) {
   const previous = eventsOf(db)
   const projection = projectState(previous)
   const { ops } = stateOpsOf(input, number, projection)
@@ -2646,7 +2646,7 @@ export function writeManagedCopy(root: any, prepared: any, write: any = writeSyn
 }
 
 /** Validate and normalize one material title. */
-function materialTitle(value) {
+function materialTitle(value: any) {
   const title = String(value ?? '').trim()
   if ([...title].length > MATERIAL_TITLE_MAX) {
     throw new StoryError('material-title-too-long', `素材标题不能超过 ${MATERIAL_TITLE_MAX} 字`)
@@ -2786,14 +2786,14 @@ export function setMaterialPurpose(root: any, work: any, id: any, purpose: any) 
 }
 
 /** Rewrite chapter/summary/event search documents for one remap. */
-function rewriteChapterDocs(db, mapping) {
+function rewriteChapterDocs(db: any, mapping: any) {
   if (mapping.size === 0) {
     db.exec("INSERT INTO search_fts(search_fts) VALUES('rebuild')")
     return
   }
   const rows = db.prepare(`SELECT rowid, doc_id, kind, chapter, source FROM search_docs
     WHERE kind IN ('chapter', 'summary') OR doc_id LIKE 'event:%'`).all()
-  const changed = rows.filter(row => mapping.has(row.chapter))
+  const changed = rows.filter((row: any) => mapping.has(row.chapter))
   for (const row of changed) {
     db.prepare('UPDATE search_docs SET doc_id = ? WHERE rowid = ?').run(`tmp:${row.rowid}`, row.rowid)
   }
@@ -2815,7 +2815,7 @@ function rewriteChapterDocs(db, mapping) {
 }
 
 /** Apply one old→new map to every chapter-number reference. */
-function applyChapterMapping(db, mapping) {
+function applyChapterMapping(db: any, mapping: any) {
   if (mapping.size === 0) return
   db.exec('PRAGMA defer_foreign_keys = ON')
   for (const table of ['chapters', 'chapter_versions', 'chapter_plans', 'summaries']) {
@@ -2835,16 +2835,16 @@ function applyChapterMapping(db, mapping) {
 }
 
 /** Volumes whose endpoints no longer exist or whose range is invalid. */
-function staleVolumesOf(db) {
-  const keys = new Set(db.prepare('SELECT number FROM chapters').all().map(row => row.number))
+function staleVolumesOf(db: any) {
+  const keys = new Set(db.prepare('SELECT number FROM chapters').all().map((row: any) => row.number))
   return db.prepare('SELECT id, from_ch, to_ch FROM volumes ORDER BY from_ch').all()
-    .filter(row => !keys.has(row.from_ch) || !keys.has(row.to_ch) || row.from_ch > row.to_ch)
-    .map(row => row.id)
+    .filter((row: any) => !keys.has(row.from_ch) || !keys.has(row.to_ch) || row.from_ch > row.to_ch)
+    .map((row: any) => row.id)
 }
 
 /** All existing chapter numbers, sorted. */
-function chapterKeys(db) {
-  return db.prepare('SELECT number FROM chapters ORDER BY number').all().map(row => row.number)
+function chapterKeys(db: any) {
+  return db.prepare('SELECT number FROM chapters ORDER BY number').all().map((row: any) => row.number)
 }
 
 /**
@@ -2982,7 +2982,7 @@ export function search(root: any, work: any, query: any, limit: any = 5) {
   const db = openWork(root, work)
   try {
     return queryDocs(db, { match, limit })
-      .map(row => ({ id: row.id, kind: row.kind, source: row.source, chapter: row.chapter, body: row.body, score: row.score }))
+      .map((row: any) => ({ id: row.id, kind: row.kind, source: row.source, chapter: row.chapter, body: row.body, score: row.score }))
   } finally {
     db.close()
   }
@@ -3003,7 +3003,7 @@ export function search(root: any, work: any, query: any, limit: any = 5) {
  */
 export function searchMemory(root: any, work: any, query: any, options: any = {}) {
   const beforeChapter = Number.isInteger(options.beforeChapter) ? options.beforeChapter : undefined
-  const requested = Array.isArray(options.kinds) ? options.kinds.filter(kind => MEMORY_KINDS.includes(kind)) : MEMORY_KINDS
+  const requested = Array.isArray(options.kinds) ? options.kinds.filter((kind: any) => MEMORY_KINDS.includes(kind)) : MEMORY_KINDS
   const kinds = [...new Set(requested)]
   if (kinds.length === 0) return []
   const tokens = queryTokens(query)
@@ -3018,7 +3018,7 @@ export function searchMemory(root: any, work: any, query: any, options: any = {}
       limit: 200,
     })
     const materialRows = new Map()
-    const materialIds = rows.filter(row => row.kind === 'material').map(row => row.id.slice('material:'.length))
+    const materialIds = rows.filter((row: any) => row.kind === 'material').map((row: any) => row.id.slice('material:'.length))
     if (materialIds.length > 0) {
       const placeholders = materialIds.map(() => '?').join(', ')
       for (const row of db.prepare(`SELECT id, title, purpose FROM materials WHERE id IN (${placeholders})`).all(...materialIds)) {
@@ -3026,7 +3026,7 @@ export function searchMemory(root: any, work: any, query: any, options: any = {}
       }
     }
     const purposeFilter = Array.isArray(options.purposes)
-      ? options.purposes.filter(purpose => MATERIAL_PURPOSES.includes(purpose))
+      ? options.purposes.filter((purpose: any) => MATERIAL_PURPOSES.includes(purpose))
       : undefined
     const reopened = new Map(db.prepare("SELECT chapter, max(seq) AS seq FROM events WHERE kind = 'reopen' GROUP BY chapter")
       .all().map(row => [row.chapter, row.seq]))
@@ -3117,22 +3117,22 @@ const MEMORY_KINDS = ['summary', 'hook', 'volume', 'material', 'world', 'style',
   'story_frame', 'volume_map', 'book_rules', 'role_index', 'role_card', 'current_focus']
 
 /** Query tokens; shared by search and context retrieval. */
-function queryTokens(query) {
+function queryTokens(query: any) {
   return searchTokens(query).split(' ').filter(token => token !== '')
 }
 
 /** Quote and OR-join tokens for one FTS match. */
-function matchString(tokens) {
-  return tokens.map(token => `"${token.replaceAll('"', '""')}"`).join(' OR ')
+function matchString(tokens: any) {
+  return tokens.map((token: any) => `"${token.replaceAll('"', '""')}"`).join(' OR ')
 }
 
 /** FTS match string for one query, or '' when the query has no tokens. */
-function matchOf(query) {
+function matchOf(query: any) {
   return matchString(queryTokens(query))
 }
 
 /** One FTS query with the shared projection, ordering and limit. */
-function queryDocs(db, { match, kinds, beforeChapter, limit }) {
+function queryDocs(db: any, { match, kinds, beforeChapter, limit }) {
   const clauses = ['search_fts MATCH ?']
   const params = [match]
   if (Array.isArray(kinds) && kinds.length > 0) {
@@ -3158,7 +3158,7 @@ function queryDocs(db, { match, kinds, beforeChapter, limit }) {
 const EXPORT_SCHEMA_VERSION = 6
 
 /** Render the export manifest from the catalog row and the work database. */
-function exportManifest(root, workId, catalogRowValue, db) {
+function exportManifest(root: any, workId: any, catalogRowValue: any, db: any) {
   const meta = metaOf(db)
   const chapters = db.prepare('SELECT * FROM chapters ORDER BY number').all()
   const summaryStates = summaryStateMap(db)
@@ -3174,7 +3174,7 @@ function exportManifest(root, workId, catalogRowValue, db) {
       writtenAt: meta.outline_written_at,
       approvedAt: meta.outline_approved_at,
     },
-    chapters: chapters.map(chapter => {
+    chapters: chapters.map((chapter: any) => {
       const summary = summaryStateFrom(summaryStates, chapter.number)
       return {
         number: chapter.number,
@@ -3190,7 +3190,7 @@ function exportManifest(root, workId, catalogRowValue, db) {
         summaryStale: summary.state === 'stale',
       }
     }),
-    materials: materials.map(row => ({
+    materials: materials.map((row: any) => ({
       id: row.id,
       title: row.title,
       format: row.format,
@@ -3205,14 +3205,14 @@ function exportManifest(root, workId, catalogRowValue, db) {
 }
 
 /** Collapse a title to one trimmed line. */
-function oneLine(value) {
+function oneLine(value: any) {
   return String(value ?? '').replace(/\r\n?|\n/gu, ' ').replace(/\s+/gu, ' ').trim()
 }
 
 /** One snapshot of current chapter revisions, shared by TXT and EPUB. */
-function currentChapters(db) {
+function currentChapters(db: any) {
   return db.prepare('SELECT * FROM chapters WHERE current_revision > 0 ORDER BY number').all()
-    .map(chapter => {
+    .map((chapter: any) => {
       const version = currentVersion(db, chapter)
       if (version === undefined) {
         throw new StoryError('export-failed', `第 ${chapter.number} 章缺少当前正文版本，无法导出`)
@@ -3222,7 +3222,7 @@ function currentChapters(db) {
 }
 
 /** Render the single-file readable book from a chapter snapshot. */
-function bookText(title, chapters) {
+function bookText(title: any, chapters: any) {
   const parts = [oneLine(title) || '未命名']
   for (const chapter of chapters) {
     const heading = oneLine(chapter.title)
@@ -3233,7 +3233,7 @@ function bookText(title, chapters) {
 }
 
 /** `ch-0007` / `ch-0007.r2`. */
-function versionStem(number, revision) {
+function versionStem(number: any, revision: any) {
   return revision === 1 ? chapterStem(number) : `${chapterStem(number)}.r${revision}`
 }
 
@@ -3255,8 +3255,8 @@ export function exportWork(root: string, work: unknown, destination: string): an
     try {
       const target = destination ?? join(exportsDir(root), row.work_id)
       if (destination === undefined && existsSync(target)) rmSync(target, { recursive: true, force: true })
-      const files = []
-      const put = (relative, data) => {
+      const files: any = []
+      const put = (relative: any, data: any) => {
         const file = join(target, relative)
         mkdirSync(join(file, '..'), { recursive: true })
         if (typeof data === 'string') writeFileSync(file, data, 'utf8')
@@ -3401,14 +3401,14 @@ export async function exportWorkAtomic(root: string, work: unknown, options: any
     const stamp = Date.now()
     const stage = join(directory, `.tmp-${token}-${stamp}-${randomUUID().slice(0, 8)}`)
     const backup = join(directory, `.bak-${token}-${stamp}-${randomUUID().slice(0, 8)}`)
-    const cleanup = path => {
+    const cleanup = (path: any) => {
       try {
         remove(path, { recursive: true, force: true })
       } catch {
         // Cleanup is best effort; it must not mask the original error.
       }
     }
-    const fail = (message, cause) => new StoryError('export-failed', `${message}${cause === undefined ? '' : `：${cause}`}`)
+    const fail = (message: any, cause: any) => new StoryError('export-failed', `${message}${cause === undefined ? '' : `：${cause}`}`)
 
     // A previous swap may have crashed between target→backup and stage→target.
     if (!existsSync(target)) {
@@ -3471,17 +3471,17 @@ export async function exportWorkAtomic(root: string, work: unknown, options: any
 }
 
 /** Escape one literal string for a backup filename pattern. */
-function escapeBackup(value) {
+function escapeBackup(value: any) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
 }
 
 /** Exact backup filename filter for one work: <workId>-<digits>.db. */
-function backupPattern(workId) {
+function backupPattern(workId: any) {
   return new RegExp(`^${escapeBackup(workId)}-(\\d+)\\.db$`, 'u')
 }
 
 /** List one work's backup files, newest first. */
-function backupFiles(root, workId) {
+function backupFiles(root: any, workId: any) {
   const directory = backupsDir(root)
   let names
   try {
@@ -3513,7 +3513,7 @@ export function listBackups(root: any, work: any) {
 }
 
 /** Resolve a backupId without crossing into another work's files. */
-function resolveBackupFile(root, workId, backupId) {
+function resolveBackupFile(root: any, workId: any, backupId: any) {
   const prefix = `backup:${workId}:`
   if (typeof backupId !== 'string' || !backupId.startsWith(prefix)) throw new StoryError('backup-not-found', '没有这个备份')
   const token = backupId.slice(prefix.length)
@@ -3524,7 +3524,7 @@ function resolveBackupFile(root, workId, backupId) {
 }
 
 /** Run one function under the per-work lock shared with export. */
-async function withWorkLock(root, work, fn) {
+async function withWorkLock(root: any, work: any, fn: any) {
   const key = `${root}\0${work}`
   const previous = exportLocks.get(key) ?? Promise.resolve()
   let release
@@ -3837,7 +3837,7 @@ export function deleteProposal(root: any, id: any) {
  * @param {number} ttlMs - age threshold.
  * @returns {number} rows removed.
  */
-function pruneProposalRows(catalog, ttlMs) {
+function pruneProposalRows(catalog: any, ttlMs: any) {
   const cutoff = new Date(Date.now() - ttlMs).toISOString()
   return catalog.prepare('DELETE FROM proposals WHERE used_at IS NULL AND created_at < ?').run(cutoff).changes
 }
