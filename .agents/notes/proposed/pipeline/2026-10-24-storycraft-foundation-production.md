@@ -91,7 +91,7 @@ R10 旧方案（一次生成 world/characters/plan/text-hook）已被对拍审�
 4. 确认只由面板触发；工具侧 approve 返回 `approval-moved`；确认不自动发消息。
 5. 面板「基础设定」展示四类产物与 stage 状态，确认按钮只写时间戳。
 6. 生成的 foundation 被 S4b 消费读到（brief 段、context 约束、检索、导出）；roles 索引与卡的关系符合合同（卡来自 major 条目、slug 稳定）。
-7. `bible.characters` 未被删除或改写；无 foundation 的旧作品不阻塞。
+7. `bible.characters` 未被删除或改写；没有 foundation 的作品不阻塞（可手动 `story_outline`）。
 8. 不写 hooks/facts、不迁移、不改短篇/剧本、不改审稿/结算标准。
 9. 测试：`foundation-production.test.mjs` 覆盖四 stage、非法 payload 原子性、重跑清确认、nextStep 序列、面板确认（E2E 或 API 级）、S4b 消费联动；既有委派/提交/工具/面板测试更新；`node storycraft/scripts/ci.mjs --no-e2e` 通过。
 10. 技能：新增 architect 角色技能（薄契约）+ 复用 longform foundation-design 参考；委派提示加载正确技能，不改方法正文。
