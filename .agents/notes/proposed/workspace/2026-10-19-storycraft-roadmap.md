@@ -57,13 +57,13 @@ updated: 2026-10-24
 | R9b | 语义状态对账：只读 `story_state_check`、validator 角色、findings 与引文校验；自动 settler 链路留 R11 | #42；`implemented/pipeline/2026-10-23-storycraft-semantic-state-check.md` |
 | R11 | settler 自动投影：`story_settle` 从正文抽取 delta，复用 R9b validator，一次反馈重算，未解决不定稿 | #43；`implemented/pipeline/2026-10-23-storycraft-settler-auto-projection.md` |
 | A0 | 产物合同 v2、registry、短篇/剧本独立存储、共享方法技能 | #45–#49 |
-| L | 新模型生产者/消费者迁移、foundation 生产、observation/reviews、settle 超时收口 | #51–#61；真实链路 #50 的 L 验收 |
+| L 迁移切片 | 新模型生产者/消费者迁移、foundation 生产、observation/reviews、settle 超时收口 | #51–#61；单章真实链路见 #50 |
 
 ### 进行中
 
 | 阶段 | 内容 | 依赖 |
 | --- | --- | --- |
-| — | 没有在飞项；A0 与 L 已收口。下一阶段是 S 短篇（独立流水线，待立），不是继续在 L 面板上套短篇形态 | — |
+| L 产品收口 | 多章/重开/删除重排、planner、上下文预算与 trace、面板看板/伏笔/摘要、导出验收、成本与长书性能等 | #62 |
 
 ### 后续阶段
 
@@ -85,7 +85,7 @@ updated: 2026-10-24
 | 阶段 | 目标 | 范围/交付 | 退出条件 | 工作项 |
 | --- | --- | --- | --- | --- |
 | A0 | 全量产物合同 v2 | 逐项字段、权威、消费者、生命周期、初始化/测试重建、验收；覆盖 story_frame/volume_map/book_rules/角色卡/ChapterMemo/结构化摘要/hooks/facts/observation/context trace；定“共享方法技能 + 角色薄契约”的技能组织 | 合同评审通过；未决产品问题由作者裁决；矩阵与报告互链；消费者映射/契约可测，真实生产者/消费者归 L | #45 |
-| L 长篇 | 长篇全量对齐 | R10a 生产者/消费者迁移（#51）+ R10b architect 四阶段；long-writing 共享方法 + 4 refs；planner intent/memo/threadRefs；settler/validator 新模型；R9b/R11 适配；observation/reviews 后续（#52）；context 消费者 | 长篇产物、角色、技能、消费者、重建测试全过；R10a/R10b 关闭；#52 完成 | #44 + #51 + #52 |
+| L 长篇 | 长篇全量对齐（迁移切片已完成，产品收口见 #62） | R10a 生产者/消费者迁移（#51）+ R10b architect 四阶段；long-writing 共享方法 + 4 refs；planner intent/memo/threadRefs；settler/validator 新模型；R9b/R11 适配；observation/reviews 后续（#52）；context 消费者 | 长篇产物、角色、技能、消费者、重建测试全过；R10a/R10b 关闭；#52 完成 | #44 + #51 + #52 |
 | S 短篇 | 短篇独立流水线 | outline → batch draft → draft review（sourceRefs）→ revision plan → package/cover prompt；short-writing + production-checklist；独立短篇产物/动作/UI | 短篇全链路产物、字数/钩子契约、review 证据、打包输出测试通过 | 待立 |
 | D 剧本 | 剧本独立流水线 | spec/script + 场次/集；script-writing + episode-scene-craft；目标格式/集数/时长；storyboard/互动影游另列 R8 | 剧本 spec/script、场次格式、导出测试通过 | 待立 |
 | 横向 | 分析/市场/导入/同人/封面/翻译/Play | R7/R7b/R7c/R8；A0 预留产物/字段 | 按各自触发条件验收 | 各阶段 Issue |
