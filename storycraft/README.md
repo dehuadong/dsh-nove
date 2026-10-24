@@ -89,7 +89,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 - `story_bible_import`：把旧文件作品的世界观收编进真值，并列出仍需作者补的项（不替作者编人物档案）；不导入大纲，大纲只走 `story_outline` + 作者确认。
 - `story_summarize`：手动写章节摘要（超 400 字截断并报告；写入时绑定当前正文版本）；正常链路先由 `story_next` 给出 `summarizer` 委派，子代理通过 `story_submit` 提交摘要，主编不读整章。摘要过期时 `story_next` 会重新要求摘要，`story_state` 返回 `summary-stale`。
 - `story_brief`：装配写某一章前的上下文——意图、故事框架、作品规则、本章章纲、当前焦点、涉及人物、未解伏笔、卷图、卷摘要、最近摘要、上一章结尾、文风、字数口径；已写 ≥3 章时追加「相关素材」段（只取 setting/character/scene；最多 3 条、`select.chars ≤1200`），素材段在最后、预算不足时最先被裁。故事框架与作品规则是 protected 硬约束，裁剪在它们之前停止并如实报 `overBudget`；其他段按优先级裁剪并报告裁掉的段。默认 8 KB，同一输入两次结果逐字节一致。
-- `story_context` 的检索段：作品内正文 ≥3 章时，按本章任务从作品库 FTS5 召回 current 摘要、未解伏笔（open/progressing/deferred）、卷摘要与素材（标题前缀 + ≤400 片段）；最多 5 条 / 1200 字，每类最多 2 条，`recent` 已发的摘要去重。过期摘要、已解伏笔、reopen 前事件与目标章之后的材料不进入。`trace.retrieval` 记录 `enabled / query / candidateCount / hits[{id, kind, sourceIds, score, sent}]` 与可选 `error`；hits 最多 15 条（前 10 ∪ sent），整段被预算裁掉时 `sent` 全为 false。素材标题与正文都参与 FTS 命中，标题仍显示在片段前缀。
+- `story_context` 的检索段：作品内正文 ≥3 章时，按本章任务从作品库 FTS5 召回 current 摘要、未解伏笔（open/progressing/deferred）、卷摘要、素材（标题前缀 + ≤400 片段）与 foundation/角色卡（story_frame/volume_map/book_rules/roles/current_focus）；最多 5 条 / 1200 字，每类最多 2 条，`recent` 已发的摘要去重。过期摘要、已解伏笔、reopen 前事件与目标章之后的材料不进入。`trace.retrieval` 记录 `enabled / query / candidateCount / hits[{id, kind, sourceIds, score, sent}]` 与可选 `error`；hits 最多 15 条（前 10 ∪ sent），整段被预算裁掉时 `sent` 全为 false。素材标题与正文都参与 FTS 命中，标题仍显示在片段前缀。
 
 ## 素材库
 
@@ -102,7 +102,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 | `story_rename` | 改标题或作品 id；改 id 时库文件一起移，冲突拒绝 |
 | `story_delete` | 移入 `.storycraft/trash/`，不再出现在列表 |
 | `story_restore` | 恢复回收站里最近一次的同名作品 |
-| `story_export` | 导出为 `export:<workId>`；作者从只读 `/exports` 路由取目录，内容含 manifest v6、`book.txt` 与 `book.epub`、各版正文、章纲、摘要、各轮审稿、真值、卷、事件、提案与 `materials/<id>.<format>` |
+| `story_export` | 导出为 `export:<workId>`；作者从只读 `/exports` 路由取目录，内容含 manifest v6、`book.txt` 与 `book.epub`、各版正文、章纲、摘要、各轮审稿、真值、`foundation/`（story_frame/volume_map/book_rules/roles/current_focus）、卷、事件、提案与 `materials/<id>.<format>` |
 | `story_backup` | 用 SQLite 备份 API 生成单作品文件，返回 `integrity_check` |
 
 导出是给作者在系统文件管理器里取用的，不是让模型读库；`.storycraft` 仍整体拒绝工具直接访问。

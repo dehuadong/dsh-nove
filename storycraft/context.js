@@ -11,7 +11,7 @@
  */
 
 import { deriveWhitelist, readCards, summariseWhitelist } from './facts.js'
-import { readFoundationDocuments } from './artifact-store.js'
+import { readFoundationDocuments, renderFoundationContent } from './artifact-store.js'
 import {
   StoryError, chapterNumber, chapterStem, formOf, planApprovalPolicy, unitOf,
 } from './domain.js'
@@ -117,22 +117,15 @@ export async function assembleRoleContext(input, dependencies = {}) {
       `第 ${number} 章章纲还没经作者确认：请在面板「章纲」里点「确认章纲」，再取写手上下文`)
   }
 
-/** Render one foundation artifact content: Markdown string or its readable `markdown` field. */
-function foundationText(content) {
-  if (typeof content === 'string') return content
-  if (content !== null && typeof content === 'object' && typeof content.markdown === 'string') return content.markdown
-  return content === undefined ? '' : JSON.stringify(content)
-}
-
   const foundation = readFoundationDocuments(root, work)
   const indexRoles = Array.isArray(foundation.rolesIndex?.content?.roles) ? foundation.rolesIndex.content.roles : undefined
   const characters = indexRoles !== undefined && indexRoles.length > 0
     ? indexRoles
     : (await readCards(root, work)) ?? []
-  const storyFrameText = foundationText(foundation.storyFrame?.content)
-  const bookRulesText = foundationText(foundation.bookRules?.content)
-  const volumeMapText = foundationText(foundation.volumeMap?.content)
-  const focusText = foundationText(foundation.currentFocus?.content)
+  const storyFrameText = renderFoundationContent(foundation.storyFrame?.content)
+  const bookRulesText = renderFoundationContent(foundation.bookRules?.content)
+  const volumeMapText = renderFoundationContent(foundation.volumeMap?.content)
+  const focusText = renderFoundationContent(foundation.currentFocus?.content)
   if (characters.length === 0 && role !== 'planner' && role !== 'summarizer') {
     throw new StoryError('bible-missing', '人物卡缺失：先用 story_bible_write 建 bible/characters.json 再派活')
   }
@@ -278,12 +271,15 @@ function foundationText(content) {
 
   // planner-only: book plan, volume map and character cards
   const planSection = role === 'planner'
-    ? section('plan', '全书计划与卷图', [
+    ? section('plan', '全书计划与故事框架', [
       focusText === '' ? '' : `当前焦点：${focusText.trim()}`,
       planText === '' ? '（还没有全书计划）' : planText.trim(),
       storyFrameText === '' ? '' : `故事框架：\n${storyFrameText.trim()}`,
-      volumeMapText === '' ? (volumeTitles === '' ? '' : `卷图：\n${volumeTitles}`) : `卷图：\n${volumeMapText.trim()}`,
     ].filter(line => line !== '').join('\n'), 'protected', `${virtualPath(work, 'foundation')} + ${virtualPath(work, 'outline/plan.md')}`)
+    : undefined
+  const volumeMapSection = role === 'planner'
+    ? section('volumeMap', '卷图', volumeMapText === '' ? volumeTitles : volumeMapText.trim(),
+      'compressible', volumeMapText === '' ? virtualPath(work, 'volumes') : virtualPath(work, 'foundation/volume_map.md'))
     : undefined
   const characterBrief = role === 'planner'
     ? section('characters', '人物卡（节选）', characters.slice(0, 6).map(item => [
@@ -309,6 +305,7 @@ function foundationText(content) {
   const sections = [authority, task, ...(constraints === undefined ? [] : [constraints])]
   if (role === 'planner') {
     if (planSection !== undefined) sections.push(planSection)
+    if (volumeMapSection !== undefined) sections.push(volumeMapSection)
     if (characterBrief !== undefined) sections.push(characterBrief)
   }
   if (chapterPlanSection !== undefined) sections.push(chapterPlanSection)

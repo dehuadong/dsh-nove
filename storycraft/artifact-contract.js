@@ -257,7 +257,7 @@ export function validateRoleCard(value) {
   const input = object(value, 'role_card')
   keys(input, ['slug', 'name', 'tier', 'motivation', 'knowledge', 'relationshipPressure', 'limits', 'arc', 'markdown'], 'role_card')
   text(input.slug, 'role_card.slug')
-  if (/[\s:]/u.test(input.slug)) invalid('role_card.slug 不能含空白或冒号')
+  if (/[\s:\\/]/u.test(input.slug) || input.slug === '.' || input.slug === '..') invalid('role_card.slug 不能含空白、冒号或路径分隔符')
   text(input.name, 'role_card.name')
   oneOf(input.tier, ['major', 'minor'], 'role_card.tier')
   for (const field of ['motivation', 'knowledge', 'relationshipPressure', 'limits']) text(input[field], `role_card.${field}`)

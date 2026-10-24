@@ -34,7 +34,7 @@ S4b 只接消费（brief/context/检索/审稿/结算/导出），不生产。
 
 ### 1. brief（写前上下文）
 
-- 新增四段：`storyFrame`（protected）、`bookRules`（protected）、`currentFocus`（compressible）、`volumeMap`（compressible）；`characters` 段在 roles index 存在时改为角色卡摘要（tier/name/一句定位），否则回退 `bible.characters`。
+- 新增四段：`storyFrame`（protected）、`bookRules`（protected）、`currentFocus`（compressible）、`volumeMap`（compressible）；`characters` 段在 roles index 有非空 `roles` 时改用索引的六字段（与 `bible.characters` 同形），否则回退 `bible.characters`；角色卡 `role:<slug>` 只在需要时按 slug 读取，不把卡全文塞进 brief。
 - 新顺序：`intent, storyFrame, bookRules, plan, currentFocus, characters, hooks, volumeMap, volumeSummary, recentSummaries, previous, style, wordPolicy, retrieval`；段数从 9 变 13，测试与技能说明同步。
 - 预算：trim 从尾部开始；`storyFrame`/`bookRules` 标记 protected，裁剪循环遇到 protected 段停止并如实报 `overBudget`，不静默删掉硬约束；其余新段按 compressible 参与裁剪。
 - 缺席：artifact 不存在时该段 `absent: true`，不编内容；R10b 之前 brief 仍可用（fail-open）。
@@ -43,12 +43,13 @@ S4b 只接消费（brief/context/检索/审稿/结算/导出），不生产。
 
 | 角色 | 新增 |
 | --- | --- |
-| planner | `story_frame` 与 `volume_map` 进 `plan` 段（volume_map 可裁剪）；`current_focus` 进 intent/plan |
-| writer | `story_frame`/`book_rules` 进硬约束（protected）；`roles` 卡替代 characters 节选 |
-| reviewer/reviser | `story_frame`/`book_rules` 进标准/约束段（protected），用于对账设定与规则 |
+| planner | `story_frame` 与 `current_focus` 进 `plan` 段（protected）；`volume_map` 独立为 `volumeMap` 段（compressible） |
+| writer | `story_frame`/`book_rules` 进硬约束（protected，各截 1200 字上限）；`roles` 索引替代 characters 节选 |
+| reviewer/reviser | `story_frame`/`book_rules` 进硬约束（protected，同上），用于对账设定与规则 |
 | summarizer | 不变（只读本章与 state） |
 
 - 段名与保护级别沿用 context 既有 `section` 机制；缺失时不报错、不阻断派发。
+- context 的 1200 字上限是有意边界（单次派发的上下文预算）；brief 的 protected 段保留全文。
 
 ### 3. 检索
 
@@ -62,7 +63,7 @@ S4b 只接消费（brief/context/检索/审稿/结算/导出），不生产。
 
 ### 5. 边界
 
-- 不生产 foundation/current_focus；不改变 #44 的生成流程与确认闸门。
+- 不生产 foundation/current_focus；不改变 #44 的生成流程与确认闸门。`current_focus` 的 kind/检索已接入，但它的写入与索引同步随 R10b 的生产者落地。
 - 不改 `bible.characters` 的六字段合同；roles 缺失时回退。
 - 不做旧作品迁移；面板展示 foundation 归 R10b/后续（本项只做导出与上下文消费）。
 - 不改审稿标准与结算语义，只增加约束输入。

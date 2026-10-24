@@ -194,7 +194,7 @@ function foundationDocument(name) {
  */
 export function writeFoundationDocument(root, input) {
   const document = foundationDocument(input.name)
-  const text = typeof input.content === 'string' ? input.content : JSON.stringify(input.content)
+  const text = renderFoundationContent(input.content)
   return writeTyped(root, {
     work: input.work,
     artifactId: document.artifactId,
@@ -237,6 +237,13 @@ export function writeRoleCard(root, input) {
   })
 }
 
+/** Render foundation artifact content: Markdown string or its readable `markdown` field. */
+export function renderFoundationContent(content) {
+  if (typeof content === 'string') return content
+  if (content !== null && typeof content === 'object' && typeof content.markdown === 'string') return content.markdown
+  return content === undefined ? '' : JSON.stringify(content)
+}
+
 /** Read one role card by its `role:<slug>` identity. */
 export function readRoleCard(root, input) {
   const segment = String(input.role ?? input.slug ?? '').trim()
@@ -247,7 +254,7 @@ export function readRoleCard(root, input) {
 export function readFoundationDocuments(root, work) {
   const db = openWork(root, String(work))
   try {
-    const read = (artifactId, kind) => {
+    const read = (artifactId) => {
       const row = db.prepare('SELECT content_type, content, revision_id, created_at FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
         .get(artifactId)
       if (row === undefined) return undefined
@@ -255,11 +262,11 @@ export function readFoundationDocuments(root, work) {
       return { content, version: row.revision_id, createdAt: row.created_at }
     }
     return {
-      storyFrame: read('bible:story_frame', 'story_frame'),
-      volumeMap: read('bible:volume_map', 'volume_map'),
-      bookRules: read('bible:book_rules', 'book_rules'),
-      rolesIndex: read('roles:index', 'role_index'),
-      currentFocus: read('bible:current_focus', 'current_focus'),
+      storyFrame: read('bible:story_frame'),
+      volumeMap: read('bible:volume_map'),
+      bookRules: read('bible:book_rules'),
+      rolesIndex: read('roles:index'),
+      currentFocus: read('bible:current_focus'),
     }
   } finally {
     db.close()

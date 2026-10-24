@@ -17,7 +17,7 @@ import {
   readManifest, readPlan, readSummary as readSummaryRow, readSummaryState, readVolumes, searchMemory, virtualPath,
   writeBible as writeBibleRow, writeSummary as writeSummaryRow,
 } from './store-db.js'
-import { readFoundationDocuments } from './artifact-store.js'
+import { readFoundationDocuments, renderFoundationContent } from './artifact-store.js'
 
 /** Every truth file, with how its content is validated. */
 export const BIBLE_FILES = {
@@ -325,12 +325,6 @@ export async function writeSummary(root, workId, chapter, text) {
  * @returns {Promise<{sections: object[], budget: object, missing: string[], dropped: object[], retrieval: object}>} brief.
  */
 /** Render one foundation artifact content: Markdown string or its readable `markdown` field. */
-function foundationText(content) {
-  if (typeof content === 'string') return content
-  if (content !== null && typeof content === 'object' && typeof content.markdown === 'string') return content.markdown
-  return content === undefined ? '' : JSON.stringify(content)
-}
-
 export async function assembleBrief(root, workId, chapter, dependencies = {}) {
   const number = chapterNumber(chapter)
   const manifest = readManifest(root, workId)
@@ -370,10 +364,10 @@ export async function assembleBrief(root, workId, chapter, dependencies = {}) {
     .map(hook => `- ${hook.text}（${hook.status}，第 ${hook.startChapter} 章埋）`)
     .join('\n')
 
-  const storyFrame = foundationText(foundation.storyFrame?.content)
-  const bookRules = foundationText(foundation.bookRules?.content)
-  const currentFocus = foundationText(foundation.currentFocus?.content)
-  const volumeMap = foundationText(foundation.volumeMap?.content)
+  const storyFrame = renderFoundationContent(foundation.storyFrame?.content)
+  const bookRules = renderFoundationContent(foundation.bookRules?.content)
+  const currentFocus = renderFoundationContent(foundation.currentFocus?.content)
+  const volumeMap = renderFoundationContent(foundation.volumeMap?.content)
   const sections = [
     section('intent', '作者意图与当前焦点', raw.intent, biblePath(work, 'intent')),
     section('storyFrame', '故事框架', storyFrame, virtualPath(work, 'foundation/story_frame.md'), { absent: storyFrame === '' }),

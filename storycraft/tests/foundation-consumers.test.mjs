@@ -98,8 +98,11 @@ try {
   const planner = await assembleRoleContext({ root, work, chapter: 1, role: 'planner', task: '规划第一章' })
   const plannerPlan = planner.sections.find(section => section.name === 'plan')
   check('planner plan carries foundation and focus',
-    plannerPlan?.content.includes('故事框架') && plannerPlan.content.includes('卷图') && plannerPlan.content.includes('当前焦点'),
+    plannerPlan?.content.includes('故事框架') && plannerPlan.content.includes('当前焦点'),
     JSON.stringify(plannerPlan?.content?.slice(0, 200)))
+  const plannerVolumeMap = planner.sections.find(section => section.name === 'volumeMap')
+  check('planner volume map is a compressible section',
+    plannerVolumeMap?.content.includes('搭棚') && plannerVolumeMap.protection === 'compressible', JSON.stringify(plannerVolumeMap))
   const writer = await assembleRoleContext({ root, work, chapter: 1, role: 'writer', task: '写第一章' })
   const constraints = writer.sections.find(section => section.name === 'constraints')
   check('writer constraints carry story frame and book rules',
@@ -109,8 +112,23 @@ try {
     plannerCharacters?.content.includes('甲') && plannerCharacters.source.endsWith('foundation/roles/index.json'),
     JSON.stringify(plannerCharacters))
 
+  s.writeChapter(root, { work, chapter: 1, body: '甲在荒原上立起第一根梁。'.repeat(20) })
+  for (const role of ['reviewer', 'reviser']) {
+    const context = await assembleRoleContext({ root, work, chapter: 1, role, task: `以${role}身份检查第一章`, body: '甲在荒原上立起第一根梁。'.repeat(20) })
+    const roleConstraints = context.sections.find(section => section.name === 'constraints')
+    check(`${role} constraints carry story frame and book rules`,
+      roleConstraints?.content.includes('故事框架') && roleConstraints.content.includes('作品规则'),
+      JSON.stringify(roleConstraints?.content?.slice(0, 200)))
+  }
+
   const frameHits = s.searchMemory(root, work, '废土上的工程队')
-  check('foundation artifacts are searchable', frameHits.some(item => item.kind === 'story_frame'), JSON.stringify(frameHits.map(item => item.kind)))
+  check('story_frame is searchable', frameHits.some(item => item.kind === 'story_frame'), JSON.stringify(frameHits.map(item => item.kind)))
+  const rulesHits = s.searchMemory(root, work, '作品规则')
+  check('book_rules is searchable', rulesHits.some(item => item.kind === 'book_rules'), JSON.stringify(rulesHits.map(item => item.kind)))
+  const mapHits = s.searchMemory(root, work, '搭棚')
+  check('volume_map is searchable', mapHits.some(item => item.kind === 'volume_map'), JSON.stringify(mapHits.map(item => item.kind)))
+  const indexHits = s.searchMemory(root, work, '守住铺子')
+  check('roles index is searchable', indexHits.some(item => item.kind === 'role_index'), JSON.stringify(indexHits.map(item => item.kind)))
   const roleHits = s.searchMemory(root, work, '学会求助')
   check('role cards are searchable', roleHits.some(item => item.kind === 'role_card'), JSON.stringify(roleHits.map(item => item.kind)))
 
@@ -130,7 +148,37 @@ try {
   } catch {
     volumeMissing = true
   }
-  check('present foundation documents are exported, absent ones are not', volumeMissing === false)
+  check('present foundation documents are exported', volumeMissing === false)
+
+  const plain = s.initWork(root, { title: '无 foundation', wordRange: { min: 50, max: 5000 } }).workId
+  s.writeOutline(root, { work: plain, mainline: '无 foundation 的计划' })
+  s.approveOutline(root, { work: plain })
+  s.writeBible(root, {
+    work: plain, name: 'characters',
+    content: JSON.stringify([{ name: '丙', role: '主角', want: '活', fear: '死', limit: '不害人', voice: '平' }]),
+  })
+  s.writePlan(root, { work: plain, chapter: 1, perspective: '丙', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+  s.approveChapterPlan(root, { work: plain, chapter: 1 })
+  const absent = await b.assembleBrief(root, plain, 1)
+  const absentByName = new Map(absent.sections.map(section => [section.name, section]))
+  check('missing foundation fails open with absent sections',
+    absentByName.get('storyFrame')?.absent === true && absentByName.get('bookRules')?.absent === true
+    && absentByName.get('volumeMap')?.absent === true && absentByName.get('currentFocus')?.absent === true,
+    JSON.stringify([...absentByName.values()].filter(section => section.absent).map(section => section.name)))
+  check('missing roles fall back to bible characters',
+    absentByName.get('characters')?.source.endsWith('bible/characters.json') && absentByName.get('characters').content.includes('丙'),
+    JSON.stringify(absentByName.get('characters')))
+  const plainExport = await s.exportWork(root, plain, join(root, 'plain-out'))
+  let foundationAbsent = false
+  try {
+    await stat(join(plainExport.directory, 'foundation'))
+  } catch {
+    foundationAbsent = true
+  }
+  check('missing foundation artifacts produce no foundation export', foundationAbsent === true)
+  const plainPlanner = await assembleRoleContext({ root, work: plain, chapter: 1, role: 'planner', task: '规划第一章' })
+  check('planner still assembles without foundation',
+    plainPlanner.sections.some(section => section.name === 'plan'), JSON.stringify(plainPlanner.sections.map(section => section.name)))
 } finally {
   await rm(root, { recursive: true, force: true })
 }

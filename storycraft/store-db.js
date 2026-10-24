@@ -33,7 +33,10 @@ import {
   formOf, now, parseReview, planApprovalPolicy, stageOf, summaryAdmissible, trimSummary, unitOf, workIdOf,
 } from './domain.js'
 import { assertRevisionMode } from './revision.js'
-import { remapChapterArtifacts, renderChapterMemo, writeChapterMemoOnDb, writeChapterSummaryOnDb, writeTextArtifactOnDb, readTextArtifactOnDb } from './artifact-store.js'
+import {
+  FOUNDATION_DOCUMENTS, remapChapterArtifacts, renderChapterMemo, renderFoundationContent,
+  writeChapterMemoOnDb, writeChapterSummaryOnDb, writeTextArtifactOnDb, readTextArtifactOnDb,
+} from './artifact-store.js'
 
 /** How long an unused proposal is kept before the next proposal write prunes it. */
 export const PROPOSAL_TTL_MS = 30 * 24 * 60 * 60 * 1000
@@ -2988,23 +2991,16 @@ export function exportWork(root, work, destination) {
         if (name === 'plan') put(join('outline', 'plan.md'), entry.content)
         else put(join('bible', `${name}.md`), entry.content)
       }
-      for (const [name, artifactId] of [
-        ['story_frame', 'bible:story_frame'],
-        ['volume_map', 'bible:volume_map'],
-        ['book_rules', 'bible:book_rules'],
-        ['current_focus', 'bible:current_focus'],
-      ]) {
+      for (const [name, document] of Object.entries(FOUNDATION_DOCUMENTS)) {
         const row = db.prepare('SELECT content_type, content FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
-          .get(artifactId)
+          .get(document.artifactId)
         if (row === undefined) continue
         const content = row.content_type === 'json' ? JSON.parse(row.content) : row.content
-        const text = typeof content === 'string'
-          ? content
-          : (content !== null && typeof content === 'object' && typeof content.markdown === 'string'
-            ? content.markdown
-            : JSON.stringify(content))
-        put(join('foundation', `${name}.md`), text)
+        const file = name === 'roles_index' ? null : `foundation/${name}.md`
+        if (file !== null) put(file, renderFoundationContent(content))
       }
+      const focus = readTextArtifactOnDb(db, 'bible:current_focus')
+      if (focus !== undefined) put(join('foundation', 'current_focus.md'), focus.content)
       const rolesIndex = db.prepare(`SELECT content_type, content FROM artifacts
         WHERE artifact_id = 'roles:index' ORDER BY rowid DESC LIMIT 1`).get()
       if (rolesIndex !== undefined) {
