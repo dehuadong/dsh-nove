@@ -1,4 +1,4 @@
-// @ts-nocheck -- P2 in progress: remaining SQL row/projection errors tracked in #71.
+// @ts-nocheck -- P2a in progress: SQLOutputValue/projection errors tracked in #71.
 /**
  * Work-level and chapter-level store on SQLite.
  *
@@ -116,6 +116,12 @@ function activeWork(db: Database, workId: unknown): WorkRow {
 }
 
 /** Read `meta`, the single row of one work database. */
+function requireCatalog(root: string): Database {
+  const catalog = openCatalog(root)
+  if (catalog === undefined) throw new StoryError('db-corrupt', '作品目录无法打开')
+  return catalog
+}
+
 function metaOf(db: Database): MetaRow {
   const row = db.prepare('SELECT * FROM meta WHERE id = 1').get() as MetaRow | undefined
   if (row === undefined) throw new StoryError('db-corrupt', '作品库缺少 meta 行')
@@ -191,13 +197,13 @@ function parseSummaryContent(text: string, artifactId: string): any {
 }
 
 /** Derive the summary state from chapter revision and summary content. */
-function summaryStateOfContent(content: any, currentRevision: any) {
+function summaryStateOfContent(content: any, currentRevision: number): { state: 'current' | 'stale' | 'missing', text: string | undefined, revision: number | null, currentRevision: number } {
   const revision = Number(content?.bodyRevision)
   const text = typeof content?.rawText === 'string' ? content.rawText : undefined
   if (content === undefined || text === undefined || text.trim() === '' || !Number.isInteger(revision)) {
     return { state: 'missing', text, revision: null, currentRevision }
   }
-  const state = revision === currentRevision ? 'current' : 'stale'
+  const state: 'current' | 'stale' = revision === currentRevision ? 'current' : 'stale'
   return { state, text, revision, currentRevision }
 }
 
@@ -431,7 +437,7 @@ export function initWork(root: string, input: any): any {
   const workId = typeof input.workId === 'string' && input.workId.trim() !== ''
     ? workIdOf(input.workId)
     : workIdOf(title)
-  const catalog = openCatalog(root)
+  const catalog = requireCatalog(root)
   try {
     if (catalogRow(catalog, workId) !== undefined) throw new StoryError('work-exists', `作品已存在：${workId}`)
     if (existsSync(workFile(root, workId))) throw new StoryError('work-exists', `作品已存在：${workId}`)
@@ -473,7 +479,7 @@ export function initWork(root: string, input: any): any {
         catalog.prepare(`INSERT INTO works (work_id, title, form, tags, schema_version, created_at, updated_at)
           VALUES (?, ?, ?, ?, ?, ?, ?)`).run(workId, title, form, tags === undefined ? null : JSON.stringify(tags), WORK_SCHEMA_VERSION, at, at)
       })
-    } catch (error) {
+    } catch (error: any) {
       removeDatabaseFiles(workFile(root, workId))
       throw error
     }
@@ -562,7 +568,7 @@ export function ensureReconciled(root: any) {
         + `孤儿作品文件 ${report.orphans.length}（${report.orphans.join('、') || '无'}）；`
         + `孤儿回收站文件 ${report.trash.length}（${report.trash.join('、') || '无'}）`)
     }
-  } catch (error) {
+  } catch (error: any) {
     // Without SQLite every action reports sqlite-unavailable; do not repeat the
     // diagnostic on every listing.
     if (error?.code === 'sqlite-unavailable') reconciledRoots.add(root)
@@ -586,7 +592,7 @@ export function listWorks(root: string): any[] {
       let db
       try {
         db = openWork(root, row.work_id)
-      } catch (error) {
+      } catch (error: any) {
         // Keep a broken work visible so the panel can explain it,
         // instead of silently dropping it from the list.
         const code = error?.code ?? 'work-open-failed'
@@ -1239,7 +1245,7 @@ export function approveOutline(root: any, input: any) {
  */
 export function renameWork(root: any, input: any) {
   const oldId = String(input.work)
-  const catalog = openCatalog(root)
+  const catalog = requireCatalog(root)
   try {
     const row = activeWork(catalog, oldId)
     const title = typeof input.title === 'string' && input.title.trim() !== '' ? input.title.trim() : row.title
@@ -1267,7 +1273,7 @@ export function renameWork(root: any, input: any) {
       try {
         transaction(moved, () => moved.prepare('UPDATE meta SET work_id = ?, title = ?, updated_at = ? WHERE id = 1')
           .run(nextId, title, at))
-      } catch (error) {
+      } catch (error: any) {
         moved.close()
         moveDatabaseFiles(workFile(root, nextId), from)
         throw error
@@ -1280,7 +1286,7 @@ export function renameWork(root: any, input: any) {
           catalog.prepare('UPDATE session_current SET work_id = ? WHERE work_id = ?').run(nextId, oldId)
           catalog.prepare('UPDATE proposals SET used_work_id = ? WHERE used_work_id = ?').run(nextId, oldId)
         })
-      } catch (error) {
+      } catch (error: any) {
         const back = openWork(root, nextId)
         try {
           transaction(back, () => back.prepare('UPDATE meta SET work_id = ?, title = ?, updated_at = ? WHERE id = 1')
@@ -1298,7 +1304,7 @@ export function renameWork(root: any, input: any) {
     try {
       previousMeta = metaOf(db)
       transaction(db, () => db.prepare('UPDATE meta SET title = ?, updated_at = ? WHERE id = 1').run(title, at))
-    } catch (error) {
+    } catch (error: any) {
       db.close()
       throw error
     }
@@ -1306,7 +1312,7 @@ export function renameWork(root: any, input: any) {
     try {
       transaction(catalog, () => catalog.prepare('UPDATE works SET title = ?, updated_at = ? WHERE work_id = ?')
         .run(title, at, oldId))
-    } catch (error) {
+    } catch (error: any) {
       const back = openWork(root, oldId)
       try {
         transaction(back, () => back.prepare('UPDATE meta SET title = ?, updated_at = ? WHERE id = 1')
@@ -1330,7 +1336,7 @@ export function renameWork(root: any, input: any) {
  */
 export function deleteWork(root: any, input: any) {
   const workId = String(input.work)
-  const catalog = openCatalog(root)
+  const catalog = requireCatalog(root)
   try {
     activeWork(catalog, workId)
     const from = workFile(root, workId)
@@ -1356,7 +1362,7 @@ export function deleteWork(root: any, input: any) {
     try {
       transaction(catalog, () => catalog.prepare('UPDATE works SET trashed_at = ?, missing_at = NULL WHERE work_id = ?')
         .run(now(), workId))
-    } catch (error) {
+    } catch (error: any) {
       moveDatabaseFiles(trashFile(root, workId), from)
       throw error
     }
@@ -1374,7 +1380,7 @@ export function deleteWork(root: any, input: any) {
  */
 export function purgeTrash(root: any, input: any) {
   const workId = String(input.work ?? '')
-  const catalog = openCatalog(root)
+  const catalog = requireCatalog(root)
   try {
     const row = catalogRow(catalog, workId)
     if (row === undefined || row.trashed_at === null) throw new StoryError('work-not-found', `回收站里没有作品 ${workId}`)
@@ -1396,7 +1402,7 @@ export function purgeTrash(root: any, input: any) {
 export function restoreWork(root: any, input: any) {
   const name = String(input.name ?? '').trim()
   if (name === '') throw new StoryError('invalid-work-id', '要恢复的作品名不能为空')
-  const catalog = openCatalog(root)
+  const catalog = requireCatalog(root)
   try {
     const row = catalogRow(catalog, name)
     if (row === undefined || row.trashed_at === null) throw new StoryError('work-not-found', `回收站里没有作品 ${name}`)
@@ -1409,7 +1415,7 @@ export function restoreWork(root: any, input: any) {
     try {
       transaction(catalog, () => catalog.prepare('UPDATE works SET trashed_at = NULL, missing_at = NULL, updated_at = ? WHERE work_id = ?')
         .run(now(), name))
-    } catch (error) {
+    } catch (error: any) {
       moveDatabaseFiles(target, source)
       throw error
     }
@@ -2590,7 +2596,7 @@ export function writeManagedCopy(root: any, prepared: any, write: any = writeSyn
   const dir = materialsDir(root)
   try {
     mkdirSync(dir, { recursive: true })
-  } catch (error) {
+  } catch (error: any) {
     throw new StoryError('material-write-failed', `素材目录无法创建：${error.message}`)
   }
   for (let index = 0; index < 100; index += 1) {
@@ -2617,7 +2623,7 @@ export function writeManagedCopy(root: any, prepared: any, write: any = writeSyn
         fd = undefined
       }
       return { origin: `materials/${name}`, path, created: true }
-    } catch (error) {
+    } catch (error: any) {
       if (created) {
         if (fd !== undefined) {
           try {
@@ -2678,7 +2684,7 @@ export function importMaterial(root: any, work: any, input: any) {
           db.prepare(`INSERT INTO materials (id, title, format, origin, bytes, hash, created_at, content, purpose)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
             .run(id, prepared.title, prepared.format, copy.origin, prepared.bytes, prepared.hash, at, prepared.content, prepared.purpose)
-        } catch (error) {
+        } catch (error: any) {
           const raced = db.prepare('SELECT * FROM materials WHERE hash = ?').get(prepared.hash)
           if (raced !== undefined) {
             if (copy.created) {
@@ -2701,7 +2707,7 @@ export function importMaterial(root: any, work: any, input: any) {
           material: materialMetadata(db.prepare('SELECT * FROM materials WHERE id = ?').get(id)),
           duplicate: false,
         }
-      } catch (error) {
+      } catch (error: any) {
         if (copy.created) {
           try {
             unlinkSync(copy.path)
@@ -3393,7 +3399,7 @@ export async function exportWorkAtomic(root: string, work: unknown, options: any
     const directory = exportsDir(root)
     try {
       mkdirSync(directory, { recursive: true })
-    } catch (error) {
+    } catch (error: any) {
       throw new StoryError('export-failed', `导出目录无法创建：${error instanceof Error ? error.message : String(error)}`)
     }
     const token = createHash('sha256').update(String(work)).digest('hex').slice(0, 12)
@@ -3415,7 +3421,7 @@ export async function exportWorkAtomic(root: string, work: unknown, options: any
       let entries
       try {
         entries = readdirSync(directory)
-      } catch (error) {
+      } catch (error: any) {
         throw fail('导出目录无法读取', error instanceof Error ? error.message : String(error))
       }
       const backups = entries.filter(name => name.startsWith(`.bak-${token}-`)).sort()
@@ -3423,7 +3429,7 @@ export async function exportWorkAtomic(root: string, work: unknown, options: any
       if (last !== undefined) {
         try {
           rename(join(directory, last), target)
-        } catch (error) {
+        } catch (error: any) {
           throw fail('恢复上次导出备份失败', error instanceof Error ? error.message : String(error))
         }
       }
@@ -3432,7 +3438,7 @@ export async function exportWorkAtomic(root: string, work: unknown, options: any
     let result
     try {
       result = write(root, work, stage)
-    } catch (error) {
+    } catch (error: any) {
       cleanup(stage)
       if (error instanceof StoryError) throw error
       throw fail('导出写入失败', error instanceof Error ? error.message : String(error))
@@ -3443,14 +3449,14 @@ export async function exportWorkAtomic(root: string, work: unknown, options: any
       try {
         rename(target, backup)
         movedOld = true
-      } catch (error) {
+      } catch (error: any) {
         cleanup(stage)
         throw fail('导出替换前备份旧目录失败', error instanceof Error ? error.message : String(error))
       }
     }
     try {
       rename(stage, target)
-    } catch (error) {
+    } catch (error: any) {
       cleanup(stage)
       if (movedOld) {
         try {
@@ -3582,7 +3588,7 @@ export async function deleteBackup(root: any, work: any, backupId: any) {
  */
 export async function restoreBackup(root: any, work: any, backupId: any, options: any = {}) {
   const workId = String(work)
-  const catalog = openCatalog(root)
+  const catalog = requireCatalog(root)
   let row
   try {
     row = catalogRow(catalog, workId)
@@ -3608,7 +3614,7 @@ export async function restoreBackup(root: any, work: any, backupId: any, options
       } finally {
         copy.close()
       }
-    } catch (error) {
+    } catch (error: any) {
       removeDatabaseFiles(stage)
       if (error instanceof StoryError) throw error
       throw new StoryError('backup-invalid', `备份无法恢复：${error.message}`)
@@ -3620,7 +3626,7 @@ export async function restoreBackup(root: any, work: any, backupId: any, options
       if (!corrupt) {
         try {
           safetyBackup = (await backupWork(root, workId)).file
-        } catch (error) {
+        } catch (error: any) {
           if (error?.code !== 'db-corrupt') throw error
           corrupt = true
         }
@@ -3639,7 +3645,7 @@ export async function restoreBackup(root: any, work: any, backupId: any, options
       }
       try {
         moveDatabaseFiles(stage, current)
-      } catch (error) {
+      } catch (error: any) {
         if (corrupt) moveDatabaseFiles(hiddenCorrupt, current)
         else moveDatabaseFiles(safety, current)
         throw new StoryError('backup-rollback-failed', `恢复失败且回滚失败：${error.message}`)
@@ -3647,7 +3653,7 @@ export async function restoreBackup(root: any, work: any, backupId: any, options
       const verify = openWork(root, workId)
       try {
         if (integrityCheck(verify) !== 'ok') throw new StoryError('backup-invalid', '恢复后的作品库不完整')
-      } catch (error) {
+      } catch (error: any) {
         verify.close()
         moveDatabaseFiles(current, stage)
         if (corrupt) moveDatabaseFiles(hiddenCorrupt, current)
@@ -3696,7 +3702,7 @@ export async function backupWork(root: any, work: any, destination: any) {
       }
       try {
         await backupTo(db, file)
-      } catch (error) {
+      } catch (error: any) {
         if (error?.code === 'db-corrupt') throw error
         throw new StoryError('backup-failed', `备份失败：${error.message}`)
       }
@@ -3725,7 +3731,7 @@ export async function backupWork(root: any, work: any, destination: any) {
  * @returns {{proposal: object}} stored proposal.
  */
 export function createProposal(root: any, input: any) {
-  const catalog = openCatalog(root)
+  const catalog = requireCatalog(root)
   try {
     return transaction(catalog, () => {
       const title = String(input.title ?? '').trim()
@@ -3780,7 +3786,7 @@ export function readProposal(root: any, id: any) {
  * @returns {{id: string, workId: string}} receipt.
  */
 export function markProposalUsed(root: any, id: any, workId: any) {
-  const catalog = openCatalog(root)
+  const catalog = requireCatalog(root)
   try {
     return transaction(catalog, () => {
       catalog.prepare('UPDATE proposals SET used_at = ?, used_work_id = ? WHERE id = ?').run(now(), String(workId), String(id))
@@ -3866,7 +3872,7 @@ export function pruneProposals(root: any, ttlMs: any = PROPOSAL_TTL_MS) {
  * @returns {{sessionId: string, workId: string}} stored pointer.
  */
 export function setSessionCurrent(root: any, sessionId: any, workId: any) {
-  const catalog = openCatalog(root)
+  const catalog = requireCatalog(root)
   try {
     transaction(catalog, () => {
       catalog.prepare(`INSERT INTO session_current (session_id, work_id, updated_at) VALUES (?, ?, ?)
@@ -3886,7 +3892,7 @@ export function setSessionCurrent(root: any, sessionId: any, workId: any) {
  * @returns {{removed: boolean}} whether a row was removed.
  */
 export function clearSessionCurrent(root: any, sessionId: any) {
-  const catalog = openCatalog(root)
+  const catalog = requireCatalog(root)
   try {
     const result = transaction(catalog, () => catalog.prepare('DELETE FROM session_current WHERE session_id = ?').run(sessionId))
     return { removed: Number(result.changes) > 0 }
