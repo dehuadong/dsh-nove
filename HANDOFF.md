@@ -1,8 +1,8 @@
 # 交接文档：A0 tickets 已交付，L-R10a 消费者迁移规划未通过（2026-10-24）
 
 > 更新时间：2026-10-24
-> 仓库：`dehuadong/dsh-nove`，分支 `main`，HEAD `aa8fd78`。
-> 本轮范围：A0 #45 的实现 tickets #46–#49 已交付；L-R10a #51 / observation #52 已立规划，Plan Review 未通过；#45 仍 in-progress。
+> 仓库：`dehuadong/dsh-nove`，分支 `main`，HEAD `1804b7a`。
+> 本轮范围：A0 #45 的实现 tickets #46–#49 已交付；L-R10a #51、S1 #53、observation #52 已立规划，Plan Review 未通过；#45 仍 in-progress。
 
 ## 1. 当前结论
 
@@ -26,7 +26,7 @@
 ### 验证现状
 
 - 单元：**43 个文件全过**（`node storycraft/scripts/ci.mjs --no-e2e`）。
-- 规划文档检查：`node scripts/decisions/check.mjs` 通过（51 条记录）。
+- 规划文档检查：`node scripts/decisions/check.mjs` 通过（52 条记录）。
 - E2E：**未跑**。本机 Playwright/DSH 登录弹窗仍阻塞，不能声称 E2E 通过。
 - Implementation Review：每个 ticket 做了 Standards/Spec 双轴复审并修正了 material findings（计划闸门双权威、v6 旧库误判、v2 事件被旧 fold 误读、observation 引文校验、volume_map 校验、短篇/剧本 scope 与统计等）。
 - 真实模型/真实链路验收：未做；A0 收口前仍由作者做一次。
@@ -38,17 +38,23 @@
 已接：ChapterMeta 投影、export/readWork/status 的 planRevision/provenance、reviser 的 observation 读取、短篇/剧本存储层隔离。
 未接：foundation（story_frame/volume_map/book_rules/roles）没有生产消费者；ChapterMemo/ChapterSummary 的生产者仍是旧 `chapter_plans`/`summaries`；hooks/facts v2 投影尚未替换 settler/state 链；observation/reviews 仍走 `reviews`。
 
-因此 **#46–#49 已关闭，#45 仍 in-progress；#51/#52 为 planning，不能进入实现。**
+因此 **#46–#49 已关闭，#45 仍 in-progress；#51/#52/#53 均为 planning，不能进入实现。**
+
+### S1 #53 规划状态
+
+#53 是 #51 的第一切片（ChapterMemo），多轮 Plan Review 后仍有 5 个 blocker（见 #53 comment）：
+
+1. 旧 memo revision 读取与 identity Note 历史合同未闭环；
+2. memo 删除/重编号会让 observation `target` 悬空，owner 未定；
+3. `nextStep` 在 required 且未批准时返回 `story_plan` 会重写 memo；需明确待写/待改动作 + `missing:['plan-approval']`；
+4. 空 body / 非数组 threadRefs / 非法 memo shape 的错误码优先级未统一；
+5. review 生命周期 owner 在 #51 S0 与 #52 之间仍冲突。
 
 ## 3. 下一步
 
-1. **先解决 #51 Plan Review 的 blocker**（见 #51 comment）：
-   - 章节移动/删除与不可变事件/revision 的策略；
-   - observation 逐条稳定 ID 与 resolved 语义（#52 合同缺口）；
-   - 手动 `story_state` 的 v2 输入 schema；
-   - foundation/current_focus 的生产 owner（#44 范围需补）。
-2. 或者把 L-R10a 拆成更小的规划切片（建议先 S1 ChapterMemo 或 S0 生命周期），一次只实现一个产物组。
-3. 规划通过后进入实现；真实链路 #50 在 L 完成后一次性执行，blocked by #51/#44/#52。
+1. 先裁决 S1 的 5 个 blocker，或缩小 S1（去掉旧 revision 读取与 observation target 交互）后再评审。
+2. 不要直接实现 #51/#53；它们仍是 planning。
+3. S1 通过后再按同一方法规划 S2 summary、S3 state/foundation；真实链路 #50 在 L 完成后一次性执行，blocked by #51/#44/#52。
 4. E2E 环境阻塞解除后补跑；不能以真实链路替代 E2E。
 
 ## 4. 关键合同/决策
