@@ -1,24 +1,24 @@
 ---
-title: 故事工坊：L-R10a S1a ChapterMemo 基础消费链
+title: 故事工坊：L-R10a S1a-demo ChapterMemo 只读消费链
 status: proposed
 created: 2026-10-24
 updated: 2026-10-24
 ---
 
-# Agent Note：故事工坊：L-R10a S1a ChapterMemo 基础消费链
+# Agent Note：故事工坊：L-R10a S1a-demo ChapterMemo 只读消费链
 
 ## 问题
 
-A0 已把 ChapterMemo 合同、`plan:<n>` 身份和写入 registry 的 API 交付，但生产动作仍写 `chapter_plans.text`：`story_plan`/`writePlan` 写旧表，`readPlan`、brief、context、`story_read`、`readChapter(view:'plan')`、export、`facts` 白名单与 observation 引文校验都从旧表取文本。memo 不是生产权威，作者确认绑定的也不是当前 memo 内容。
+A0 已交付 ChapterMemo 合同、`plan:<n>` 身份与写入 registry 的 API，但生产动作仍写 `chapter_plans.text`：`story_plan`/`writePlan` 写旧表，`readPlan`、brief、context、`story_read`、`readChapter(view:'plan')`、export、`facts` 白名单与 observation 引文校验都从旧表取文本。memo 不是生产权威，作者确认绑定的也不是当前 memo 内容。
 
-本 Note 只规划 **S1a：当前 memo 的基础生产/消费链**。旧 revision 读取、observation target 生命周期、summary/state/foundation 不在本切片。
+本 Note 只规划 **S1a-demo：当前 memo 的生产 + 只读消费链**。章节移动/删除、旧 revision 写入回退、observation target、summary/state/foundation 不在本切片。
 
 ## 与既有记录
 
-- 字段合同由 [`2026-10-23-storycraft-artifact-contract-v2.md`](2026-10-23-storycraft-artifact-contract-v2.md) §4 拥有；本 Note 拥有 memo 的生产、当前 revision 消费、渲染与章节生命周期。
-- 总体切片排序由 [`2026-10-24-storycraft-consumer-migration.md`](2026-10-24-storycraft-consumer-migration.md) 拥有；本 Note 是 S1a，S1b 承接旧 revision/observation target。
-- 作者闸门与 `planApproved` 语义已在 #46 实现；本 Note 把它切到 memo 当前 revision。
-- 章节编辑/重排的既有实现是 `applyChapterMapping`、`deleteChapter`、`moveChapter`；S1a 只处理 memo，并清理指向被删 memo revision 的 observation target，不迁移 observation 生产。
+- 字段合同由 [`2026-10-23-storycraft-artifact-contract-v2.md`](2026-10-23-storycraft-artifact-contract-v2.md) §4 拥有；本 Note 拥有 memo 的生产、读取、渲染与批准。
+- 总体切片排序由 [`2026-10-24-storycraft-consumer-migration.md`](2026-10-24-storycraft-consumer-migration.md) 拥有；本 Note 是 S1a-demo，章节编辑重映射归 S0，observation 归 #52。
+- 作者闸门与 `planApproved` 语义已在 #46 实现；本 Note 把它切到 memo revision。
+- 章节编辑的既有实现是 `applyChapterMapping`、`deleteChapter`、`moveChapter`；本切片不改它们，只在存在 memo 时阻止编辑。
 
 ## 提案
 
@@ -32,18 +32,20 @@ A0 已把 ChapterMemo 合同、`plan:<n>` 身份和写入 registry 的 API 交�
 - **顺序**：先查章节存在且非 settled；settled 直接 `chapter-settled`，即使内容相同也不进入幂等 no-op。
 - 相同内容重复 `story_plan` 是幂等 no-op：先查最新 revision，命中即返回，不新增、不清批准、不 touchMeta。
 - **A→B→A**：旧 revision A 已存在但最新是 B 时，`story_plan` 拒绝并返回 `artifact-revision-exists`；不重用旧行、不改 latest、不删除历史。
-- `writePlan` 返回 `{ artifact: { artifactId: 'plan:<n>', revisionId, kind: 'plan' } }`；`story_plan` 原样返回。
+- `writePlan` 返回 `{ artifact: { artifactId: 'plan:<n>', revisionId, kind: 'plan' } }`；`story_plan` 返回 `{ ok, workId, artifact }`。
 - 批准跨正文版本保留：`writeChapter` 首次正文落盘不再清空 `plan_approved_at`/`plan_revision`；批准只随 memo 改写或章节重编号失效。
-- **策略开关**：闸门只在作品持久设置 `manifest.planApproval === 'required'` 时生效（读取时可经 `planApprovalPolicy` helper）；`off` 时 `writeChapter`/`reviseChapter`/delegate/context/nextStep 全部放行。
+- **策略开关**：闸门只在作品持久设置 `manifest.planApproval === 'required'` 时生效；`off` 时 `writeChapter`/`reviseChapter`/delegate/context/nextStep 全部放行。
 - 旧 `chapter_plans` 不再写、不再读。
 
-### 2. 渲染与当前 revision
+### 2. 渲染与读取
 
 - 单一渲染器 `renderChapterMemo(memo)` 放在 `artifact-store.js`：输出
   `# 第 N 章 章纲`、`- 视角：`、`- 目标：`、`- 阻力：`、`- 代价：`、`- 结尾变化：`、`- 伏笔：`（threadRefs，空则省略）、`## 章纲正文` + body。
+- 可选字段缺失时省略对应行；`goal`/`body` 必填。
 - 渲染器只用于读者/旧消费者需要的文本视图；memo JSON 是权威。`threadRefs` 在渲染文本与 `story_read` JSON 中可见。
-- **当前与旧 revision 都可读**：`story_read(plan:n)` 默认返回当前 revision 的多行 pretty memo JSON；显式 `revisionId` 时返回该 revision（存在即读，不存在 `revision-not-found`）。memo 旧 revision 不伪造，读取不改变 latest。缺 memo 返回 `plan-not-found`，不能返回 `"undefined"`。
+- `story_read(plan:n)` 默认返回当前 revision 的多行 pretty memo JSON；显式 `revisionId` 时返回该 revision（存在即读，不存在 `revision-not-found`）。缺 memo 返回 `plan-not-found`，不能返回 `"undefined"`。
 - `readPlan` 内部缺 memo 返回 `undefined`；`story_read`/`writeChapter`/delegate 等边界把 undefined 映射为 `plan-not-found`。
+- `readChapterMemo` 的 `artifact-not-found` 在 plan 边界统一映射为 `plan-not-found`。
 
 ### 3. 消费者切换
 
@@ -52,13 +54,13 @@ A0 已把 ChapterMemo 合同、`plan:<n>` 身份和写入 registry 的 API 交�
 | `readPlan` | 读最新 `plan:<n>`，用 `renderChapterMemo` 返回文本；缺 memo 返回 undefined |
 | `approveChapterPlan` | 要求最新 memo 存在，绑定其 revision；无 memo 抛 `plan-not-found` |
 | `writeChapter` / `nextStep` / `readWork` 的章纲存在性 | 查 `artifacts` 的 `plan:<n>`，不再查 `chapter_plans`；`planGateSatisfied` 删除“无 memo 即视为已批准”的回退 |
-| `writeChapter` / `reviseChapter` / delegate reviser 的批准闸门 | 对所有写入/重写/修订检查当前 memo 批准，不再只在 `current_revision === 0` 检查；`context.js`/`delegate.js` 的 reviser preflight 与 `nextStep.delegateOf` 也在派发前检查 |
-| `nextStep` 的步骤 | required 且未批准时返回待写/待改动作（`story_write` 或 `story_revise`）并带 `missing:['plan-approval']`；`missing` 非空即视为阻断，模型不得执行该 action，delegate 抑制；不返回 `story_plan`（会重写 memo） |
-| `readManifest` / `readWork` / panel 的 `planApproved` | 删除“无 memo 即已批准”的内联回退；必须要求 memo revision 匹配（`status` 不暴露 planApproved，不在本表） |
+| `writeChapter` / `reviseChapter` / delegate reviser 的批准闸门 | 所有写入/重写/修订检查当前 memo 批准；`reviseChapter` 在 store 内读 `meta.plan_approval` 与最新 memo，先于 body/review 检查返回 `plan-not-approved`；`context.js`/`delegate.js` reviser preflight 与 `nextStep.delegateOf` 也检查 |
+| `nextStep` 的步骤 | required 且未批准时返回当前阶段动作（无正文 `story_write`、有正文待审 `story_review`、有审稿待改 `story_revise`）并带 `missing:['plan-approval']`；`missing` 非空即阻断，模型不得执行该 action，delegate 抑制；不返回 `story_plan`（会重写 memo） |
+| `readManifest` / `readWork` / panel 的 `planApproved` | 删除“无 memo 即已批准”的内联回退；必须要求 memo revision 匹配（`status` 不暴露 planApproved） |
 | `readChapter(view:'plan')` | 用 `readPlan` 渲染文本 |
-| `story_read(plan:n)` | 返回当前 memo JSON；revisionId 用 registry revision；旧 revision 不支持（S1b） |
+| `story_read(plan:n)` | 返回当前/显式旧 revision 的 memo JSON；revisionId 用 registry revision |
 | `artifactRef` / tools 的 plan 引用 | 从 memo artifact 取 revisionId |
-| `threadRefs` | 渲染器输出 `- 伏笔：` 行，`story_read` JSON 可见；S3 接 hook 消费 |
+| `threadRefs` | 渲染器输出 `- 伏笔：`，`story_read` JSON 可见；S3 接 hook 消费 |
 | `bible.js` brief 章纲段 | 用 `readPlan` 渲染文本 |
 | `context.js` 章纲段/视角解析 | 用渲染文本（`/- 视角：/` 仍可解析） |
 | `facts.js` 白名单 | 用 `readPlan` |
@@ -67,22 +69,15 @@ A0 已把 ChapterMemo 合同、`plan:<n>` 身份和写入 registry 的 API 交�
 | export `outline/<stem>.plan.md` | 从 `plan:<n>` artifact 渲染 |
 | `verifyObservationSources` 的 `plan:<n>` | 从 memo 渲染 |
 
-### 4. 章节移动/删除
+### 4. 章节编辑
 
-S1a 自行拥有 memo 的重映射与导出；#51 的 S0/S0.5 不再拥有 memo，S0 只覆盖 summary/events，review 归 #52，S0.5 只覆盖共享检索/导出基础设施。
-
-- 新增 `remapChapterMemoArtifacts(db, mapping)`：按 `scope_chapter` 找到 memo，临时 ID 去冲突，更新 `content.chapter`/`scope_chapter`，重新计算 content-hash revision，落到新 `plan:<new>`；只保留每章最新 memo，旧 revision 删除。
-- `deleteChapter`：被删章的 memo 删除；删除会重编号所有幸存章，必须重映射**所有 `old !== new` 的幸存章** memo；identity 项不动。
-- `moveChapter` / 重排：按 mapping 重映射所有 `old !== new` 的 memo。
-- **settled 守卫**：仅当被删/移动或 `old !== new` 的章节为 settled 时拒绝（`chapter-settled`）；不能因为 mapping 里存在 identity 项就整体拒绝。
-- 同一事务内清空所有 `old !== new` 章的 `chapters.plan_revision`/`plan_approved_at`（旧批准失效），不允许悬空 revision。
-- 删除/移动后旧 ID 不可读，新 ID 可读；按合同 v2 identity-change 例外，旧 chapter ID 下的 memo 历史不保留；编号可被新章重用，但必须写新内容。
-- **observation target**：S1a 删除/重映射 memo revision 时，扫描 `artifacts` 的 review 内容，清掉指向受影响 memo revision 的 `target` 引用；#52 再定义完整 observation 生命周期。
-- `applyChapterMapping` 移除 `chapter_plans` 表循环；export 不再查询 `chapter_plans`，改从 `plan:<n>` 渲染。
+- S1a-demo **不改** `applyChapterMapping`/`deleteChapter`/`moveChapter` 的章节号映射；为避免 memo 与章节号失配，存在 `plan:<n>` 时拒绝删除/移动该章：`chapter-edit-blocked`（提示由 S0 接管重映射）。
+- `chapter_plans` 表保留在 schema 中但不再写读；`applyChapterMapping` 对空表的循环无害，S0 再清理。
+- 不接 observation target；观测链归 #52。
 
 ### 5. 失败与边界
 
-- 缺 memo：`plan-not-found`；`body` 为空/`threadRefs` 非数组：`plan-incomplete`；memo 合同形状非法（如缺少 goal）：`artifact-invalid`；章节 settled：`chapter-settled`。
+- 缺 memo：`plan-not-found`；`body` 为空/`threadRefs` 非数组：`plan-incomplete`；memo 合同形状非法（如缺少 goal）：`artifact-invalid`；章节 settled：`chapter-settled`；有 memo 时删/移章：`chapter-edit-blocked`。
 - `story_plan` 参数缺失由工具 schema 拒绝（absent）；空 `body`、非数组 `threadRefs` 进入 `writePlan` 后返回 `plan-incomplete`；空 `threadRefs` 数组合法。
 - 批准时 memo 已被改写：`approveChapterPlan` 只绑最新 revision；旧 revision 不可批准。
 - 不做旧表双读；旧 `chapter_plans` 数据在测试作品重建时丢弃。
@@ -93,24 +88,23 @@ S1a 自行拥有 memo 的重映射与导出；#51 的 S0/S0.5 不再拥有 memo�
 - **保留 `chapter_plans` 作为缓存**：双源，memo 改写与批准失效会漂移；否决。
 - **memo 内容里再存一份渲染文本**：重复且易漂移；否决，渲染在读取边界做。
 - **`story_read` 返回渲染文本**：revision 是 memo JSON 的哈希，渲染文本会随渲染器变化而不固定 content；否决，改返回 memo JSON。
-- **S1a 同时支持旧 revision 读取/observation 完整生命周期**：会把 S1b/#52 的合同问题带进来；拆到 S1b/#52。
-- **章节移动/删除保留旧 revision**：content.chapter 变则 revision 变；本切片只保留最新 memo，跨重编号历史另立合同。
+- **S1a-demo 同时支持章节编辑重映射**：FK/批准/revision 一致性问题会带入本切片；拆到 S0。
+- **S1a-demo 不阻止章节编辑**：memo 会与章节号失配；否决，先阻止。
 
 ## 验收条件
 
 1. `story_plan` 只写 `plan:<n>`，`chapter_plans` 不再写；测试断言旧表写入为 0。
-2. `readPlan`/brief/context/`readChapter(view:'plan')`/export 从 memo 渲染，包含五项、body、threadRefs。
-3. `approveChapterPlan` 绑定最新 memo revision；`planApproval: required` 时 memo 改写后任何写正文/重写/修订被 `plan-not-approved` 拒绝；`off` 时全部放行；`nextStep`/delegate 不广告会失败的动作。
-4. `story_read(plan:n)` 返回当前 memo JSON，`revisionId` 等于 registry revision；无 memo 返回 `plan-not-found`；旧 revision 返回 `revision-not-found`；`threadRefs` 可见。
-5. 删除/移动章节后所有 `old !== new` 的 memo ID、`content.chapter`、批准/revision 一致；旧 ID 不可读；settled 章节（含相同内容重交）拒绝。
-6. 旧 `chapter_plans` 不再被读：测试删除旧表行后，brief/context/read/export 仍工作；`applyChapterMapping` 与 export 不再引用该表。
-7. `memo-consumers.test.mjs` 覆盖正常、缺 memo、坏 memo、批准失效、`planApproval:off`、移动/删除、消费者、当前 revision、A→B→A 拒绝、absent/empty body 错误码；`node storycraft/scripts/ci.mjs --no-e2e` 通过。
-8. 不修改 summary/state/foundation/observation 生产；不新增旧格式兼容。
+2. `readPlan`/brief/context/`readChapter(view:'plan')`/export 从 memo 渲染，包含五项、body、threadRefs；可选字段缺失时省略行。
+3. `approveChapterPlan` 绑定最新 memo revision；`planApproval: required` 时 memo 改写后任何写正文/重写/修订被 `plan-not-approved` 拒绝；`off` 时放行；`nextStep`/delegate 在未批准时带 `missing:['plan-approval']` 且不派发。
+4. `story_read(plan:n)` 返回 memo JSON，`revisionId` 等于 registry revision；显式旧 revision 可读；无 memo 返回 `plan-not-found`；`threadRefs` 可见。
+5. 有 memo 时删除/移动章节返回 `chapter-edit-blocked`；无 memo 的章节编辑保持原行为。
+6. 旧 `chapter_plans` 不再被读：测试删除旧表行后，brief/context/read/export 仍工作；export 不再引用该表。
+7. `memo-consumers.test.mjs` 覆盖正常、缺 memo、坏 memo、批准失效、`off`、章节编辑阻断、消费者、当前/旧 revision、A→B→A 拒绝、absent/empty body 错误码；并更新约 30 个调用 `writePlan` 的 fixture 与 `foundation-chapter-artifacts`/`tools.test` 的旧断言；`node storycraft/scripts/ci.mjs --no-e2e` 通过。
+8. 不修改 summary/state/foundation/observation；不新增旧格式兼容。
 
 ## 风险
 
 - `story_plan` 新增必填 `body` 会改变模型调用契约；需同步工具 schema、技能、README 与测试。
-- 移动章节清空批准会让作者需要重新确认；这是 content-hash revision 变化的必然代价，必须提示面板。
+- 阻止有 memo 的章节删除/移动会让面板暂时失去该编辑能力；这是 S0 接管前的明确限制，需要面板提示。
 - memo 渲染文本与旧 `chapter_plans.text` 可能有细微格式差异，导出/测试需以渲染器为准。
-- S1a 只读当前 revision，旧 revision 读取的 UI/调试需求由 S1b 承接。
 - 旧 `chapter_plans` 表仍在 schema 中但不再读写；后续清理不在本切片。
