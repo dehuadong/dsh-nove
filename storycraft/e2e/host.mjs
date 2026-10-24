@@ -88,7 +88,7 @@ function copyTree(from, to) {
  * @returns {Promise<object>} facts the specs assert against.
  */
 async function buildFixture() {
-  const store = await import(pathToFileURL(path.join(projectRoot, 'storage.js')).href)
+  const store = await import(pathToFileURL(path.join(projectRoot, 'dist', 'storage.js')).href)
   const created = await store.initWork(fixtureWorkspace, { title: '示例短篇' })
   const work = created.workId
   // The outline gate applies to every chapter plan now, so the fixture approves
