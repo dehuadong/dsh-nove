@@ -182,15 +182,22 @@ export async function assembleRoleContext(input, dependencies = {}) {
 
   // 4. state — compressible
   const folded = readFoldedState(root, work)
-  const openHooks = folded.hooks.filter(hook => hook.state !== 'resolved')
+  const openHooks = folded.hooks.filter(hook => ['open', 'progressing', 'deferred'].includes(hook.status))
+  const factGroups = new Map()
+  for (const fact of folded.facts) {
+    if (fact.validUntilChapter !== null) continue
+    const list = factGroups.get(fact.subject) ?? []
+    list.push(`${fact.predicate}：${fact.object}`)
+    factGroups.set(fact.subject, list)
+  }
   const stateLines = [
-    ...(folded.entities.length === 0 ? [] : [
+    ...(factGroups.size === 0 ? [] : [
       '人物事实：',
-      ...folded.entities.slice(0, 8).map(entity => `- ${entity.name}：${(entity.facts ?? []).slice(-3).join('；')}`),
+      ...[...factGroups].slice(0, 8).map(([subject, facts]) => `- ${subject}：${facts.slice(-3).join('；')}`),
     ]),
     ...(openHooks.length === 0 ? ['未解伏笔：无'] : [
       '未解伏笔：',
-      ...openHooks.slice(0, 8).map(hook => `- ${hook.text}（${hook.state}，第 ${hook.openedChapter} 章）`),
+      ...openHooks.slice(0, 8).map(hook => `- ${hook.text}（${hook.status}，第 ${hook.startChapter} 章）`),
     ]),
   ]
   const state = section('state', '人物与状态', stateLines.join('\n'), 'compressible', virtualPath(work, 'state/events.jsonl'))

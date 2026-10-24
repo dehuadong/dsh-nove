@@ -2,6 +2,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { mintHookId } from '../state-projection.js'
 import * as s from '../storage.js'
 import { openWork } from '../db.js'
 import { buildQuery, codePointLength, select, snippetFor } from '../retrieval.js'
@@ -85,11 +86,11 @@ try {
   await s.approveChapterPlan(root, { work, chapter: 5 })
   await s.writeVolume(root, { work, id: 'v1', title: '第一卷', from: 1, to: 2, summary: '旧井第一次出现。' })
   await s.writeReview(root, { work, chapter: 1, problems: [] })
-  await s.foldState(root, { work, chapter: 1, hooks: [{ text: '旧井的水位', state: 'opened' }] })
+  await s.settleState(root, { work, chapter: 1, newHooks: [{ text: '旧井的水位' }] })
   await s.writeReview(root, { work, chapter: 2, problems: [] })
-  await s.foldState(root, { work, chapter: 2, hooks: [{ text: '旧井的水位', state: 'resolved' }] })
+  await s.settleState(root, { work, chapter: 2, hookOps: { resolve: [mintHookId('旧井的水位')] } })
   await s.writeReview(root, { work, chapter: 3, problems: [] })
-  await s.foldState(root, { work, chapter: 3, hooks: [{ text: '备用钥匙', state: 'opened' }] })
+  await s.settleState(root, { work, chapter: 3, newHooks: [{ text: '备用钥匙' }] })
   // Mark chapter 2's summary stale; it must not be retrieved.
   const events = openWork(root, work)
   const summaryRow = events.prepare("SELECT artifact_id, revision_id, content FROM artifacts WHERE artifact_id = 'summary:2' ORDER BY rowid DESC LIMIT 1").get()

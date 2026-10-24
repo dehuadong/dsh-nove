@@ -9,10 +9,9 @@
 
 import { StoryError, chapterNumber } from './storage.js'
 import {
-  foldState, readChapter, readEvents, readFoldedState, readManifest, readPlan, readSummary, statePreflight,
+  previewState, readChapter, readEvents, readFoldedState, readManifest, readPlan, readSummary, settleState, statePreflight,
 } from './storage.js'
 import { readCards } from './facts.js'
-import { normalizeStateDelta, validateStateDelta } from './state-validation.js'
 import { closeSubmission, consumeSubmission, openSubmission } from './submission.js'
 import { runChild } from './delegate.js'
 import { checkChapterState } from './state-check.js'
@@ -71,7 +70,7 @@ function settlerPrompt(input) {
     chapter: input.chapter,
     revision: input.revision,
     seq: input.seq,
-    entities: input.folded.entities,
+    facts: input.folded.facts,
     hooks: input.folded.hooks,
   }, null, 2)
   const context = [
@@ -97,8 +96,10 @@ function settlerPrompt(input) {
     ...(input.feedback === '' ? [] : [section('上一次结算的反馈', input.feedback), '']),
     '## 输出契约',
     `必须调用 story_submit，delegationId 是 ${input.delegationId}。`,
-    'payload 格式：{"entities":[{"name":"…","facts":["…"]}],"hooks":[{"text":"…","state":"opened|used|resolved"}]}。',
-    '本章没有可记录的变化时 payload 为 {"entities":[],"hooks":[]}。',
+    'payload 格式：{"factOps":{"upsert":[{"subject":"…","predicate":"…","object":"…"}],"expire":[{"subject":"…","predicate":"…"}]},'
+    + '"hookOps":{"progress":["hookId"],"mention":["hookId"],"defer":["hookId"],"resolve":["hookId"],"supersede":["hookId"]},'
+    + '"newHooks":[{"text":"…"}]}。',
+    '已有伏笔只能引用 baseline 的 hookId；新伏笔放进 newHooks，不给 id。本章没有可记录的变化时三个字段都为空。',
     '提交成功后最终只回「已提交」；不要手动落盘，不要改正文。',
     'story_submit 返回 ok:false 时，按 error.retryable 修正 payload 后重提，最多 3 次。',
   ].join('\n')
@@ -166,7 +167,7 @@ export async function settleChapterState(root, input, host) {
     .filter(card => bodyRead.content.includes(card.name))
     .slice(0, 8)
 
-  let proposed = { entities: [], hooks: [] }
+  let proposed = { factOps: {}, hookOps: {}, newHooks: [] }
   let feedback = ''
   let pendingWarnings = []
   let pendingItems = []
@@ -183,17 +184,17 @@ export async function settleChapterState(root, input, host) {
       throw new StoryError('state-settle-stale', `第 ${chapter} 章在结算期间发生变化：请对当前版本重跑`)
     }
     proposed = {
-      entities: Array.isArray(payload.entities) ? payload.entities : [],
-      hooks: Array.isArray(payload.hooks) ? payload.hooks : [],
+      factOps: payload.factOps ?? {},
+      hookOps: payload.hookOps ?? {},
+      newHooks: payload.newHooks ?? [],
     }
 
-    let delta
+    let preview
     try {
-      delta = normalizeStateDelta(proposed)
-      validateStateDelta(delta, folded)
+      preview = previewState(root, { work, chapter, ...proposed, allowEmpty: true })
     } catch (error) {
       if (attempt === 1) {
-        feedback = `上一次 delta 不合法：${error?.message ?? error}`
+        feedback = `上一次 payload 不合法：${error?.message ?? error}`
         pendingWarnings = [`state-invalid: ${error?.message ?? error}`]
         continue
       }
@@ -203,10 +204,10 @@ export async function settleChapterState(root, input, host) {
       })
     }
 
-    if (delta.entities.length === 0 && delta.hooks.length === 0) {
+    if (preview.appended === 0) {
       if (attempt === 1 || pendingItems.length === 0) {
         return land(root, {
-          work, chapter, revision, seq, delta, warnings: pendingWarnings, items: [], settlerAttempts, validatorAttempts, started,
+          work, chapter, revision, seq, payload: proposed, warnings: pendingWarnings, items: [], settlerAttempts, validatorAttempts, started,
         })
       }
       return unresolved({
@@ -218,7 +219,7 @@ export async function settleChapterState(root, input, host) {
     validatorAttempts += 1
     let check
     try {
-      check = await checkChapterState(root, { work, chapter, ...delta }, {
+      check = await checkChapterState(root, { work, chapter, ...proposed }, {
         service: host?.service,
         agent: host?.agent,
         signal: host?.signal,
@@ -253,7 +254,7 @@ export async function settleChapterState(root, input, host) {
     const blocking = check.items.filter(item => item.severity === BLOCKING_SEVERITY)
     if (blocking.length === 0) {
       return land(root, {
-        work, chapter, revision, seq, delta,
+        work, chapter, revision, seq, payload: proposed,
         warnings: check.warnings, items: check.items, settlerAttempts, validatorAttempts, started,
       })
     }
@@ -272,7 +273,7 @@ export async function settleChapterState(root, input, host) {
   throw new StoryError('state-settle-failed', '自动结算没有产生可接受的状态')
 }
 
-/** Re-check staleness, fold the accepted delta, and build the success receipt. */
+/** Re-check staleness, write the accepted payload, and build the success receipt. */
 function land(root, input) {
   const latest = readManifest(root, input.work)
   const latestEntry = entryOf(latest, input.chapter)
@@ -280,26 +281,25 @@ function land(root, input) {
     || lastSeq(root, input.work) !== input.seq) {
     throw new StoryError('state-settle-stale', `第 ${input.chapter} 章在结算期间发生变化：请对当前版本重跑`)
   }
-  const folded = foldState(root, {
+  const settled = settleState(root, {
     work: input.work,
     chapter: input.chapter,
-    entities: input.delta.entities,
-    hooks: input.delta.hooks,
+    ...input.payload,
     allowEmpty: true,
   })
   const minor = input.items.map(item => `${item.code}: ${item.where} — ${item.problem}`)
-  const warnings = [...new Set([...input.warnings, ...folded.warnings, ...minor])]
+  const warnings = [...new Set([...input.warnings, ...settled.warnings, ...minor])]
   return {
     ok: true,
     settled: true,
     workId: input.work,
     chapter: input.chapter,
     revision: input.revision,
-    counts: folded.counts,
+    counts: settled.counts,
     warnings,
     items: input.items,
     attempts: { settler: input.settlerAttempts, validator: input.validatorAttempts },
     trace: { durationMs: Date.now() - input.started },
-    artifact: { workId: input.work, artifactId: 'state', revisionId: `seq:${folded.seq}`, kind: 'state' },
+    artifact: { workId: input.work, artifactId: 'state', revisionId: `seq:${settled.seq}`, kind: 'state' },
   }
 }

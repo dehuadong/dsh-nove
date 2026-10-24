@@ -80,7 +80,7 @@ settler 与手动 `story_state` 使用同一形状：
 | 面板 `client.js` | 按 `subject` 分组 facts 渲染实体卡；hooks 显示 `status`/`text`/`lastAdvancedChapter` |
 | brief 伏笔段 | 未解（open/progressing/deferred）hooks 的 `text`；resolved/superseded 不进入 |
 | `context.js` 状态段 | facts 按 subject 分组；hooks 同上 |
-| `facts.js` 白名单 | v2 facts 的 `subject` + 未解 hook 的 `text`，不再用事件文本正则 |
+| `facts.js` 白名单 | v2 facts 的 `subject`（hook 的 `text` 是句子，不进人名白名单） |
 | 检索 hooks | `searchMemory` 读 v2 hook 事件与投影状态；旧事件忽略 |
 | 导出 | `state/events.jsonl` 原样输出 v2 事件；不生成兼容投影 |
 

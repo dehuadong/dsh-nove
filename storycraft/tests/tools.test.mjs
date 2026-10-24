@@ -331,13 +331,13 @@ try {
 
 
 
-  const earlySettle = await byName.get('story_state').execute({ work, chapter: 1, entities: [], hooks: [] }, exec)
+  const earlySettle = await byName.get('story_state').execute({ work, chapter: 1, entities: [] }, exec)
   check('settling before the summary is refused', earlySettle.ok === false && earlySettle.error.code === 'summary-required', JSON.stringify(earlySettle))
   const preSummary = await byName.get('story_summarize').execute({ work, chapter: 1, summary: '司机捡到一盏灯。' }, exec)
   check('summary written before settle', preSummary.ok === true, JSON.stringify(preSummary))
   const afterSummaryNext = await byName.get('story_next').execute({ work }, exec)
   check('story_next offers no delegate for automatic settlement', afterSummaryNext.action === 'story_settle' && afterSummaryNext.delegate === undefined, JSON.stringify(afterSummaryNext))
-  const manualEmpty = await byName.get('story_state').execute({ work, chapter: 1, entities: [], hooks: [] }, exec)
+  const manualEmpty = await byName.get('story_state').execute({ work, chapter: 1, entities: [] }, exec)
   check('manual story_state still rejects an empty delta after the summary',
     manualEmpty.ok === false && manualEmpty.error.code === 'empty-state', JSON.stringify(manualEmpty))
   const statusWithSummary = await byName.get('story_status').execute({ work }, exec)
@@ -348,10 +348,10 @@ try {
     JSON.stringify(statusWithSummary.status?.chapters?.[0]))
   const state = await byName.get('story_state').execute({
     work, chapter: 1,
-    entities: [{ name: '林澈', facts: ['拿到假合同'] }],
-    hooks: [{ text: '合同是假的', state: 'opened' }],
+    factOps: { upsert: [{ subject: '林澈', predicate: '状态', object: '拿到假合同' }] },
+    newHooks: [{ text: '合同是假的' }],
   }, exec)
-  check('story_state ok', state.ok === true && state.counts.opened === 1, JSON.stringify(state))
+  check('story_state ok', state.ok === true && state.counts.newHooks === 1, JSON.stringify(state))
 
   const duplicates = await byName.get('story_init').execute({ title: '雨里的灯', proposal: proposal.proposal }, exec)
   check('duplicate init refused', duplicates.ok === false && duplicates.error.code === 'work-exists', JSON.stringify(duplicates))
@@ -415,7 +415,7 @@ try {
   const childRead = await byName.get('story_status').execute({ work }, childExec)
   check('a delegated subagent keeps read actions', childRead.ok === true && childRead.status.writtenChapters === 1, JSON.stringify(childRead.status ?? childRead))
   const deniedCheck = await byName.get('story_state_check').execute({
-    work, chapter: 1, entities: [{ name: '甲', facts: ['一条事实'] }],
+    work, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '一条事实' }] },
   }, childExec)
   check('a delegated subagent cannot start a state check', deniedCheck.ok === false
     && deniedCheck.error.code === 'state-check-parent-denied', JSON.stringify(deniedCheck))

@@ -9,11 +9,10 @@
  */
 
 import {
-  StoryError, chapterNumber, readChapter, readFoldedState, readManifest, readPlan, readSummary,
+  StoryError, chapterNumber, previewState, readChapter, readFoldedState, readManifest, readPlan, readSummary,
   readSummaryState, stageOf,
 } from './storage.js'
 import { readCards } from './facts.js'
-import { normalizeStateDelta, validateStateDelta } from './state-validation.js'
 import { closeSubmission, consumeSubmission, openSubmission, STATE_CHECK_NO_EVIDENCE } from './submission.js'
 import { runChild } from './delegate.js'
 
@@ -79,14 +78,14 @@ function section(title, content) {
  * @returns {string} prompt text.
  */
 function promptFor(input) {
-  const names = new Set(input.delta.entities.map(entity => entity.name))
-  const hookTexts = new Set(input.delta.hooks.map(hook => hook.text))
-  const priorEntities = input.folded.entities.filter(entity => names.has(entity.name))
-  const priorHooks = input.folded.hooks.filter(hook => hook.state !== 'resolved' || hookTexts.has(hook.text))
-  const cards = input.cards.filter(card => names.has(card.name)).slice(0, 8)
+  const subjects = new Set((input.payload.factOps?.upsert ?? []).map(fact => fact?.subject).filter(Boolean))
+  const hookIds = new Set(Object.values(input.payload.hookOps ?? {}).flat())
+  const priorFacts = input.folded.facts.filter(fact => subjects.has(fact.subject))
+  const priorHooks = input.folded.hooks.filter(hook => hookIds.has(hook.hookId))
+  const cards = input.cards.filter(card => subjects.has(card.name)).slice(0, 8)
   const context = [
     section('折叠前状态（上下文，不是正文证据）', JSON.stringify({
-      entities: priorEntities,
+      facts: priorFacts,
       hooks: priorHooks,
     }, null, 2)),
     section('本章摘要（上下文，不是正文证据）', input.summary),
@@ -99,15 +98,15 @@ function promptFor(input) {
     '开工前先调用 skill 工具加载 `storycraft-state-check`，严格按它判断。',
     '',
     '## 本次任务',
-    `核对下面拟写入的状态 delta 是否被本章正文 r${input.revision} 支持，找出正文里发生但 delta 没记的重要变化。`,
-    '只核对本次 delta，不重审旧投影；正文是唯一事实证据，其他部分只作上下文。',
+    `核对下面拟写入的状态 payload 是否被本章正文 r${input.revision} 支持，找出正文里发生但 payload 没记的重要变化。`,
+    '只核对本次 payload，不重审旧投影；正文是唯一事实证据，其他部分只作上下文。',
     '',
     `## 本章正文（r${input.revision}，唯一事实证据）`,
     input.body,
     '',
     ...(context === '' ? [] : [context, '']),
-    '## 待对账 delta',
-    JSON.stringify(input.delta, null, 2),
+    '## 待对账 payload',
+    JSON.stringify(input.payload, null, 2),
     '',
     '## 输出契约',
     `必须调用 story_submit，delegationId 是 ${input.delegationId}。`,
@@ -120,17 +119,28 @@ function promptFor(input) {
 }
 
 /**
- * Check one proposed state delta against the current chapter body.
+ * Check one proposed state payload against the current chapter body.
  * @param {string} root - workspace directory.
- * @param {object} input - work, chapter, entities, hooks.
+ * @param {object} input - work, chapter, factOps, hookOps, newHooks.
  * @param {{service?: object, agent?: object, signal?: AbortSignal, timeoutMs?: number}} host - host dependencies.
  * @returns {Promise<object>} bounded findings; never writes.
  */
 export async function checkChapterState(root, input, host) {
   const work = String(input.work)
   const chapter = chapterNumber(input.chapter)
-  const delta = normalizeStateDelta({ entities: input.entities, hooks: input.hooks })
-  if (delta.entities.length === 0 && delta.hooks.length === 0) {
+  const payload = {
+    factOps: input.factOps ?? {},
+    hookOps: input.hookOps ?? {},
+    newHooks: input.newHooks ?? [],
+  }
+  let preview
+  try {
+    preview = previewState(root, { work, chapter, ...payload })
+  } catch (error) {
+    if (error?.code === 'empty-state') throw new StoryError('empty-state', '语义对账至少要给出一条人物事实或伏笔变化')
+    throw error
+  }
+  if (preview.appended === 0) {
     throw new StoryError('empty-state', '语义对账至少要给出一条人物事实或伏笔变化')
   }
 
@@ -145,7 +155,6 @@ export async function checkChapterState(root, input, host) {
   }
 
   const folded = readFoldedState(root, work)
-  const { warnings } = validateStateDelta(delta, folded)
 
   const chapterBody = readChapter(root, { work, chapter })
   const body = chapterBody.content
@@ -169,7 +178,7 @@ export async function checkChapterState(root, input, host) {
         manifest,
         body,
         revision,
-        delta,
+        payload,
         folded,
         summary,
         plan,
@@ -215,12 +224,8 @@ export async function checkChapterState(root, input, host) {
       revision,
       checked: true,
       items: verified.items,
-      counts: {
-        facts: delta.entities.reduce((total, entity) => total + entity.facts.length, 0),
-        hooks: delta.hooks.length,
-        items: verified.items.length,
-      },
-      warnings: [...warnings, ...verified.warnings],
+      counts: { ...preview.counts, items: verified.items.length },
+      warnings: verified.warnings,
       trace: { durationMs, submissionAttempts: attempts },
     }
   } finally {

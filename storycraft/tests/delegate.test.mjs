@@ -224,7 +224,7 @@ try {
     () => delegateRole(root, { work, chapter: 1, role: 'writer' }, { service: existingService, agent, signal }))
   check('preflight did not start a child', existingService.specs.length === 0, String(existingService.specs.length))
   // The delegated chapter can then settle through the existing state action.
-  s.foldState(root, { work, chapter: 1, entities: [{ name: '甲', facts: ['回到屋里'] }], hooks: [] })
+  s.settleState(root, { work, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '回到屋里' }] } })
   check('the delegated chapter settles', s.readManifest(root, work).chapters[0].stage === 'settled')
   check('the next step moves to the next chapter plan', s.nextStep(root, work).action === 'story_plan')
   await rejects('a settled chapter is refused', 'chapter-settled',

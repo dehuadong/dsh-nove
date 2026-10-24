@@ -168,7 +168,7 @@ try {
   s.reviseChapter(root, { work, chapter: 1, body: '第三次正文。'.repeat(40), problemIds: ['Q1'], mode: 'rewrite' })
   let staleError
   try {
-    s.foldState(root, { work, chapter: 1, entities: [{ name: '甲', facts: ['走到门口'] }], hooks: [] })
+    s.settleState(root, { work, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '走到门口' }] } })
   } catch (error) {
     staleError = error
   }

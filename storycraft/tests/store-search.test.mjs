@@ -22,7 +22,7 @@ try {
   store.writeReview(root, { work, chapter: 1, problems: [{ location: '结尾', problem: '收得太快' }] })
   store.reviseChapter(root, { work, chapter: 1, body: '周砚带人复摸井台，记下十六口人，井深二丈二尺。又在井边停了一拍。', problemIds: ['Q1'], mode: 'rewrite' })
   store.writeSummary(root, { work, chapter: 1, text: '周砚摸井台，发现第三人。' })
-  store.foldState(root, { work, chapter: 1, entities: [{ name: '周砚', facts: ['摸过井台'] }] })
+  store.settleState(root, { work, chapter: 1, factOps: { upsert: [{ subject: '周砚', predicate: '状态', object: '摸过井台' }] } })
   store.writeVolume(root, { work, id: 'v1', title: '第一卷', from: 1, to: 1, summary: '井台开局' })
 
   const byChapter = store.search(root, work, '井台', 5)
@@ -30,7 +30,7 @@ try {
   const bySummary = store.search(root, work, '第三人', 5)
   check('summary is searchable', bySummary.some(hit => hit.kind === 'summary'))
   const byEvent = store.search(root, work, '周砚 摸过', 5)
-  check('event is searchable', byEvent.some(hit => hit.kind === 'entity'))
+  check('event is searchable', byEvent.some(hit => hit.kind === 'fact'))
   store.writeBible(root, { work, name: 'characters', content: '周砚：主角，摸井台的人。' })
   const byCard = store.search(root, work, '主角', 5)
   check('character card is searchable', byCard.some(hit => hit.kind === 'card'))

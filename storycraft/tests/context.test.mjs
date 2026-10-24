@@ -33,7 +33,13 @@ try {
   await b.writeBible(root, work, 'style', '# 文风\n短句，少形容。')
   const events = openWork(root, work)
   events.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
-    .run(1, new Date().toISOString(), 1, 'hook', JSON.stringify({ kind: 'hook', text: '一处未解', state: 'opened' }))
+    .run(1, new Date().toISOString(), 1, 'hook', JSON.stringify({
+      op: 'upsert',
+      hook: {
+        hookId: 'h-test', startChapter: 1, type: '悬念', status: 'open', lastAdvancedChapter: 1,
+        expectedPayoff: '', notes: '', text: '一处未解',
+      },
+    }))
   events.close()
 
   const unapprovedContext = await assembleRoleContext({

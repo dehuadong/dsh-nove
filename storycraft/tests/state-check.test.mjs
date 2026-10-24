@@ -88,12 +88,12 @@ try {
   }
   const good = fakeService([completed({ items: [finding] })])
   const receipt = await checkChapterState(root, {
-    work, chapter: 1, entities: [{ name: '甲', facts: ['推开门'] }],
+    work, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '动作', object: '推开门' }] },
   }, { service: good, agent, signal })
   check('check returns bounded findings', receipt.ok === true && receipt.checked === true
     && receipt.revision === 1 && receipt.items.length === 1 && receipt.items[0].code === 'fact-unsupported',
   JSON.stringify(receipt))
-  check('check counts the proposed delta', receipt.counts.facts === 1 && receipt.counts.hooks === 0
+  check('check counts the proposed ops', receipt.counts.facts === 1 && receipt.counts.hooks === 0
     && receipt.counts.items === 1, JSON.stringify(receipt.counts))
   check('check verifies a real body quote', receipt.items[0].evidenceVerified === true, JSON.stringify(receipt.items[0]))
   check('check reports attempts and duration',
@@ -109,7 +109,7 @@ try {
     items: [{ ...finding, evidence: '正文里没有这句话' }],
   })])
   const unverifiedReceipt = await checkChapterState(root, {
-    work, chapter: 1, entities: [{ name: '甲', facts: ['推开门'] }],
+    work, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '动作', object: '推开门' }] },
   }, { service: unverified, agent, signal })
   check('check flags an unverified quote without dropping it',
     unverifiedReceipt.items.length === 1 && unverifiedReceipt.items[0].evidenceVerified === false
@@ -117,9 +117,9 @@ try {
     JSON.stringify(unverifiedReceipt))
 
   const shortCircuit = fakeService([])
-  await rejects('deterministic error returns before a child', 'hook-not-open',
+  await rejects('deterministic error returns before a child', 'hook-not-found',
     () => checkChapterState(root, {
-      work, chapter: 1, hooks: [{ text: '不存在的伏笔', state: 'used' }],
+      work, chapter: 1, hookOps: { resolve: ['h-missing'] },
     }, { service: shortCircuit, agent, signal }))
   check('deterministic error did not start a child', shortCircuit.specs.length === 0, String(shortCircuit.specs.length))
   await rejects('empty delta is refused', 'empty-state',
@@ -128,7 +128,7 @@ try {
   s.writePlan(root, { work, chapter: 2, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   await rejects('a chapter without a body is refused', 'chapter-not-written',
     () => checkChapterState(root, {
-      work, chapter: 2, entities: [{ name: '甲', facts: ['一条事实'] }],
+      work, chapter: 2, factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '一条事实' }] },
     }, { service: shortCircuit, agent, signal }))
 
   const settled = s.initWork(root, { title: '已定稿' })
@@ -139,21 +139,21 @@ try {
   s.writeChapter(root, { work: settled.workId, chapter: 1, title: '一', body: '甲回来。' })
   s.writeReview(root, { work: settled.workId, chapter: 1, problems: [] })
   s.writeSummary(root, { work: settled.workId, chapter: 1, text: '甲回来。' })
-  s.foldState(root, { work: settled.workId, chapter: 1, entities: [{ name: '甲', facts: ['回来了'] }] })
+  s.settleState(root, { work: settled.workId, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '回来了' }] } })
   await rejects('a settled chapter is refused', 'chapter-settled',
     () => checkChapterState(root, {
-      work: settled.workId, chapter: 1, entities: [{ name: '甲', facts: ['又一条'] }],
+      work: settled.workId, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '又一条' }] },
     }, { service: shortCircuit, agent, signal }))
 
   await rejects('missing subagents service is reported', 'state-check-unavailable',
     () => checkChapterState(root, {
-      work, chapter: 1, entities: [{ name: '甲', facts: ['推开门'] }],
+      work, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '动作', object: '推开门' }] },
     }, { service: undefined, agent, signal }))
 
   const noSubmission = fakeService([{ payload: undefined }])
   await rejects('no submission is not a clean result', 'state-check-no-submission',
     () => checkChapterState(root, {
-      work, chapter: 1, entities: [{ name: '甲', facts: ['推开门'] }],
+      work, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '动作', object: '推开门' }] },
     }, { service: noSubmission, agent, signal }))
 
   const stale = fakeService([{
@@ -164,13 +164,13 @@ try {
   }])
   await rejects('a body rewrite during the check is stale', 'state-check-stale',
     () => checkChapterState(root, {
-      work, chapter: 1, entities: [{ name: '甲', facts: ['推开门'] }],
+      work, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '动作', object: '推开门' }] },
     }, { service: stale, agent, signal }))
 
   const pending = { startActivation: () => ({ result: new Promise(() => {}), dispose: async () => {} }) }
   await rejects('a timed-out check is a failure', 'state-check-failed',
     () => checkChapterState(root, {
-      work, chapter: 1, entities: [{ name: '甲', facts: ['推开门'] }],
+      work, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '动作', object: '推开门' }] },
     }, { service: pending, agent, signal, timeoutMs: 20 }))
 
   s.writePlan(root, { work, chapter: 3, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
@@ -178,7 +178,7 @@ try {
   s.writeChapter(root, { work, chapter: 3, title: '三', body: '另一章的独特正文。' })
   const promptService = fakeService([completed({ items: [] })])
   const cleanReceipt = await checkChapterState(root, {
-    work, chapter: 1, entities: [{ name: '甲', facts: ['推开门'] }],
+    work, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '动作', object: '推开门' }] },
   }, { service: promptService, agent, signal })
   check('check reports a clean result without findings',
     cleanReceipt.checked === true && cleanReceipt.items.length === 0
@@ -194,26 +194,28 @@ try {
     items: [{ ...finding, code: 'fact-unsupported', evidence: '无对应段落' }],
   })])
   const nullReceipt = await checkChapterState(root, {
-    work, chapter: 1, entities: [{ name: '甲', facts: ['推开门'] }],
+    work, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '动作', object: '推开门' }] },
   }, { service: nullEvidence, agent, signal })
   check('absence of a passage is not a failed quote',
     nullReceipt.items[0].evidenceVerified === null, JSON.stringify(nullReceipt.items[0]))
 
   s.writeReview(root, { work, chapter: 3, problems: [] })
   s.writeSummary(root, { work, chapter: 3, text: '另一章。' })
-  s.foldState(root, { work, chapter: 3, entities: [{ name: '甲', facts: ['已知'] }] })
+  s.settleState(root, { work, chapter: 3, factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '已知' }] } })
   const duplicate = fakeService([completed({ items: [] })])
   const duplicateReceipt = await checkChapterState(root, {
-    work, chapter: 1, entities: [{ name: '甲', facts: ['已知'] }],
+    work, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '已知' }] },
   }, { service: duplicate, agent, signal })
-  check('deterministic duplicate-fact warnings pass through',
-    duplicateReceipt.warnings.some(warning => warning.startsWith('duplicate-fact:')),
-    JSON.stringify(duplicateReceipt.warnings))
+  check('a repeated fact triple stays one active fact',
+    duplicateReceipt.ok === true
+    && s.previewState(root, { work, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '已知' }] } })
+      .facts.filter(fact => fact.subject === '甲' && fact.object === '已知').length === 1,
+    JSON.stringify(duplicateReceipt))
 
   const invalidPayload = fakeService([completed({ items: [{ ...finding, code: 'bad-code' }] })])
   await rejects('an invalid validator payload is not a clean result', 'state-check-no-submission',
     () => checkChapterState(root, {
-      work, chapter: 1, entities: [{ name: '甲', facts: ['推开门'] }],
+      work, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '动作', object: '推开门' }] },
     }, { service: invalidPayload, agent, signal }))
 
   const noPlan = s.initWork(root, { title: '无章纲' })
@@ -227,7 +229,7 @@ try {
   noPlanDb.close()
   const noPlanService = fakeService([completed({ items: [] })])
   const noPlanReceipt = await checkChapterState(root, {
-    work: noPlan.workId, chapter: 1, entities: [{ name: '甲', facts: ['一条事实'] }],
+    work: noPlan.workId, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '一条事实' }] },
   }, { service: noPlanService, agent, signal })
   const noPlanPrompt = noPlanService.specs[0].request.prompt[0].text
   check('a missing plan is omitted instead of blocking', noPlanReceipt.ok === true

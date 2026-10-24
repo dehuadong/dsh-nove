@@ -18,7 +18,7 @@ DSH 里的长篇创作编排：三十二个动作把立项、章纲、正文、�
 - 手动兜底仍用官方 `subagent`：省略 `agentPreset`，子代理加入故事工坊当前组合；角色由任务提示与对应薄契约技能（`storycraft-write-craft`、`storycraft-review`、`storycraft-revise-craft`、`storycraft-plan-craft`）决定；角色技能只写任务、提交 schema、闸门与失败回退，方法正文读共享技能；
 - 写手按作品 `form` 追加形态技能：短篇加 `storycraft-short-story`，剧本加 `storycraft-short-drama`，提示按「章 / 篇 / 集」显示单位；形态技能同样只写契约，短篇/剧本方法读各自的共享技能；
 - 定稿前的状态对账由 `storycraft-state-check` 子代理完成（`story_state_check`），只读、只出建议；它不替代 `storycraft-review` 的正文审稿；
-- 定稿本身优先由 `story_settle` 自动完成：`storycraft-state-settler` 从正文抽取 delta，再走 `story_state_check`；未解决时用 `story_state` 手动修正；
+- 定稿本身优先由 `story_settle` 自动完成：`storycraft-state-settler` 从正文抽取 `factOps`/`hookOps`/`newHooks`，再走 `story_state_check`；未解决时用 `story_state` 手动修正；
 - 长篇任务里，规划、写作、审稿与定稿前的主编按各自技能正文的触发加载 `storycraft-long-writing` 的 references；短篇、剧本各读 `storycraft-short-writing` / `storycraft-script-writing`；方法技能只给判断依据，不产出提交内容，也不替代角色技能的输出契约；
 - 委派子代理通过 `story_submit` 提交结构化结果；预设作用域的守卫拒绝它调用 `write`、`edit`、`pwsh`、`bash` 与写动作（`story_write`、`story_review`、`story_revise`、`story_delegate` 等），落库一律由宿主/主编完成；
 - 委派深度固定为 1，子代理不能再派发。
@@ -89,7 +89,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 - `story_bible_import`：把旧文件作品的世界观收编进真值，并列出仍需作者补的项（不替作者编人物档案）；不导入大纲，大纲只走 `story_outline` + 作者确认。
 - `story_summarize`：手动写章节摘要（超 400 字截断并报告；写入时绑定当前正文版本）；正常链路先由 `story_next` 给出 `summarizer` 委派，子代理通过 `story_submit` 提交摘要，主编不读整章。摘要过期时 `story_next` 会重新要求摘要，`story_state` 返回 `summary-stale`。
 - `story_brief`：装配写某一章前的上下文——意图、本章章纲、涉及人物、未解伏笔、卷摘要、最近摘要、上一章结尾、文风、字数口径；已写 ≥3 章时追加「相关素材」段（只取 setting/character/scene；最多 3 条、`select.chars ≤1200`），素材段在最后、预算不足时最先被裁。默认 8 KB，超预算按优先级裁剪并报告裁掉的段；同一输入两次结果逐字节一致。
-- `story_context` 的检索段：作品内正文 ≥3 章时，按本章任务从作品库 FTS5 召回 current 摘要、未解/已用伏笔、卷摘要与素材（标题前缀 + ≤400 片段）；最多 5 条 / 1200 字，每类最多 2 条，`recent` 已发的摘要去重。过期摘要、已解伏笔、reopen 前事件与目标章之后的材料不进入。`trace.retrieval` 记录 `enabled / query / candidateCount / hits[{id, kind, sourceIds, score, sent}]` 与可选 `error`；hits 最多 15 条（前 10 ∪ sent），整段被预算裁掉时 `sent` 全为 false。素材标题与正文都参与 FTS 命中，标题仍显示在片段前缀。
+- `story_context` 的检索段：作品内正文 ≥3 章时，按本章任务从作品库 FTS5 召回 current 摘要、未解伏笔（open/progressing/deferred）、卷摘要与素材（标题前缀 + ≤400 片段）；最多 5 条 / 1200 字，每类最多 2 条，`recent` 已发的摘要去重。过期摘要、已解伏笔、reopen 前事件与目标章之后的材料不进入。`trace.retrieval` 记录 `enabled / query / candidateCount / hits[{id, kind, sourceIds, score, sent}]` 与可选 `error`；hits 最多 15 条（前 10 ∪ sent），整段被预算裁掉时 `sent` 全为 false。素材标题与正文都参与 FTS 命中，标题仍显示在片段前缀。
 
 ## 素材库
 
@@ -113,8 +113,8 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 
 - 没有章纲不能写正文（`plan-not-found`）；
 - 没有审稿清单不能定稿（`review-required`）；没有摘要返回 `summary-required`，摘要过期返回 `summary-stale`；`story_state` 在写库前做确定性预检：重复事实只 warning，重复/倒退伏笔与二次归档直接拒绝；
-- 定稿优先用 `story_settle` 自动结算：settler 抽取 delta，确定性预检 + `story_state_check`，major/确定性差异带反馈重算一次；仍不一致返回 `settled:false`，不写库；首次空 delta 可定稿，但被 major 拒绝后的第二次空 delta 仍视为未解决；
-- 手动修正仍用 `story_state`；`story_state_check` 可在写前只读核对 delta，findings 只作建议，不阻断 `story_state`；
+- 定稿优先用 `story_settle` 自动结算：settler 抽取 `factOps`/`hookOps`/`newHooks`，确定性预检 + `story_state_check`，major/确定性差异带反馈重算一次；仍不一致返回 `settled:false`，不写库；首次空 payload 可定稿，但被 major 拒绝后的第二次空 payload 仍视为未解决；
+- 手动修正仍用 `story_state`，payload 与 settler 同形；`story_state_check` 可在写前只读核对 payload，findings 只作建议，不阻断 `story_state`；
 - 审稿条目没处理完不能定稿，错误里列出条目 id；
 - 审稿只对「它记录的那个正文版本」有效：改过正文后要重新审稿才能再修订；清稿审稿必须针对当前版本；定稿允许「有问题的审稿针对上一版、条目已全处理」；
 - 已定稿章改章纲要先带 `reopen: true` 重写正文回退（`chapter-settled`）；
@@ -131,9 +131,9 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 | `story_write` | 写正文并更新字数与版本 | 正文为空；已有正文且未声明 `rewrite`；已定稿且未 `reopen` |
 | `story_review` | 写问题清单（轮次按章独立编号；空清单表示清稿） | 正文不存在；已定稿；**不改正文** |
 | `story_revise` | 生成新版本正文并把条目改为已处理 | 没有审稿清单；未指定条目；条目不存在；正文与当前版本相同；模式与改动幅度不符 |
-| `story_state_check` | 只读语义对账：把拟写入的 delta 交给 validator 子代理核对正文，返回最多 8 条建议性 findings 与正文引文校验；不写库 | 子代理调用 `state-check-parent-denied`；空 delta `empty-state`；缺正文 `chapter-not-written`；已定稿 `chapter-settled`；服务缺失/超时/无提交/正文改版分别返回错误，不返回干净结果 |
-| `story_settle` | 自动结算：settler 从正文抽取 delta，确定性预检 + 语义检查；major/确定性差异带反馈重算一次；成功 fold 并定稿，未解决返回 `settled:false`、proposed 与 findings，不写库 | 子代理调用 `subagent-cannot-land`；闸门同 `story_state`，另要求章已有正文（`chapter-not-written`）；服务缺失/超时/无提交/正文改版分别返回 `state-settle-*`，不产生半成品 |
-| `story_state` | 手动追加人物事实与伏笔事件，返回新增/已用/已解/未解计数与 `warnings` | 作品或章不存在；伏笔状态非法；「已用」指向未解伏笔；「已解」指向不存在的伏笔；重复/倒退伏笔 `duplicate-hook`；已定稿重复归档 `chapter-settled`；未修订完成或未清稿；无摘要 `summary-required`；摘要过期 `summary-stale` |
+| `story_state_check` | 只读语义对账：把拟写入的 `factOps`/`hookOps`/`newHooks` 交给 validator 子代理核对正文，返回最多 8 条建议性 findings 与正文引文校验；不写库 | 子代理调用 `state-check-parent-denied`；空 payload `empty-state`；缺正文 `chapter-not-written`；已定稿 `chapter-settled`；服务缺失/超时/无提交/正文改版分别返回错误，不返回干净结果 |
+| `story_settle` | 自动结算：settler 从正文抽取 v2 操作，确定性预检 + 语义检查；major/确定性差异带反馈重算一次；成功写事件并定稿，未解决返回 `settled:false`、proposed 与 findings，不写库 | 子代理调用 `subagent-cannot-land`；闸门同 `story_state`，另要求章已有正文（`chapter-not-written`）；服务缺失/超时/无提交/正文改版分别返回 `state-settle-*`，不产生半成品 |
+| `story_state` | 手动追加 v2 hook/fact 操作，返回 `counts.facts`/`counts.hooks`/`counts.newHooks` 与投影 | 作品或章不存在；未知 hookId `hook-not-found`；非法转移 `hook-transition-invalid`；无可失效 fact `fact-not-found`；空 payload `empty-state`；已定稿重复归档 `chapter-settled`；未修订完成或未清稿；无摘要 `summary-required`；摘要过期 `summary-stale` |
 | `story_status` | 只读汇总进度、阶段、版本、未处理问题、未解伏笔；每章带 `hasSummary` / `summaryRevision` / `summaryStale` | 作品不存在；作品库升级失败 `schema-migration-failed` |
 | `story_delegate` | 宿主侧跑一个角色（writer/reviewer/reviser/summarizer）：预检、装配上下文、启动子代理、消费 `story_submit`、落库，返回紧凑回执 | 预检/阶段错误按原码返回；服务缺失 `delegation-unavailable`；无合格提交 `delegation-no-submission`；当前版本已有摘要 `summary-exists` |
 | `story_submit` | 仅子代理调用：提交结构化角色结果，宿主校验字数/mode，失败可重提 | 父代理/非委派 `submit-parent-denied`；超 3 次 `submit-attempts-exhausted` |

@@ -4,7 +4,6 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { appendFactOp, appendHookOp, applyFactOp, applyHookOp, projectFacts, projectHooks } from '../state-events.js'
-import { normalizeStateDelta } from '../state-validation.js'
 import { initWork, readFoldedState } from '../storage.js'
 import { openWork } from '../db.js'
 import { readEvents, writePlan } from '../store-db.js'
@@ -105,12 +104,10 @@ rejects('expiring a closed fact is refused', 'fact-not-found',
 rejects('fact upsert needs a subject', 'state-op-invalid',
   () => applyFactOp([], { op: 'upsert', fact: { predicate: '持有', object: '账本' }, chapter: 1, source: 'x' }))
 
-// Boundary: legacy events are ignored, not translated; the legacy normalizer
-// still rejects v2 hook states instead of silently accepting them.
+// Boundary: legacy text-hook/string-fact events are ignored by the v2
+// projection, never translated into the new contract.
 check('legacy text-hook events do not enter the v2 projection',
   projectHooks([{ kind: 'hook', text: '旧伏笔', state: 'opened' }]).length === 0)
-rejects('legacy normalizer rejects v2 hook states', 'invalid-hook-state',
-  () => normalizeStateDelta({ hooks: [{ text: '旧伏笔', state: 'deferred' }] }))
 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-state-events-'))
 try {
@@ -131,7 +128,7 @@ try {
   check('projection rebuilds from stored events',
     projectHooks(stored)[0].status === 'progressing'
     && projectFacts(stored)[0].validFromChapter === 1, JSON.stringify(projectFacts(stored)))
-  check('legacy fold ignores v2 hook events', readFoldedState(root, work).hooks.length === 0,
+  check('readFoldedState projects the v2 events', readFoldedState(root, work).hooks.length === 1,
     JSON.stringify(readFoldedState(root, work)))
 
   appendHookOp(root, { work, op: 'resolve', hookId: 'h_1', chapter: 1 })

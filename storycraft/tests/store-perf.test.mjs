@@ -51,7 +51,7 @@ try {
   }
   for (let number = 1; number <= 20; number += 1) {
     store.writeReview(root, { work, chapter: number, problems: [] })
-    store.foldState(root, { work, chapter: number, hooks: [{ text: '旧钥匙', state: 'opened' }] })
+    store.settleState(root, { work, chapter: number, newHooks: [{ text: '旧钥匙' }] })
   }
   store.reopenChapter(root, { work, chapter: 10 })
   started = performance.now()

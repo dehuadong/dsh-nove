@@ -2,6 +2,7 @@
 import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { mintHookId } from '../state-projection.js'
 import * as s from '../storage.js'
 
 let failures = 0
@@ -81,8 +82,8 @@ try {
   check('Q1 marked done', reviewItems.find(item => item.id === 'Q1')?.done === true)
   check('Q2 still open', reviewItems.find(item => item.id === 'Q2')?.done === false)
 
-  await rejects('settle blocked while review items are open', 'review-required', () => s.foldState(root, {
-    work, chapter: 1, hooks: [{ text: '合同是假的', state: 'opened' }],
+  await rejects('settle blocked while review items are open', 'review-required', () => s.settleState(root, {
+    work, chapter: 1, newHooks: [{ text: '合同是假的' }],
   }))
   // The body changed, so the old list no longer describes it: review again.
   await rejects('stale review cannot drive another patch', 'review-required', () => s.reviseChapter(root, {
@@ -102,24 +103,24 @@ try {
     missingSummary = error.code
   }
   check('summary read before writing reports summary-not-found', missingSummary === 'summary-not-found', String(missingSummary))
-  await rejects('settle without a summary is refused', 'summary-required', () => s.foldState(root, {
-    work, chapter: 1, entities: [{ name: '林澈', facts: ['拿到假合同'] }],
+  await rejects('settle without a summary is refused', 'summary-required', () => s.settleState(root, {
+    work, chapter: 1, factOps: { upsert: [{ subject: '林澈', predicate: '状态', object: '拿到假合同' }] },
   }))
   await s.writeSummary(root, { work, chapter: 1, text: '林澈拿到假合同，母亲留下旧照片。' })
-  await rejects('hook used before opened rejected', 'hook-not-open', () => s.foldState(root, {
-    work, chapter: 1, hooks: [{ text: '合同是假的', state: 'used' }],
+  await rejects('progress on an unknown hook is rejected', 'hook-not-found', () => s.settleState(root, {
+    work, chapter: 1, hookOps: { progress: [mintHookId('合同是假的')] },
   }))
-  const folded = await s.foldState(root, {
+  const folded = await s.settleState(root, {
     work, chapter: 1,
-    entities: [{ name: '林澈', facts: ['欠房东三个月房租', '拿到假合同'] }],
-    hooks: [{ text: '合同是假的', state: 'opened' }, { text: '母亲的旧照片', state: 'opened' }],
+    factOps: { upsert: [{ subject: '林澈', predicate: '状态', object: '欠房东三个月房租' }, { subject: '林澈', predicate: '持有', object: '假合同' }] },
+    newHooks: [{ text: '合同是假的' }, { text: '母亲的旧照片' }],
   })
-  check('state counts', folded.counts.opened === 2 && folded.counts.entities === 1, JSON.stringify(folded.counts))
+  check('state counts', folded.counts.newHooks === 2 && folded.counts.facts === 2 && folded.counts.hooks === 0, JSON.stringify(folded.counts))
   check('state artifact points at the event log', folded.artifact.path === `works/${work}/state/events.jsonl`, folded.artifact.path)
 
   const status = await s.status(root, work)
   check('status writtenChapters = 1', status.writtenChapters === 1)
-  check('status hooks opened = 2', status.hooks.opened === 2, JSON.stringify(status.hooks))
+  check('status hooks open = 2', status.hooks.open === 2 && status.hooks.unresolved === 2, JSON.stringify(status.hooks))
   check('status latestChapter = 1', status.latestChapter === 1)
 
   const works = await s.listWorks(root)
@@ -129,7 +130,7 @@ try {
   check('detail chapters include plan flag', detail.chapters[0].hasPlan === true)
   check('detail review openProblems', detail.chapters[0].openProblems === 0, String(detail.chapters[0].openProblems))
   check('detail stage is settled', detail.chapters[0].stage === 'settled', String(detail.chapters[0].stage))
-  check('detail entities folded', detail.state.entities.length === 1)
+  check('detail facts folded', detail.state.facts.length === 2 && detail.state.hooks.length === 2)
 
   const chapter = await s.readChapter(root, { work, chapter: 1 })
   check('chapter current revision = 3', chapter.revision === 3, String(chapter.revision))

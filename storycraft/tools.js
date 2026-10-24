@@ -18,7 +18,7 @@
 
 import { createHash } from 'node:crypto'
 import {
-  StoryError, backupWork, deleteWork, exportWork, foldState, initWork, nextStep as nextStepFor,
+  StoryError, backupWork, deleteWork, exportWork, initWork, nextStep as nextStepFor, settleState,
   planApprovalPolicy,
   latestReview, readBibleEntry, readChapter, readEvents, readEventsText, readManifest, readPlan, readSessionCurrent,
   readSummaryState,
@@ -211,13 +211,11 @@ const OUTPUT_PROPERTIES = {
   counts: {
     type: 'object',
     additionalProperties: false,
-    description: 'How many state facts were folded.',
+    description: 'How many state ops were projected.',
     properties: {
-      entities: { type: 'integer' },
-      opened: { type: 'integer' },
-      used: { type: 'integer' },
-      resolved: { type: 'integer' },
-      open: { type: 'integer' },
+      facts: { type: 'integer' },
+      hooks: { type: 'integer' },
+      newHooks: { type: 'integer' },
     },
   },
   resolved: { type: 'array', description: 'Review item ids marked as addressed.', items: { type: 'string' } },
@@ -555,14 +553,17 @@ const OUTPUT_PROPERTIES = {
       writtenChapters: { type: 'integer' },
       latestChapter: { type: 'integer' },
       openProblems: { type: 'integer' },
-      entities: { type: 'integer' },
+      facts: { type: 'integer' },
       hooks: {
         type: 'object',
         additionalProperties: false,
         properties: {
-          opened: { type: 'integer' },
-          used: { type: 'integer' },
+          open: { type: 'integer' },
+          progressing: { type: 'integer' },
+          deferred: { type: 'integer' },
           resolved: { type: 'integer' },
+          superseded: { type: 'integer' },
+          unresolved: { type: 'integer' },
         },
       },
       wordRange: {
@@ -789,6 +790,71 @@ const NEXT_OUTPUT = {
   render: OUTPUT.render,
 }
 
+/** Shared v2 state payload schema for `story_state` and `story_state_check`. */
+const STATE_PAYLOAD_PROPERTIES = {
+  factOps: {
+    type: 'object',
+    additionalProperties: false,
+    description: '事实变化：upsert 三元组，expire 用 subject/predicate（object 可选）选择器。',
+    properties: {
+      upsert: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            subject: { type: 'string' },
+            predicate: { type: 'string' },
+            object: { type: 'string' },
+            source: { type: 'string', description: '可选：正文依据原句。' },
+          },
+          required: ['subject', 'predicate', 'object'],
+        },
+      },
+      expire: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            subject: { type: 'string' },
+            predicate: { type: 'string' },
+            object: { type: 'string' },
+          },
+          required: ['subject', 'predicate'],
+        },
+      },
+    },
+  },
+  hookOps: {
+    type: 'object',
+    additionalProperties: false,
+    description: '伏笔状态变化：只引用已有 hookId，状态转移由宿主校验。',
+    properties: {
+      progress: { type: 'array', items: { type: 'string' } },
+      mention: { type: 'array', items: { type: 'string' } },
+      defer: { type: 'array', items: { type: 'string' } },
+      resolve: { type: 'array', items: { type: 'string' } },
+      supersede: { type: 'array', items: { type: 'string' } },
+    },
+  },
+  newHooks: {
+    type: 'array',
+    description: '新伏笔：只给文本与元数据，hookId 由宿主铸造。',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        text: { type: 'string' },
+        type: { type: 'string' },
+        expectedPayoff: { type: 'string' },
+        notes: { type: 'string' },
+      },
+      required: ['text'],
+    },
+  },
+}
+
 /** Output contract for one delegated role submission. */
 export const SUBMIT_OUTPUT = {
   schema: {
@@ -899,9 +965,10 @@ const STATE_CHECK_OUTPUT = {
         properties: {
           facts: { type: 'integer' },
           hooks: { type: 'integer' },
+          newHooks: { type: 'integer' },
           items: { type: 'integer' },
         },
-        required: ['facts', 'hooks', 'items'],
+        required: ['facts', 'hooks', 'newHooks', 'items'],
       },
       warnings: OUTPUT_PROPERTIES.warnings,
       trace: {
@@ -920,37 +987,11 @@ const STATE_CHECK_OUTPUT = {
   render: OUTPUT.render,
 }
 
-/** Proposed settler delta echoed on an unresolved automatic settlement. */
+/** Proposed settler payload echoed on an unresolved automatic settlement. */
 const STATE_SETTLE_PROPOSED = {
   type: 'object',
   additionalProperties: false,
-  properties: {
-    entities: {
-      type: 'array',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          name: { type: 'string' },
-          facts: { type: 'array', items: { type: 'string' } },
-        },
-        required: ['name', 'facts'],
-      },
-    },
-    hooks: {
-      type: 'array',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          text: { type: 'string' },
-          state: { type: 'string', enum: ['opened', 'used', 'resolved'] },
-        },
-        required: ['text', 'state'],
-      },
-    },
-  },
-  required: ['entities', 'hooks'],
+  properties: STATE_PAYLOAD_PROPERTIES,
 }
 
 /** Output of one automatic state settlement. */
@@ -1405,8 +1446,8 @@ function rawDefinitions(ctx) {
 
     action({
       name: 'story_state_check',
-      description: '只读：在 story_state 之前核对拟写入的 delta 是否被本章正文支持，并找出正文里漏记的重要变化。'
-        + ' 只返回建议性 findings，不改正文、不写 events、不改阶段；是否修改 delta 由主编决定。'
+      description: '只读：在 story_state 之前核对拟写入的 payload 是否被本章正文支持，并找出正文里漏记的重要变化。'
+        + ' 只返回建议性 findings，不改正文、不写 events、不改阶段；是否修改 payload 由主编决定。'
         + ' 只允许主会话调用，会启动一个 validator 子代理。',
       parameters: {
         type: 'object',
@@ -1414,32 +1455,7 @@ function rawDefinitions(ctx) {
         properties: {
           work: { type: 'string', description: '作品 id。' },
           chapter: { type: 'integer', description: '章号。' },
-          entities: {
-            type: 'array',
-            description: '拟写入的人物/关系/时间线事实。',
-            items: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                name: { type: 'string' },
-                facts: { type: 'array', items: { type: 'string' }, description: '一条或几条事实。' },
-              },
-              required: ['name', 'facts'],
-            },
-          },
-          hooks: {
-            type: 'array',
-            description: '拟写入的伏笔变化。',
-            items: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                text: { type: 'string' },
-                state: { type: 'string', enum: ['opened', 'used', 'resolved'] },
-              },
-              required: ['text', 'state'],
-            },
-          },
+          ...STATE_PAYLOAD_PROPERTIES,
         },
         required: ['work', 'chapter'],
       },
@@ -1488,41 +1504,16 @@ function rawDefinitions(ctx) {
     action({
       name: 'story_state',
       mutates: true,
-      description: '把本章产生的人物事实与伏笔变化定稿进作品状态，并返回折叠后的计数。'
-        + ' 只写变化，不重抄全部设定；「已用」必须指向一条未解伏笔；'
-        + ' 当前正文版本没有摘要返回 summary-required，摘要过期返回 summary-stale；重复事实返回 duplicate-fact 警告，伏笔状态非法返回 duplicate-hook / hook-not-found / hook-not-open；已定稿再次归档返回 chapter-settled。',
+      description: '把本章产生的 hook/fact 变化定稿进作品状态，并返回投影后的计数。'
+        + ' 只写变化：已有伏笔用 hookOps 引 hookId，新伏笔放 newHooks（宿主铸 id）；fact 用三元组 + 有效期。'
+        + ' 当前正文版本没有摘要返回 summary-required，摘要过期返回 summary-stale；钩子 id 不存在返回 hook-not-found，非法转移返回 hook-transition-invalid，无可失效 fact 返回 fact-not-found；已定稿再次归档返回 chapter-settled。',
       parameters: {
         type: 'object',
         additionalProperties: false,
         properties: {
           work: { type: 'string', description: '作品 id。' },
           chapter: { type: 'integer', description: '章号。' },
-          entities: {
-            type: 'array',
-            description: '人物/关系/时间线的新事实。',
-            items: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                name: { type: 'string' },
-                facts: { type: 'array', items: { type: 'string' }, description: '一条或几条事实；单个字符串也接受。' },
-              },
-              required: ['name', 'facts'],
-            },
-          },
-          hooks: {
-            type: 'array',
-            description: '伏笔变化。',
-            items: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                text: { type: 'string' },
-                state: { type: 'string', enum: ['opened', 'used', 'resolved'] },
-              },
-              required: ['text', 'state'],
-            },
-          },
+          ...STATE_PAYLOAD_PROPERTIES,
         },
         required: ['work', 'chapter'],
       },
@@ -1537,7 +1528,7 @@ function rawDefinitions(ctx) {
           throw new StoryError('summary-stale',
             `第 ${args.chapter} 章摘要针对旧版本 r${summary.revision ?? '?'}：先重写摘要，再定稿`)
         }
-        const result = await foldState(root, args)
+        const result = await settleState(root, args)
         return {
           ok: true,
           workId: args.work,

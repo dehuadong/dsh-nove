@@ -31,7 +31,7 @@ async function seed() {
     await s.writeChapter(root, { work, chapter: number, title: `第${number}章`, body: `正文${number}。`.repeat(20) })
     await s.writeReview(root, { work, chapter: number, problems: [] })
     await s.writeSummary(root, { work, chapter: number, text: `摘要${number}。` })
-    await s.foldState(root, { work, chapter: number, hooks: [{ text: `钩子${number}`, state: 'opened' }] })
+    await s.settleState(root, { work, chapter: number, newHooks: [{ text: `钩子${number}` }] })
   }
   await s.writeVolume(root, { work, id: 'v1', title: '卷一', from: 1, to: 4, summary: '整卷。' })
   return work

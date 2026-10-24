@@ -91,7 +91,7 @@ try {
   store.writeReview(root, { work, chapter: 1, problems: [{ location: '开头', problem: '慢', suggestion: '快' }] })
   store.reviseChapter(root, { work, chapter: 1, body: '正文二。'.repeat(20), problemIds: ['Q1'], mode: 'rewrite' })
   store.writeSummary(root, { work, chapter: 1, text: '摘要一。' })
-  store.foldState(root, { work, chapter: 1, entities: [{ name: '甲', facts: ['到场'] }], hooks: [{ text: '一个钩子', state: 'opened' }] })
+  store.settleState(root, { work, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '到场' }] }, newHooks: [{ text: '一个钩子' }] })
   store.writeVolume(root, { work, id: 'v1', title: '第一卷', from: 1, to: 1, summary: '开局' })
   store.writeBible(root, { work, name: 'world', content: '# 世界观\n\n荒原。\n' })
   const proposal = store.createProposal(root, { title: '提案一', premise: '一句话' })

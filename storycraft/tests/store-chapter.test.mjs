@@ -59,14 +59,14 @@ try {
   check('summary caps at 400 code points', capped.truncated === true && [...store.readSummary(root, work, 1).trim()].length === 400
     && capped.chars === 401, JSON.stringify(capped))
 
-  const state = store.foldState(root, {
+  const state = store.settleState(root, {
     work, chapter: 1,
-    entities: [{ name: '周砚', facts: ['摸过井台'] }],
-    hooks: [{ text: '第三人是谁', state: 'opened' }],
+    factOps: { upsert: [{ subject: '周砚', predicate: '状态', object: '摸过井台' }] },
+    newHooks: [{ text: '第三人是谁' }],
   })
   check('events appended', state.appended === 2 && state.seq === 3, JSON.stringify({ appended: state.appended, seq: state.seq }))
   const events = store.readEvents(root, work, 1)
-  check('events readable', events.length === 3 && events[0].name === '周砚', JSON.stringify(events))
+  check('events readable', events.length === 3 && events[0].fact.subject === '周砚', JSON.stringify(events))
 
   for (let number = 2; number <= 5; number += 1) {
     store.writePlan(root, { work, chapter: number, perspective: '周砚', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
@@ -80,8 +80,8 @@ try {
   throws('patch mode needs problems', 'missing-problems',
     () => store.reviseChapter(root, { work, chapter: 1, body: '再来一版正文。', mode: 'patch' }))
   throws('a settled chapter cannot be settled twice', 'chapter-settled',
-    () => store.foldState(root, { work, chapter: 1, entities: [{ name: '周砚', facts: ['重复'] }] }))
-  throws('empty state refused', 'empty-state', () => store.foldState(root, { work, chapter: 2 }))
+    () => store.settleState(root, { work, chapter: 1, factOps: { upsert: [{ subject: '周砚', predicate: '状态', object: '重复' }] } }))
+  throws('empty state refused', 'empty-state', () => store.settleState(root, { work, chapter: 2 }))
   throws('volume range invalid', 'volume-invalid', () => store.writeVolume(root, { work, id: 'v2', from: 5, to: 2 }))
   throws('volume chapter must exist', 'chapter-not-found', () => store.writeVolume(root, { work, id: 'v2', from: 6, to: 7 }))
 

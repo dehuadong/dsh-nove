@@ -24,11 +24,11 @@ import { chapterRemap } from './chapter-edit.js'
 import { buildEpub } from './epub.js'
 import { snippetFor } from './retrieval.js'
 import { materialIndexText, searchTokens } from './search-text.js'
-import { normalizeStateDelta, validateStateDelta } from './state-validation.js'
+import { STATE_LIMITS, applyFactOp, applyHookOp, mintHookId, projectState } from './state-projection.js'
 
 export { searchTokens }
 import {
-  StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, WORK_FORMS, chapterNumber, chapterStem, contentVersion, countWords, foldEvents,
+  StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, WORK_FORMS, chapterNumber, chapterStem, contentVersion, countWords,
   formOf, now, parseReview, planApprovalPolicy, stageOf, summaryAdmissible, trimSummary, unitOf, workIdOf,
 } from './domain.js'
 import { assertRevisionMode } from './revision.js'
@@ -230,16 +230,22 @@ function isCleanReview(review) {
   return typeof review?.text === 'string' && review.text.includes('- 清稿：无问题')
 }
 
-/** Serialize every event row as the JSONL text `foldEvents` consumes. */
+/** Serialize every event row as JSONL for export and `story_read(state)`. */
 function eventsText(db) {
   return db.prepare('SELECT * FROM events ORDER BY seq').all()
     .map(row => JSON.stringify({ seq: row.seq, at: row.at, chapter: row.chapter, kind: row.kind, ...JSON.parse(row.payload) }))
     .join('\n')
 }
 
-/** Fold one work's event log. */
+/** Flatten every event row into the shape the v2 projection consumes. */
+function eventsOf(db) {
+  return db.prepare('SELECT seq, chapter, kind, payload FROM events ORDER BY seq')
+    .all().map(row => ({ seq: row.seq, chapter: row.chapter, kind: row.kind, ...JSON.parse(row.payload) }))
+}
+
+/** Project one work's event log: hook/fact events are the only source. */
 function foldedOf(db) {
-  return foldEvents(eventsText(db))
+  return projectState(eventsOf(db))
 }
 
 /** The default truth rows a new work ships. */
@@ -611,7 +617,7 @@ export function readWork(root, work) {
       },
       chapters,
       state: {
-        entities: folded.entities,
+        facts: folded.facts,
         hooks: folded.hooks,
         events: eventCount,
       },
@@ -670,11 +676,14 @@ export function status(root, work) {
       latestChapter: manifest.chapters.length === 0 ? 0 : manifest.chapters[manifest.chapters.length - 1].number,
       ...(manifest.wordRange === undefined ? {} : { wordRange: manifest.wordRange }),
       openProblems,
-      entities: folded.entities.length,
+      facts: folded.facts.filter(fact => fact.validUntilChapter === null).length,
       hooks: {
-        opened: folded.hooks.filter(hook => hook.state === 'opened').length,
-        used: folded.hooks.filter(hook => hook.state === 'used').length,
-        resolved: folded.hooks.filter(hook => hook.state === 'resolved').length,
+        open: folded.hooks.filter(hook => hook.status === 'open').length,
+        progressing: folded.hooks.filter(hook => hook.status === 'progressing').length,
+        deferred: folded.hooks.filter(hook => hook.status === 'deferred').length,
+        resolved: folded.hooks.filter(hook => hook.status === 'resolved').length,
+        superseded: folded.hooks.filter(hook => hook.status === 'superseded').length,
+        unresolved: folded.hooks.filter(hook => ['open', 'progressing', 'deferred'].includes(hook.status)).length,
       },
     }
   } finally {
@@ -1733,56 +1742,161 @@ export function appendStateEvent(root, input) {
 }
 
 /**
- * Append state events and return the folded counts.
- * @param {string} root - workspace directory.
- * @param {{work: string, chapter: number|string, entities?: Array<{name: string, facts: string|string[]}>, hooks?: Array<{text: string, state: 'opened'|'used'|'resolved'}>, allowEmpty?: boolean}} input - state input.
- * @returns {object} result with counts and a virtual artifact path.
+ * Normalize one settlement payload into ordered v2 ops.
+ * `newHooks` candidates are minted host-side; an existing text becomes a mention.
  */
-export function foldState(root, input) {
-  const number = chapterNumber(input.chapter)
-  const delta = normalizeStateDelta(input)
-  if (delta.entities.length === 0 && delta.hooks.length === 0 && input.allowEmpty !== true) {
+function stateOpsOf(input, chapter, projection) {
+  const ops = []
+  const factOps = input.factOps ?? {}
+  const upserts = Array.isArray(factOps.upsert) ? factOps.upsert : []
+  const expires = Array.isArray(factOps.expire) ? factOps.expire : []
+  if (upserts.length + expires.length > STATE_LIMITS.facts) {
+    throw new StoryError('state-op-invalid', `factOps 最多 ${STATE_LIMITS.facts} 条`)
+  }
+  for (const fact of upserts) {
+    ops.push({
+      kind: 'fact',
+      op: 'upsert',
+      chapter,
+      fact: { subject: fact?.subject, predicate: fact?.predicate, object: fact?.object },
+      ...(fact?.source === undefined ? {} : { source: fact.source }),
+    })
+  }
+  for (const selector of expires) ops.push({ kind: 'fact', op: 'expire', chapter, selector })
+  const hookOps = input.hookOps ?? {}
+  const transitions = []
+  for (const name of ['progress', 'mention', 'defer', 'resolve', 'supersede']) {
+    for (const hookId of Array.isArray(hookOps[name]) ? hookOps[name] : []) {
+      transitions.push({ op: name, hookId })
+    }
+  }
+  const candidates = Array.isArray(input.newHooks) ? input.newHooks : []
+  if (transitions.length + candidates.length > STATE_LIMITS.hooks) {
+    throw new StoryError('state-op-invalid', `hookOps 与 newHooks 合计最多 ${STATE_LIMITS.hooks} 条`)
+  }
+  if (candidates.length > STATE_LIMITS.newHooks) {
+    throw new StoryError('state-op-invalid', `newHooks 最多 ${STATE_LIMITS.newHooks} 条`)
+  }
+  for (const entry of transitions) ops.push({ kind: 'hook', op: entry.op, hookId: entry.hookId, chapter })
+  const byText = new Map(projection.hooks.map(hook => [hook.text, hook]))
+  for (const candidate of candidates) {
+    const text = String(candidate?.text ?? '').trim()
+    if (text === '') throw new StoryError('state-op-invalid', '新伏笔缺少 text')
+    const existing = byText.get(text)
+    if (existing !== undefined) {
+      ops.push({ kind: 'hook', op: 'mention', hookId: existing.hookId, chapter })
+      continue
+    }
+    ops.push({
+      kind: 'hook',
+      op: 'upsert',
+      hook: {
+        hookId: mintHookId(text),
+        startChapter: chapter,
+        type: String(candidate?.type ?? '').trim() || '未分类',
+        status: 'open',
+        lastAdvancedChapter: chapter,
+        expectedPayoff: String(candidate?.expectedPayoff ?? '').trim(),
+        notes: String(candidate?.notes ?? '').trim(),
+        text,
+      },
+    })
+  }
+  return { ops, counts: { facts: upserts.length, hooks: transitions.length, newHooks: candidates.length } }
+}
+
+/** Whether a chapter was reopened after its latest settlement. */
+function chapterReopened(db, chapter) {
+  const settle = db.prepare("SELECT max(seq) AS n FROM events WHERE chapter = ? AND kind = 'settle'").get(chapter)?.n ?? 0
+  const reopen = db.prepare("SELECT max(seq) AS n FROM events WHERE chapter = ? AND kind = 'reopen'").get(chapter)?.n ?? 0
+  return reopen > settle
+}
+
+/** Validate and plan one settlement without writing anything. */
+function planSettlement(db, number, input, options = {}) {
+  const previous = eventsOf(db)
+  const projection = projectState(previous)
+  const { ops, counts } = stateOpsOf(input, number, projection)
+  if (ops.length === 0 && input.allowEmpty !== true) {
     throw new StoryError('empty-state', '定稿归档至少要给出一条人物事实或伏笔变化')
   }
+  if (typeof options.beforeApply === 'function') options.beforeApply()
+  const allowReapply = chapterReopened(db, number)
+  const events = [...previous]
+  const appended = []
+  for (const op of ops) {
+    const result = op.kind === 'hook'
+      ? applyHookOp(events, op, { allowReapply })
+      : applyFactOp(events, op, { allowReapply })
+    if (result.event === null) continue
+    events.push(result.event)
+    appended.push(result.event)
+  }
+  return { counts, appended, projection: projectState(events) }
+}
+
+/**
+ * Read-only settlement preview: validate ops and return the projection they
+ * would produce, without writing events or touching the stage.
+ * @param {string} root - workspace directory.
+ * @param {object} input - same shape as `settleState`.
+ * @returns {{counts: object, hooks: object[], facts: object[], appended: number}} projection preview.
+ */
+export function previewState(root, input) {
+  const number = chapterNumber(input.chapter)
+  const db = openWork(root, String(input.work))
+  try {
+    const plan = planSettlement(db, number, input)
+    return {
+      counts: plan.counts,
+      hooks: plan.projection.hooks,
+      facts: plan.projection.facts.filter(fact => fact.validUntilChapter === null),
+      appended: plan.appended.length,
+    }
+  } finally {
+    db.close()
+  }
+}
+
+/**
+ * Settle one chapter's state: validate the ops, append v2 hook/fact events, the
+ * settle marker, and flip the chapter to settled. The only settlement writer.
+ * @param {string} root - workspace directory.
+ * @param {{work: string, chapter: number|string, factOps?: object, hookOps?: object, newHooks?: object[], allowEmpty?: boolean, requireBody?: boolean}} input - settlement payload.
+ * @returns {object} counts, active projection and the appended sequence number.
+ */
+export function settleState(root, input) {
+  const number = chapterNumber(input.chapter)
   const workId = String(input.work)
   const db = openWork(root, workId)
   try {
     return transaction(db, () => {
-      const { entry } = assertStateGate(db, number)
-      const foldedBefore = foldedOf(db)
-
-      const { warnings } = validateStateDelta(delta, foldedBefore)
-      const written = [
-        ...delta.entities.map(entity => ({ kind: 'entity', name: entity.name, facts: entity.facts })),
-        ...delta.hooks.map(hook => ({ kind: 'hook', text: hook.text, state: hook.state })),
-      ]
-      let seq = (db.prepare('SELECT max(seq) AS n FROM events').get()?.n ?? 0) + 1
+      const { counts, appended, projection } = planSettlement(db, number, input, {
+        beforeApply: () => assertStateGate(db, number, { requireBody: input.requireBody === true }),
+      })
+      let seq = db.prepare('SELECT max(seq) AS n FROM events').get()?.n ?? 0
       const at = now()
-      for (const event of written) {
-        db.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
-          .run(seq, at, number, event.kind, JSON.stringify(event))
-        syncSearchDoc(db, `event:${seq}`, event.kind, 'state/events', number, JSON.stringify(event))
+      for (const event of appended) {
         seq += 1
+        const { kind, ...payload } = event
+        db.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
+          .run(seq, at, number, kind, JSON.stringify(payload))
+        syncSearchDoc(db, `event:${seq}`, kind, 'state/events', number, JSON.stringify(payload))
       }
+      seq += 1
       db.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
         .run(seq, at, number, 'settle', JSON.stringify({ kind: 'settle' }))
       db.prepare("UPDATE chapters SET stage = 'settled', status = 'settled', updated_at = ? WHERE number = ?").run(at, number)
       touchMeta(db, at)
-      const folded = foldedOf(db)
       return {
         workId,
         chapter: number,
-        appended: written.length,
+        appended: appended.length,
         seq,
-        warnings,
-        counts: {
-          entities: delta.entities.length,
-          opened: folded.hooks.filter(hook => hook.state === 'opened').length,
-          used: folded.hooks.filter(hook => hook.state === 'used').length,
-          resolved: folded.hooks.filter(hook => hook.state === 'resolved').length,
-          open: folded.hooks.filter(hook => hook.state !== 'resolved').length,
-        },
-        hooks: folded.hooks.filter(hook => hook.state !== 'resolved').map(hook => hook.text),
+        warnings: [],
+        counts,
+        hooks: projection.hooks,
+        facts: projection.facts.filter(fact => fact.validUntilChapter === null),
         artifact: { path: virtualPath(workId, 'state/events.jsonl') },
       }
     })
@@ -1982,13 +2096,13 @@ export function readEventsText(root, work) {
 }
 
 /**
- * Fold one work's event log into entities and hooks.
+ * Project one work's event log into hooks and facts.
  * @param {string} root - workspace directory.
  * @param {string} work - work identity.
- * @returns {{entities: object[], hooks: object[]}} folded state.
+ * @returns {{hooks: object[], facts: object[]}} projected state.
  */
 export function readFoldedState(root, work) {
-  return foldEvents(readEventsText(root, work))
+  return projectState(readEvents(root, work))
 }
 
 /**
@@ -2537,18 +2651,7 @@ export function searchMemory(root, work, query, options = {}) {
       : undefined
     const reopened = new Map(db.prepare("SELECT chapter, max(seq) AS seq FROM events WHERE kind = 'reopen' GROUP BY chapter")
       .all().map(row => [row.chapter, row.seq]))
-    const hookStates = new Map()
-    for (const event of db.prepare("SELECT seq, chapter, payload FROM events WHERE kind = 'hook' ORDER BY seq").all()) {
-      if (event.seq <= (reopened.get(event.chapter) ?? -1)) continue
-      try {
-        const payload = JSON.parse(event.payload)
-        if (typeof payload?.text === 'string' && typeof payload?.state === 'string') {
-          hookStates.set(payload.text, payload.state)
-        }
-      } catch {
-        // A malformed historical event is ignored, not allowed to break context.
-      }
-    }
+    const hookProjection = new Map(projectState(eventsOf(db)).hooks.map(hook => [hook.hookId, hook]))
     const volumes = new Map(db.prepare('SELECT id, to_ch FROM volumes').all().map(row => [row.id, row.to_ch]))
     const candidates = []
     for (const row of rows) {
@@ -2575,14 +2678,18 @@ export function searchMemory(root, work, query, options = {}) {
         } catch {
           continue
         }
-        if (typeof payload?.text !== 'string' || hookStates.get(payload.text) === 'resolved') continue
+        if (typeof payload?.op !== 'string') continue
+        const hookId = payload.op === 'upsert' ? payload.hook?.hookId : payload.hookId
+        const hook = hookProjection.get(hookId)
+        if (hook === undefined) continue
+        if (!['open', 'progressing', 'deferred'].includes(hook.status)) continue
         candidates.push({
           id: row.id,
           kind: row.kind,
           source: row.source,
           sourceIds: ['state'],
           chapter,
-          text: `${payload.text}（${payload.state ?? 'opened'}，第 ${chapter} 章）`,
+          text: `${hook.text}（${hook.status}，第 ${chapter} 章）`,
           score: -row.score,
         })
         continue

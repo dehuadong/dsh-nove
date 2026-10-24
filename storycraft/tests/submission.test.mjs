@@ -213,49 +213,48 @@ try {
   closeSubmission(exhaustedEntry.delegationId)
 
   const settlerEntry = openSubmission({ role: 'settler', workId: work, chapter: 1 })
-  const settlerPayload = { entities: [{ name: '甲', facts: ['推开门'] }], hooks: [] }
+  const settlerPayload = { factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '推开门' }] } }
   const settlerAccepted = await submitPayload({
     delegationId: settlerEntry.delegationId, depth: 1, root, payload: settlerPayload,
   })
-  check('settler accepts a delta payload', settlerAccepted.ok === true
+  check('settler accepts a v2 payload', settlerAccepted.ok === true
     && settlerAccepted.submitted === true, JSON.stringify(settlerAccepted))
   const settlerConsumed = consumeSubmission(settlerEntry.delegationId)
-  check('settler payload is consumable', settlerConsumed?.payload.entities[0].name === '甲',
+  check('settler payload is consumable', settlerConsumed?.payload.factOps.upsert[0].subject === '甲',
     JSON.stringify(settlerConsumed))
   closeSubmission(settlerEntry.delegationId)
   const emptySettlerEntry = openSubmission({ role: 'settler', workId: work, chapter: 1 })
   const emptySettler = await submitPayload({
     delegationId: emptySettlerEntry.delegationId, depth: 1, root,
-    payload: { entities: [], hooks: [] },
+    payload: {},
   })
-  check('settler accepts an empty delta', emptySettler.ok === true && emptySettler.submitted === true,
+  check('settler accepts an empty payload', emptySettler.ok === true && emptySettler.submitted === true,
     JSON.stringify(emptySettler))
   closeSubmission(emptySettlerEntry.delegationId)
   const badSettlerEntry = openSubmission({ role: 'settler', workId: work, chapter: 1 })
   const badSettler = await submitPayload({
     delegationId: badSettlerEntry.delegationId, depth: 1, root,
-    payload: { entities: [], hooks: [{ text: '一条伏笔', state: 'open' }] },
+    payload: { factOps: { upsert: [{ subject: '甲', predicate: '持有' }] } },
   })
-  check('settler rejects an unknown hook state', badSettler.ok === false
+  check('settler rejects an incomplete fact triple', badSettler.ok === false
     && badSettler.error.code === 'submit-invalid', JSON.stringify(badSettler))
   closeSubmission(badSettlerEntry.delegationId)
   const largeSettlerEntry = openSubmission({ role: 'settler', workId: work, chapter: 1 })
   const largeSettler = await submitPayload({
     delegationId: largeSettlerEntry.delegationId, depth: 1, root,
-    payload: { entities: [{ name: '甲', facts: Array.from({ length: 21 }, (_, index) => `事实${index}`) }], hooks: [] },
+    payload: { factOps: { upsert: Array.from({ length: 21 }, (_, index) => ({ subject: '甲', predicate: '持有', object: `物${index}` })) } },
   })
-  check('settler caps facts per entity', largeSettler.ok === false
+  check('settler caps fact ops', largeSettler.ok === false
     && largeSettler.error.code === 'submit-invalid', JSON.stringify(largeSettler))
   closeSubmission(largeSettlerEntry.delegationId)
   const manyHooksEntry = openSubmission({ role: 'settler', workId: work, chapter: 1 })
   const manyHooks = await submitPayload({
     delegationId: manyHooksEntry.delegationId, depth: 1, root,
-    payload: { entities: [], hooks: Array.from({ length: 31 }, (_, index) => ({ text: `伏笔${index}`, state: 'opened' })) },
+    payload: { newHooks: Array.from({ length: 9 }, (_, index) => ({ text: `伏笔${index}` })) },
   })
-  check('settler caps hooks', manyHooks.ok === false && manyHooks.error.code === 'submit-invalid',
+  check('settler caps new hooks', manyHooks.ok === false && manyHooks.error.code === 'submit-invalid',
     JSON.stringify(manyHooks))
-  closeSubmission(manyHooksEntry.delegationId)
-} finally {
+  closeSubmission(manyHooksEntry.delegationId)} finally {
   await rm(root, { recursive: true, force: true })
 }
 

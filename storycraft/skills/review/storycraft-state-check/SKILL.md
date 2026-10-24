@@ -1,7 +1,7 @@
 ---
 name: storycraft-state-check
-description: 状态对账方法：核对拟写入 story_state 的人物事实与伏笔状态是否被本章正文支持，找出正文漏记的重要变化，只提交建议性 findings。
-whenToUse: 被派去对账本章状态 delta，或主编在定稿前要求检查 story_state 的拟写入内容时。
+description: 状态对账方法：核对拟写入 story_state 的 hook/fact 操作是否被本章正文支持，找出正文漏记的重要变化，只提交建议性 findings。
+whenToUse: 被派去对账本章状态 payload，或主编在定稿前要求检查 story_state 的拟写入内容时。
 ---
 
 # 状态对账

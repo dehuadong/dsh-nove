@@ -54,7 +54,9 @@ function fakeService(script) {
 const signal = new AbortController().signal
 const agent = { id: 'parent' }
 const body = '甲推开门，雨声进来了。韩松说：「松手。」'
-const fact = { name: '甲', facts: ['推开门'] }
+const factPayload = { factOps: { upsert: [{ subject: '甲', predicate: '动作', object: '推开门' }] } }
+const emptyPayload = {}
+const badHookPayload = { hookOps: { resolve: ['h-missing'] } }
 const minorFinding = {
   code: 'fact-ambiguous', where: '甲', problem: '只能推断', evidence: '甲推开门',
   impact: '可能记错', severity: 'minor', fix: '确认或补证据',
@@ -86,14 +88,14 @@ try {
   check('story_next points at automatic settlement',
     s.nextStep(root, successWork).action === 'story_settle', JSON.stringify(s.nextStep(root, successWork)))
   const successService = fakeService([
-    { payload: { entities: [fact], hooks: [] } },
+    { payload: factPayload },
     { payload: { items: [] } },
   ])
   const success = await settleChapterState(root, { work: successWork, chapter: 1 }, {
     service: successService, agent, signal,
   })
   check('automatic settlement lands the settler delta', success.settled === true
-    && success.revision === 1 && success.counts.entities === 1, JSON.stringify(success))
+    && success.revision === 1 && success.counts.facts === 1 && success.counts.hooks === 0, JSON.stringify(success))
   check('automatic settlement reports attempts', success.attempts.settler === 1
     && success.attempts.validator === 1, JSON.stringify(success.attempts))
   check('automatic settlement settles the chapter',
@@ -102,18 +104,18 @@ try {
 
   const emptyWork = makeWork('空状态')
   makeChapter(emptyWork)
-  const emptyService = fakeService([{ payload: { entities: [], hooks: [] } }])
+  const emptyService = fakeService([{ payload: emptyPayload }])
   const empty = await settleChapterState(root, { work: emptyWork, chapter: 1 }, {
     service: emptyService, agent, signal,
   })
   check('an empty settler delta still settles', empty.settled === true
-    && empty.counts.entities === 0 && empty.attempts.validator === 0
+    && empty.counts.facts === 0 && empty.attempts.validator === 0
     && s.readEvents(root, emptyWork).length === 1, JSON.stringify(empty))
 
   const minorWork = makeWork('次要发现')
   makeChapter(minorWork)
   const minorService = fakeService([
-    { payload: { entities: [fact], hooks: [] } },
+    { payload: factPayload },
     { payload: { items: [minorFinding] } },
   ])
   const minor = await settleChapterState(root, { work: minorWork, chapter: 1 }, {
@@ -126,9 +128,9 @@ try {
   const retryWork = makeWork('反馈重算')
   makeChapter(retryWork)
   const retryService = fakeService([
-    { payload: { entities: [{ name: '甲', facts: ['推开门'] }], hooks: [] } },
+    { payload: factPayload },
     { payload: { items: [majorFinding] } },
-    { payload: { entities: [{ name: '甲', facts: ['推开门的动作被看见'] }], hooks: [] } },
+    { payload: { factOps: { upsert: [{ subject: '甲', predicate: '动作', object: '推开门的动作被看见' }] } } },
     { payload: { items: [] } },
   ])
   const retry = await settleChapterState(root, { work: retryWork, chapter: 1 }, {
@@ -144,9 +146,9 @@ try {
   const emptyRetryWork = makeWork('重算为空')
   makeChapter(emptyRetryWork)
   const emptyRetryService = fakeService([
-    { payload: { entities: [fact], hooks: [] } },
+    { payload: factPayload },
     { payload: { items: [majorFinding] } },
-    { payload: { entities: [], hooks: [] } },
+    { payload: emptyPayload },
   ])
   const emptyRetry = await settleChapterState(root, { work: emptyRetryWork, chapter: 1 }, {
     service: emptyRetryService, agent, signal,
@@ -159,9 +161,9 @@ try {
   const unresolvedWork = makeWork('仍未解决')
   makeChapter(unresolvedWork)
   const unresolvedService = fakeService([
-    { payload: { entities: [fact], hooks: [] } },
+    { payload: factPayload },
     { payload: { items: [majorFinding] } },
-    { payload: { entities: [fact], hooks: [] } },
+    { payload: factPayload },
     { payload: { items: [majorFinding] } },
   ])
   const unresolved = await settleChapterState(root, { work: unresolvedWork, chapter: 1 }, {
@@ -175,8 +177,8 @@ try {
   const invalidWork = makeWork('非法 delta')
   makeChapter(invalidWork)
   const invalidService = fakeService([
-    { payload: { entities: [], hooks: [{ text: '不存在的伏笔', state: 'used' }] } },
-    { payload: { entities: [], hooks: [{ text: '不存在的伏笔', state: 'used' }] } },
+    { payload: badHookPayload },
+    { payload: badHookPayload },
   ])
   const invalid = await settleChapterState(root, { work: invalidWork, chapter: 1 }, {
     service: invalidService, agent, signal,
@@ -193,8 +195,8 @@ try {
   await rejects('a chapter without a body is refused before a child', 'chapter-not-written',
     () => settleChapterState(root, { work: gateWork, chapter: 1 }, { service: gateService, agent, signal }))
   check('a gate failure starts no child', gateService.specs.length === 0, String(gateService.specs.length))
-  await rejects('manual foldState keeps its old gate order', 'review-required',
-    () => s.foldState(root, { work: gateWork, chapter: 1, entities: [fact] }))
+  await rejects('manual settleState keeps the same gate order', 'review-required',
+    () => s.settleState(root, { work: gateWork, chapter: 1, factOps: factPayload.factOps }))
 
   const noSummaryWork = makeWork('缺摘要')
   s.writePlan(root, { work: noSummaryWork, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
@@ -243,8 +245,8 @@ try {
   const recoveredWork = makeWork('先错后对')
   makeChapter(recoveredWork)
   const recoveredService = fakeService([
-    { payload: { entities: [], hooks: [{ text: '不存在的伏笔', state: 'used' }] } },
-    { payload: { entities: [fact], hooks: [] } },
+    { payload: badHookPayload },
+    { payload: factPayload },
     { payload: { items: [] } },
   ])
   const recovered = await settleChapterState(root, { work: recoveredWork, chapter: 1 }, {
@@ -255,7 +257,7 @@ try {
 
   const badPayloadWork = makeWork('坏 payload')
   makeChapter(badPayloadWork)
-  const badPayloadService = fakeService([{ payload: { entities: 'not-an-array', hooks: [] } }])
+  const badPayloadService = fakeService([{ payload: { factOps: 'not-an-object' } }])
   await rejects('an invalid settler payload is not a clean settlement', 'state-settle-no-submission',
     () => settleChapterState(root, { work: badPayloadWork, chapter: 1 }, { service: badPayloadService, agent, signal }))
 
@@ -269,7 +271,7 @@ try {
     () => settleChapterState(root, { work: missingServiceWork, chapter: 1 }, { service: noSubmissionService, agent, signal }))
 
   const validatorNoSubmission = fakeService([
-    { payload: { entities: [fact], hooks: [] } },
+    { payload: factPayload },
     { payload: undefined },
   ])
   await rejects('validator no submission is an error', 'state-settle-no-submission',
@@ -278,7 +280,7 @@ try {
     }))
 
   const validatorUnavailable = fakeService([
-    { payload: { entities: [fact], hooks: [] } },
+    { payload: factPayload },
     { error: Object.assign(new Error('provider unavailable'), { code: 'UNSUPPORTED_CAPABILITY' }) },
   ])
   await rejects('validator unavailable maps to settlement unavailable', 'state-settle-unavailable',
@@ -297,7 +299,7 @@ try {
   const staleWork = makeWork('改版')
   makeChapter(staleWork)
   const staleService = fakeService([{
-    payload: { entities: [fact], hooks: [] },
+    payload: factPayload,
     before: async spec => {
       s.writeChapter(spec.request.cwd, { work: staleWork, chapter: 1, title: '一', body: '改版后的正文。', rewrite: true })
     },
@@ -309,10 +311,10 @@ try {
   makeChapter(staleSeqWork)
   makeChapter(staleSeqWork, '第二章正文。', 2)
   const staleSeqService = fakeService([{
-    payload: { entities: [fact], hooks: [] },
+    payload: factPayload,
     before: async spec => {
-      s.foldState(spec.request.cwd, {
-        work: staleSeqWork, chapter: 2, entities: [{ name: '甲', facts: ['第二章事实'] }],
+      s.settleState(spec.request.cwd, {
+        work: staleSeqWork, chapter: 2, factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '第二章事实' }] },
       })
     },
   }])
@@ -321,14 +323,14 @@ try {
 
   const promptWork = makeWork('prompt 边界')
   makeChapter(promptWork)
-  s.foldState(root, {
+  s.settleState(root, {
     work: promptWork, chapter: 1,
-    entities: [{ name: '基线人物', facts: ['基线事实'] }],
-    hooks: [{ text: '基线伏笔', state: 'opened' }],
+    factOps: { upsert: [{ subject: '基线人物', predicate: '状态', object: '基线事实' }] },
+    newHooks: [{ text: '基线伏笔' }],
   })
   makeChapter(promptWork, '另一章的独特正文。', 2)
   const promptService = fakeService([
-    { payload: { entities: [fact], hooks: [] } },
+    { payload: factPayload },
     { payload: { items: [] } },
   ])
   await settleChapterState(root, { work: promptWork, chapter: 2 }, { service: promptService, agent, signal })
@@ -345,7 +347,7 @@ try {
   const skill = await readFile(join(project, 'skills', 'review', 'storycraft-state-settler', 'SKILL.md'), 'utf8')
   check('state-settler skill declares its submission contract',
     skill.includes('storycraft-state-settler') && skill.includes('story_submit')
-    && skill.includes('entities') && skill.includes('hooks'), skill.slice(0, 120))
+    && skill.includes('factOps') && skill.includes('hookOps'), skill.slice(0, 120))
   const orchestration = await readFile(join(project, 'skills', 'shared', 'storycraft-studio-orchestration', 'SKILL.md'), 'utf8')
   const longform = await readFile(join(project, 'skills', 'longform', 'storycraft-longform-chapter', 'SKILL.md'), 'utf8')
   check('main-session skills route settlement to story_settle',

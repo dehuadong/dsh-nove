@@ -352,9 +352,9 @@ export async function assembleBrief(root, workId, chapter, dependencies = {}) {
     .join('\n')
 
   const folded = readFoldedState(root, work)
-  const hooks = folded.hooks.filter(hook => hook.state !== 'resolved')
+  const hooks = folded.hooks.filter(hook => ['open', 'progressing', 'deferred'].includes(hook.status))
   const hookText = hooks
-    .map(hook => `- ${hook.text}（${hook.state}，第 ${hook.openedChapter} 章埋）`)
+    .map(hook => `- ${hook.text}（${hook.status}，第 ${hook.startChapter} 章埋）`)
     .join('\n')
 
   const sections = [

@@ -87,14 +87,14 @@ try {
   const recent = brief3.sections.find(section => section.name === 'recentSummaries')
   check('recentSummaries excludes stale summaries',
     recent?.absent === true && !recent.content.includes('第二版摘要'), JSON.stringify(recent))
-  throwsCode('foldState refuses a stale summary', 'summary-stale', () => s.foldState(root, {
-    work, chapter: 1, entities: [{ name: '甲', facts: ['走到门口'] }], hooks: [],
+  throwsCode('foldState refuses a stale summary', 'summary-stale', () => s.settleState(root, {
+    work, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '走到门口' }] },
   }))
   s.writeSummary(root, { work, chapter: 1, text: '第三版摘要。' })
-  const settled = s.foldState(root, {
-    work, chapter: 1, entities: [{ name: '甲', facts: ['走到门口'] }], hooks: [],
+  const settled = s.settleState(root, {
+    work, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '走到门口' }] },
   })
-  check('settle succeeds after rebinding', settled.counts.entities === 1
+  check('settle succeeds after rebinding', settled.counts.facts === 1
     && s.readManifest(root, work).chapters[0].stage === 'settled', JSON.stringify(settled.counts))
 
   const raw = openDatabase(workFile(root, work))

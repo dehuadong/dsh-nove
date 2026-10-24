@@ -116,20 +116,20 @@ check('short form loads its shared method, not the long-form method',
 check('screenplay loads its shared method, not the long-form method',
   shortDrama.includes('storycraft-script-writing') && !shortDrama.includes('storycraft-long-writing'))
 
-const validation = await readFile(join(root, 'state-validation.js'), 'utf8')
-const hookMatch = /const HOOK_STATES = \[([^\]]+)\]/u.exec(validation)
-check('state-validation exposes its hook states', hookMatch !== null)
-const hookStates = hookMatch === null
+const projectionSource = await readFile(join(root, 'state-projection.js'), 'utf8')
+const hookMatch = /const HOOK_OPS = \[([^\]]+)\]/u.exec(projectionSource)
+check('state projection exposes its hook ops', hookMatch !== null)
+const hookOps = hookMatch === null
   ? []
   : [...hookMatch[1].matchAll(/'([^']+)'/gu)].map(match => match[1])
 const projection = referenceText['state-projection.md']
-check('the shipped hook machine has exactly three states', hookStates.join(',') === 'opened,used,resolved',
-  hookStates.join(','))
-check('state projection names the same three states and says so',
-  hookStates.every(state => projection.includes(`\`${state}\``)) && projection.includes('只有三种状态'))
-check('state projection invents no reference-only hook state or timing field',
-  !projection.includes('superseded') && !projection.includes('lastAdvancedChapter')
-  && !projection.includes('兑现区间') && !projection.includes('兑现档位'))
+check('the shipped hook machine has the five v2 ops',
+  hookOps.join(',') === 'upsert,progress,mention,defer,resolve,supersede', hookOps.join(','))
+check('state projection names the same ops and says so',
+  hookOps.filter(op => op !== 'upsert').every(op => projection.includes(`\`${op}\``))
+  && projection.includes('五态'))
+check('state projection carries the v2 hook id identity, not text identity',
+  projection.includes('`hookId`') && !projection.includes('身份就是 `text`'))
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`)
 process.exitCode = failures === 0 ? 0 : 1

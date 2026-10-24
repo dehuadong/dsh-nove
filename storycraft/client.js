@@ -1625,7 +1625,7 @@ window.__ModuleLoader__.load({
           chapters.some(item => item.openProblems > 0)
             ? h('span', { className: 'sc-badge sc-badge-warn' }, `未处理问题 ${chapters.filter(item => item.openProblems > 0).length} 章 · ${chapters.reduce((sum, item) => sum + item.openProblems, 0)} 条`)
             : h('span', { className: 'sc-badge sc-badge-ok' }, '没有未处理问题'),
-          h('span', { className: 'sc-badge' }, `伏笔 未解 ${detail.state.hooks.filter(hook => hook.state !== 'resolved').length}`),
+          h('span', { className: 'sc-badge' }, `伏笔 未解 ${detail.state.hooks.filter(hook => ['open', 'progressing', 'deferred'].includes(hook.status)).length}`),
         ),
         h('div', { className: 'sc-main-tabs', role: 'tablist', 'aria-label': '作品面板' },
           ...['chapters', 'truth', 'context', 'materials', 'exports', 'backups'].map((name, index) => h('button', {
@@ -2019,24 +2019,32 @@ window.__ModuleLoader__.load({
           stateOpen
             ? h('div', { style: { marginTop: 10 } },
               h('h3', { className: 'sc-section-title' }, '人物事实'),
-              detail.state.entities.length === 0
-                ? h('p', { className: 'sc-muted' }, '还没有定稿过人物事实。')
-                : detail.state.entities.map(entity => h('div', { className: 'sc-item', key: entity.name },
-                  h('div', { className: 'sc-item-head' }, h('span', { className: 'sc-item-name' }, entity.name)),
-                  h('ul', { className: 'sc-item-body' }, ...entity.facts.map((fact, index) => h('li', { key: index }, fact))),
-                )),
+              (() => {
+                const groups = new Map()
+                for (const fact of detail.state.facts) {
+                  if (fact.validUntilChapter !== null) continue
+                  const list = groups.get(fact.subject) ?? []
+                  list.push(`${fact.predicate}：${fact.object}`)
+                  groups.set(fact.subject, list)
+                }
+                if (groups.size === 0) return h('p', { className: 'sc-muted' }, '还没有定稿过人物事实。')
+                return [...groups].map(([subject, facts]) => h('div', { className: 'sc-item', key: subject },
+                  h('div', { className: 'sc-item-head' }, h('span', { className: 'sc-item-name' }, subject)),
+                  h('ul', { className: 'sc-item-body' }, ...facts.map((fact, index) => h('li', { key: index }, fact))),
+                ))
+              })(),
               h('h3', { className: 'sc-section-title' }, '伏笔'),
               h('p', { className: 'sc-item-body' },
-                `未解 ${detail.state.hooks.filter(hook => hook.state !== 'resolved').length} 条`
-                + `（其中已用 ${detail.state.hooks.filter(hook => hook.state === 'used').length} 条）· `
-                + `已解 ${detail.state.hooks.filter(hook => hook.state === 'resolved').length} 条`),
+                `未解 ${detail.state.hooks.filter(hook => ['open', 'progressing', 'deferred'].includes(hook.status)).length} 条`
+                + `（其中推进中 ${detail.state.hooks.filter(hook => hook.status === 'progressing').length} 条）· `
+                + `已解 ${detail.state.hooks.filter(hook => hook.status === 'resolved').length} 条`),
               detail.state.hooks.length === 0
                 ? h('p', { className: 'sc-muted' }, '还没有记录伏笔。')
-                : detail.state.hooks.map(hook => h('div', { className: 'sc-item', key: hook.text },
+                : detail.state.hooks.map(hook => h('div', { className: 'sc-item', key: hook.hookId },
                   h('div', { className: 'sc-item-head' },
                     h('span', { className: 'sc-item-name' }, hook.text),
-                    h('span', { className: hook.state === 'resolved' ? 'sc-done' : 'sc-open' }, hook.state),
-                    h('span', { className: 'sc-badge' }, `第 ${hook.openedChapter} 章埋`),
+                    h('span', { className: ['resolved', 'superseded'].includes(hook.status) ? 'sc-done' : 'sc-open' }, hook.status),
+                    h('span', { className: 'sc-badge' }, `第 ${hook.startChapter} 章埋`),
                   ),
                 )),
             )

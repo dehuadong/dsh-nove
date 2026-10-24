@@ -8,7 +8,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, countWords, trimSummary } from './domain.js'
-import { HOOK_STATES } from './state-validation.js'
+import { STATE_LIMITS } from './state-projection.js'
 import { assertRevisionMode } from './revision.js'
 import { checkWordRange } from './landing.js'
 import { readChapter } from './storage.js'
@@ -82,7 +82,6 @@ const VALIDATOR_CODES = new Set([
 const VALIDATOR_LIMITS = { where: 120, problem: 160, evidence: 240, impact: 120, fix: 120 }
 
 /** Settler delta bounds; the host still re-normalizes and validates it. */
-const SETTLER_LIMITS = { entities: 30, facts: 20, hooks: 30, text: 240 }
 
 /** Validate the role-specific payload shape. */
 function validateShape(role, payload) {
@@ -110,26 +109,62 @@ function validateShape(role, payload) {
     return undefined
   }
   if (role === 'settler') {
-    if (!Array.isArray(payload.entities)) return 'settler 缺少 entities 数组'
-    if (payload.entities.length > SETTLER_LIMITS.entities) return `settler entities 最多 ${SETTLER_LIMITS.entities} 条`
-    for (const [index, entity] of payload.entities.entries()) {
-      if (entity === null || typeof entity !== 'object') return `settler 第 ${index + 1} 个实体不是对象`
-      if (typeof entity.name !== 'string' || entity.name.trim() === '') return `settler 第 ${index + 1} 个实体缺少 name`
-      if ([...entity.name].length > SETTLER_LIMITS.text) return `settler 第 ${index + 1} 个实体 name 超过 ${SETTLER_LIMITS.text} 字`
-      if (!Array.isArray(entity.facts)) return `settler 第 ${index + 1} 个实体缺少 facts 数组`
-      if (entity.facts.length > SETTLER_LIMITS.facts) return `settler 第 ${index + 1} 个实体 facts 最多 ${SETTLER_LIMITS.facts} 条`
-      for (const [factIndex, fact] of entity.facts.entries()) {
-        if (typeof fact !== 'string' || fact.trim() === '') return `settler 第 ${index + 1} 个实体第 ${factIndex + 1} 条 fact 为空`
-        if ([...fact].length > SETTLER_LIMITS.text) return `settler 第 ${index + 1} 个实体第 ${factIndex + 1} 条 fact 超过 ${SETTLER_LIMITS.text} 字`
+    const bounded = (value, label) => {
+      if (typeof value !== 'string' || value.trim() === '') return `${label} 必须是非空字符串`
+      if ([...value.trim()].length > STATE_LIMITS.text) return `${label} 超过 ${STATE_LIMITS.text} 字`
+      return undefined
+    }
+    const factOps = payload.factOps
+    const hookOps = payload.hookOps
+    const newHooks = payload.newHooks
+    if (factOps !== undefined && (factOps === null || typeof factOps !== 'object' || Array.isArray(factOps))) return 'factOps 必须是对象'
+    if (hookOps !== undefined && (hookOps === null || typeof hookOps !== 'object' || Array.isArray(hookOps))) return 'hookOps 必须是对象'
+    if (newHooks !== undefined && !Array.isArray(newHooks)) return 'newHooks 必须是数组'
+    const upserts = factOps?.upsert ?? []
+    const expires = factOps?.expire ?? []
+    if (!Array.isArray(upserts) || !Array.isArray(expires)) return 'factOps.upsert/expire 必须是数组'
+    if (upserts.length + expires.length > STATE_LIMITS.facts) return `settler 最多 ${STATE_LIMITS.facts} 条 fact op`
+    for (const [index, fact] of upserts.entries()) {
+      for (const key of ['subject', 'predicate', 'object']) {
+        const problem = bounded(fact?.[key], `factOps.upsert 第 ${index + 1} 条 ${key}`)
+        if (problem !== undefined) return problem
+      }
+      if (fact?.source !== undefined) {
+        const problem = bounded(fact.source, `factOps.upsert 第 ${index + 1} 条 source`)
+        if (problem !== undefined) return problem
       }
     }
-    if (!Array.isArray(payload.hooks)) return 'settler 缺少 hooks 数组'
-    if (payload.hooks.length > SETTLER_LIMITS.hooks) return `settler hooks 最多 ${SETTLER_LIMITS.hooks} 条`
-    for (const [index, hook] of payload.hooks.entries()) {
-      if (hook === null || typeof hook !== 'object') return `settler 第 ${index + 1} 条伏笔不是对象`
-      if (typeof hook.text !== 'string' || hook.text.trim() === '') return `settler 第 ${index + 1} 条伏笔缺少 text`
-      if ([...hook.text].length > SETTLER_LIMITS.text) return `settler 第 ${index + 1} 条伏笔 text 超过 ${SETTLER_LIMITS.text} 字`
-      if (!HOOK_STATES.includes(hook.state)) return `settler 第 ${index + 1} 条伏笔 state 非法`
+    for (const [index, selector] of expires.entries()) {
+      for (const key of ['subject', 'predicate']) {
+        const problem = bounded(selector?.[key], `factOps.expire 第 ${index + 1} 条 ${key}`)
+        if (problem !== undefined) return problem
+      }
+      if (selector?.object !== undefined) {
+        const problem = bounded(selector.object, `factOps.expire 第 ${index + 1} 条 object`)
+        if (problem !== undefined) return problem
+      }
+    }
+    let transitions = 0
+    for (const name of ['progress', 'mention', 'defer', 'resolve', 'supersede']) {
+      const list = hookOps?.[name] ?? []
+      if (!Array.isArray(list)) return `hookOps.${name} 必须是数组`
+      for (const hookId of list) {
+        const problem = bounded(hookId, `hookOps.${name} 的 hookId`)
+        if (problem !== undefined) return problem
+      }
+      transitions += list.length
+    }
+    const candidates = newHooks ?? []
+    if (transitions + candidates.length > STATE_LIMITS.hooks) return `settler 最多 ${STATE_LIMITS.hooks} 条 hook op`
+    if (candidates.length > STATE_LIMITS.newHooks) return `newHooks 最多 ${STATE_LIMITS.newHooks} 条`
+    for (const [index, candidate] of candidates.entries()) {
+      const problem = bounded(candidate?.text, `newHooks 第 ${index + 1} 条 text`)
+      if (problem !== undefined) return problem
+      for (const key of ['type', 'expectedPayoff', 'notes']) {
+        if (candidate?.[key] === undefined) continue
+        const issue = bounded(candidate[key], `newHooks 第 ${index + 1} 条 ${key}`)
+        if (issue !== undefined) return issue
+      }
     }
     return undefined
   }

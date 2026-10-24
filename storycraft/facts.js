@@ -11,7 +11,7 @@
 import { parseCharacters } from './bible.js'
 import { chapterNumber } from './domain.js'
 import {
-  listBodies, listSummaries, readBibleEntry, readBibleMap, readEventsText, readManifest, readPlan, readVolumes,
+  listBodies, listSummaries, readBibleEntry, readBibleMap, readFoldedState, readManifest, readPlan, readVolumes,
 } from './store-db.js'
 
 /** Chinese digit values used to normalise numerals before comparison. */
@@ -135,8 +135,8 @@ export async function deriveWhitelist(root, input) {
   // secondary cast (阿六、秦老卒…), and flagging them as invented blocks real work.
   const known = cards.map(card => card.name).filter(name => typeof name === 'string' && name !== '')
   const established = new Set(known)
-  const stateText = readEventsText(root, work)
-  for (const match of stateText.matchAll(/"name"\s*:\s*"([^"]+)"/gu)) established.add(match[1])
+  const prior = readFoldedState(root, work)
+  for (const fact of prior.facts) established.add(fact.subject)
   const current = input.chapter === undefined ? undefined : chapterNumber(input.chapter)
   const textFiles = []
   for (const version of listBodies(root, work)) {
@@ -154,6 +154,10 @@ export async function deriveWhitelist(root, input) {
     for (const name of extractSpeakerNames(text, [...established])) established.add(name)
   }
 
+  const stateText = [
+    ...prior.facts.map(fact => `${fact.subject} ${fact.predicate} ${fact.object}`),
+    ...prior.hooks.map(hook => hook.text),
+  ].join('\n')
   const source = [intent, plan, volumes, chapterPlan, stateText, ...textFiles].join('\n')
 
   const places = new Set(
