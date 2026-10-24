@@ -16,7 +16,7 @@ import {
 } from 'node:fs'
 import { join } from 'node:path'
 import type { Database } from './db.js'
-import type { ArtifactRow, ChapterRow, ChapterVersionRow, EventRow, MetaRow, WorkRow } from './store-rows.js'
+import type { ArtifactRow, BibleRow, ChapterRow, ChapterVersionRow, EventRow, MaterialRow, MetaRow, VolumeRow, WorkRow } from './store-rows.js'
 
 export interface WriteChapterInput {
   work: string
@@ -494,7 +494,7 @@ export function initWork(root: string, input: any): any {
  * @param {string} root - workspace directory.
  * @returns {{missing: string[], orphans: string[], trash: string[], degraded: boolean}} reconciliation report.
  */
-export function reconcileWorks(root) {
+export function reconcileWorks(root: any) {
   const catalog = openCatalog(root, { create: false, busyTimeout: 0 })
   try {
     const rows = catalog === undefined ? [] : catalog.prepare('SELECT work_id, trashed_at, missing_at FROM works').all()
@@ -550,7 +550,7 @@ const reconciledRoots = new Set()
  * diagnostics. A listing must stay readable when reconciliation cannot run.
  * @param {string} root - workspace directory.
  */
-export function ensureReconciled(root) {
+export function ensureReconciled(root: any) {
   if (reconciledRoots.has(root)) return
   try {
     const report = reconcileWorks(root)
@@ -725,7 +725,7 @@ export function readWork(root: string, work: unknown): any {
  * @param {string} work - work identity.
  * @returns {object} status payload.
  */
-export function status(root, work) {
+export function status(root: any, work: any) {
   const manifest = readManifest(root, work)
   const db = openWork(root, manifest.workId)
   try {
@@ -848,7 +848,7 @@ function foundationStateOf(db) {
 }
 
 /** Read the derived foundation state of one work. */
-export function readFoundationState(root, work) {
+export function readFoundationState(root: any, work: any) {
   const db = openWork(root, work)
   try {
     return foundationStateOf(db)
@@ -865,7 +865,7 @@ export function readFoundationState(root, work) {
  * @param {{work: string, stage: string, payload: object}} input - stage payload.
  * @returns {{workId: string, stage: string, artifacts: object[], foundation: object}} receipt.
  */
-export function writeFoundationStage(root, input) {
+export function writeFoundationStage(root: any, input: any) {
   const workId = String(input.work)
   const stage = String(input.stage)
   if (!FOUNDATION_STAGES.includes(stage)) throw new StoryError('foundation-stage-invalid', `未知的 foundation stage：${stage}`)
@@ -962,7 +962,7 @@ export function writeFoundationStage(root, input) {
 }
 
 /** Author confirmation of a complete foundation; panel-only in the product. */
-export function approveFoundation(root, input) {
+export function approveFoundation(root: any, input: any) {
   const db = openWork(root, String(input.work))
   try {
     return transaction(db, () => {
@@ -983,7 +983,7 @@ export function approveFoundation(root, input) {
  * @param {string} work - work identity.
  * @returns {object} next step.
  */
-export function nextStep(root, work) {
+export function nextStep(root: any, work: any) {
   const manifest = readManifest(root, work)
   const plannerDelegate = formOf(manifest) === 'longform' ? { delegate: { role: 'planner' } } : {}
   const db = openWork(root, manifest.workId)
@@ -1147,7 +1147,7 @@ export function nextStep(root, work) {
  * @param {{work: string, wordRange?: {min: number, max: number}|null, planApproval?: 'required'|'off'|null}} input - settings.
  * @returns {object} stored settings.
  */
-export function updateSettings(root, input) {
+export function updateSettings(root: any, input: any) {
   const workId = String(input.work)
   const db = openWork(root, workId)
   try {
@@ -1179,7 +1179,7 @@ export function updateSettings(root, input) {
  * @param {{work: string, mainline?: string, volumes?: string, ending?: string}} input - outline input.
  * @returns {{workId: string, outline: object}} stored outline state.
  */
-export function writeOutline(root, input) {
+export function writeOutline(root: any, input: any) {
   const mainline = String(input.mainline ?? '').trim()
   if (mainline === '') throw new StoryError('outline-invalid', '全书计划至少要写主线')
   const workId = String(input.work)
@@ -1210,7 +1210,7 @@ export function writeOutline(root, input) {
  * @param {{work: string}} input - work identity.
  * @returns {{workId: string, outline: object}} stored outline state.
  */
-export function approveOutline(root, input) {
+export function approveOutline(root: any, input: any) {
   const workId = String(input.work)
   const db = openWork(root, workId)
   try {
@@ -1237,7 +1237,7 @@ export function approveOutline(root, input) {
  * @param {{work: string, title?: string, workId?: string}} input - rename input.
  * @returns {{workId: string, title: string}} new identity.
  */
-export function renameWork(root, input) {
+export function renameWork(root: any, input: any) {
   const oldId = String(input.work)
   const catalog = openCatalog(root)
   try {
@@ -1328,7 +1328,7 @@ export function renameWork(root, input) {
  * @param {{work: string}} input - delete input.
  * @returns {{workId: string, path: string}} trashed location.
  */
-export function deleteWork(root, input) {
+export function deleteWork(root: any, input: any) {
   const workId = String(input.work)
   const catalog = openCatalog(root)
   try {
@@ -1372,7 +1372,7 @@ export function deleteWork(root, input) {
  * @param {{work: string}} input - trashed work.
  * @returns {{workId: string}} removed identity.
  */
-export function purgeTrash(root, input) {
+export function purgeTrash(root: any, input: any) {
   const workId = String(input.work ?? '')
   const catalog = openCatalog(root)
   try {
@@ -1393,7 +1393,7 @@ export function purgeTrash(root, input) {
  * @param {{name: string}} input - work identity at trash time.
  * @returns {{workId: string}} restored identity.
  */
-export function restoreWork(root, input) {
+export function restoreWork(root: any, input: any) {
   const name = String(input.name ?? '').trim()
   if (name === '') throw new StoryError('invalid-work-id', '要恢复的作品名不能为空')
   const catalog = openCatalog(root)
@@ -1429,7 +1429,7 @@ export function restoreWork(root, input) {
  * @param {{work: string, chapter: number|string, perspective: string, goal: string, obstacle: string, cost: string, turn: string, requireBody?: boolean, requireAbsent?: boolean}} input - plan fields.
  * @returns {object} result with a virtual artifact path.
  */
-export function writePlan(root, input) {
+export function writePlan(root: any, input: any) {
   const number = chapterNumber(input.chapter)
   const fields = [input.perspective, input.goal, input.obstacle, input.cost, input.turn]
   if (fields.some(value => typeof value !== 'string' || value.trim() === '')) {
@@ -1492,7 +1492,7 @@ export function writePlan(root, input) {
  * @param {{work: string, chapter: number|string}} input - target chapter.
  * @returns {{workId: string, entry: object}} the updated chapter entry.
  */
-export function approveChapterPlan(root, input) {
+export function approveChapterPlan(root: any, input: any) {
   const number = chapterNumber(input.chapter)
   const workId = String(input.work)
   const db = openWork(root, workId)
@@ -1729,7 +1729,7 @@ function renderReviewMarkdown(number, record) {
  * @param {number|string|object} chapter - chapter number or entry.
  * @returns {{round: number, revision: number, path: string, observations: object[], items: object[]}|undefined} review.
  */
-export function latestReview(root, work, chapter) {
+export function latestReview(root: any, work: any, chapter: any) {
   const workId = typeof work === 'string' ? work : work?.workId
   const number = chapterNumber(typeof chapter === 'object' && chapter !== null ? chapter.number : chapter)
   const db = openWork(root, workId)
@@ -1757,7 +1757,7 @@ export function latestReview(root, work, chapter) {
  * @param {number|string} chapter - chapter number.
  * @returns {{path: string, round: number, revision: number, rounds: number, observations: object[], items: object[]}} review payload.
  */
-export function readReview(root, work, chapter) {
+export function readReview(root: any, work: any, chapter: any) {
   const number = chapterNumber(chapter)
   const db = openWork(root, work)
   try {
@@ -1921,7 +1921,7 @@ function summarySearchText(content) {
  * @param {number|string} chapter - chapter number.
  * @returns {string|undefined} summary text.
  */
-export function readSummary(root, work, chapter) {
+export function readSummary(root: any, work: any, chapter: any) {
   const number = chapterNumber(chapter)
   const db = openWork(root, work)
   try {
@@ -1938,7 +1938,7 @@ export function readSummary(root, work, chapter) {
  * @param {number|string} chapter - chapter number.
  * @returns {{state: 'current'|'stale'|'missing', text: string|undefined, revision: number|null, currentRevision: number}} state.
  */
-export function readSummaryState(root, work, chapter) {
+export function readSummaryState(root: any, work: any, chapter: any) {
   const number = chapterNumber(chapter)
   const db = openWork(root, work)
   try {
@@ -1949,7 +1949,7 @@ export function readSummaryState(root, work, chapter) {
 }
 
 /** Summary states for every chapter of one work, ascending. */
-export function listSummaryStates(root, work) {
+export function listSummaryStates(root: any, work: any) {
   const db = openWork(root, work)
   try {
     return [...summaryStateMap(db)].map(([number, state]) => ({ number, ...state }))
@@ -1959,7 +1959,7 @@ export function listSummaryStates(root, work) {
 }
 
 /** Every summary of one work, ascending, with its structured character list. */
-export function listSummaries(root, work) {
+export function listSummaries(root: any, work: any) {
   const db = openWork(root, work)
   try {
     const summaries = []
@@ -2036,7 +2036,7 @@ function assertStateGate(db, number, options = {}) {
  * @param {{work: string, chapter: number, kind: string, payload: object}} input - event.
  * @returns {{seq: number}} appended event sequence.
  */
-export function appendStateEvent(root, input) {
+export function appendStateEvent(root: any, input: any) {
   const chapter = Number(input.chapter)
   if (!Number.isInteger(chapter) || chapter < 0) {
     throw new StoryError('invalid-chapter', `状态事件的章号必须是非负整数：${String(input.chapter)}`)
@@ -2190,7 +2190,7 @@ function planSettlement(db, number, input, options = {}) {
  * @param {object} input - same shape as `settleState`.
  * @returns {{counts: object, hooks: object[], facts: object[], appended: number}} projection preview.
  */
-export function previewState(root, input) {
+export function previewState(root: any, input: any) {
   const number = chapterNumber(input.chapter)
   const db = openWork(root, String(input.work))
   try {
@@ -2259,7 +2259,7 @@ export function settleState(root: string, input: any): any {
  * @param {{work: string, chapter: number|string}} input - work/chapter.
  * @returns {{entry: object, review: object, summaryState: object}} gate context.
  */
-export function statePreflight(root, input) {
+export function statePreflight(root: any, input: any) {
   const number = chapterNumber(input.chapter)
   const db = openWork(root, String(input.work))
   try {
@@ -2276,7 +2276,7 @@ export function statePreflight(root, input) {
  * @param {number|string} [upToChapter] - highest chapter to include.
  * @returns {Array<object>} events.
  */
-export function readEvents(root, work, upToChapter) {
+export function readEvents(root: any, work: any, upToChapter: any) {
   const db = openWork(root, work)
   try {
     const rows = upToChapter === undefined
@@ -2294,7 +2294,7 @@ export function readEvents(root, work, upToChapter) {
  * @param {{work: string, id?: string, title: string, from: number|string, to: number|string, summary?: string}} input - volume input.
  * @returns {{volumes: object[], volume: object}} the whole set and the written volume.
  */
-export function writeVolume(root, input) {
+export function writeVolume(root: any, input: any) {
   const id = String(input.id ?? '').trim()
   if (id === '') throw new StoryError('volume-invalid', '卷需要 id')
   const from = chapterNumber(input.from)
@@ -2341,7 +2341,7 @@ export function writeVolume(root, input) {
  * @param {string} work - work identity.
  * @returns {Array<object>} volumes, ascending by `from`.
  */
-export function readVolumes(root, work) {
+export function readVolumes(root: any, work: any) {
   const db = openWork(root, work)
   try {
     return db.prepare('SELECT * FROM volumes ORDER BY from_ch').all()
@@ -2379,7 +2379,7 @@ const TRUTH_NAMES = ['characters', 'intent', 'plan', 'style', 'world']
  * @param {{work: string, name: string, content: string, expectedVersion?: string}} input - entry input.
  * @returns {{workId: string, name: string, version: string}} receipt.
  */
-export function writeBible(root, input) {
+export function writeBible(root: any, input: any) {
   const name = String(input.name ?? '').trim()
   if (name === '') throw new StoryError('bible-name-required', '真值需要 name')
   const content = String(input.content ?? '')
@@ -2436,13 +2436,13 @@ export function writeBible(root, input) {
  * @param {string} name - entry name.
  * @returns {{content: string, version: string, updated_at: string}|undefined} entry.
  */
-export function readBibleEntry(root, work, name) {
+export function readBibleEntry(root: any, work: any, name: any) {
   const db = openWork(root, work)
   try {
     const key = String(name)
     const truth = TRUTH_ARTIFACTS[key]
     if (truth !== undefined) return readTextArtifactOnDb(db, truth.artifactId)
-    return db.prepare('SELECT content, version, updated_at FROM bible WHERE name = ?').get(key)
+    return db.prepare('SELECT content, version, updated_at FROM bible WHERE name = ?').get(key) as Pick<BibleRow, 'content' | 'version' | 'updated_at'> | undefined
   } finally {
     db.close()
   }
@@ -2452,7 +2452,7 @@ export function readBibleEntry(root, work, name) {
  * Read every truth entry of one work.
  * Characters come from the bible table; the rest from artifacts.
  */
-export function readBibleEntries(root, work) {
+export function readBibleEntries(root: any, work: any) {
   const db = openWork(root, work)
   try {
     const entries = []
@@ -2475,7 +2475,7 @@ export function readBibleEntries(root, work) {
  * @param {string} work - work identity.
  * @returns {Map<string, string>} truth content.
  */
-export function readBibleMap(root, work) {
+export function readBibleMap(root: any, work: any) {
   return new Map(readBibleEntries(root, work).map(row => [row.name, row.content]))
 }
 
@@ -2485,7 +2485,7 @@ export function readBibleMap(root, work) {
  * @param {string} work - work identity.
  * @returns {string} event log text.
  */
-export function readEventsText(root, work) {
+export function readEventsText(root: any, work: any) {
   const db = openWork(root, work)
   try {
     return eventsText(db)
@@ -2500,7 +2500,7 @@ export function readEventsText(root, work) {
  * @param {string} work - work identity.
  * @returns {{hooks: object[], facts: object[]}} projected state.
  */
-export function readFoldedState(root, work) {
+export function readFoldedState(root: any, work: any) {
   return projectState(readEvents(root, work))
 }
 
@@ -2511,7 +2511,7 @@ export function readFoldedState(root, work) {
  * @param {number|string} chapter - chapter number.
  * @returns {string|undefined} plan text.
  */
-export function readPlan(root, work, chapter) {
+export function readPlan(root: any, work: any, chapter: any) {
   const number = chapterNumber(chapter)
   const db = openWork(root, work)
   try {
@@ -2537,7 +2537,7 @@ export function readPlan(root, work, chapter) {
  * @param {string} work - work identity.
  * @returns {Array<{number: number, revision: number, body: string}>} versions.
  */
-export function listBodies(root, work) {
+export function listBodies(root: any, work: any) {
   const db = openWork(root, work)
   try {
     return db.prepare('SELECT number, revision, body FROM chapter_versions ORDER BY number, revision').all()
@@ -2552,7 +2552,7 @@ export function listBodies(root, work) {
  * @param {{work: string, chapter: number|string}} input - reopen input.
  * @returns {{workId: string, chapter: number, stage: string, artifact: {path: string}}} receipt.
  */
-export function reopenChapter(root, input) {
+export function reopenChapter(root: any, input: any) {
   const number = chapterNumber(input.chapter)
   const workId = String(input.work)
   const db = openWork(root, workId)
@@ -2586,7 +2586,7 @@ export function reopenChapter(root, input) {
  * @param {object} prepared - result of `prepareMaterial`.
  * @returns {{origin: string, path: string, created: boolean}} copy identity.
  */
-export function writeManagedCopy(root, prepared, write = writeSync) {
+export function writeManagedCopy(root: any, prepared: any, write: any = writeSync) {
   const dir = materialsDir(root)
   try {
     mkdirSync(dir, { recursive: true })
@@ -2663,7 +2663,7 @@ function materialTitle(value) {
  * @param {{name: string, contentBase64: string, title?: string}} input - upload.
  * @returns {{material: object, duplicate: boolean}} metadata.
  */
-export function importMaterial(root, work, input) {
+export function importMaterial(root: any, work: any, input: any) {
   const prepared = prepareMaterial(input)
   const db = openWork(root, work)
   try {
@@ -2724,14 +2724,14 @@ export function importMaterial(root, work, input) {
  * @param {string} [purpose] - optional purpose filter.
  * @returns {object[]} metadata rows.
  */
-export function listMaterials(root, work, purpose) {
+export function listMaterials(root: any, work: any, purpose: any) {
   const clean = purpose === undefined ? undefined : normalizeMaterialPurpose(purpose)
   const db = openWork(root, work)
   try {
     const rows = clean === undefined
       ? db.prepare('SELECT * FROM materials ORDER BY created_at, id').all()
       : db.prepare('SELECT * FROM materials WHERE purpose = ? ORDER BY created_at, id').all(clean)
-    return rows.map(materialMetadata)
+    return (rows as MaterialRow[]).map(materialMetadata)
   } finally {
     db.close()
   }
@@ -2745,7 +2745,7 @@ export function listMaterials(root, work, purpose) {
  * @param {string} title - new title.
  * @returns {object} updated metadata.
  */
-export function renameMaterial(root, work, id, title) {
+export function renameMaterial(root: any, work: any, id: any, title: any) {
   const clean = materialTitle(title)
   const db = openWork(root, work)
   try {
@@ -2770,7 +2770,7 @@ export function renameMaterial(root, work, id, title) {
  * @param {string} purpose - new purpose.
  * @returns {object} updated metadata.
  */
-export function setMaterialPurpose(root, work, id, purpose) {
+export function setMaterialPurpose(root: any, work: any, id: any, purpose: any) {
   const clean = normalizeMaterialPurpose(purpose)
   const db = openWork(root, work)
   try {
@@ -2855,7 +2855,7 @@ function chapterKeys(db) {
  * @param {{confirm?: boolean, beforeCommit?: Function}} [options] - confirmation/test seam.
  * @returns {Promise<object>} edit receipt.
  */
-export async function deleteChapter(root, work, chapter, options = {}) {
+export async function deleteChapter(root: any, work: any, chapter: any, options: any = {}) {
   const number = chapterNumber(chapter)
   if (options.confirm !== true) throw new StoryError('chapter-delete-unconfirmed', '删除章节需要确认')
   const probe = openWork(root, work)
@@ -2910,7 +2910,7 @@ export async function deleteChapter(root, work, chapter, options = {}) {
  * @param {{beforeCommit?: Function}} [options] - test seam.
  * @returns {Promise<object>} edit receipt.
  */
-export async function moveChapter(root, work, from, to, options = {}) {
+export async function moveChapter(root: any, work: any, from: any, to: any, options: any = {}) {
   const source = chapterNumber(from)
   const target = chapterNumber(to)
   const db = openWork(root, work)
@@ -2951,7 +2951,7 @@ export async function moveChapter(root, work, from, to, options = {}) {
  * @param {string} id - material id.
  * @returns {{id: string}} removed id.
  */
-export function deleteMaterial(root, work, id) {
+export function deleteMaterial(root: any, work: any, id: any) {
   const db = openWork(root, work)
   try {
     return transaction(db, () => {
@@ -2976,7 +2976,7 @@ export function deleteMaterial(root, work, id) {
  * @param {number} [limit] - result limit.
  * @returns {Array<object>} ranked documents.
  */
-export function search(root, work, query, limit = 5) {
+export function search(root: any, work: any, query: any, limit: any = 5) {
   const match = matchOf(query)
   if (match === '') return []
   const db = openWork(root, work)
@@ -3001,7 +3001,7 @@ export function search(root, work, query, limit = 5) {
  * @param {string[]} [options.kinds] - restrict kinds; unknown entries are ignored.
  * @returns {Array<{id: string, kind: string, source: string, sourceIds: string[], chapter: number, text: string, score: number}>} candidates: current summaries, unresolved hooks, volumes, and bounded material excerpts.
  */
-export function searchMemory(root, work, query, options = {}) {
+export function searchMemory(root: any, work: any, query: any, options: any = {}) {
   const beforeChapter = Number.isInteger(options.beforeChapter) ? options.beforeChapter : undefined
   const requested = Array.isArray(options.kinds) ? options.kinds.filter(kind => MEMORY_KINDS.includes(kind)) : MEMORY_KINDS
   const kinds = [...new Set(requested)]
@@ -3502,7 +3502,7 @@ function backupFiles(root, workId) {
 }
 
 /** List a work's backups with stable ids for routes/UI. */
-export function listBackups(root, work) {
+export function listBackups(root: any, work: any) {
   const workId = String(work)
   return backupFiles(root, workId).map(entry => ({
     backupId: `backup:${workId}:${entry.token}`,
@@ -3541,7 +3541,7 @@ async function withWorkLock(root, work, fn) {
 }
 
 /** Delete old panel-created backups, keeping the newest `keep` files. */
-export function pruneBackups(root, workId, keep) {
+export function pruneBackups(root: any, workId: any, keep: any) {
   if (keep === 0) return { removed: [] }
   const files = backupFiles(root, workId)
   const removed = []
@@ -3553,7 +3553,7 @@ export function pruneBackups(root, workId, keep) {
 }
 
 /** Create a backup and apply the panel retention policy. */
-export async function createBackup(root, work, keep = 10) {
+export async function createBackup(root: any, work: any, keep: any = 10) {
   const limit = keep === 0 ? 0 : Number(keep)
   if (![0, 5, 10, 20].includes(limit)) throw new StoryError('backup-keep-invalid', '保留策略只允许 5/10/20/不清理')
   return withWorkLock(root, work, async () => {
@@ -3564,7 +3564,7 @@ export async function createBackup(root, work, keep = 10) {
 }
 
 /** Delete one backup file, never the work database. */
-export async function deleteBackup(root, work, backupId) {
+export async function deleteBackup(root: any, work: any, backupId: any) {
   return withWorkLock(root, work, async () => {
     const target = resolveBackupFile(root, work, backupId)
     unlinkSync(target.file)
@@ -3580,7 +3580,7 @@ export async function deleteBackup(root, work, backupId) {
  * @param {{corruptCurrent?: boolean}} [options] - internal diagnostic path.
  * @returns {Promise<{workId: string, restoredBackup: string, safetyBackup: string|undefined, corrupt: boolean}>} receipt.
  */
-export async function restoreBackup(root, work, backupId, options = {}) {
+export async function restoreBackup(root: any, work: any, backupId: any, options: any = {}) {
   const workId = String(work)
   const catalog = openCatalog(root)
   let row
@@ -3678,7 +3678,7 @@ export async function restoreBackup(root, work, backupId, options = {}) {
  * @param {string} [destination] - backup file.
  * @returns {Promise<{file: string, integrity: string}>} backup result.
  */
-export async function backupWork(root, work, destination) {
+export async function backupWork(root: any, work: any, destination: any) {
   const catalog = openCatalog(root, { create: false })
   if (catalog === undefined) throw new StoryError('work-not-found', `没有作品：${String(work)}`)
   try {
@@ -3724,7 +3724,7 @@ export async function backupWork(root, work, destination) {
  * @param {{title: string, form?: string, premise: string, characters?: string, conflict?: string, notes?: string}} input - proposal.
  * @returns {{proposal: object}} stored proposal.
  */
-export function createProposal(root, input) {
+export function createProposal(root: any, input: any) {
   const catalog = openCatalog(root)
   try {
     return transaction(catalog, () => {
@@ -3757,7 +3757,7 @@ export function createProposal(root, input) {
  * @param {string} id - proposal id.
  * @returns {object} proposal.
  */
-export function readProposal(root, id) {
+export function readProposal(root: any, id: any) {
   const catalog = openCatalog(root, { create: false })
   const row = catalog?.prepare('SELECT * FROM proposals WHERE id = ?').get(String(id))
   catalog?.close()
@@ -3779,7 +3779,7 @@ export function readProposal(root, id) {
  * @param {string} workId - the work it produced.
  * @returns {{id: string, workId: string}} receipt.
  */
-export function markProposalUsed(root, id, workId) {
+export function markProposalUsed(root: any, id: any, workId: any) {
   const catalog = openCatalog(root)
   try {
     return transaction(catalog, () => {
@@ -3796,7 +3796,7 @@ export function markProposalUsed(root, id, workId) {
  * @param {string} root - workspace directory.
  * @returns {Array<object>} proposals.
  */
-export function listProposals(root) {
+export function listProposals(root: any) {
   const catalog = openCatalog(root, { create: false })
   if (catalog === undefined) return []
   try {
@@ -3821,7 +3821,7 @@ export function listProposals(root) {
  * @param {string} root - workspace directory.
  * @param {string} id - proposal id.
  */
-export function deleteProposal(root, id) {
+export function deleteProposal(root: any, id: any) {
   const catalog = openCatalog(root, { create: false })
   if (catalog === undefined) return
   try {
@@ -3848,7 +3848,7 @@ function pruneProposalRows(catalog, ttlMs) {
  * @param {number} ttlMs - age threshold.
  * @returns {{removed: number}} removal count.
  */
-export function pruneProposals(root, ttlMs = PROPOSAL_TTL_MS) {
+export function pruneProposals(root: any, ttlMs: any = PROPOSAL_TTL_MS) {
   const catalog = openCatalog(root, { create: false })
   if (catalog === undefined) return { removed: 0 }
   try {
@@ -3865,7 +3865,7 @@ export function pruneProposals(root, ttlMs = PROPOSAL_TTL_MS) {
  * @param {string} workId - work identity.
  * @returns {{sessionId: string, workId: string}} stored pointer.
  */
-export function setSessionCurrent(root, sessionId, workId) {
+export function setSessionCurrent(root: any, sessionId: any, workId: any) {
   const catalog = openCatalog(root)
   try {
     transaction(catalog, () => {
@@ -3885,7 +3885,7 @@ export function setSessionCurrent(root, sessionId, workId) {
  * @param {string} sessionId - session identity.
  * @returns {{removed: boolean}} whether a row was removed.
  */
-export function clearSessionCurrent(root, sessionId) {
+export function clearSessionCurrent(root: any, sessionId: any) {
   const catalog = openCatalog(root)
   try {
     const result = transaction(catalog, () => catalog.prepare('DELETE FROM session_current WHERE session_id = ?').run(sessionId))
@@ -3900,7 +3900,7 @@ export function clearSessionCurrent(root, sessionId) {
  * @param {string} root - workspace directory.
  * @returns {Record<string, string>} map, empty when the catalog is absent.
  */
-export function readSessionCurrent(root) {
+export function readSessionCurrent(root: any) {
   const catalog = openCatalog(root, { create: false })
   if (catalog === undefined) return {}
   try {
