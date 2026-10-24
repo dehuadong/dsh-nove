@@ -24,6 +24,20 @@ S1a/S1a-demo/合同补丁反复卡在同一组基础合同：章号既是章节�
   - 合同 v2 §2 的“memo 例外由 S1 实现”、consumer-migration S0 的“S0 负责 memo/review”、#51 的“memo 生命周期归 S1”；
   - #53 中与上述冲突的验收项；#54 已关闭并进入 rejected。
 
+## 对拍证据与裁决
+
+上一版只用“超出 L-R10a”否决 chapter UUID，这是范围/成本理由，不是对拍证据，不能作为技术裁决。补查参考实现后，事实是：
+
+- `inkos-master/packages/core/src/models/chapter.ts` 的 `ChapterMetaSchema` 只用 `number` 标识章节，没有 chapter UUID。
+- `inkos-master/packages/core/src/state/chapter-workspace.ts` 的 `ChapterVersion.id` 是 `${timestamp}_${source}_${randomUUID()}`；UUID 在这里标识**正文版本文件**，章节仍用 `chapterNumber`。
+- `inkos-master/packages/core/src/harness/source-sync.ts` 的 artifact revision 是 `rev-<sha256 前 16 位>`；artifactId 是“可读名 + 路径哈希”，也不是 UUID。
+
+因此本 Note 的裁决是：
+
+- **章节身份保持 number**，与参考实现的 `ChapterMeta.number` 一致；不引入 chapter UUID。
+- 参考实现的 UUID 出现在 **chapter version**，不是 chapter identity。我们当前 `chapter_versions` 用整数 revision，这是另一个对拍差异，单独立项，不混入本章节身份合同。
+- 如果目标要求的是“正文版本 UUID”，应新增 S1c 处理 `chapter_versions` 的身份与迁移；本章节合同不覆盖。
+
 ## 提案
 
 ### 1. 章节身份与重映射 owner
