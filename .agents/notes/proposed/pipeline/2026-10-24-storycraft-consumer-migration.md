@@ -85,6 +85,7 @@ A0 只负责字段合同、v6 registry、消费者映射与可测试的消费契
 - 迁移状态读取消费者：`readWork`/`status`/`foldedOf`/`foldEvents` 改读 v2 投影（面板不能显示零实体/零伏笔）；`facts.js`、`bible.js`、`context.js` 的 `readEventsText`/`readFoldedState` 同样改读 v2。
 - 旧 text-hook/string-fact 事件不再写、不再读；旧事件仍留在库里但被当作历史忽略。
 - 测试：`state-v2-settle.test.mjs`（ops、投影、自动/手动 settle、面板/ brief/context 消费、非法转移、旧事件忽略）。
+- 提交面、settle writer 边界、消费者切换与旧数据边界见 [L-R10a S3 hooks/facts 迁移](2026-10-24-storycraft-state-migration.md)。
 
 **S4a bible 条目迁移**
 
