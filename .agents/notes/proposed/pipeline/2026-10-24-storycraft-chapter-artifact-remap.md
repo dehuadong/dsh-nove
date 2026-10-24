@@ -11,7 +11,7 @@ updated: 2026-10-24
 
 章节删除/移动会重编号幸存章，但 v6 `artifacts` 表没有外键，`applyChapterMapping` 只更新 chapters/versions/plans/summaries/reviews/events/search_docs，不更新 `artifacts.artifact_id`/`scope_chapter`/`content.chapter`，也不清批准。结果是 `plan:<n>`/`summary:<n>`/`review:<n>:...` 仍指向旧章或另一章内容；`chapters.plan_revision` 悬空。
 
-S1a-demo 只能临时阻断有 memo 的删/移。本 Note 规划 S1b：把章节号重映射扩展到全部 chapter-scoped artifact，并解除阻断。
+S1a-demo 只能临时阻断有 memo 的删/移。本 Note 规划 S1b：把章节号重映射扩展到 plan/summary/review，并让删/移直接可用。
 
 ## 对拍参考
 
@@ -32,7 +32,8 @@ S1a-demo 只能临时阻断有 memo 的删/移。本 Note 规划 S1b：把章节
 
 ### 1. 重映射对象
 
-- 全部 chapter-scoped artifact：`plan:<n>`、`summary:<n>`、`review:<n>:r<rev>:<round>`，以及任何 `scope_chapter` 非空的 artifact（context/trace 等）；state 是作品级（无 scope_chapter、rev seq），不参与。
+- 按章 artifact：`plan:<n>`、`summary:<n>`、`review:<n>:r<rev>:<round>`；state 是作品级（无 scope_chapter、rev 为事件序号），不参与。
+- 其它 `scope_chapter` 非空的 artifact（context/trace）：当前没有生产者，其 artifactId 不按章号编码，ID 方案归 R12；重映射只把这些行的 `scope_chapter` 跟到新章号，不改 artifactId 与内容。R12 引入生产者时须同时定义 ID 方案与同样的 identity-change 重映射。
 - **只保留最新 revision**：章节重编号是 identity-change，旧 revision 删除，不搬到新 ID；编号可被新章重用，但必须新内容/新 revision。
 - artifactId 的章号段、`scope_chapter`、`content.chapter`（plan/summary 有）一起更新；review 的 bodyRev/round 不变，只改章号段。
 - **approval**：所有 `old !== new` 或被删章的 `chapters.plan_approved_at`/`plan_revision` 清空；作者需要重新确认。
@@ -58,16 +59,17 @@ S1a-demo 只能临时阻断有 memo 的删/移。本 Note 规划 S1b：把章节
 
 ### 3. 与章节编辑阻断
 
-- S1b 实现完成后，移除 S1a-demo/#54 的 `chapter-edit-blocked`；删除/移动改走本 Note 的重映射。
-- 阻断移除必须与重映射在同一交付，不能先解除再补。
-- 面板不需要新增动作；删/移按钮恢复，错误只保留 `chapter-remap-conflict`/事务失败。
+- `chapter-edit-blocked` 不属于交付：删除/移动直接走重映射，没有阻断态。
+- 删除/移动只经本 Note 的重映射；失败只保留 `chapter-remap-conflict`、`chapter-settled`、`chapter-edit-target-invalid` 与事务失败。
+- 面板不需要新增动作；删/移按钮保持可用，受影响章的章纲确认显示为待重新确认。
 
 ### 4. 失败与边界
 
-- 任一目标 revision 冲突 → `chapter-remap-conflict`，不写半成品。
-- 被删章/移动章含 settled 章节时，仍按现有 stage 规则处理（S1a-demo 的 settled 守卫保留）；S1b 不改变 stage 闸门。
+- `chapter-remap-conflict` 是数据损坏的防御断言：mapping 是现存章节的置换，受影响行的旧 ID 在任何插入前已删除，正常数据不触发；保留断言，不作为验收路径。
+- 被删章/移动章含 settled 章节时，仍按现有 stage 规则处理（settled 守卫属于章节编辑，不属于 S1b）；S1b 不改变 stage 闸门。
 - 不迁移旧作品；不引入 chapter UUID。
 - review target 无法解析时清空，不阻断重映射；observation 语义仍归 #52。
+- `chapter_plans` 保持空表；重映射不改它；表定义与 `applyChapterMapping` 里的残留引用随下一次作品 schema 版本清理。
 
 ## 备选方案
 
@@ -79,13 +81,14 @@ S1a-demo 只能临时阻断有 memo 的删/移。本 Note 规划 S1b：把章节
 
 ## 验收条件
 
-1. 删除/移动后，所有 chapter-scoped artifact 的 artifactId、scope_chapter、content.chapter 与新章号一致；旧 ID 不可读。
-2. 只保留每章最新 revision；旧 revision 删除；目标 revision 冲突返回 `chapter-remap-conflict` 并回滚。
+1. 删除/移动后，`plan`/`summary`/`review` 的 artifactId 章号段、`scope_chapter`、`content.chapter` 与新章号一致；旧 ID 不可读；`context`/`trace` 只同步 `scope_chapter`。
+2. 只保留每章最新 revision；旧 revision 删除；不得把旧 revision 搬到新 ID。
 3. 受影响章的 `plan_approved_at`/`plan_revision` 清空；未受影响章不变。
 4. review target 指向被移动 memo 时重绑到新 revision；无法解析时清空；不定义新 observation 语义。
-5. `chapter-edit-blocked` 在同一交付移除；删/移恢复；backup 仍是旧状态。
-6. 测试覆盖 plan/summary/review 移动/删除、identity 项、冲突回滚、审批清空、search docs、无 artifact、move/delete 都有 backup；`node storycraft/scripts/ci.mjs --no-e2e` 通过。
-7. 不引入 chapter UUID；不迁移旧作品；不改 stage 闸门。
+5. `chapter-edit-blocked` 不进入交付：删/移直接走重映射；delete/move 都在事务前 backup，backup 是旧状态；settled 章拒绝编辑。
+6. 测试覆盖 plan/summary/review 的移动与删除、identity 项、审批清空、无 artifact、move/delete 都有 backup；`node storycraft/scripts/ci.mjs --no-e2e` 通过。
+7. `chapter-remap-conflict` 作为防御断言保留，不由正常数据触发，不作为验收路径。
+8. 不引入 chapter UUID；不迁移旧作品；不改 stage 闸门；不改 context/trace 的 ID。
 
 ## 风险
 
@@ -93,3 +96,4 @@ S1a-demo 只能临时阻断有 memo 的删/移。本 Note 规划 S1b：把章节
 - 只保留最新 revision 会让审稿旧轮次不可读；S1b 的验收必须明确。
 - review target 重绑会改变 review content hash；旧 review ID 不可读，UI 需要接受。
 - 临时 ID/重算 revision 在事务内完成，失败必须整体回滚；实现要避免先删后插导致不可恢复。
+- context/trace 没有生产者与 ID 方案；R12 之前若出现写入，重映射只迁 scope，旧 ID 会落在旧章号上。

@@ -48,8 +48,8 @@ A0 只负责字段合同、v6 registry、消费者映射与可测试的消费契
 
 **S0 章节编辑的非 artifact 部分**
 
-- 删除、移动、重排章节时，只处理 chapters/versions、v2 hook/fact 事件字段与检索文档等非 artifact 数据；并对被删章/每个 `old !== new` 章无条件清空 `plan_revision`/`plan_approved_at`（无 artifact 也清）。
-- **全部 chapter-scoped artifact（plan/summary/review/state/context/trace）的重映射归 S1b**，[Note](2026-10-24-storycraft-chapter-artifact-remap.md) 是唯一 owner；S0 不拥有 memo/artifact remap。
+- 删除、移动、重排章节时，只处理 chapters/versions、v2 hook/fact 事件字段与检索文档等非 artifact 数据；并对被删章/每个 `old !== new` 章无条件清空 `plan_revision`/`plan_approved_at`（无 artifact 也清）。这些是既有章节编辑行为，本切片不新增。
+- **按章 artifact（plan/summary/review）的重映射归 S1b**，[Note](2026-10-24-storycraft-chapter-artifact-remap.md) 是唯一 owner；context/trace 的 ID 方案归 R12，在此之前只同步 `scope_chapter`；state 是作品级，不参与；S0 不拥有 memo/artifact remap。
 - 测试：`store-chapter` 保留章节/事件用例；artifact 生命周期用例归 S1b。
 
 **S0.5 检索与导出基础设施**

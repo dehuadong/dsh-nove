@@ -106,7 +106,7 @@ story_delegate(
 
 `story_next` 增加可选 `delegate: { role: 'writer' | 'reviewer' | 'reviser' }`：`action` 为 `story_write` / `story_review` / `story_revise` 且该阶段可执行时给出对应角色，`action` 本身保留，作为手动路径的稳定接口。主编按 `delegate.role` 调用 `story_delegate`，不再自行把 primitives 翻译成委派。
 
-`delegate` 只在 `story_delegate` 的预检会通过时出现：`missing` 含 `outline`、`plan-approval` 时不出现；`action: 'story_revise'` 且 `missing: ['revision']`（审稿条目已处理完、只缺提交修订，没有未处理条目）时也不出现，主编应走手动 `story_revise`（`mode` 用 `polish` / `rewrite` / `deslop`）或先重新审稿。缺全书计划或章纲确认时，`story_next` 仍返回 `action: 'story_outline'` / `'story_write'` 与 `missing`，主编应引导作者去面板确认，不调用 `story_delegate`。
+`delegate` 只在 `story_delegate` 的预检会通过时出现：`missing` 含 `outline` 或 `blocked` 非空时不出现（`blocked` 的审批语义由 [`2026-10-24-storycraft-chapter-identity-approval.md`](2026-10-24-storycraft-chapter-identity-approval.md) 拥有）；`action: 'story_revise'` 且 `missing: ['revision']`（审稿条目已处理完、只缺提交修订，没有未处理条目）时也不出现，主编应走手动 `story_revise`（`mode` 用 `polish` / `rewrite` / `deslop`）或先重新审稿。缺全书计划或章纲确认时，`story_next` 仍返回 `action: 'story_outline'` / `'story_write'` 与 `missing`/`blocked`，主编应引导作者去面板确认，不调用 `story_delegate`。
 
 `story_next` 使用独立的输出契约（在共享 `OUTPUT` 基础上增加可选 `delegate`）；其他动作继续使用原共享 `OUTPUT`，不会因为该字段而要求所有动作声明它。`story_next` 的参数与业务错误码不变。
 
@@ -168,7 +168,7 @@ story_delegate(
 
 - 新模块 `delegate.js`：角色预检、prompt 构造、activation 调用、输出解析、落盘编排与回执；
 - `tools.js`：注册 `story_delegate` 并为它定义独立 `DELEGATE_OUTPUT` 回执 schema（成功字段 + 共享 `error` 信封）；同时为 `story_next` 增加独立 `NEXT_OUTPUT`（共享 `OUTPUT` + 可选 `delegate`）；其他动作仍用共享 `OUTPUT`；
-- `store-db.js` 的 `nextStep`：在 `action` 为 write/review/revise、`missing` 不含 `outline` / `plan-approval`，且 `story_revise` 不是 `missing: ['revision']` 时增加 `delegate` 字段；
+- `store-db.js` 的 `nextStep`：在 `action` 为 write/review/revise、`missing` 不含 `outline`、`blocked` 为空，且 `story_revise` 不是 `missing: ['revision']` 时增加 `delegate` 字段；
 - `delegate.js` 不导入 `tools.js`，避免循环；
 - 新建 `landing.js`（或同级 landing 帮助模块）承载 `checkDraft` 与 `checkWordRange` 等“读白名单/作品范围并校验”的 IO 帮助函数；`delegate.js` 的 writer/reviser 共用；`consistency.js` 保持纯比较；
 - 角色输入读取抽到可复用函数，避免 `story_context` 与 `story_delegate` 各自维护一份正文/审稿加载逻辑；
