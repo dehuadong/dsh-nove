@@ -157,6 +157,7 @@ try {
   check('an empty retry after a major finding stays unresolved',
     emptyRetry.settled === false && emptyRetry.reason === 'state-reconcile-required'
     && emptyRetry.items.some(item => item.code === 'fact-unsupported')
+    && Array.isArray(emptyRetry.trace?.perAttempt) && emptyRetry.trace.perAttempt.length >= 1
     && s.readEvents(root, emptyRetryWork).length === 0, JSON.stringify(emptyRetry))
 
   const unresolvedWork = makeWork('仍未解决')
@@ -299,7 +300,8 @@ try {
   check('a timed-out settler returns a timeout receipt',
     timedOut.settled === false && timedOut.reason === 'state-settle-timeout'
     && timedOut.attempts?.settler === 1 && Array.isArray(timedOut.trace?.perAttempt)
-    && timedOut.trace.perAttempt[0]?.stage === 'settler', JSON.stringify(timedOut))
+    && timedOut.trace.perAttempt[0]?.stage === 'settler'
+    && timedOut.trace.durationMs >= 0, JSON.stringify(timedOut))
   check('a timeout does not retry and writes no events',
     Date.now() - timeoutStarted < 3000 && s.readEvents(root, missingServiceWork).length === 0,
     JSON.stringify({ ms: Date.now() - timeoutStarted }))

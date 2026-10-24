@@ -119,7 +119,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 
 - 没有章纲不能写正文（`plan-not-found`）；
 - 没有审稿清单不能定稿（`review-required`）；没有摘要返回 `summary-required`，摘要过期返回 `summary-stale`；`story_state` 在写库前做确定性预检：重复 fact 三元组按投影去重，未知 hookId、非法转移、无可失效 fact 与二次归档直接拒绝；
-- 定稿优先用 `story_settle` 自动结算：settler 抽取 `factOps`/`hookOps`/`newHooks`，确定性预检 + `story_state_check`，major/确定性差异带反馈重算一次；仍不一致返回 `settled:false`，不写库；首次空 payload 可定稿，但被 major 拒绝后的第二次空 payload 仍视为未解决；
+- 定稿优先用 `story_settle` 自动结算：settler 抽取 `factOps`/`hookOps`/`newHooks`，确定性预检 + `story_state_check`，major/确定性差异带反馈重算一次；整个结算默认 8 分钟总预算，超时返回 `settled:false` + `state-settle-timeout`（不重试、不写库），回执带 `attempts` 与 `trace.perAttempt`（每次 child 阶段/耗时/最后错误）；首次空 payload 可定稿，但被 major 拒绝后的第二次空 payload 仍视为未解决；
 - 手动修正仍用 `story_state`，payload 与 settler 同形；`story_state_check` 可在写前只读核对 payload，findings 只作建议，不阻断 `story_state`；
 - 定稿要求当前正文版本的审稿没有 `issue` observation；修订后必须再跑一次审稿（新一轮用 `resolved` 指向上一轮 id），清稿审稿直接放行；
 - 审稿只对「它记录的那个正文版本」有效：改过正文后要重新审稿才能再修订；定稿只认当前正文版本的 review artifact，且其中没有 `issue`；`reviews` 表已删除；
@@ -138,7 +138,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 | `story_review` | 写一轮 observation（逐字引文/问题/修法；轮次按章独立编号；空数组合法=清稿） | 正文不存在；已定稿；引文不在正文或章纲；**不改正文** |
 | `story_revise` | 生成新版本正文，回执列出本轮处理（resolved）的 observation id | 没有未处理审稿；未指定条目；条目不存在；正文与当前版本相同；模式与改动幅度不符 |
 | `story_state_check` | 只读语义对账：把拟写入的 `factOps`/`hookOps`/`newHooks` 交给 validator 子代理核对正文，返回最多 8 条建议性 findings 与正文引文校验；不写库 | 子代理调用 `state-check-parent-denied`；空 payload `empty-state`；缺正文 `chapter-not-written`；已定稿 `chapter-settled`；服务缺失/超时/无提交/正文改版分别返回错误，不返回干净结果 |
-| `story_settle` | 自动结算：settler 从正文抽取 v2 操作，确定性预检 + 语义检查；major/确定性差异带反馈重算一次；成功写事件并定稿，未解决返回 `settled:false`、proposed 与 findings，不写库 | 子代理调用 `subagent-cannot-land`；闸门同 `story_state`，另要求章已有正文（`chapter-not-written`）；服务缺失/超时/无提交/正文改版分别返回 `state-settle-*`，不产生半成品 |
+| `story_settle` | 自动结算：settler 从正文抽取 v2 操作，确定性预检 + 语义检查；major/确定性差异带反馈重算一次；成功写事件并定稿，未解决返回 `settled:false`、proposed 与 findings，不写库；总预算 8 分钟，超时返回 `state-settle-timeout` 并带 `trace.perAttempt` | 子代理调用 `subagent-cannot-land`；闸门同 `story_state`，另要求章已有正文（`chapter-not-written`）；服务缺失/无提交/正文改版分别返回 `state-settle-*`；超时不重试，不产生半成品 |
 | `story_state` | 手动追加 v2 hook/fact 操作，返回 `counts.facts`/`counts.hooks`/`counts.newHooks`（实际写入的事件数）与 `warnings` | 作品或章不存在；未知 hookId `hook-not-found`；非法转移 `hook-transition-invalid`；无可失效 fact `fact-not-found`；空 payload `empty-state`；已定稿重复归档 `chapter-settled`；未修订完成或未清稿；无摘要 `summary-required`；摘要过期 `summary-stale` |
 | `story_status` | 只读汇总进度、阶段、版本、未处理问题、未解伏笔；每章带 `hasSummary` / `summaryRevision` / `summaryStale` | 作品不存在；作品库升级失败 `schema-migration-failed` |
 | `story_delegate` | 宿主侧跑一个角色（writer/reviewer/reviser/summarizer/architect）：预检、装配上下文、启动子代理、消费 `story_submit`、落库，返回紧凑回执 | 预检/阶段错误按原码返回；服务缺失 `delegation-unavailable`；无合格提交 `delegation-no-submission`；当前版本已有摘要 `summary-exists` |

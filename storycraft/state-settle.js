@@ -43,6 +43,8 @@ function feedbackFor(items) {
 
 /** Build one unresolved receipt; no write has happened at this point. */
 function unresolved(input) {
+  const trace = input.trace ?? {}
+  trace.durationMs = Date.now() - input.started
   return {
     ok: true,
     settled: false,
@@ -55,7 +57,7 @@ function unresolved(input) {
     warnings: input.warnings,
     items: input.items,
     attempts: { settler: input.settlerAttempts, validator: input.validatorAttempts },
-    trace: input.trace ?? { durationMs: Date.now() - input.started },
+    trace,
   }
 }
 
@@ -163,13 +165,16 @@ export async function settleChapterState(root, input, host) {
   const deadline = started + settleTimeoutMs
   const trace = { durationMs: 0, perAttempt: [] }
   const remaining = () => Math.max(0, deadline - Date.now())
-  const timedOut = (message, extra = {}) => unresolved({
+  const timedOut = (message, extra = {}) => {
+    trace.durationMs = Date.now() - started
+    return unresolved({
     work, chapter, revision: extra.revision ?? 0, reason: 'state-settle-timeout', message,
     proposed: extra.proposed ?? { factOps: {}, hookOps: {}, newHooks: [] },
     warnings: extra.warnings ?? [], items: extra.items ?? [],
     settlerAttempts: extra.settlerAttempts ?? 0, validatorAttempts: extra.validatorAttempts ?? 0,
     started, trace,
-  })
+    })
+  }
   const pre = statePreflight(root, { work, chapter, requireBody: true })
   const manifest = readManifest(root, work)
   const bodyRead = readChapter(root, { work, chapter })
@@ -229,7 +234,7 @@ export async function settleChapterState(root, input, host) {
       }
       return unresolved({
         work, chapter, revision, reason: 'state-invalid', message: String(error?.message ?? error),
-        proposed, warnings: [], items: [], settlerAttempts, validatorAttempts, started,
+        proposed, warnings: [], items: [], settlerAttempts, validatorAttempts, started, trace,
       })
     }
 
@@ -242,7 +247,7 @@ export async function settleChapterState(root, input, host) {
       }
       return unresolved({
         work, chapter, revision, reason: 'state-reconcile-required',
-        proposed, warnings: pendingWarnings, items: pendingItems, settlerAttempts, validatorAttempts, started,
+        proposed, warnings: pendingWarnings, items: pendingItems, settlerAttempts, validatorAttempts, started, trace,
       })
     }
 
@@ -285,7 +290,7 @@ export async function settleChapterState(root, input, host) {
       }
       return unresolved({
         work, chapter, revision, reason: 'state-invalid', message: String(error?.message ?? error),
-        proposed, warnings: [], items: [], settlerAttempts, validatorAttempts, started,
+        proposed, warnings: [], items: [], settlerAttempts, validatorAttempts, started, trace,
       })
     }
 
@@ -308,7 +313,7 @@ export async function settleChapterState(root, input, host) {
     }
     return unresolved({
       work, chapter, revision, reason: 'state-reconcile-required',
-      proposed, warnings: check.warnings, items: check.items, settlerAttempts, validatorAttempts, started,
+      proposed, warnings: check.warnings, items: check.items, settlerAttempts, validatorAttempts, started, trace,
     })
   }
 
