@@ -71,9 +71,9 @@ A0 已登记 `summary:<n>` 身份与 ChapterSummary 字段（`rawText` 与 `body
 
 - 审稿与 settler 的输入不接摘要：review 生命周期归 #52，S2 不改审稿 prompt；合同 v2 的摘要消费者表述同步为“brief/检索/read/export/settle 在 S2 消费，reviewer/settler 归 #52”。
 
-### 4. 旧数据与边界
+### 4. 边界
 
-- 不迁移旧作品：v6 作品里 `summaries` 行不再读，相关章显示 `missing` 并需要重新摘要；旧 FTS 摘要文档保留（派生索引，不做清洗），S2 只保证新摘要可检索。
+- 没有旧作品：`summaries` 行不再读，也不设计旧行回退；测试作品删除重建。
 - `summaries` 表留在 v6 schema，不再写、不再读；删表随下一次作品 schema 版本；`applyChapterMapping` 对空表的改名循环保留到删表时。
 - 章节删除/移动的摘要重映射沿用 S1b，不新增规则。
 - 不改 `reviews`、observation、reviser 与审稿阶段机。
@@ -103,6 +103,6 @@ A0 已登记 `summary:<n>` 身份与 ChapterSummary 字段（`rawText` 与 `body
 ## 风险
 
 - 结构字段由模型生成，可能与 `rawText` 重复；限制在 FTS 与 120 字上限内。
-- 旧作品摘要显示 `missing`，作者需要重新摘要；面板必须显示原因，不能静默当作已摘。
+- 摘要缺失时面板显示 `missing`，不能静默当作已摘。
 - 投影字段名 `summaryRevision` 表示正文版本，artifact revisionId 是内容哈希；两处文档与 schema 注释必须写清，否则消费者会拿错。
-- 旧 FTS 摘要文档与新摘要可能同时命中，检索会出现重复条目；属旧作品边界，记录不修。
+- 摘要 FTS 文档与产物 revision 同步更新，避免同一摘要出现重复命中。

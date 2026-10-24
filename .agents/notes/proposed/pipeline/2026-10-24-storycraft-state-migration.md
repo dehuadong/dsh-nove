@@ -86,9 +86,9 @@ settler 与手动 `story_state` 使用同一形状：
 
 - 工具描述与编排技能同步：`story_state` 的参数说明、`storycraft-studio-orchestration` 的手动兜底段、README 的状态/伏笔说明都改为 v2 ops，删除 `entities`/`hooks` 旧形状，否则模型会继续提交旧 payload。
 
-### 4. 旧数据与边界
+### 4. 边界
 
-- 不迁移旧作品：旧 text-hook/string-fact 事件保留在库里但被忽略，v6 旧作品的状态投影显示为空，需要重新 settle；与 S2 的旧摘要边界同一口径。
+- 没有旧作品：事件只写 v2 合同，不读、不翻译合同外事件；测试作品删除重建。
 - reopen 不撤回既有状态事件：状态是事件源的投影，重开只允许重写正文与重走审稿/摘要/settle；同一变更的重复提交靠 `allowReapply` 的幂等规则消化。
 - 不生产 `state` artifact：事件是源，投影在读取时派生；artifact registry 里的 `state` kind 留给后续（R12 的 context/trace 与统一投影一起定），本项不写快照、不宣称 state artifact 有生产者。
 - `threadRefs` 的 hookId 校验不在 S3：memo 渲染已展示引用，校验要等 hookId 合同稳定后另立。
@@ -120,6 +120,6 @@ settler 与手动 `story_state` 使用同一形状：
 ## 风险
 
 - 面板 folded 形状从 entities 改 facts，客户端渲染与文案要一起改；E2E 仍阻塞，只能靠单测与手动核对。
-- 旧作品状态投影变空，作者需要重新 settle；面板要显示原因，不能静默显示零实体。
+- 状态投影为空时面板要显示原因，不能静默显示零实体。
 - hookId 用 text 哈希铸造：同 text 不同语义会被合并；`text` 改写不改 ID 是合同规定的，但会让作者误以为是新伏笔，需要提示。
 - 手动 `story_state` 的调用面变化，工具描述、技能与 README 必须同步，否则模型会继续提交旧形状。
