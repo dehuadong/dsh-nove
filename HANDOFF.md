@@ -1,7 +1,7 @@
 # 交接文档：A0 tickets 已交付，L-R10a 消费者迁移规划未通过（2026-10-24）
 
 > 更新时间：2026-10-24
-> 仓库：`dehuadong/dsh-nove`，分支 `main`，HEAD `1a43955`。
+> 仓库：`dehuadong/dsh-nove`，分支 `main`，HEAD `6674772`。
 > 本轮范围：A0 #45 的实现 tickets #46–#49 已交付；L-R10a #51、S1 #53、observation #52 已立规划，Plan Review 未通过；#45 仍 in-progress。
 
 ## 1. 当前结论
@@ -38,18 +38,18 @@
 已接：ChapterMeta 投影、export/readWork/status 的 planRevision/provenance、reviser 的 observation 读取、短篇/剧本存储层隔离。
 未接：foundation（story_frame/volume_map/book_rules/roles）没有生产消费者；ChapterMemo/ChapterSummary 的生产者仍是旧 `chapter_plans`/`summaries`；hooks/facts v2 投影尚未替换 settler/state 链；observation/reviews 仍走 `reviews`。
 
-因此 **#46–#49 已关闭，#45 仍 in-progress；#51–#56 均为 planning，不能进入实现。**
+因此 **#46–#49 已关闭，#45 仍 in-progress；#53 已实现待最终验收，#54 rejected，#55/#56 仍 planning。**
 
-### S1a-demo #53 规划状态
+### S1a-demo #53 实现状态（2026-10-24）
 
-#53 已缩为 S1a-demo（memo 当前/旧 revision 只读消费，不改章节号重映射），三轴仍未通过，6 个 blocker（见 #53 comment）：
+- `story_plan` 写 `plan:<n>`，`chapter_plans` 不再读写；`body`/`threadRefs` 在 action 边界必填。
+- `readPlan`/brief/context/readChapter(view:'plan')/export/observation 引文都从 memo 渲染；`story_read(plan:n)` 返回 memo JSON，当前/旧 revision 可读。
+- 批准绑定 memo revision，正文首版/重写/修订不清空；`planApprovalState`/`assertPlanApproved` 统一闸门；`blocked` 与 `missing` 分离。
+- 删除/移动在 deleted ∪ old≠new 中存在 `scope_chapter` artifact 时 `chapter-edit-blocked`，且在 backup 前检查。
+- commit `09b7907`、`125f9ae`；`node storycraft/scripts/ci.mjs --no-e2e` → 44 个单测文件通过；E2E 未跑（Playwright 环境阻塞）。
+- 已知取舍：直接 store 调用允许省略 body（测试 fixture），`story_plan` action 用 `requireBody` 强制；`#56` 仍待做章节重映射。
 
-1. 章节编辑阻断必须覆盖整个 mapping（删无 memo 的章也会重编号有 memo 的幸存章），且在 backup 前检查；
-2. `nextStep.missing` 现有语义是普通缺输入，不能同时表达审批阻断；需要新增 `blocked` 或只对 `plan-approval` 特判，`NEXT_OUTPUT` 也要声明；
-3. 批准闸门入口不唯一：`writeChapter` 仅首版/可选 requirePlanApproval，`reviseChapter` 校验在事务外；需 store 内按 `meta.plan_approval` 统一；
-4. 模型侧技能/README 仍写“章纲五项/不要加字段”，未列更新；
-5. 实际约 72–76 处 `writePlan`、28 个测试文件；chapter-edit/store-chapter/storage/export/bible/state-check/tools 都要改；
-6. 合同 §8 的 memo 计划检索未接，`verifyObservationSources` 触及 #52，面板阻断提示未定义。
+### S1a-demo #53 规划状态（历史）
 
 ### S1a-demo 合同补丁 #54 规划状态
 

@@ -29,6 +29,7 @@ try {
   const work = created.workId
   const plan = { work, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' }
   await s.writePlan(root, plan)
+  await s.approveChapterPlan(root, { work, chapter: 1 })
   await s.writeChapter(root, { work, chapter: 1, body: '正文。'.repeat(40) })
 
   // Rename the title only: the identity and file stay.

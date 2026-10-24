@@ -24,6 +24,7 @@ try {
       work, chapter: number, perspective: '周砚', goal: `目标${number}`,
       obstacle: '阻力', cost: '代价', turn: `变化${number}`,
     })
+    store.approveChapterPlan(root, { work, chapter: number })
   }
   let started = performance.now()
   for (let number = 1; number <= 200; number += 1) {
@@ -39,6 +40,7 @@ try {
 
   started = performance.now()
   store.writePlan(root, { work, chapter: 201, perspective: '周砚', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+  store.approveChapterPlan(root, { work, chapter: 201 })
   store.writeChapter(root, { work, chapter: 201, body: '第 201 章正文。' })
   const appendOne = performance.now() - started
   check('append one chapter under 50ms', appendOne < 50, `${appendOne.toFixed(1)}ms`)

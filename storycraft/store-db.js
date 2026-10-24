@@ -1208,7 +1208,7 @@ export function writeChapter(root, input) {
       if (entry === undefined || plan === undefined) {
         throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲：先 story_plan，再写正文`)
       }
-      if (input.requirePlanApproval === true && meta.plan_approval === 'required') assertPlanApproved(db, number)
+      if (meta.plan_approval === 'required') assertPlanApproved(db, number)
       const settled = stageOf(entry) === 'settled'
       if (settled && input.reopen !== true) {
         throw new StoryError('chapter-settled', `第 ${number} 章已定稿：改正文请传 reopen: true`)
@@ -1419,7 +1419,7 @@ export function reviseChapter(root, input) {
       if (entry === undefined || entry.current_revision === 0) throw new StoryError('body-not-found', `第 ${number} 章还没有正文`)
       if (stageOf(entry) === 'settled') throw new StoryError('chapter-settled', `第 ${number} 章已定稿：改正文请传 reopen: true`)
       const meta = metaOf(db)
-      if (input.requirePlanApproval === true && meta.plan_approval === 'required') assertPlanApproved(db, number)
+      if (meta.plan_approval === 'required') assertPlanApproved(db, number)
       const review = latestReviewRow(db, number)
       if (review === undefined) throw new StoryError('review-required', `第 ${number} 章还没有审稿：先 story_review`)
       // A patch answers the exact revision it read; broader modes may land on

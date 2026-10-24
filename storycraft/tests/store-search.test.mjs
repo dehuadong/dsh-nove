@@ -17,6 +17,7 @@ const root = await mkdtemp(join(tmpdir(), 'storycraft-s45-'))
 try {
   const { workId: work } = store.initWork(root, { title: '检索测试' })
   store.writePlan(root, { work, chapter: 1, perspective: '周砚', goal: '摸井台', obstacle: '巡夜', cost: '暴露', turn: '第三人' })
+  store.approveChapterPlan(root, { work, chapter: 1 })
   store.writeChapter(root, { work, chapter: 1, body: '周砚带人复摸井台，记下十六口人，井深二丈二尺。' })
   store.writeReview(root, { work, chapter: 1, problems: [{ location: '结尾', problem: '收得太快' }] })
   store.reviseChapter(root, { work, chapter: 1, body: '周砚带人复摸井台，记下十六口人，井深二丈二尺。又在井边停了一拍。', problemIds: ['Q1'], mode: 'rewrite' })

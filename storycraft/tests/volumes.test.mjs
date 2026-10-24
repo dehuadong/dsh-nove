@@ -29,6 +29,7 @@ try {
   const plan = { work, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' }
   for (let chapter = 1; chapter <= 8; chapter += 1) {
     await s.writePlan(root, { ...plan, chapter })
+    await s.approveChapterPlan(root, { work, chapter })
     await s.writeChapter(root, { work, chapter, body: `第${chapter}章正文。`.repeat(30) })
     await b.writeSummary(root, work, chapter, `第${chapter}章摘要`)
   }

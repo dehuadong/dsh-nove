@@ -177,6 +177,8 @@ try {
     brokenDb.close()
   }
   await throws('invalid memo shape is artifact-invalid', 'artifact-invalid', () => s.readPlan(root, broken, 1))
+  await throws('story_read memo shape is artifact-invalid', 'artifact-invalid',
+    () => readChapterMemo(root, { work: broken, chapter: 1 }))
 } finally {
   await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 })
 }

@@ -75,6 +75,7 @@ try {
   }
   const makeChapter = (work, text = body, number = 1) => {
     s.writePlan(root, { work, chapter: number, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+    s.approveChapterPlan(root, { work, chapter: number })
     s.writeChapter(root, { work, chapter: number, title: `第${number}章`, body: text })
     s.writeReview(root, { work, chapter: number, problems: [] })
     s.writeSummary(root, { work, chapter: number, text: '本章摘要。' })
@@ -197,6 +198,7 @@ try {
 
   const noSummaryWork = makeWork('缺摘要')
   s.writePlan(root, { work: noSummaryWork, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+  s.approveChapterPlan(root, { work: noSummaryWork, chapter: 1 })
   s.writeChapter(root, { work: noSummaryWork, chapter: 1, title: '一', body: '甲推开门。' })
   s.writeReview(root, { work: noSummaryWork, chapter: 1, problems: [] })
   const noSummaryService = fakeService([])
@@ -206,6 +208,7 @@ try {
 
   const openReviewWork = makeWork('未处理审稿')
   s.writePlan(root, { work: openReviewWork, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+  s.approveChapterPlan(root, { work: openReviewWork, chapter: 1 })
   s.writeChapter(root, { work: openReviewWork, chapter: 1, title: '一', body: '甲推开门。' })
   s.writeReview(root, { work: openReviewWork, chapter: 1, problems: [{ location: '开头', problem: '慢' }] })
   s.writeSummary(root, { work: openReviewWork, chapter: 1, text: '摘要。' })
@@ -216,6 +219,7 @@ try {
 
   const noReviewWork = makeWork('缺审稿')
   s.writePlan(root, { work: noReviewWork, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+  s.approveChapterPlan(root, { work: noReviewWork, chapter: 1 })
   s.writeChapter(root, { work: noReviewWork, chapter: 1, title: '一', body: '甲推开门。' })
   const noReviewService = fakeService([])
   await rejects('a missing review is refused before a child', 'review-required',

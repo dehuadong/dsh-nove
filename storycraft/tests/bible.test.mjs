@@ -60,6 +60,7 @@ try {
 
   // Plan + chapter + summary.
   await s.writePlan(root, { work, chapter: 1, perspective: '林澈', goal: '救人', obstacle: '塌方', cost: '设备受损', turn: '决定北上' })
+  await s.approveChapterPlan(root, { work, chapter: 1 })
   const body = '他在雨里站了很久。'.repeat(40)
   await s.writeChapter(root, { work, chapter: 1, title: '塌方', body })
   await rejects('summary needs a body', 'body-not-found', () => b.writeSummary(root, work, 2, '摘要'))
@@ -242,6 +243,7 @@ try {
     { name: '甲', role: 'r', want: 'w', fear: 'f', limit: 'l', voice: 'v' },
   ]))
   await s.writePlan(root, { work, chapter: 3, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+  await s.approveChapterPlan(root, { work, chapter: 3 })
   await s.writeChapter(root, { work, chapter: 3, title: '三', body })
   await b.writeBible(root, work, 'style', '# 文风基准\n\n短句。\n')
   const ordered = await b.assembleBrief(root, work, 2)

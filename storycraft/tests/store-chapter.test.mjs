@@ -70,6 +70,7 @@ try {
 
   for (let number = 2; number <= 5; number += 1) {
     store.writePlan(root, { work, chapter: number, perspective: '周砚', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+    store.approveChapterPlan(root, { work, chapter: number })
     store.writeChapter(root, { work, chapter: number, body: `第 ${number} 章正文。` })
   }
   const volume = store.writeVolume(root, { work, id: 'v1', title: '第一卷', from: 1, to: 5, summary: '开局' })

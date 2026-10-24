@@ -22,6 +22,7 @@ try {
   await s.writeOutline(root, { work, mainline: '一条主线' })
   await s.approveOutline(root, { work })
   await s.writePlan(root, { work, chapter: 1, perspective: '周观', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+  await s.approveChapterPlan(root, { work, chapter: 1 })
   await s.writePlan(root, { work, chapter: 2, perspective: '周观', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   await s.writeChapter(root, { work, chapter: 1, body: '正文。'.repeat(200) })
   await b.writeSummary(root, work, 1, '第一章摘要'.repeat(50))
