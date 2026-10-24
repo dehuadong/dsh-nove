@@ -18,6 +18,7 @@ A0 已交付 ChapterMemo 合同、`plan:<n>` 身份与写入 registry 的 API，
 - 字段合同由 [`2026-10-23-storycraft-artifact-contract-v2.md`](2026-10-23-storycraft-artifact-contract-v2.md) §4 拥有；本 Note 拥有 memo 的生产、读取、渲染与批准。
 - 总体切片排序由 [`2026-10-24-storycraft-consumer-migration.md`](2026-10-24-storycraft-consumer-migration.md) 拥有；本 Note 是 S1a-demo，章节编辑重映射归 S0，observation 归 #52。
 - 作者闸门与 `planApproved` 语义已在 #46 实现；本 Note 把它切到 memo revision。
+- [`2026-10-24-storycraft-chapter-identity-approval.md`](2026-10-24-storycraft-chapter-identity-approval.md)（#55）**部分替代**本 Note 的 `missing:['plan-approval']`、批准消费/失效与章节编辑条款；冲突以 #55 为准，S1a-demo 实施时同步删改。
 - 章节编辑的既有实现是 `applyChapterMapping`、`deleteChapter`、`moveChapter`；本切片不改它们，只在存在 memo 时阻止编辑。
 
 ## 提案
