@@ -56,12 +56,14 @@ updated: 2026-10-24
 | R9 | 状态预检：重复事实 warning；重复/倒退伏笔、已解再用、二次归档拒绝 | #40（已关闭） |
 | R9b | 语义状态对账：只读 `story_state_check`、validator 角色、findings 与引文校验；自动 settler 链路留 R11 | #42；`implemented/pipeline/2026-10-23-storycraft-semantic-state-check.md` |
 | R11 | settler 自动投影：`story_settle` 从正文抽取 delta，复用 R9b validator，一次反馈重算，未解决不定稿 | #43；`implemented/pipeline/2026-10-23-storycraft-settler-auto-projection.md` |
+| A0 | 产物合同 v2、registry、短篇/剧本独立存储、共享方法技能 | #45–#49 |
+| L | 新模型生产者/消费者迁移、foundation 生产、observation/reviews、settle 超时收口 | #51–#61；真实链路 #50 的 L 验收 |
 
 ### 进行中
 
 | 阶段 | 内容 | 依赖 |
 | --- | --- | --- |
-| — | 没有在飞项；R11 已归档到「已交付」，R10 是下一个依赖项 | — |
+| — | 没有在飞项；A0 与 L 已收口。下一阶段是 S 短篇（独立流水线，待立），不是继续在 L 面板上套短篇形态 | — |
 
 ### 后续阶段
 
