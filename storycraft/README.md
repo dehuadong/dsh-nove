@@ -269,17 +269,18 @@ node scripts/pack-check.mjs
 
 安装时用 `npm pack` 产出的 tarball（DSH 的 bundle 安装入口），不要直接把仓库目录当安装包。回滚时重新安装上一个 tarball；开发环境切回 `link:`。
 
-## TypeScript 试点
+## TypeScript 接入
 
-当前只有 `scope.js` 一个 Host 模块走 TypeScript：
+当前只有 `scope` 一个 Host 模块用 TypeScript 开发：
 
-- 实现：`src/scope.ts`；
-- 编译：`npm run build`（需要本机 `tsc`）→ `dist/scope.js`；
-- 稳定入口：根 `scope.js` 只 re-export `dist/scope.js`，现有 import 不变；
-- `dist` 进 tarball，`scripts/pack-check.mjs` 检查 `dist/scope.js`；
-- 其他 Host 模块和 `client.js` 仍是 JavaScript；Client 的 esbuild 打包不在试点内。
+- 唯一实现：`src/scope.ts`；
+- 安装依赖：`npm install`（`typescript` + `@types/node` 是 devDependencies，不进安装包）；
+- 编译：`npm run build` → `dist/scope.js`；`dist/` 不提交；
+- `tools.js` 和 `scope.test` 直接 import `dist/scope.js`，没有根 `scope.js` 的第二份实现；
+- `prepack` 自动 build，`npm pack` 的 tarball 一定含 `dist/scope.js`；
+- 其他 Host 模块和 `client.js` 仍是 JavaScript；Client 的 esbuild 不在本次接入内。
 
-不要手改 `dist/`；改 `src/scope.ts` 后重新 build。
+开发 `link:` 时先 build；改 `src/scope.ts` 后重新 build，不手改 `dist/`。
 
 ## 改动与生效
 

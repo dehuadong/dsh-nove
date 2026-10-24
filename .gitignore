@@ -10,10 +10,6 @@ __pycache__/
 # Distribution / packaging
 build/
 dist/
-# TS pilot ships only its compiled scope entry.
-!storycraft/dist/
-storycraft/dist/*
-!storycraft/dist/scope.js
 *.egg-info/
 *.egg
 

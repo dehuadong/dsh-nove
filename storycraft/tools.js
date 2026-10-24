@@ -41,7 +41,7 @@ import { checkDraft } from './landing.js'
 import { getCurrent, hydrate as hydrateCurrent, markHydrated, resolveWork, setCurrent, shouldHydrate } from './current.js'
 import { join } from 'node:path'
 import { createProposal, markProposalUsed, readProposal } from './proposals.js'
-import { SCOPE_MESSAGES, scopeDenial } from './scope.js'
+import { SCOPE_MESSAGES, scopeDenial } from './dist/scope.js'
 
 /**
  * The session that owns one tool call.

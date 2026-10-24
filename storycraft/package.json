@@ -38,6 +38,11 @@
     }
   },
   "scripts": {
-    "build": "node scripts/build-ts.mjs"
+    "build": "node scripts/build-ts.mjs",
+    "prepack": "node scripts/build-ts.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2"
   }
 }

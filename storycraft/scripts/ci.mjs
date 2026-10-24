@@ -26,11 +26,9 @@ function run(command, args, cwd) {
 }
 
 const buildCode = run(process.execPath, [path.join('scripts', 'build-ts.mjs')], storycraftDir)
-const distCode = run(process.execPath, [path.join('scripts', 'check-dist.mjs')], storycraftDir)
 const packCode = run(process.execPath, [path.join('scripts', 'pack-check.mjs')], storycraftDir)
 let failed = 0
 if (buildCode !== 0) failed += 1
-if (distCode !== 0) failed += 1
 if (packCode !== 0) failed += 1
 
 const tests = readdirSync(path.join(storycraftDir, 'tests'))
