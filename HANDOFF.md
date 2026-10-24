@@ -1,7 +1,7 @@
 # 交接文档：A0 tickets 已交付，L-R10a 消费者迁移规划未通过（2026-10-24）
 
 > 更新时间：2026-10-24
-> 仓库：`dehuadong/dsh-nove`，分支 `main`，HEAD `2730395`。
+> 仓库：`dehuadong/dsh-nove`，分支 `main`，HEAD `30d3668`。
 > 本轮范围：A0 #45 的实现 tickets #46–#49 已交付；L-R10a #51、S1 #53、observation #52 已立规划，Plan Review 未通过；#45 仍 in-progress。
 
 ## 1. 当前结论
@@ -38,7 +38,7 @@
 已接：ChapterMeta 投影、export/readWork/status 的 planRevision/provenance、reviser 的 observation 读取、短篇/剧本存储层隔离。
 未接：foundation（story_frame/volume_map/book_rules/roles）没有生产消费者；ChapterMemo/ChapterSummary 的生产者仍是旧 `chapter_plans`/`summaries`；hooks/facts v2 投影尚未替换 settler/state 链；observation/reviews 仍走 `reviews`。
 
-因此 **#46–#49 已关闭，#45 仍 in-progress；#51/#52/#53/#54 均为 planning，不能进入实现。**
+因此 **#46–#49 已关闭，#45 仍 in-progress；#51/#52/#53/#54/#55 均为 planning，不能进入实现。**
 
 ### S1a-demo #53 规划状态
 
@@ -61,11 +61,21 @@
 4. body/参数校验与 `plan-not-approved` 的先后在 Note/AC 中矛盾。
 5. `story_next` 描述、orchestration 技能、面板阻断提示、`readWork.planApproved` 回退的 owner 未落。
 
+### 章节身份与批准合同 #55 规划状态
+
+#55 两轮未通过，根因是“章号=章节身份”与 memo/批准/重编号耦合。仍需裁决：
+
+- **A**：保留章号身份，新建 S1b 负责 memo/章节重映射，接受重编号丢旧 artifact 历史；
+- **B**：引入稳定 chapter UUID，改 chapters/artifacts/消费者/UI（更大，但避免反复重映射）；
+- **C**：S1a-demo 前禁止所有删/移章，memo 工作暂不承诺章节编辑。
+
+当前 blocker：memo 重映射无 owner；#53/#54 的 `missing/blocked`/错误顺序尚未同步；重编号失效不可测；`outline` absent vs blocked 未区分；§1 的临时 ID/重算 revision 属于 S0/S1b 实现。
+
 ## 3. 下一步
 
-1. 先裁决 `missing`/`blocked` 的单一权威与 legacy fallback 归属；这是合同层选择，不是实现细节。
-2. 若不继续切片规划，建议做一次最小代码 spike（memo 写读 + 批准 + 消费者），用证据再回报价；不要进入正式 implement。
-3. 不要直接实现 #51/#53/#54；它们仍是 planning。
+1. **先裁决章节身份模型 A/B/C**（这是产品/架构分叉，不是实现细节）。
+2. 裁决后再更新 #55，并让 #53/#54 的 AC 以 #55 为准；不要直接实现 #51/#53/#54/#55。
+3. 若不继续切片规划，做一次最小代码 spike（memo 写读 + 批准 + 消费者）用证据再回报价。
 4. 真实链路 #50 在 L 完成后一次性执行；E2E 环境阻塞解除后补跑。
 
 ## 4. 关键合同/决策
