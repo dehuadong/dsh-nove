@@ -66,10 +66,10 @@ function preflight(root, input) {
       throw new StoryError('plan-not-found', `第 ${chapter} 章还没有章纲：先 story_plan，再写正文`)
     }
     if (stageOf(entry) === 'settled') throw new StoryError('chapter-settled', `第 ${chapter} 章已定稿：改正文请先 reopen`)
-    if (entry.currentRevision > 0) throw new StoryError('chapter-exists', `第 ${chapter} 章已有正文；改稿请走 story_revise 或手动 rewrite`)
     if (manifest.planApproval === 'required' && entry.planApproved !== true) {
       throw new StoryError('plan-not-approved', `第 ${chapter} 章章纲还没经作者确认：请在面板「章纲」里点「确认章纲」后再写正文`)
     }
+    if (entry.currentRevision > 0) throw new StoryError('chapter-exists', `第 ${chapter} 章已有正文；改稿请走 story_revise 或手动 rewrite`)
     return { manifest, entry }
   }
 
@@ -90,6 +90,9 @@ function preflight(root, input) {
     throw new StoryError('chapter-not-written', `第 ${chapter} 章还没有正文：先写正文，再${role === 'reviewer' ? '审稿' : '修订'}`)
   }
   if (stageOf(entry) === 'settled') throw new StoryError('chapter-settled', `第 ${chapter} 章已定稿：先 reopen 再${role === 'reviewer' ? '审稿' : '修订'}`)
+  if (role === 'reviser' && manifest.planApproval === 'required' && entry.planApproved !== true) {
+    throw new StoryError('plan-not-approved', `第 ${chapter} 章章纲还没经作者确认：请在面板「章纲」里点「确认章纲」后再修订`)
+  }
 
   if (role === 'reviewer') return { manifest, entry }
 
@@ -431,6 +434,7 @@ export async function delegateRole(root, input, host) {
     const open = latestReview(root, work, chapter).items.filter(item => !item.done).map(item => item.id)
     const revised = reviseChapter(root, {
       work, chapter, body, problemIds: open, mode,
+      requirePlanApproval: readManifest(root, work).planApproval === 'required',
     })
     return fitReceipt({
       ok: true,

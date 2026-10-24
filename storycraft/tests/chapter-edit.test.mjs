@@ -40,6 +40,26 @@ async function seed() {
 try {
   const work = await seed()
   const beforeMeta = openWork(root, work).prepare('SELECT updated_at FROM meta WHERE id = 1').get().updated_at
+  let blocked
+  try {
+    await s.deleteChapter(root, work, 2, { confirm: true })
+  } catch (error) {
+    blocked = error
+  }
+  check('delete with chapter artifacts is blocked', blocked?.code === 'chapter-edit-blocked', blocked?.code)
+  let moveBlocked
+  try {
+    await s.moveChapter(root, work, 1, 2)
+  } catch (error) {
+    moveBlocked = error
+  }
+  check('move with chapter artifacts is blocked', moveBlocked?.code === 'chapter-edit-blocked', moveBlocked?.code)
+  const cleanup = openWork(root, work)
+  try {
+    cleanup.exec('DELETE FROM artifacts')
+  } finally {
+    cleanup.close()
+  }
   const deleted = await s.deleteChapter(root, work, 2, { confirm: true })
   check('delete returns changed and survivors', deleted.changed === true && deleted.chapters.join(',') === '1,2,3', JSON.stringify(deleted))
   check('delete backs up the work', (await readdir(backupsDir(root))).some(name => name.startsWith(`${work}-`)))
@@ -135,6 +155,12 @@ try {
     await s.writePlan(root, { work: holes, chapter: number, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
     await s.approveChapterPlan(root, { work: holes, chapter: number })
     await s.writeChapter(root, { work: holes, chapter: number, body: `空洞${number}。` })
+  }
+  const holesDb = openWork(root, holes)
+  try {
+    holesDb.exec('DELETE FROM artifacts')
+  } finally {
+    holesDb.close()
   }
   const holeDelete = await s.deleteChapter(root, holes, 3, { confirm: true })
   check('holey chapters renumber by rank', holeDelete.chapters.join(',') === '1', JSON.stringify(holeDelete))

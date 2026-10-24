@@ -223,7 +223,7 @@ try {
   s.approveChapterPlan(root, { work: noPlan.workId, chapter: 1 })
   s.writeChapter(root, { work: noPlan.workId, chapter: 1, title: '一', body: '没有章纲的正文。' })
   const noPlanDb = openWork(root, noPlan.workId)
-  noPlanDb.prepare('DELETE FROM chapter_plans WHERE number = 1').run()
+  noPlanDb.prepare("DELETE FROM artifacts WHERE artifact_id = 'plan:1'").run()
   noPlanDb.close()
   const noPlanService = fakeService([completed({ items: [] })])
   const noPlanReceipt = await checkChapterState(root, {

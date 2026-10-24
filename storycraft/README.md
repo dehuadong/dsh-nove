@@ -127,7 +127,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 | 动作 | 做什么 | 拒绝条件 |
 | --- | --- | --- |
 | `story_init` | 建作品库、真值与检索表；无当前作品时设为当前 | 标题为空；同 id 已存在；会话已有其他当前作品（`work-mismatch`，请新建会话） |
-| `story_plan` | 写章纲 | 五项（视角/目标/阻力/代价/结尾变化）缺一；已定稿 |
+| `story_plan` | 写章纲 | 五项（视角/目标/阻力/代价/结尾变化）缺一；`body` 为空；已定稿 |
 | `story_write` | 写正文并更新字数与版本 | 正文为空；已有正文且未声明 `rewrite`；已定稿且未 `reopen` |
 | `story_review` | 写问题清单（轮次按章独立编号；空清单表示清稿） | 正文不存在；已定稿；**不改正文** |
 | `story_revise` | 生成新版本正文并把条目改为已处理 | 没有审稿清单；未指定条目；条目不存在；正文与当前版本相同；模式与改动幅度不符 |
@@ -139,7 +139,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 | `story_submit` | 仅子代理调用：提交结构化角色结果，宿主校验字数/mode，失败可重提 | 父代理/非委派 `submit-parent-denied`；超 3 次 `submit-attempts-exhausted` |
 | `story_read` | 只读：按 `artifactId`/`revisionId` 读取当前章可读内容；越界返回 `artifact-not-readable` | 作品不存在；旧章/旧审稿版本 |
 | `story_context` | 只读按角色装配上下文；正文 ≥3 章时带 FTS5 检索段与 `trace.retrieval` | 缺章 `chapter-not-found`；缺章纲 `plan-not-found`；缺人物卡 `bible-missing` |
-| `story_next` | 只读：下一步动作、章号、原因、缺什么；可委派时带 `delegate.role` | 作品不存在 |
+| `story_next` | 只读：下一步动作、章号、原因、缺什么、`blocked`；可委派时带 `delegate.role` | 作品不存在 |
 | `story_export` / `story_backup` | 见「作品操作与导出」 | 作品不存在 |
 
 字数口径只有一套：`domain.countWords`（CJK 字符 + 拉丁词，不含标点）；`story_critique` 的 `words` 用同一函数，标点数量单独放在 `chars`。

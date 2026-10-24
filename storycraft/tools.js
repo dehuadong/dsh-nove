@@ -25,6 +25,7 @@ import {
   reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter, setSessionCurrent,
   status as readStatus, updateSettings, workIdOf, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
 } from './storage.js'
+import { readChapterMemo } from './artifact-store.js'
 import {
   assembleBrief as assembleBriefFor, importBible as importFromDesign, readBible as readBibleEntries,
   writeBible as writeBibleEntry, writeSummary as writeSummaryEntry,
@@ -629,8 +630,8 @@ async function artifactRef(root, workId, artifact) {
   try {
     if (/^outline\/ch-\d+\.plan\.md$/u.test(rel)) {
       const chapter = Number(/ch-(\d+)/u.exec(rel)?.[1])
-      const content = await readPlan(root, workId, chapter)
-      return { workId, artifactId: `plan:${chapter}`, revisionId: contentRevision(content), kind: 'plan' }
+      const memo = readChapterMemo(root, { work: workId, chapter })
+      return { workId, artifactId: `plan:${chapter}`, revisionId: memo.artifact.revisionId, kind: 'plan' }
     }
     if (/^chapters\/ch-\d+(?:\.r\d+)?\.md$/u.test(rel)) {
       const chapter = Number(/ch-(\d+)/u.exec(rel)?.[1])
@@ -768,6 +769,11 @@ const NEXT_OUTPUT = {
     additionalProperties: false,
     properties: {
       ...OUTPUT_PROPERTIES,
+      blocked: {
+        type: 'array',
+        description: 'Author or host actions that must happen before the action can run.',
+        items: { type: 'string', enum: ['outline-approval', 'plan-approval'] },
+      },
       delegate: {
         type: 'object',
         additionalProperties: false,
@@ -1209,7 +1215,7 @@ function rawDefinitions(ctx) {
     action({
       name: 'story_plan',
       mutates: true,
-      description: '写一章的章纲。五项必须齐全：视角、目标、阻力、代价、结尾变化；缺项会被拒绝。'
+      description: '写一章的章纲。五项必须齐全：视角、目标、阻力、代价、结尾变化；另需 body（章纲正文）与 threadRefs（伏笔数组，可为空）。'
         + ' 动笔前先出章纲，改章纲也用这个动作覆盖同一章的章纲。',
       parameters: {
         type: 'object',
@@ -1222,8 +1228,10 @@ function rawDefinitions(ctx) {
           obstacle: { type: 'string', description: '阻力。' },
           cost: { type: 'string', description: '代价。' },
           turn: { type: 'string', description: '结尾变化。' },
+          body: { type: 'string', description: '章纲正文；不能为空。' },
+          threadRefs: { type: 'array', items: { type: 'string' }, description: '本章涉及的伏笔 ID；可为空数组。' },
         },
-        required: ['work', 'chapter', 'perspective', 'goal', 'obstacle', 'cost', 'turn'],
+        required: ['work', 'chapter', 'perspective', 'goal', 'obstacle', 'cost', 'turn', 'body', 'threadRefs'],
       },
       async execute(args, exec) {
         const root = workspaceOf(exec)
@@ -1232,7 +1240,7 @@ function rawDefinitions(ctx) {
           throw new StoryError('outline-required',
             '全书计划还没确认：写完后请作者在面板点「确认全书计划」，再写章纲（模型不能代签）')
         }
-        const result = await writePlan(root, args)
+        const result = await writePlan(root, { ...args, requireBody: true })
         return { ok: true, workId: args.work, artifact: result.artifact }
       },
     }),
@@ -1384,8 +1392,9 @@ function rawDefinitions(ctx) {
       },
       async execute(args, exec) {
         const root = workspaceOf(exec)
+        const policy = planApprovalPolicy(await readManifest(root, args.work))
         const { warnings } = await checkDraft(root, args)
-        const result = await reviseChapter(root, args)
+        const result = await reviseChapter(root, { ...args, requirePlanApproval: policy === 'required' })
         return {
           ok: true, workId: args.work, artifact: result.artifact, resolved: result.resolved,
           ...(warnings.length === 0 ? {} : { warnings }),
@@ -1639,8 +1648,21 @@ function rawDefinitions(ctx) {
           content = readBibleEntry(root, workId, 'plan')?.content ?? ''
           ref = { ...ref, artifactId: 'outline', revisionId: contentRevision(content), kind: 'outline' }
         } else if (kind === 'plan') {
-          content = readPlan(root, workId, chapterNumber)
-          ref = { ...ref, artifactId: `plan:${chapterNumber}`, revisionId: contentRevision(content), kind: 'plan' }
+          let memo
+          try {
+            memo = readChapterMemo(root, {
+              work: workId,
+              chapter: chapterNumber,
+              ...(args.revisionId === undefined ? {} : { revisionId: String(args.revisionId) }),
+            })
+          } catch (error) {
+            if (error?.code === 'artifact-not-found' || error?.code === 'chapter-not-found') {
+              throw new StoryError('plan-not-found', `第 ${chapterNumber} 章还没有章纲`)
+            }
+            throw error
+          }
+          content = JSON.stringify(memo.artifact.content, null, 2)
+          ref = { ...ref, artifactId: `plan:${chapterNumber}`, revisionId: memo.artifact.revisionId, kind: 'plan' }
         } else if (kind === 'chapter') {
           const revision = args.revisionId === undefined ? undefined : Number(String(args.revisionId).replace(/^r/u, ''))
           const read = readChapter(root, { work: workId, chapter: chapterNumber, ...(revision === undefined ? {} : { revision }) })
@@ -2021,7 +2043,8 @@ function rawDefinitions(ctx) {
 
     action({
       name: 'story_next',
-      description: '查询这部作品下一步该做什么：动作名、章号、原因、缺什么（章纲/审稿/条目 id）。'
+      description: '查询这部作品下一步该做什么：动作名、章号、原因、缺什么（章纲/审稿/条目 id）与 blocked。'
+        + ' blocked 非空表示必须等作者在面板动作（全书计划/章纲确认），此时不要执行 action，也不要委派。'
         + ' 返回 delegate 时优先用 story_delegate（writer/reviewer/reviser/summarizer）；没有 delegate 时按 action 走手动路径。'
         + ' 每写完一步先调它，不要凭记忆猜下一步；它只读，不改任何文件。',
       parameters: {

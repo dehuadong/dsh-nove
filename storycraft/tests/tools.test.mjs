@@ -169,14 +169,14 @@ try {
   setCurrent('test-session', work)
 
   const earlyPlan = await byName.get('story_plan').execute({
-    work, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't',
+    work, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't', body: 'g', threadRefs: [],
   }, exec)
   check('the first chapter plan needs an approved outline', earlyPlan.ok === false && earlyPlan.error.code === 'outline-required', JSON.stringify(earlyPlan))
   await byName.get('story_outline').execute({ work, mainline: '一条主线' }, exec)
   const blockedUnapproved = await byName.get('story_outline').execute({ work }, exec)
   check('an unapproved outline blocks nothing by itself', blockedUnapproved.ok === true || blockedUnapproved.ok === false)
   const blockedPlan = await byName.get('story_plan').execute({
-    work, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't',
+    work, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't', body: 'g', threadRefs: [],
   }, exec)
   check('writing the outline is not enough', blockedPlan.ok === false && blockedPlan.error.code === 'outline-required', JSON.stringify(blockedPlan))
   const movedApproval = await byName.get('story_outline').execute({ work, approve: true }, exec)
@@ -197,7 +197,7 @@ try {
     JSON.stringify(statusAfterOutline.status?.outline))
 
   const plan = await byName.get('story_plan').execute({
-    work, chapter: 1, perspective: '林澈', goal: '拿回合同', obstacle: '房东', cost: '人情', turn: '合同是假的',
+    work, chapter: 1, perspective: '林澈', goal: '拿回合同', obstacle: '房东', cost: '人情', turn: '合同是假的', body: '拿回合同。', threadRefs: [],
   }, exec)
   check('story_plan returns an artifact identity', plan.ok === true && plan.artifact.artifactId === 'plan:1' && plan.artifact.kind === 'plan', JSON.stringify(plan))
 
@@ -207,7 +207,7 @@ try {
     && blockedPlanWrite.error.code === 'plan-not-approved', JSON.stringify(blockedPlanWrite))
   const waiting = await byName.get('story_next').execute({ work }, exec)
   check('story_next asks for the panel confirmation', waiting.ok === true
-    && waiting.missing.includes('plan-approval') && /确认/.test(waiting.reason), JSON.stringify(waiting))
+    && waiting.blocked?.includes('plan-approval') && /确认/.test(waiting.reason), JSON.stringify(waiting))
   check('no delegate is offered while the author gate is missing', waiting.delegate === undefined, JSON.stringify(waiting))
 
   const earlyGate = await byName.get('story_context').execute({ work, chapter: 1, role: 'writer' }, exec)
@@ -218,7 +218,7 @@ try {
   check('the author confirms the chapter plan', typeof approvedPlan.entry.planApprovedAt === 'string')
 
   const replanned = await byName.get('story_plan').execute({
-    work, chapter: 1, perspective: '林澈', goal: '拿回合同', obstacle: '房东', cost: '人情', turn: '合同是假的（修）',
+    work, chapter: 1, perspective: '林澈', goal: '拿回合同', obstacle: '房东', cost: '人情', turn: '合同是假的（修）', body: '拿回合同（修）。', threadRefs: [],
   }, exec)
   check('rewriting a plan clears its approval', replanned.ok === true)
   const afterReplan = await s.readManifest(root, work)
@@ -229,7 +229,7 @@ try {
   await s.approveChapterPlan(root, { work, chapter: 1 })
 
   const badPlan = await byName.get('story_plan').execute({
-    work, chapter: 2, perspective: '林澈', goal: '', obstacle: 'x', cost: 'y', turn: 'z',
+    work, chapter: 2, perspective: '林澈', goal: '', obstacle: 'x', cost: 'y', turn: 'z', body: 'g', threadRefs: [],
   }, exec)
   check('story_plan rejects missing field', badPlan.ok === false && badPlan.error.code === 'plan-incomplete', JSON.stringify(badPlan))
 
@@ -482,7 +482,7 @@ try {
 
   // A planned but unwritten chapter: the review path must say so, not crash.
   await byName.get('story_plan').execute({
-    work, chapter: 2, perspective: '林澈', goal: 'g', obstacle: 'o', cost: 'c', turn: 't',
+    work, chapter: 2, perspective: '林澈', goal: 'g', obstacle: 'o', cost: 'c', turn: 't', body: 'g', threadRefs: [],
   }, exec)
   const unwritten = await byName.get('story_context').execute({ work, chapter: 2, role: 'reviewer' }, exec)
   check('reviewing an unwritten chapter is refused', unwritten.ok === false
@@ -527,6 +527,9 @@ try {
   check('story_read reads the current review by id', readReview.ok === true && readReview.artifact.kind === 'review', JSON.stringify(readReview))
   const readPlan = await byName.get('story_read').execute({ work, artifactId: 'plan:2' }, exec)
   check('story_read reads a plan by id', readPlan.ok === true && readPlan.artifact.artifactId === 'plan:2', JSON.stringify(readPlan))
+  check('story_read returns memo JSON with its revision',
+    JSON.parse(readPlan.content).chapter === 2 && typeof readPlan.artifact.revisionId === 'string',
+    readPlan.content)
   const staleRead = await byName.get('story_read').execute({ work, artifactId: 'plan:2', revisionId: 'stale' }, exec)
   check('story_read rejects a stale revision', staleRead.ok === false && staleRead.error.code === 'revision-not-found', JSON.stringify(staleRead))
   const bibleFiles = await byName.get('story_bible').execute({ work }, exec)
@@ -557,7 +560,7 @@ try {
 
   // Removing the plan makes the dispatch action refuse before any work starts.
   const removePlan = openWork(root, work)
-  removePlan.prepare('DELETE FROM chapter_plans WHERE number = 2').run()
+  removePlan.prepare("DELETE FROM artifacts WHERE artifact_id = 'plan:2'").run()
   removePlan.close()
   const noPlan = await byName.get('story_context').execute({ work, chapter: 2, role: 'reviewer' }, exec)
   check('a chapter without a plan is refused', noPlan.ok === false && noPlan.error.code === 'plan-not-found', JSON.stringify(noPlan))
@@ -566,13 +569,13 @@ try {
   // and story_next must agree with it after a mid-book plan rewrite.
   await s.writeOutline(root, { work, mainline: '一条主线（重写）' })
   const blockedLaterPlan = await byName.get('story_plan').execute({
-    work, chapter: 3, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't',
+    work, chapter: 3, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't', body: 'g', threadRefs: [],
   }, exec)
   check('the outline gate applies to later chapters', blockedLaterPlan.ok === false
     && blockedLaterPlan.error.code === 'outline-required', JSON.stringify(blockedLaterPlan))
   const blockedNext = await byName.get('story_next').execute({ work }, exec)
   check('story_next agrees with the gate', blockedNext.ok === true
-    && blockedNext.action === 'story_outline', JSON.stringify(blockedNext))
+    && blockedNext.action === 'story_plan' && blockedNext.blocked?.includes('outline-approval'), JSON.stringify(blockedNext))
 
   // Action-level consistency is advisory and clean review is a real round.
   const warnWork = s.initWork(root, { title: '告警测试' }).workId

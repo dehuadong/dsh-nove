@@ -109,9 +109,9 @@ export async function assembleRoleContext(input, dependencies = {}) {
     throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲：先 story_plan，再派活`)
   }
 
-  // Stop before a writer is dispatched: an unconfirmed plan means no draft yet.
-  if (role === 'writer' && planApprovalPolicy(manifest) === 'required'
-    && entry !== undefined && entry.currentRevision === 0 && entry.planApproved !== true) {
+  // Stop before a writer/reviser is dispatched: an unconfirmed plan means no draft/revision yet.
+  if ((role === 'writer' || role === 'reviser') && planApprovalPolicy(manifest) === 'required'
+    && entry !== undefined && entry.planApproved !== true) {
     throw new StoryError('plan-not-approved',
       `第 ${number} 章章纲还没经作者确认：请在面板「章纲」里点「确认章纲」，再取写手上下文`)
   }

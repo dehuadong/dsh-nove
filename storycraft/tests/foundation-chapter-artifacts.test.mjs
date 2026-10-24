@@ -135,8 +135,10 @@ try {
   check('chapter memo reads latest', memoLatest.artifact.content.goal === '拿到真账本', JSON.stringify(memoLatest))
   const memoOld = readChapterMemo(root, { work, chapter: 1, revisionId: memoWrite.artifact.revisionId })
   check('chapter memo keeps the old revision immutable', memoOld.artifact.content.goal === '拿到账本')
-  rejects('duplicate memo revision is refused', 'artifact-revision-exists',
-    () => writeChapterMemo(root, { work, chapter: 1, content: { ...memo, goal: '拿到真账本' }, provenance: 'edited' }))
+  const duplicate = writeChapterMemo(root, { work, chapter: 1, content: { ...memo, goal: '拿到真账本' }, provenance: 'edited' })
+  check('duplicate memo revision is an idempotent no-op',
+    duplicate.artifact.revisionId === memoLatest.artifact.revisionId,
+    JSON.stringify(duplicate))
   check('chapter scope mismatch rejected', (() => {
     try {
       putArtifact(root, {
@@ -201,16 +203,17 @@ try {
     approvedThird.entry.planRevision === memoThird.artifact.revisionId, JSON.stringify(approvedThird.entry))
 
   // A chapter without a memo keeps the legacy plan approval and no revision.
-  writePlan(root, {
+  const legacyPlan = writePlan(root, {
     work, chapter: 2, perspective: '掌柜', goal: '守住当铺',
     obstacle: '旧案翻出', cost: '失去当铺', turn: '账本被夺',
   })
   const legacyApproved = approveChapterPlan(root, { work, chapter: 2 })
-  check('legacy plan approval records only its timestamp',
-    typeof legacyApproved.entry.planApprovedAt === 'string' && legacyApproved.entry.planRevision === undefined,
+  check('plan approval binds the memo revision',
+    typeof legacyApproved.entry.planApprovedAt === 'string'
+      && legacyApproved.entry.planRevision === legacyPlan.artifact.revisionId,
     JSON.stringify(legacyApproved.entry))
-  check('legacy approval leaves planRevision empty',
-    readManifest(root, work).chapters[1].planRevision === undefined,
+  check('approval exposes planRevision',
+    readManifest(root, work).chapters[1].planRevision === legacyPlan.artifact.revisionId,
     JSON.stringify(readManifest(root, work).chapters[1]))
   writePlan(root, {
     work, chapter: 1, perspective: '甲', goal: '拿到真账本',

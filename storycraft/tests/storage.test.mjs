@@ -35,8 +35,7 @@ try {
   const plan = await s.writePlan(root, {
     work, chapter: 1, perspective: '林澈', goal: '拿回合同', obstacle: '房东堵门', cost: '欠下人情', turn: '发现合同是假的',
   })
-  check('plan artifact is a virtual path', plan.artifact.path === `works/${work}/outline/ch-0001.plan.md`, plan.artifact.path)
-  check('virtual paths do not exist on disk', await stat(join(root, plan.artifact.path)).then(() => false).catch(() => true))
+  check('plan artifact is an id', plan.artifact.artifactId === 'plan:1' && plan.artifact.kind === 'plan', JSON.stringify(plan.artifact))
 
   const beforeApproval = (await s.readWork(root, work)).chapters[0]
   check('a new plan starts unapproved', beforeApproval.planApproved === false, JSON.stringify(beforeApproval))

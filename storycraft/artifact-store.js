@@ -18,46 +18,50 @@ export function artifactRevision(content) {
   return contentVersion(serialize(content).text)
 }
 
-/** Store one immutable artifact revision. */
-export function putArtifact(root, input) {
+/** Store one immutable artifact revision on a caller-owned handle and transaction. */
+export function putArtifactOnDb(db, input) {
   const envelope = validateArtifactRecord(input)
   const { contentType, text } = serialize(envelope.content)
   const at = envelope.createdAt
+  const chapter = envelope.scope?.chapter
+  if (chapter !== undefined) {
+    const row = db.prepare('SELECT stage FROM chapters WHERE number = ?').get(chapter)
+    if (row === undefined) throw new StoryError('chapter-not-found', `没有第 ${chapter} 章：不能写章节 artifact`)
+    if (row.stage === 'settled') {
+      throw new StoryError('chapter-settled', `第 ${chapter} 章已定稿：先 reopen 再写章节 artifact`)
+    }
+  }
+  const existing = db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ? AND revision_id = ?')
+    .get(envelope.artifactId, envelope.revisionId)
+  if (existing !== undefined) throw new StoryError('artifact-revision-exists', `artifact revision 已存在：${envelope.artifactId}@${envelope.revisionId}`)
+  db.prepare(`INSERT INTO artifacts
+    (artifact_id, revision_id, kind, scope_chapter, content_type, content, provenance, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(envelope.artifactId, envelope.revisionId, envelope.kind,
+      envelope.scope?.chapter ?? null, contentType, text, envelope.provenance, at)
+  // A new memo revision invalidates the author's earlier confirmation.
+  if (envelope.kind === 'plan' && chapter !== undefined) {
+    db.prepare('UPDATE chapters SET plan_approved_at = NULL, plan_revision = NULL, updated_at = ? WHERE number = ?')
+      .run(now(), chapter)
+  }
+  touchMeta(db)
+  return {
+    workId: envelope.workId,
+    artifact: {
+      artifactId: envelope.artifactId,
+      revisionId: envelope.revisionId,
+      kind: envelope.kind,
+      ...(envelope.scope === undefined ? {} : { scope: envelope.scope }),
+    },
+  }
+}
+
+/** Store one immutable artifact revision. */
+export function putArtifact(root, input) {
+  const envelope = validateArtifactRecord(input)
   const db = openWork(root, String(envelope.workId))
   try {
-    return transaction(db, () => {
-      const chapter = envelope.scope?.chapter
-      if (chapter !== undefined) {
-        const row = db.prepare('SELECT stage FROM chapters WHERE number = ?').get(chapter)
-        if (row === undefined) throw new StoryError('chapter-not-found', `没有第 ${chapter} 章：不能写章节 artifact`)
-        if (row.stage === 'settled') {
-          throw new StoryError('chapter-settled', `第 ${chapter} 章已定稿：先 reopen 再写章节 artifact`)
-        }
-      }
-      const existing = db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ? AND revision_id = ?')
-        .get(envelope.artifactId, envelope.revisionId)
-      if (existing !== undefined) throw new StoryError('artifact-revision-exists', `artifact revision 已存在：${envelope.artifactId}@${envelope.revisionId}`)
-      db.prepare(`INSERT INTO artifacts
-        (artifact_id, revision_id, kind, scope_chapter, content_type, content, provenance, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-        .run(envelope.artifactId, envelope.revisionId, envelope.kind,
-          envelope.scope?.chapter ?? null, contentType, text, envelope.provenance, at)
-      // A new memo revision invalidates the author's earlier confirmation.
-      if (envelope.kind === 'plan' && chapter !== undefined) {
-        db.prepare('UPDATE chapters SET plan_approved_at = NULL, plan_revision = NULL, updated_at = ? WHERE number = ?')
-          .run(now(), chapter)
-      }
-      touchMeta(db)
-      return {
-        workId: envelope.workId,
-        artifact: {
-          artifactId: envelope.artifactId,
-          revisionId: envelope.revisionId,
-          kind: envelope.kind,
-          ...(envelope.scope === undefined ? {} : { scope: envelope.scope }),
-        },
-      }
-    })
+    return transaction(db, () => putArtifactOnDb(db, envelope))
   } finally {
     db.close()
   }
@@ -248,18 +252,67 @@ export function readScript(root, input) {
   return readFormArtifact(root, input, 'script', 'script')
 }
 
-/** Write one chapter memo as `plan:<n>`, scoped to that chapter. */
-export function writeChapterMemo(root, input) {
+/** Render a structured ChapterMemo as the text view old consumers expect. */
+export function renderChapterMemo(memo) {
+  if (memo === null || typeof memo !== 'object'
+    || typeof memo.goal !== 'string' || memo.goal === ''
+    || typeof memo.body !== 'string' || memo.body === '') {
+    throw new StoryError('artifact-invalid', 'ChapterMemo 需要非空 goal 与 body')
+  }
+  const lines = [`# 第 ${memo.chapter} 章 章纲`, '']
+  if (memo.perspective !== undefined && memo.perspective !== '') lines.push(`- 视角：${memo.perspective}`)
+  lines.push(`- 目标：${memo.goal}`)
+  if (memo.obstacle !== undefined && memo.obstacle !== '') lines.push(`- 阻力：${memo.obstacle}`)
+  if (memo.cost !== undefined && memo.cost !== '') lines.push(`- 代价：${memo.cost}`)
+  if (memo.turn !== undefined && memo.turn !== '') lines.push(`- 结尾变化：${memo.turn}`)
+  if (Array.isArray(memo.threadRefs) && memo.threadRefs.length > 0) lines.push(`- 伏笔：${memo.threadRefs.join('、')}`)
+  lines.push('', '## 章纲正文', memo.body)
+  return `${lines.join('\n')}\n`
+}
+
+/**
+ * Write one chapter memo on a caller-owned handle. Identical latest content is
+ * an idempotent no-op; a different content writes a new revision and clears
+ * the author's earlier confirmation.
+ */
+export function writeChapterMemoOnDb(db, input) {
   const chapter = chapterNumber(input.chapter)
-  return writeTyped(root, {
-    work: input.work,
+  const content = input.content
+  const entry = db.prepare('SELECT stage FROM chapters WHERE number = ?').get(chapter)
+  if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${chapter} 章：不能写章节 artifact`)
+  if (entry.stage === 'settled') {
+    throw new StoryError('chapter-settled', `第 ${chapter} 章已定稿：先 reopen 再写章节 artifact`)
+  }
+  const revisionId = artifactRevision(content)
+  const latest = db.prepare(`SELECT revision_id FROM artifacts
+    WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1`).get(`plan:${chapter}`)
+  if (latest?.revision_id === revisionId) {
+    return {
+      workId: String(input.work),
+      artifact: { artifactId: `plan:${chapter}`, revisionId, kind: 'plan', scope: { chapter } },
+    }
+  }
+  return putArtifactOnDb(db, {
+    workId: String(input.work),
     artifactId: `plan:${chapter}`,
     kind: 'plan',
     scope: { chapter },
-    content: input.content,
-    provenance: input.provenance,
-    createdAt: input.createdAt,
+    revisionId,
+    content,
+    provenance: input.provenance ?? 'generated',
+    createdAt: input.createdAt ?? now(),
   })
+}
+
+/** Write one chapter memo as `plan:<n>`, scoped to that chapter. */
+export function writeChapterMemo(root, input) {
+  const workId = String(input.work)
+  const db = openWork(root, workId)
+  try {
+    return transaction(db, () => writeChapterMemoOnDb(db, input))
+  } finally {
+    db.close()
+  }
 }
 
 /** Read one chapter memo, latest or an explicit revision. */
@@ -311,11 +364,11 @@ function verifyObservationSources(root, work, chapter, bodyRevision, observation
     const body = db.prepare('SELECT body FROM chapter_versions WHERE number = ? AND revision = ?')
       .get(chapter, bodyRevision)?.body
     if (body === undefined) throw new StoryError('body-not-found', `第 ${chapter} 章没有正文版本 r${bodyRevision}`)
-    const planRow = db.prepare('SELECT text FROM chapter_plans WHERE number = ?').get(chapter)
-    const memoRow = db.prepare(`SELECT content FROM artifacts
+    const memoRow = db.prepare(`SELECT content_type, content FROM artifacts
       WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1`).get(`plan:${chapter}`)
     const bodyText = compactText(body)
-    const planText = compactText(`${planRow?.text ?? ''}\n${memoRow?.content ?? ''}`)
+    const memo = memoRow?.content_type === 'json' ? JSON.parse(memoRow.content) : undefined
+    const planText = memo === undefined ? '' : compactText(renderChapterMemo(memo))
     for (const [index, observation] of observations.entries()) {
       for (const [refIndex, ref] of (Array.isArray(observation?.sourceRefs) ? observation.sourceRefs : []).entries()) {
         const source = String(ref.sourceId)

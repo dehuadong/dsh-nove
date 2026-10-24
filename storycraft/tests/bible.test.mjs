@@ -196,7 +196,7 @@ try {
     && noMatch.retrieval.candidateCount === 0, JSON.stringify(noMatch.retrieval))
   await s.deleteMaterial(root, b4, unrelated.material.id)
   const noPlan = openWork(root, b4)
-  noPlan.prepare('DELETE FROM chapter_plans WHERE number = 3').run()
+  noPlan.prepare("DELETE FROM artifacts WHERE artifact_id = 'plan:3'").run()
   noPlan.close()
   const emptyQuery = await b.assembleBrief(root, b4, 3)
   check('empty query disables brief retrieval', emptyQuery.retrieval.enabled === false

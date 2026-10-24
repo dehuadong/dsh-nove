@@ -32,6 +32,7 @@ import {
   formOf, now, parseReview, planApprovalPolicy, stageOf, summaryAdmissible, trimSummary, unitOf, workIdOf,
 } from './domain.js'
 import { assertRevisionMode } from './revision.js'
+import { renderChapterMemo, writeChapterMemoOnDb } from './artifact-store.js'
 
 /** How long an unused proposal is kept before the next proposal write prunes it. */
 export const PROPOSAL_TTL_MS = 30 * 24 * 60 * 60 * 1000
@@ -95,10 +96,28 @@ function ensureChapter(db, number) {
  * once `plan:<n>` exists, the confirmed revision must be its latest revision.
  */
 function planGateSatisfied(db, entry) {
-  if (entry.plan_approved_at === null) return false
+  return planApprovalState(db, entry.number).approved
+}
+
+/** Non-throwing approval state for read paths and next-step derivation. */
+export function planApprovalState(db, chapter) {
+  const number = chapterNumber(chapter)
+  const entry = db.prepare('SELECT * FROM chapters WHERE number = ?').get(number)
+  if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
+  const required = metaOf(db).plan_approval === 'required'
   const memo = db.prepare(`SELECT revision_id FROM artifacts
-    WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1`).get(`plan:${entry.number}`)
-  return memo === undefined || entry.plan_revision === memo.revision_id
+    WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1`).get(`plan:${number}`)
+  if (!required) return { required: false, approved: true, blocked: false, hasMemo: memo !== undefined }
+  if (memo === undefined) return { required: true, approved: false, blocked: false, hasMemo: false }
+  const approved = entry.plan_approved_at !== null && entry.plan_revision === memo.revision_id
+  return { required: true, approved, blocked: !approved, hasMemo: true }
+}
+
+/** Throwing approval gate for write/revise paths. */
+export function assertPlanApproved(db, chapter) {
+  const state = planApprovalState(db, chapter)
+  if (!state.hasMemo) throw new StoryError('plan-not-found', `第 ${chapterNumber(chapter)} 章还没有章纲`)
+  if (state.blocked) throw new StoryError('plan-not-approved', `第 ${chapterNumber(chapter)} 章章纲还没经作者确认：请在面板「章纲」里点「确认章纲」`)
 }
 
 /**
@@ -242,7 +261,7 @@ export function readManifest(root, work) {
             currentRevision: chapter.current_revision,
             words: chapter.words,
             planApproved: chapter.plan_approved_at !== null
-              && (memoRevision === undefined || chapter.plan_revision === memoRevision),
+              && memoRevision !== undefined && chapter.plan_revision === memoRevision,
             ...(chapter.plan_approved_at === null ? {} : { planApprovedAt: chapter.plan_approved_at }),
             ...(chapter.plan_revision == null ? {} : { planRevision: chapter.plan_revision }),
             provenance: chapter.provenance ?? 'generated',
@@ -513,7 +532,8 @@ export function readWork(root, work) {
   const manifest = readManifest(root, work)
   const db = openWork(root, manifest.workId)
   try {
-    const planRows = new Set(db.prepare('SELECT number FROM chapter_plans').all().map(row => row.number))
+    const planRows = new Set(db.prepare(`SELECT scope_chapter FROM artifacts
+      WHERE kind = 'plan' AND scope_chapter IS NOT NULL`).all().map(row => row.scope_chapter))
     const summaryStates = summaryStateMap(db)
     const chapters = manifest.chapters.map(chapter => {
       const review = latestReviewRow(db, chapter.number)
@@ -640,7 +660,9 @@ function delegateOf(step, last, candidate) {
   const role = { story_write: 'writer', story_review: 'reviewer', story_revise: 'reviser', story_summarize: 'summarizer' }[step.action]
   if (role === undefined) return undefined
   const missing = Array.isArray(step.missing) ? step.missing : []
-  if (missing.includes('outline') || missing.includes('plan-approval') || missing.includes('revision')) return undefined
+  const blocked = Array.isArray(step.blocked) ? step.blocked : []
+  if (missing.includes('outline') || missing.includes('plan-approval') || missing.includes('revision')
+    || blocked.length > 0) return undefined
   if (role === 'reviser' && (last === undefined || candidate === undefined || candidate.revision !== last.currentRevision)) {
     return undefined
   }
@@ -660,7 +682,7 @@ export function nextStep(root, work) {
   const manifest = readManifest(root, work)
   const db = openWork(root, manifest.workId)
   try {
-    const hasPlan = number => db.prepare('SELECT 1 FROM chapter_plans WHERE number = ?').get(number) !== undefined
+    const hasPlan = number => db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ?').get(`plan:${number}`) !== undefined
     const summaryOf = number => summaryStateOf(db, number)
     const chapters = manifest.chapters
     const last = chapters.length === 0 ? undefined : chapters[chapters.length - 1]
@@ -668,13 +690,20 @@ export function nextStep(root, work) {
     const outline = manifest.outline
     let candidate
     const step = (() => {
-      if (last === undefined && outline?.approvedAt === undefined) {
-        const reason = outline === undefined || outline.writtenAt === undefined
-          ? '还没有全书计划：先写主线、卷划分与结局方向，等作者确认'
-          : '全书计划等作者确认：确认后才能写第 1 章章纲'
-        return { chapter, stage: 'planned', action: 'story_outline', reason, missing: ['outline'] }
-      }
       if (last === undefined) {
+        if (outline === undefined || outline.writtenAt === undefined) {
+          return {
+            chapter, stage: 'planned', action: 'story_outline',
+            reason: '还没有全书计划：先写主线、卷划分与结局方向，等作者确认', missing: ['outline'],
+          }
+        }
+        if (outline.approvedAt === undefined) {
+          return {
+            chapter, stage: 'planned', action: 'story_plan',
+            reason: '全书计划等作者确认：在面板点「确认全书计划」，然后写第 1 章章纲',
+            blocked: ['outline-approval'],
+          }
+        }
         return { chapter, stage: 'planned', action: 'story_plan', reason: '还没有任何章节：先写第 1 章章纲', missing: [] }
       }
       const stage = stageOf(last)
@@ -700,19 +729,31 @@ export function nextStep(root, work) {
           }
         }
         const next = last.number + 1
-        if (outline?.approvedAt === undefined) {
+        if (outline === undefined || outline.writtenAt === undefined) {
           return {
             chapter: next, stage: 'planned', action: 'story_outline',
-            reason: '全书计划等作者确认：先在面板点「确认全书计划」，再写下一章章纲', missing: ['outline'],
+            reason: '还没有全书计划：先写主线、卷划分与结局方向', missing: ['outline'],
+          }
+        }
+        if (outline.approvedAt === undefined) {
+          return {
+            chapter: next, stage: 'planned', action: 'story_plan',
+            reason: '全书计划等作者确认：先在面板点「确认全书计划」，再写下一章章纲', blocked: ['outline-approval'],
           }
         }
         return { chapter: next, stage: 'planned', action: 'story_plan', reason: `第 ${last.number} 章已定稿：写第 ${next} 章章纲`, missing: [] }
       }
       if (!hasPlan(last.number)) {
-        if (outline?.approvedAt === undefined) {
+        if (outline === undefined || outline.writtenAt === undefined) {
           return {
             chapter: last.number, stage, action: 'story_outline',
-            reason: '全书计划等作者确认：先在面板点「确认全书计划」，再写章纲', missing: ['outline'],
+            reason: '还没有全书计划：先写主线、卷划分与结局方向', missing: ['outline'],
+          }
+        }
+        if (outline.approvedAt === undefined) {
+          return {
+            chapter: last.number, stage, action: 'story_plan',
+            reason: '全书计划等作者确认：在面板点「确认全书计划」，再写章纲', blocked: ['outline-approval'],
           }
         }
         return { chapter: last.number, stage, action: 'story_plan', reason: `第 ${last.number} 章缺章纲`, missing: [] }
@@ -722,7 +763,7 @@ export function nextStep(root, work) {
           return {
             chapter: last.number, stage, action: 'story_write',
             reason: `第 ${last.number} 章章纲等作者确认：在面板「章纲」里点「确认章纲」，然后写正文`,
-            missing: ['plan-approval'],
+            missing: ['body'], blocked: ['plan-approval'],
           }
         }
         return { chapter: last.number, stage, action: 'story_write', reason: `第 ${last.number} 章已有章纲，写正文`, missing: ['body'] }
@@ -737,15 +778,17 @@ export function nextStep(root, work) {
       if (isCleanReview(candidate) && candidate.revision !== last.currentRevision) {
         return { chapter: last.number, stage, action: 'story_review', reason: `第 ${last.number} 章的清稿审稿针对旧版本 r${candidate.revision}：先重新审稿`, missing: ['review'] }
       }
+      const blocked = planApprovalPolicy(manifest) === 'required' && last.planApproved !== true
+        ? { blocked: ['plan-approval'] } : {}
       const open = parseReview(candidate.text).filter(item => !item.done)
       if (open.length > 0) {
         return {
           chapter: last.number, stage, action: 'story_revise',
-          reason: `第 ${last.number} 章还有 ${open.length} 条未处理审稿`, missing: open.map(item => item.id),
+          reason: `第 ${last.number} 章还有 ${open.length} 条未处理审稿`, missing: open.map(item => item.id), ...blocked,
         }
       }
       if (!isCleanReview(candidate) && stage !== 'revised') {
-        return { chapter: last.number, stage, action: 'story_revise', reason: `第 ${last.number} 章审稿条目已处理完，但还没提交修订`, missing: ['revision'] }
+        return { chapter: last.number, stage, action: 'story_revise', reason: `第 ${last.number} 章审稿条目已处理完，但还没提交修订`, missing: ['revision'], ...blocked }
       }
       const summary = summaryOf(last.number)
       if (summary.state !== 'current') {
@@ -1069,6 +1112,20 @@ export function writePlan(root, input) {
   if (fields.some(value => typeof value !== 'string' || value.trim() === '')) {
     throw new StoryError('plan-incomplete', '章纲需要视角、目标、阻力、代价、结尾变化')
   }
+  const threadRefs = input.threadRefs === undefined ? [] : input.threadRefs
+  if (!Array.isArray(threadRefs) || threadRefs.some(ref => typeof ref !== 'string')) {
+    throw new StoryError('plan-incomplete', '章纲的 threadRefs 必须是字符串数组')
+  }
+  // The story_plan action requires body/threadRefs. Direct store callers may
+  // omit them for fixtures; the action boundary passes requireBody.
+  if (input.requireBody === true && typeof input.body !== 'string') {
+    throw new StoryError('plan-incomplete', '章纲需要一个非空 body')
+  }
+  if (input.requireBody === true && !Array.isArray(input.threadRefs)) {
+    throw new StoryError('plan-incomplete', '章纲的 threadRefs 必须是数组')
+  }
+  const body = input.body === undefined ? input.goal.trim() : String(input.body)
+  if (body.trim() === '') throw new StoryError('plan-incomplete', '章纲正文不能为空')
   const workId = String(input.work)
   const db = openWork(root, workId)
   try {
@@ -1077,20 +1134,22 @@ export function writePlan(root, input) {
       if (stageOf(entry) === 'settled') {
         throw new StoryError('chapter-settled', `第 ${number} 章已定稿：改章纲前先带 reopen 重写正文回退`)
       }
-      const text = [`# 第 ${number} 章 章纲`, '',
-        `- 视角：${input.perspective.trim()}`, `- 目标：${input.goal.trim()}`,
-        `- 阻力：${input.obstacle.trim()}`, `- 代价：${input.cost.trim()}`,
-        `- 结尾变化：${input.turn.trim()}`, ''].join('\n')
-      const at = now()
-      db.prepare(`INSERT INTO chapter_plans (number, text, written_at) VALUES (?, ?, ?)
-        ON CONFLICT(number) DO UPDATE SET text = excluded.text, written_at = excluded.written_at`).run(number, text, at)
-      db.prepare('UPDATE chapters SET plan_approved_at = NULL, plan_revision = NULL, updated_at = ? WHERE number = ?').run(at, number)
-      touchMeta(db, at)
+      const content = {
+        chapter: number,
+        goal: input.goal.trim(),
+        body,
+        threadRefs,
+        perspective: input.perspective.trim(),
+        obstacle: input.obstacle.trim(),
+        cost: input.cost.trim(),
+        turn: input.turn.trim(),
+      }
+      const written = writeChapterMemoOnDb(db, { work: workId, chapter: number, content })
       return {
         workId,
         chapter: number,
-        planApproved: false,
-        artifact: { path: virtualPath(workId, `outline/${chapterStem(number)}.plan.md`) },
+        planApproved: planApprovalState(db, number).approved,
+        artifact: written.artifact,
       }
     })
   } finally {
@@ -1111,14 +1170,11 @@ export function approveChapterPlan(root, input) {
   try {
     return transaction(db, () => {
       const entry = chapterRow(db, number)
-      const plan = db.prepare('SELECT 1 FROM chapter_plans WHERE number = ?').get(number)
-      if (entry === undefined || plan === undefined) throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲`)
-      const at = now()
-      // A memo revision is the content version the author confirms; without a
-      // memo the legacy plan text action stays the only plan source.
       const memo = db.prepare(`SELECT revision_id FROM artifacts
         WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1`).get(`plan:${number}`)
-      const planRevision = memo?.revision_id ?? null
+      if (entry === undefined || memo === undefined) throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲`)
+      const at = now()
+      const planRevision = memo.revision_id
       db.prepare('UPDATE chapters SET plan_approved_at = ?, plan_revision = ?, updated_at = ? WHERE number = ?')
         .run(at, planRevision, at, number)
       touchMeta(db, at)
@@ -1148,14 +1204,11 @@ export function writeChapter(root, input) {
     return transaction(db, () => {
       const meta = metaOf(db)
       const entry = chapterRow(db, number)
-      const plan = db.prepare('SELECT 1 FROM chapter_plans WHERE number = ?').get(number)
+      const plan = db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ?').get(`plan:${number}`)
       if (entry === undefined || plan === undefined) {
         throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲：先 story_plan，再写正文`)
       }
-      if (input.requirePlanApproval === true && meta.plan_approval === 'required'
-        && entry.current_revision === 0 && !planGateSatisfied(db, entry)) {
-        throw new StoryError('plan-not-approved', `第 ${number} 章章纲还没经作者确认：请在面板「章纲」里点「确认章纲」后再写正文`)
-      }
+      if (input.requirePlanApproval === true && meta.plan_approval === 'required') assertPlanApproved(db, number)
       const settled = stageOf(entry) === 'settled'
       if (settled && input.reopen !== true) {
         throw new StoryError('chapter-settled', `第 ${number} 章已定稿：改正文请传 reopen: true`)
@@ -1169,12 +1222,8 @@ export function writeChapter(root, input) {
       db.prepare('INSERT INTO chapter_versions (number, revision, body, words, created_at) VALUES (?, ?, ?, ?, ?)')
         .run(number, revision, body, words, at)
       db.prepare(`UPDATE chapters SET title = ?, status = 'written', stage = 'written',
-        current_revision = ?, words = ?,
-        plan_approved_at = CASE WHEN ? = 1 THEN NULL ELSE plan_approved_at END,
-        plan_revision = CASE WHEN ? = 1 THEN NULL ELSE plan_revision END,
-        updated_at = ? WHERE number = ?`)
-        .run(String(input.title ?? entry.title), revision, words,
-          revision === 1 ? 1 : 0, revision === 1 ? 1 : 0, at, number)
+        current_revision = ?, words = ?, updated_at = ? WHERE number = ?`)
+        .run(String(input.title ?? entry.title), revision, words, at, number)
       dropSearchDoc(db, `chapter:${number}:r${revision - 1}`)
       syncSearchDoc(db, `chapter:${number}:r${revision}`, 'chapter', `chapters/${chapterStem(number)}`, number, body)
       if (settled) {
@@ -1217,9 +1266,9 @@ export function readChapter(root, input) {
       return { path: virtualPath(workId, `summaries/${chapterStem(number)}.md`), content: row.text, revision: 0 }
     }
     if (input.view === 'plan') {
-      const row = db.prepare('SELECT text FROM chapter_plans WHERE number = ?').get(number)
-      if (row === undefined) throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲`)
-      return { path: virtualPath(workId, `outline/${chapterStem(number)}.plan.md`), content: row.text, revision: 0 }
+      const content = readPlan(root, workId, number)
+      if (content === undefined) throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲`)
+      return { path: virtualPath(workId, `outline/${chapterStem(number)}.plan.md`), content, revision: 0 }
     }
     const revision = input.revision === undefined || input.revision === 0 ? entry.current_revision : Number(input.revision)
     if (revision <= 0) throw new StoryError('body-not-found', `第 ${number} 章还没有正文`)
@@ -1369,6 +1418,8 @@ export function reviseChapter(root, input) {
       const entry = chapterRow(db, number)
       if (entry === undefined || entry.current_revision === 0) throw new StoryError('body-not-found', `第 ${number} 章还没有正文`)
       if (stageOf(entry) === 'settled') throw new StoryError('chapter-settled', `第 ${number} 章已定稿：改正文请传 reopen: true`)
+      const meta = metaOf(db)
+      if (input.requirePlanApproval === true && meta.plan_approval === 'required') assertPlanApproved(db, number)
       const review = latestReviewRow(db, number)
       if (review === undefined) throw new StoryError('review-required', `第 ${number} 章还没有审稿：先 story_review`)
       // A patch answers the exact revision it read; broader modes may land on
@@ -1870,7 +1921,17 @@ export function readPlan(root, work, chapter) {
   const number = chapterNumber(chapter)
   const db = openWork(root, work)
   try {
-    return db.prepare('SELECT text FROM chapter_plans WHERE number = ?').get(number)?.text
+    const row = db.prepare(`SELECT content_type, content FROM artifacts
+      WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1`).get(`plan:${number}`)
+    if (row === undefined) return undefined
+    if (row.content_type !== 'json') throw new StoryError('artifact-invalid', `plan:${number} 不是结构化 memo`)
+    let memo
+    try {
+      memo = JSON.parse(row.content)
+    } catch {
+      throw new StoryError('artifact-invalid', `plan:${number} 的 memo JSON 无法解析`)
+    }
+    return renderChapterMemo(memo)
   } finally {
     db.close()
   }
@@ -2173,6 +2234,10 @@ function applyChapterMapping(db, mapping) {
     db.prepare('UPDATE events SET chapter = ? WHERE chapter = ?').run(-newNumber, oldNumber)
   }
   db.exec('UPDATE events SET chapter = -chapter WHERE chapter < 0')
+  for (const [oldNumber, newNumber] of mapping) {
+    if (oldNumber === newNumber) continue
+    db.prepare('UPDATE chapters SET plan_approved_at = NULL, plan_revision = NULL WHERE number = ?').run(newNumber)
+  }
 }
 
 /** Volumes whose endpoints no longer exist or whose range is invalid. */
@@ -2188,6 +2253,25 @@ function chapterKeys(db) {
   return db.prepare('SELECT number FROM chapters ORDER BY number').all().map(row => row.number)
 }
 
+/** Refuse a chapter edit that would orphan a chapter-scoped artifact. */
+function assertChapterArtifactsEditable(db, numbers) {
+  const unique = [...new Set(numbers)].filter(number => Number.isInteger(number))
+  if (unique.length === 0) return
+  const placeholders = unique.map(() => '?').join(', ')
+  const row = db.prepare(`SELECT 1 FROM artifacts WHERE scope_chapter IN (${placeholders}) LIMIT 1`).get(...unique)
+  if (row !== undefined) {
+    throw new StoryError('chapter-edit-blocked',
+      '该章节还有 plan/summary/review 等 artifact：S1b 重映射前不能删除或移动')
+  }
+}
+
+/** Old numbers whose rank changes, plus the deleted number. */
+function affectedChapterNumbers(mapping, deleted) {
+  const affected = [...mapping.entries()].filter(([oldNumber, newNumber]) => oldNumber !== newNumber).map(([oldNumber]) => oldNumber)
+  if (deleted !== undefined) affected.push(deleted)
+  return affected
+}
+
 /**
  * Delete one chapter and renumber survivors by rank.
  * @param {string} root - workspace.
@@ -2201,18 +2285,20 @@ export async function deleteChapter(root, work, chapter, options = {}) {
   if (options.confirm !== true) throw new StoryError('chapter-delete-unconfirmed', '删除章节需要确认')
   const probe = openWork(root, work)
   let keys
+  let mapping
   try {
     keys = chapterKeys(probe)
+    if (!keys.includes(number)) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
+    mapping = chapterRemap(keys, { type: 'delete', chapter: number })
+    assertChapterArtifactsEditable(probe, affectedChapterNumbers(mapping, number))
   } finally {
     probe.close()
   }
-  if (!keys.includes(number)) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
   await backupWork(root, work)
   const db = openWork(root, work)
   try {
     return transaction(db, () => {
       const oldMax = Number(db.prepare('SELECT max(seq) AS seq FROM events').get()?.seq ?? 0)
-      const mapping = chapterRemap(keys, { type: 'delete', chapter: number })
       db.prepare('DELETE FROM chapters WHERE number = ?').run(number)
       db.prepare('DELETE FROM events WHERE chapter = ?').run(number)
       db.prepare("DELETE FROM search_docs WHERE (kind IN ('chapter', 'summary')) AND chapter = ?").run(number)
@@ -2260,6 +2346,7 @@ export async function moveChapter(root, work, from, to, options = {}) {
       throw new StoryError('chapter-edit-target-invalid', '只能移动到相邻章')
     }
     const mapping = chapterRemap(keys, { type: 'move', from: source, to: target })
+    assertChapterArtifactsEditable(db, affectedChapterNumbers(mapping))
     return transaction(db, () => {
       applyChapterMapping(db, mapping)
       rewriteChapterDocs(db, mapping)
@@ -2623,8 +2710,18 @@ export function exportWork(root, work, destination) {
         put(join('chapters', `${versionStem(version.number, version.revision)}.md`),
           version.body.endsWith('\n') ? version.body : `${version.body}\n`)
       }
-      for (const plan of db.prepare('SELECT * FROM chapter_plans ORDER BY number').all()) {
-        put(join('outline', `${chapterStem(plan.number)}.plan.md`), plan.text)
+      for (const memo of db.prepare(`SELECT a.artifact_id, a.content FROM artifacts a
+        JOIN (SELECT artifact_id, max(rowid) AS rowid FROM artifacts
+          WHERE kind = 'plan' GROUP BY artifact_id) latest ON a.rowid = latest.rowid
+        WHERE a.kind = 'plan' AND a.scope_chapter IS NOT NULL ORDER BY a.scope_chapter`).all()) {
+        const chapter = Number(memo.artifact_id.slice('plan:'.length))
+        let content
+        try {
+          content = JSON.parse(memo.content)
+        } catch {
+          throw new StoryError('artifact-invalid', `${memo.artifact_id} 的 memo JSON 无法解析`)
+        }
+        put(join('outline', `${chapterStem(chapter)}.plan.md`), renderChapterMemo(content))
       }
       for (const summary of db.prepare('SELECT * FROM summaries ORDER BY number').all()) {
         put(join('summaries', `${chapterStem(summary.number)}.md`), summary.text)
