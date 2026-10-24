@@ -84,9 +84,9 @@ updated: 2026-10-24
 
 ### 6. 分支与交付
 
-- 规划：`plan/ts-migration`；
-- 实现：每层一个分支/PR（`feat/ts-migration-l0` 等），不把多层塞进一个提交；
-- 每层独立可回退：回退该层文件与 import 改动，dist 重新构建。
+- 所有层在同一个分支 `plan/ts-migration` 上连续开发，不按层开新分支或 PR；
+- 每层形成独立 commit，便于按层审阅/回退；
+- 回退按 commit 处理，dist 重新构建。
 
 ## 备选方案
 
