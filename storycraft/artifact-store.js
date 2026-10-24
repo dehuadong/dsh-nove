@@ -337,6 +337,7 @@ export function remapChapterArtifacts(db, input) {
   const deletions = new Set()
   const inserts = []
   const planRevisions = new Map()
+  const planTargets = new Map()
   let deletedCount = 0
 
   for (const row of ordered) {
@@ -344,6 +345,7 @@ export function remapChapterArtifacts(db, input) {
     const newNumber = mapping.get(oldNumber)
     if (newNumber === undefined) {
       deletions.add(row.artifact_id)
+      if (row.kind === 'plan') planTargets.set(row.artifact_id, null)
       deletedCount += 1
       continue
     }
@@ -369,17 +371,24 @@ export function remapChapterArtifacts(db, input) {
           }
         }
         for (const ref of Array.isArray(observation?.sourceRefs) ? observation.sourceRefs : []) {
-          if (typeof ref.sourceId === 'string' && ref.sourceId.startsWith('plan:')) {
+          if (typeof ref.sourceId !== 'string') continue
+          if (ref.sourceId.startsWith('plan:')) {
             const oldPlan = Number(ref.sourceId.slice('plan:'.length))
             const nextPlan = mapping.get(oldPlan)
-            if (nextPlan === undefined) delete ref.sourceId
-            else ref.sourceId = `plan:${nextPlan}`
+            if (nextPlan !== undefined) ref.sourceId = `plan:${nextPlan}`
+          } else if (ref.sourceId === `chapter:${oldNumber}`) {
+            ref.sourceId = `chapter:${newNumber}`
+          } else if (ref.sourceId.startsWith(`chapter:${oldNumber}:`)) {
+            ref.sourceId = `chapter:${newNumber}:${ref.sourceId.slice(`chapter:${oldNumber}:`.length)}`
           }
         }
       }
     }
     const revisionId = artifactRevision(content)
-    if (row.kind === 'plan') planRevisions.set(nextId, revisionId)
+    if (row.kind === 'plan') {
+      planRevisions.set(nextId, revisionId)
+      planTargets.set(row.artifact_id, { id: nextId, revisionId })
+    }
     deletions.add(row.artifact_id)
     inserts.push({ row, nextId, revisionId, content, scope: newNumber })
   }
@@ -404,6 +413,38 @@ export function remapChapterArtifacts(db, input) {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(item.nextId, item.revisionId, item.row.kind, item.scope,
         contentType, text, item.row.provenance, item.row.created_at)
+  }
+  // Reviews in identity chapters may target a memo that moved or disappeared.
+  const identityReviewRows = db.prepare(`SELECT a.* FROM artifacts a
+    JOIN (SELECT artifact_id, max(rowid) AS rowid FROM artifacts WHERE kind = 'review' GROUP BY artifact_id) latest
+    ON a.rowid = latest.rowid
+    WHERE a.kind = 'review' AND (a.scope_chapter IS NULL OR a.scope_chapter NOT IN (${numbers.map(() => '?').join(', ')}))`)
+    .all(...numbers)
+  for (const row of identityReviewRows) {
+    const content = deserialize(row)
+    let changed = false
+    for (const observation of Array.isArray(content.observations) ? content.observations : []) {
+      const target = observation?.target
+      if (target === undefined || typeof target.artifactId !== 'string') continue
+      if (!planTargets.has(target.artifactId)) continue
+      const next = planTargets.get(target.artifactId)
+      if (next === null) delete observation.target
+      else {
+        target.artifactId = next.id
+        target.revisionId = next.revisionId
+      }
+      changed = true
+    }
+    if (!changed) continue
+    const revisionId = artifactRevision(content)
+    const existing = db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ? AND revision_id = ?')
+      .get(row.artifact_id, revisionId)
+    if (existing !== undefined) continue
+    const { contentType, text } = serialize(content)
+    db.prepare(`INSERT INTO artifacts
+      (artifact_id, revision_id, kind, scope_chapter, content_type, content, provenance, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(row.artifact_id, revisionId, row.kind, row.scope_chapter, contentType, text, row.provenance, row.created_at)
   }
   for (const [oldNumber, newNumber] of mapping) {
     if (oldNumber === newNumber) continue

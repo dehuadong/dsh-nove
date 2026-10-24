@@ -40,6 +40,12 @@ async function seed() {
 try {
   const work = await seed()
   const beforeMeta = openWork(root, work).prepare('SELECT updated_at FROM meta WHERE id = 1').get().updated_at
+  const reset = openWork(root, work)
+  try {
+    reset.exec("UPDATE chapters SET stage = 'written', status = 'written'")
+  } finally {
+    reset.close()
+  }
   const deleted = await s.deleteChapter(root, work, 2, { confirm: true })
   check('delete returns changed and survivors', deleted.changed === true && deleted.chapters.join(',') === '1,2,3', JSON.stringify(deleted))
   check('delete backs up the work', (await readdir(backupsDir(root))).some(name => name.startsWith(`${work}-`)))

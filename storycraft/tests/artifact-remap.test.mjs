@@ -54,6 +54,15 @@ try {
     }],
   })
 
+  writeChapterObservations(root, {
+    work, chapter: 3, bodyRevision: 1, round: 1,
+    observations: [{
+      code: 'Q2', summary: '跨章引用', evidence: ['e'], category: 'quality', assessment: 'issue',
+      target: { workId: work, artifactId: 'plan:1', revisionId: planOne.artifact.revisionId },
+      sourceRefs: [{ sourceId: 'chapter:3', quote: '正文3。' }],
+    }],
+  })
+
   await s.moveChapter(root, work, 1, 2)
   const movedOne = readChapterMemo(root, { work, chapter: 1 })
   const movedTwo = readChapterMemo(root, { work, chapter: 2 })
@@ -75,6 +84,11 @@ try {
     JSON.stringify(movedReview.artifact.content.observations[0]))
   check('move rebinds review plan source ref',
     movedReview.artifact.content.observations[0].sourceRefs[0].sourceId === 'plan:2')
+  const identityReview = readChapterObservations(root, { work, chapter: 3, bodyRevision: 1, round: 1 })
+  check('identity-chapter review target follows the moved memo',
+    identityReview.artifact.content.observations[0].target.artifactId === 'plan:2'
+      && identityReview.artifact.content.observations[0].target.revisionId === movedTwo.artifact.revisionId,
+    JSON.stringify(identityReview.artifact.content.observations[0]))
 
   await s.deleteChapter(root, work, 2, { confirm: true })
   const afterDeleteOne = readChapterMemo(root, { work, chapter: 1 })
@@ -91,6 +105,13 @@ try {
     }
   })())
   check('delete keeps survivor summaries', readChapterSummary(root, { work, chapter: 2 }).artifact.content.chapter === 2)
+  const deleteDb = openWork(root, work)
+  try {
+    check('delete clears approvals on survivors', deleteDb.prepare('SELECT plan_approved_at, plan_revision FROM chapters')
+      .all().every(row => row.plan_approved_at === null && row.plan_revision === null))
+  } finally {
+    deleteDb.close()
+  }
 } finally {
   await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 })
 }

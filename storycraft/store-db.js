@@ -2271,6 +2271,9 @@ export async function deleteChapter(root, work, chapter, options = {}) {
     keys = chapterKeys(probe)
     if (!keys.includes(number)) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
     mapping = chapterRemap(keys, { type: 'delete', chapter: number })
+    const affected = [number, ...[...mapping.entries()].filter(([oldNumber, newNumber]) => oldNumber !== newNumber).map(([oldNumber]) => oldNumber)]
+    const settled = probe.prepare(`SELECT stage FROM chapters WHERE number IN (${affected.map(() => '?').join(', ')})`).all(...affected)
+    if (settled.some(row => row.stage === 'settled')) throw new StoryError('chapter-settled', '受影响章节中有已定稿章：先 reopen 再删/移')
   } finally {
     probe.close()
   }
@@ -2284,7 +2287,7 @@ export async function deleteChapter(root, work, chapter, options = {}) {
       db.prepare("DELETE FROM search_docs WHERE (kind IN ('chapter', 'summary')) AND chapter = ?").run(number)
       db.prepare("DELETE FROM search_docs WHERE doc_id LIKE 'event:%' AND chapter = ?").run(number)
       applyChapterMapping(db, mapping)
-      remapChapterArtifacts(db, { mapping, deleted: [number], workId: work })
+      remapChapterArtifacts(db, { mapping, deleted: [number] })
       rewriteChapterDocs(db, mapping)
       const survivors = chapterKeys(db)
       db.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
@@ -2316,7 +2319,6 @@ export async function deleteChapter(root, work, chapter, options = {}) {
 export async function moveChapter(root, work, from, to, options = {}) {
   const source = chapterNumber(from)
   const target = chapterNumber(to)
-  await backupWork(root, work)
   const db = openWork(root, work)
   try {
     const keys = chapterKeys(db)
@@ -2327,10 +2329,13 @@ export async function moveChapter(root, work, from, to, options = {}) {
     if (Math.abs(fromIndex - toIndex) !== 1) {
       throw new StoryError('chapter-edit-target-invalid', '只能移动到相邻章')
     }
+    const staged = db.prepare('SELECT stage FROM chapters WHERE number IN (?, ?)').all(source, target)
+    if (staged.some(row => row.stage === 'settled')) throw new StoryError('chapter-settled', '受影响章节中有已定稿章：先 reopen 再删/移')
     const mapping = chapterRemap(keys, { type: 'move', from: source, to: target })
+    await backupWork(root, work)
     return transaction(db, () => {
       applyChapterMapping(db, mapping)
-      remapChapterArtifacts(db, { mapping, workId: work })
+      remapChapterArtifacts(db, { mapping })
       rewriteChapterDocs(db, mapping)
       touchMeta(db)
       if (typeof options.beforeCommit === 'function') options.beforeCommit(db)
