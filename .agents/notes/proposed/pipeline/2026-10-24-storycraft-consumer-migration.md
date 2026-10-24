@@ -94,6 +94,7 @@ A0 只负责字段合同、v6 registry、消费者映射与可测试的消费契
 - `characters` 不在本切片迁移：六字段 characters 无法满足 roles index 的 `tier` 与角色卡字段；R10a 保留 `bible.characters` 只读，R10b 生产 roles index/card 后由 S4b 接消费。
 - 旧 `bible` 表的 world/style/intent 与 `bible('plan')` 不再写、不再读；`characters` 延到 R10b，`bible` 表如保留只作历史。
 - 测试：`bible-consumers.test.mjs`（world/style/intent、outline、导出、characters legacy 未误删）。
+- 存储、生产者、消费者、版本语义与旧数据边界见 [L-R10a S4a bible 条目迁移](2026-10-24-storycraft-bible-artifacts.md)。
 
 **S4b foundation 消费**
 
