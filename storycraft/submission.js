@@ -40,7 +40,8 @@ export function openSubmission(input) {
   submissions.set(delegationId, {
     role: String(input.role),
     workId: String(input.workId),
-    chapter: Number(input.chapter),
+    chapter: input.chapter === undefined ? null : Number(input.chapter),
+    ...(input.stage === undefined ? {} : { stage: String(input.stage) }),
     ...(input.mode === undefined ? {} : { mode: String(input.mode) }),
     ...(input.wordRange === undefined ? {} : { wordRange: input.wordRange }),
     payload: undefined,
@@ -84,9 +85,32 @@ const VALIDATOR_LIMITS = { where: 120, problem: 160, evidence: 240, impact: 120,
 /** Settler delta bounds; the host still re-normalizes and validates it. */
 
 /** Validate the role-specific payload shape. */
-function validateShape(role, payload) {
+function validateShape(role, payload, stage) {
   if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
     return 'payload 必须是对象'
+  }
+  if (role === 'architect') {
+    const stages = {
+      frame: { keys: ['storyFrame', 'volumeMap', 'currentFocus'], label: 'frame' },
+      rules: { keys: ['bookRules'], label: 'rules' },
+      roles: { keys: ['rolesIndex'], label: 'roles' },
+      cards: { keys: ['roleCards'], label: 'cards' },
+    }
+    const spec = stages[stage]
+    if (spec === undefined) return `未知的 architect stage：${String(stage)}`
+    for (const key of spec.keys) {
+      if (payload[key] === undefined) return `architect ${spec.label} 缺少 ${key}`
+    }
+    for (const key of Object.keys(payload)) {
+      if (!spec.keys.includes(key)) return `architect ${spec.label} 不接受字段 ${key}`
+    }
+    if (stage === 'frame') {
+      for (const key of spec.keys) {
+        if (typeof payload[key] !== 'string' || payload[key].trim() === '') return `architect frame 的 ${key} 必须是非空字符串`
+      }
+    }
+    if (stage === 'cards' && (!Array.isArray(payload.roleCards) || payload.roleCards.length === 0)) return 'architect cards 的 roleCards 必须是非空数组'
+    return undefined
   }
   if (role === 'writer') {
     if (typeof payload.title !== 'string' || payload.title.trim() === '') return 'writer 缺少 title'
@@ -232,7 +256,7 @@ export async function submitPayload(input) {
   if (entry.attempts > MAX_ATTEMPTS) return failure('submit-attempts-exhausted', `提交尝试超过 ${MAX_ATTEMPTS} 次`)
 
   const payload = input.payload
-  const shapeError = validateShape(entry.role, payload)
+  const shapeError = validateShape(entry.role, payload, entry.stage)
   if (shapeError !== undefined) {
     return entry.attempts >= MAX_ATTEMPTS
       ? failure('submit-attempts-exhausted', `提交尝试超过 ${MAX_ATTEMPTS} 次：${shapeError}`)

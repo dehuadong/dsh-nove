@@ -12,10 +12,10 @@ DSH 里的长篇创作编排：三十二个动作把立项、章纲、正文、�
 
 ## 角色与委派
 
-写手、审稿、修订、摘要、规划**不是预设**，而是子代理；写手/审稿/修订/摘要默认由宿主动作 `story_delegate` 通过官方 `subagents` 服务启动，规划仍用手动 `subagent`：
+写手、审稿、修订、摘要、架构师、规划**不是预设**，而是子代理；写手/审稿/修订/摘要/架构师默认由宿主动作 `story_delegate` 通过官方 `subagents` 服务启动，规划仍用手动 `subagent`：
 
 - `story_delegate` 在宿主侧预检、装配上下文、启动子代理、校验并落库；主编只收紧凑回执，正文不进入主会话；
-- 手动兜底仍用官方 `subagent`：省略 `agentPreset`，子代理加入故事工坊当前组合；角色由任务提示与对应薄契约技能（`storycraft-write-craft`、`storycraft-review`、`storycraft-revise-craft`、`storycraft-plan-craft`）决定；角色技能只写任务、提交 schema、闸门与失败回退，方法正文读共享技能；
+- 手动兜底仍用官方 `subagent`：省略 `agentPreset`，子代理加入故事工坊当前组合；角色由任务提示与对应薄契约技能（`storycraft-write-craft`、`storycraft-review`、`storycraft-revise-craft`、`storycraft-architect`、`storycraft-plan-craft`）决定；角色技能只写任务、提交 schema、闸门与失败回退，方法正文读共享技能；
 - 写手按作品 `form` 追加形态技能：短篇加 `storycraft-short-story`，剧本加 `storycraft-short-drama`，提示按「章 / 篇 / 集」显示单位；形态技能同样只写契约，短篇/剧本方法读各自的共享技能；
 - 定稿前的状态对账由 `storycraft-state-check` 子代理完成（`story_state_check`），只读、只出建议；它不替代 `storycraft-review` 的正文审稿；
 - 定稿本身优先由 `story_settle` 自动完成：`storycraft-state-settler` 从正文抽取 `factOps`/`hookOps`/`newHooks`，再走 `story_state_check`；未解决时用 `story_state` 手动修正；
@@ -66,7 +66,7 @@ DSH 里的长篇创作编排：三十二个动作把立项、章纲、正文、�
   backups/<workId>-<ts>.db   单作品备份
 ```
 
-`catalog.db` 只存元数据，是 title/form/tags 的权威；作品库的 `meta` 行是导出副本。每部作品独立 `user_version`，升级一部不影响其他；v1–v4 首次打开自动迁移到 v5（摘要 revision + `materials` 表 + 素材用途 + 标题索引），迁移失败返回 `schema-migration-failed`，目录会把该作品标为降级而不是静默跳过。表结构、连接策略、改名/删除/恢复顺序与启动对账的完整设计见 [作品入库 Note](../.agents/notes/implemented/pipeline/2026-10-19-storycraft-sqlite-store.md)。
+`catalog.db` 只存元数据，是 title/form/tags 的权威；作品库的 `meta` 行是导出副本。每部作品独立 `user_version`，升级一部不影响其他；v1–v4 首次打开自动迁移到 v5（摘要 revision + `materials` 表 + 素材用途 + 标题索引），v6 首次打开自动补 v7 的 `foundation_approved_at` 列；迁移失败返回 `schema-migration-failed`，目录会把该作品标为降级而不是静默跳过。表结构、连接策略、改名/删除/恢复顺序与启动对账的完整设计见 [作品入库 Note](../.agents/notes/implemented/pipeline/2026-10-19-storycraft-sqlite-store.md)。
 
 动作与路由返回的模型可见 artifact 只有 `artifactId` / `revisionId` / `kind`，不含文件路径；正文/章纲/审稿/摘要等内容按 ID 用 `story_read` 或上下文动作读取。UI 与作者导出仍显示路径；实际内容在作品库内。宿主启动及首次读取一个工作区时对账目录与文件：缺失的作品在列表跳过并记入宿主诊断，孤儿文件与回收站文件保留待人工恢复。
 
@@ -106,6 +106,12 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 | `story_backup` | 用 SQLite 备份 API 生成单作品文件，返回 `integrity_check` |
 
 导出是给作者在系统文件管理器里取用的，不是让模型读库；`.storycraft` 仍整体拒绝工具直接访问。
+
+## 基础设定（architect）
+
+新作品在写全书计划前，先由 `architect` 子代理分四阶段生成基础设定：`frame`（故事框架 / 卷图 / 当前焦点）→ `rules`（作品规则）→ `roles`（角色索引）→ `cards`（major 角色卡）。`story_next` 给出下一阶段与 `delegate:{role:'architect',stage}`；每个阶段用 `story_delegate` 执行，宿主校验后写入 artifact（非法 payload 整批不落）。
+
+四个阶段完成后 `story_next` 返回 `blocked:['foundation-approval']`，作者在面板「基础设定」里查看并点「确认基础设定」；确认只由面板触发，不通知模型自动继续。`story_outline` 仍可手动调用（architect 不可用时的回退），已写全书计划的作品不再提示基础设定。基础设定会进入 `story_brief`、`story_context`、检索、审稿/结算约束与导出；初始 hooks 不在这里生成。
 
 ## 阶段机
 

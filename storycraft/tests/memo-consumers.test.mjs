@@ -121,9 +121,9 @@ try {
 
   const noOutline = (await s.initWork(root, { title: '无全书计划' })).workId
   const noOutlineNext = await s.nextStep(root, noOutline)
-  check('absent outline is a missing input, not blocked',
-    noOutlineNext.action === 'story_outline' && noOutlineNext.missing?.includes('outline')
-      && !(noOutlineNext.blocked ?? []).includes('outline-approval'), JSON.stringify(noOutlineNext))
+  check('absent foundation is the first missing input, not blocked',
+    noOutlineNext.action === 'story_architect' && noOutlineNext.foundationStage === 'frame'
+      && !(noOutlineNext.blocked ?? []).includes('foundation-approval'), JSON.stringify(noOutlineNext))
 
   const outlinePending = (await s.initWork(root, { title: '全书计划待确认' })).workId
   await s.writeOutline(root, { work: outlinePending, mainline: '一条线' })

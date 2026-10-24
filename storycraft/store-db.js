@@ -33,8 +33,9 @@ import {
   formOf, now, parseReview, planApprovalPolicy, stageOf, summaryAdmissible, trimSummary, unitOf, workIdOf,
 } from './domain.js'
 import { assertRevisionMode } from './revision.js'
+import { validateArtifactRecord } from './artifact-contract.js'
 import {
-  FOUNDATION_DOCUMENTS, remapChapterArtifacts, renderChapterMemo, renderFoundationContent,
+  artifactRevision, FOUNDATION_DOCUMENTS, putArtifactOnDb, remapChapterArtifacts, renderChapterMemo, renderFoundationContent,
   writeChapterMemoOnDb, writeChapterSummaryOnDb, writeTextArtifactOnDb, readTextArtifactOnDb,
 } from './artifact-store.js'
 
@@ -297,6 +298,7 @@ export function readManifest(root, work) {
             ...(meta.outline_approved_at === null ? {} : { approvedAt: meta.outline_approved_at }),
           },
         }),
+        foundation: foundationStateOf(db),
         chapters: chapters.map(chapter => {
           const memoRevision = memos.get(`plan:${chapter.number}`)
           return {
@@ -717,6 +719,11 @@ export function status(root, work) {
  * @returns {{role: 'writer'|'reviewer'|'reviser'|'summarizer'}|undefined} delegate hint.
  */
 function delegateOf(step, last, candidate) {
+  if (step.action === 'story_architect') {
+    if (Array.isArray(step.blocked) && step.blocked.length > 0) return undefined
+    if (step.foundationStage === undefined) return undefined
+    return { role: 'architect', stage: step.foundationStage }
+  }
   const role = { story_write: 'writer', story_review: 'reviewer', story_revise: 'reviser', story_summarize: 'summarizer' }[step.action]
   if (role === undefined) return undefined
   const missing = Array.isArray(step.missing) ? step.missing : []
@@ -730,6 +737,148 @@ function delegateOf(step, last, candidate) {
     return summaryAdmissible(last, candidate) ? { role } : undefined
   }
   return { role }
+}
+
+// ---------------------------------------------------------------------------
+// Foundation production: architect stages land validated artifacts; the author
+// confirms the finished set from the panel. Stages are derived from the registry
+// so a rerun or a manual edit cannot desync the state.
+// ---------------------------------------------------------------------------
+
+/** Architect stages in order. */
+export const FOUNDATION_STAGES = ['frame', 'rules', 'roles', 'cards']
+
+/** Artifacts each stage produces, in write order. */
+const FOUNDATION_STAGE_ARTIFACTS = {
+  frame: ['bible:story_frame', 'bible:volume_map', 'bible:current_focus'],
+  rules: ['bible:book_rules'],
+  roles: ['roles:index'],
+  cards: null,
+}
+
+/** Derived foundation state of one open work. */
+function foundationStateOf(db) {
+  const has = artifactId => db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ? LIMIT 1').get(artifactId) !== undefined
+  const stages = {
+    frame: FOUNDATION_STAGE_ARTIFACTS.frame.every(has),
+    rules: has('bible:book_rules'),
+    roles: has('roles:index'),
+    cards: db.prepare("SELECT 1 FROM artifacts WHERE kind = 'role_card' LIMIT 1").get() !== undefined,
+  }
+  const complete = FOUNDATION_STAGES.every(stage => stages[stage] === true)
+  const nextStage = FOUNDATION_STAGES.find(stage => stages[stage] !== true)
+  return {
+    stages,
+    complete,
+    ...(nextStage === undefined ? {} : { nextStage }),
+    ...(metaOf(db).foundation_approved_at === null ? {} : { approvedAt: metaOf(db).foundation_approved_at }),
+  }
+}
+
+/** Read the derived foundation state of one work. */
+export function readFoundationState(root, work) {
+  const db = openWork(root, work)
+  try {
+    return foundationStateOf(db)
+  } finally {
+    db.close()
+  }
+}
+
+/**
+ * Land one architect stage atomically.
+ * All artifacts are validated before any write; a rerun appends revisions and
+ * clears the author's foundation confirmation.
+ * @param {string} root - workspace directory.
+ * @param {{work: string, stage: string, payload: object}} input - stage payload.
+ * @returns {{workId: string, stage: string, artifacts: object[], foundation: object}} receipt.
+ */
+export function writeFoundationStage(root, input) {
+  const workId = String(input.work)
+  const stage = String(input.stage)
+  if (!FOUNDATION_STAGES.includes(stage)) throw new StoryError('foundation-stage-invalid', `未知的 foundation stage：${stage}`)
+  const payload = input.payload ?? {}
+  const db = openWork(root, workId)
+  try {
+    return transaction(db, () => {
+      const state = foundationStateOf(db)
+      if (stage !== 'frame' && state.stages.frame !== true) {
+        throw new StoryError('foundation-order', '先生成 frame（故事框架/卷图/当前焦点），再生成后续阶段')
+      }
+      if (stage === 'cards' && state.stages.roles !== true) {
+        throw new StoryError('foundation-order', '先生成 roles 索引，再生成角色卡')
+      }
+      const at = now()
+      const record = (artifactId, kind, content, source) => {
+        const value = {
+          workId,
+          artifactId,
+          kind,
+          revisionId: artifactRevision(content),
+          content,
+          provenance: 'generated',
+          createdAt: at,
+        }
+        const envelope = validateArtifactRecord(value)
+        return { envelope, source, text: renderFoundationContent(content) }
+      }
+      let records
+      if (stage === 'frame') {
+        records = [
+          record('bible:story_frame', 'story_frame', String(payload.storyFrame ?? ''), 'foundation/story_frame'),
+          record('bible:volume_map', 'volume_map', String(payload.volumeMap ?? ''), 'foundation/volume_map'),
+          record('bible:current_focus', 'current_focus', String(payload.currentFocus ?? ''), 'foundation/current_focus'),
+        ]
+      } else if (stage === 'rules') {
+        records = [record('bible:book_rules', 'book_rules', payload.bookRules, 'foundation/book_rules')]
+      } else if (stage === 'roles') {
+        records = [record('roles:index', 'role_index', payload.rolesIndex, 'foundation/roles/index')]
+      } else {
+        const cards = Array.isArray(payload.roleCards) ? payload.roleCards : []
+        if (cards.length === 0) throw new StoryError('artifact-invalid', '角色卡至少需要一张')
+        const index = db.prepare("SELECT content FROM artifacts WHERE artifact_id = 'roles:index' ORDER BY rowid DESC LIMIT 1").get()
+        const majorNames = new Set()
+        if (index !== undefined) {
+          for (const role of JSON.parse(index.content).roles ?? []) {
+            if (role.tier === 'major') majorNames.add(role.name)
+          }
+        }
+        records = cards.map((card) => {
+          if (!majorNames.has(card?.name)) {
+            throw new StoryError('artifact-invalid', `角色卡 ${String(card?.name)} 不在 roles 索引的 major 条目里`)
+          }
+          if (card?.tier !== 'major') {
+            throw new StoryError('artifact-invalid', `角色卡 ${String(card?.name)} 的 tier 必须是 major`)
+          }
+          return record(`role:${String(card?.slug ?? '').trim()}`, 'role_card', card, `foundation/roles/${String(card?.slug ?? '').trim()}`)
+        })
+      }
+      const artifacts = records.map(({ envelope, source, text }) => {
+        putArtifactOnDb(db, envelope, { search: { docId: envelope.artifactId, kind: envelope.kind, source, text } })
+        return { artifactId: envelope.artifactId, revisionId: envelope.revisionId, kind: envelope.kind }
+      })
+      db.prepare('UPDATE meta SET foundation_approved_at = NULL, updated_at = ? WHERE id = 1').run(at)
+      return { workId, stage, artifacts, foundation: foundationStateOf(db) }
+    })
+  } finally {
+    db.close()
+  }
+}
+
+/** Author confirmation of a complete foundation; panel-only in the product. */
+export function approveFoundation(root, input) {
+  const db = openWork(root, String(input.work))
+  try {
+    return transaction(db, () => {
+      const state = foundationStateOf(db)
+      if (state.complete !== true) throw new StoryError('foundation-incomplete', 'foundation 还没生成完整：先跑完四个 stage')
+      const at = now()
+      db.prepare('UPDATE meta SET foundation_approved_at = ?, updated_at = ? WHERE id = 1').run(at, at)
+      return { workId: String(input.work), approvedAt: at, foundation: foundationStateOf(db) }
+    })
+  } finally {
+    db.close()
+  }
 }
 
 /**
@@ -752,6 +901,21 @@ export function nextStep(root, work) {
     const step = (() => {
       if (last === undefined) {
         if (outline === undefined || outline.writtenAt === undefined) {
+          const foundation = foundationStateOf(db)
+          if (foundation.complete !== true) {
+            return {
+              chapter, stage: 'planned', action: 'story_architect', foundationStage: foundation.nextStage,
+              reason: `还没有基础设定（${foundation.nextStage}）：让 architect 生成故事框架、规则与角色，再写全书计划`,
+              missing: [`foundation:${foundation.nextStage}`],
+            }
+          }
+          if (foundation.approvedAt === undefined) {
+            return {
+              chapter, stage: 'planned', action: 'story_architect',
+              reason: '基础设定已生成，等作者在面板「基础设定」里确认，再写全书计划',
+              blocked: ['foundation-approval'],
+            }
+          }
           return {
             chapter, stage: 'planned', action: 'story_outline',
             reason: '还没有全书计划：先写主线、卷划分与结局方向，等作者确认', missing: ['outline'],

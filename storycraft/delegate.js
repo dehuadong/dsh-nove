@@ -11,9 +11,11 @@
 
 import { createHash } from 'node:crypto'
 import {
-  FORM_META, StoryError, chapterNumber, formOf, latestReview, readManifest, readPlan, readSummaryState, reviseChapter,
-  stageOf, summaryAdmissible, unitOf, writeChapter, writeReview, writeSummary,
+  FORM_META, StoryError, chapterNumber, formOf, latestReview, readFoundationState,
+  readManifest, readPlan, readSummaryState, reviseChapter, stageOf, summaryAdmissible, unitOf, writeChapter, writeFoundationStage,
+  writeReview, writeSummary,
 } from './storage.js'
+import { readFoundationDocuments } from './artifact-store.js'
 import { loadRoleInput } from './role-input.js'
 import { checkDraft } from './landing.js'
 import { closeSubmission, consumeSubmission, openSubmission } from './submission.js'
@@ -38,6 +40,7 @@ export const ROLE_META = {
   reviewer: { label: '审稿', skill: 'storycraft-review' },
   reviser: { label: '修订', skill: 'storycraft-revise-craft' },
   summarizer: { label: '摘要' },
+  architect: { label: '架构师', skill: 'storycraft-architect' },
 }
 
 export function writerSkills(form) {
@@ -304,6 +307,99 @@ function landedStage(root, work, chapter) {
   return stageOf(chapterEntryOf(manifest, chapter))
 }
 
+/** Build the architect child prompt for one foundation stage. */
+function architectPrompt({ work, stage, instruction, delegationId, manifest, foundation }) {
+  const labels = { frame: '故事框架与卷图', rules: '作品规则', roles: '角色索引', cards: '角色卡' }
+  const shapes = {
+    frame: 'payload 格式：{"storyFrame":"# 故事框架…（含 ## 前提/## 核心冲突/## 主角动机/## 约束/## 因果解决）","volumeMap":"## 第一卷\\n- 卷目标：…\\n- 起止章：…\\n- 关键节拍：…\\n- 卷末承诺：…","currentFocus":"# 当前焦点\\n…"}。',
+    rules: 'payload 格式：{"bookRules":{"version":"2","narrativePerson":"…","prohibitions":["…"],"protagonist":{"name":"…","personalityLock":["…"],"behavioralConstraints":["…"]},"genreLock":{"primary":"…","forbidden":["…"]},"enableFullCastTracking":false,"allowedDeviations":["…"],"markdown":"# 作品规则\\n…"}}。',
+    roles: 'payload 格式：{"rolesIndex":{"roles":[{"name":"…","tier":"major|minor","role":"…","want":"…","fear":"…","limit":"…","voice":"…"}]}}，最多 20 人。',
+    cards: 'payload 格式：{"roleCards":[{"slug":"…","name":"…","tier":"major","motivation":"…","knowledge":"…","relationshipPressure":"…","limits":"…","arc":"可选","markdown":"# …"}]}；只写 major 角色，最多 12 张。',
+  }
+  const context = []
+  if (stage !== 'frame' && foundation.storyFrame !== undefined) context.push(`## 故事框架\n${foundation.storyFrame}`)
+  if (stage === 'cards' && foundation.volumeMap !== undefined) context.push(`## 卷图\n${foundation.volumeMap}`)
+  if (stage === 'cards' && foundation.rolesIndex !== undefined) context.push(`## 角色索引\n${JSON.stringify(foundation.rolesIndex, null, 2)}`)
+  return [
+    `你是《${manifest.title}》（${manifest.workId}）的架构师子代理，负责基础设定：${labels[stage]}。`,
+    '开工前先调用 skill 工具加载 `storycraft-architect`，严格按它的契约与 longform foundation-design 参考执行。',
+    '',
+    '## 本次任务',
+    instruction.trim() === '' ? `生成${labels[stage]}。` : instruction.trim(),
+    ...(context.length === 0 ? [] : ['', '## 已生成的基础设定', ...context]),
+    '',
+    '## 输出契约',
+    `必须调用 story_submit，delegationId 是 ${delegationId}。`,
+    shapes[stage],
+    '结构与字段必须符合契约；提交成功后最终只回「已提交」，不要手动调用落盘动作。',
+    'story_submit 返回 ok:false 时，按 error.message 修正 payload 后重提，最多 3 次。',
+  ].join('\n')
+}
+
+/** Run one foundation stage through the architect child and land it. */
+async function delegateArchitect(root, input, host) {
+  const work = String(input.work)
+  const stage = String(input.stage ?? '')
+  if (!['frame', 'rules', 'roles', 'cards'].includes(stage)) {
+    throw new StoryError('foundation-stage-invalid', `未知的 foundation stage：${stage}`)
+  }
+  assertChildAvailability(host?.service, host?.agent)
+  const manifest = readManifest(root, work)
+  const state = readFoundationState(root, work)
+  if (stage === 'cards' && state.stages.roles !== true) {
+    throw new StoryError('foundation-order', '先生成 roles 索引，再生成角色卡')
+  }
+  const documents = readFoundationDocuments(root, work)
+  const opened = openSubmission({ role: 'architect', workId: work, stage })
+  const prompt = architectPrompt({
+    work, stage, instruction: typeof input.instruction === 'string' ? input.instruction : '',
+    delegationId: opened.delegationId, manifest,
+    foundation: {
+      storyFrame: documents.storyFrame === undefined ? undefined : documents.storyFrame.content,
+      volumeMap: documents.volumeMap === undefined ? undefined : documents.volumeMap.content,
+      rolesIndex: documents.rolesIndex?.content,
+    },
+  })
+  const timeoutMs = Number.isFinite(host.timeoutMs) ? host.timeoutMs : DELEGATE_TIMEOUT_MS
+  const signal = host.signal ?? new AbortController().signal
+  let child
+  try {
+    child = await runChild({
+      service: host?.service,
+      agent: host?.agent,
+      cwd: root,
+      prompt,
+      label: `故事工坊-${ROLE_META.architect.label}`,
+      signal: host.signal,
+      timeoutMs,
+      availability: false,
+    })
+    const result = child.result
+    const submission = consumeSubmission(opened.delegationId)
+    const attempts = submission?.attempts ?? 0
+    if (result?.stopReason !== 'completed') {
+      throw new StoryError('delegation-failed', `子代理未正常完成（${String(result?.stopReason ?? 'unknown')}）`)
+    }
+    if (submission?.consumed !== true || submission.payload === undefined) {
+      throw new StoryError('delegation-no-submission', `子代理没有提交通过校验的 ${stage} 结果（尝试 ${attempts} 次）`)
+    }
+    assertActive(signal)
+    const landed = writeFoundationStage(root, { work, stage, payload: submission.payload })
+    return fitReceipt({
+      ok: true,
+      workId: work,
+      role: 'architect',
+      foundationStage: stage,
+      artifacts: landed.artifacts,
+      foundation: landed.foundation,
+      submissionAttempts: attempts,
+    })
+  } finally {
+    closeSubmission(opened.delegationId)
+    if (child !== undefined) await child.dispose()
+  }
+}
+
 /**
  * Run one role through the subagents service and land its result.
  * @param {string} root - workspace directory.
@@ -313,11 +409,13 @@ function landedStage(root, work, chapter) {
  */
 export async function delegateRole(root, input, host) {
   const work = String(input.work)
-  const chapter = chapterNumber(input.chapter)
   const role = String(input.role)
   if (ROLE_META[role] === undefined) {
     throw new StoryError('delegation-failed', `未知角色：${role}`)
   }
+  if (role === 'architect') return delegateArchitect(root, { ...input, work }, host)
+  if (input.chapter === undefined) throw new StoryError('chapter-required', `${role} 需要 chapter`)
+  const chapter = chapterNumber(input.chapter)
   const mode = role === 'reviser' && typeof input.mode === 'string' ? input.mode : 'patch'
   assertChildAvailability(host?.service, host?.agent)
 

@@ -29,7 +29,7 @@ export const STORE_DIR = '.storycraft'
 export const CATALOG_SCHEMA_VERSION = 1
 
 /** Schema version of one work database. */
-export const WORK_SCHEMA_VERSION = 6
+export const WORK_SCHEMA_VERSION = 7
 
 /** Final material table with purpose, used by new databases. */
 const MATERIALS_SCHEMA_V4 = `
@@ -112,6 +112,7 @@ CREATE TABLE IF NOT EXISTS meta (
   word_max INTEGER,
   outline_written_at TEXT,
   outline_approved_at TEXT,
+  foundation_approved_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -389,7 +390,13 @@ export function openWork(root, workId) {
   const db = openDatabase(file)
   try {
     const version = userVersion(db)
-    if (version !== WORK_SCHEMA_VERSION) {
+    if (version === WORK_SCHEMA_VERSION - 1) {
+      // v6 → v7: foundation approval timestamp is additive; existing works migrate in place.
+      transaction(db, () => {
+        db.exec('ALTER TABLE meta ADD COLUMN foundation_approved_at TEXT')
+      })
+      db.exec(`PRAGMA user_version = ${WORK_SCHEMA_VERSION}`)
+    } else if (version !== WORK_SCHEMA_VERSION) {
       throw new StoryError('schema-version-mismatch',
         `作品 ${workId} 的库版本 ${version} 不是支持的 ${WORK_SCHEMA_VERSION}：测试作品请删除重建，不做兼容迁移`)
     }

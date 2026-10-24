@@ -784,13 +784,14 @@ const NEXT_OUTPUT = {
       blocked: {
         type: 'array',
         description: 'Author or host actions that must happen before the action can run.',
-        items: { type: 'string', enum: ['outline-approval', 'plan-approval'] },
+        items: { type: 'string', enum: ['outline-approval', 'plan-approval', 'foundation-approval'] },
       },
       delegate: {
         type: 'object',
         additionalProperties: false,
         properties: {
-          role: { type: 'string', enum: ['writer', 'reviewer', 'reviser', 'summarizer'] },
+          role: { type: 'string', enum: ['writer', 'reviewer', 'reviser', 'summarizer', 'architect'] },
+          stage: { type: 'string', enum: ['frame', 'rules', 'roles', 'cards'] },
         },
         required: ['role'],
       },
@@ -903,8 +904,43 @@ const DELEGATE_OUTPUT = {
       ok: OUTPUT_PROPERTIES.ok,
       workId: OUTPUT_PROPERTIES.workId,
       chapter: OUTPUT_PROPERTIES.chapter,
-      role: { type: 'string', enum: ['writer', 'reviewer', 'reviser', 'summarizer'] },
+      role: { type: 'string', enum: ['writer', 'reviewer', 'reviser', 'summarizer', 'architect'] },
       stage: OUTPUT_PROPERTIES.stage,
+      foundationStage: { type: 'string', enum: ['frame', 'rules', 'roles', 'cards'] },
+      artifacts: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            artifactId: { type: 'string' },
+            revisionId: { type: 'string' },
+            kind: { type: 'string' },
+          },
+          required: ['artifactId', 'revisionId', 'kind'],
+        },
+      },
+      foundation: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          stages: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              frame: { type: 'boolean' },
+              rules: { type: 'boolean' },
+              roles: { type: 'boolean' },
+              cards: { type: 'boolean' },
+            },
+            required: ['frame', 'rules', 'roles', 'cards'],
+          },
+          complete: { type: 'boolean' },
+          nextStage: { type: 'string', enum: ['frame', 'rules', 'roles', 'cards'] },
+          approvedAt: { type: 'string' },
+        },
+        required: ['stages', 'complete'],
+      },
       revision: { type: 'integer' },
       words: OUTPUT_PROPERTIES.words,
       summaryChars: { type: 'integer' },
@@ -2047,15 +2083,17 @@ function rawDefinitions(ctx) {
     action({
       name: 'story_delegate',
       mutates: true,
-      description: '宿主侧委派一个角色完成单步：writer 写首版正文、reviewer 审稿并落清单、reviser 按未处理条目修订、summarizer 写本章摘要。'
-        + ' 主编只收回执（版本/字数/审稿计数/警告），不接触正文与上下文；子代理通过 story_submit 提交，失败返回 delegation-no-submission。',
+      description: '宿主侧委派一个角色完成单步：writer 写首版正文、reviewer 审稿并落清单、reviser 按未处理条目修订、summarizer 写本章摘要、'
+        + 'architect 按 stage 生成基础设定（frame/rules/roles/cards）。'
+        + ' 主编只收回执（版本/字数/审稿计数/警告/阶段），不接触正文与上下文；子代理通过 story_submit 提交，失败返回 delegation-no-submission。',
       parameters: {
         type: 'object',
         additionalProperties: false,
         properties: {
           work: { type: 'string', description: '作品 id。' },
-          chapter: { type: 'integer', description: '章号。' },
-          role: { type: 'string', enum: ['writer', 'reviewer', 'reviser', 'summarizer'], description: '本次要跑的角色。' },
+          chapter: { type: 'integer', description: '章号；architect 不需要。' },
+          role: { type: 'string', enum: ['writer', 'reviewer', 'reviser', 'summarizer', 'architect'], description: '本次要跑的角色。' },
+          stage: { type: 'string', enum: ['frame', 'rules', 'roles', 'cards'], description: 'architect 的阶段；其他角色忽略。' },
           instruction: { type: 'string', description: '作者本轮要求，会并入子代理任务。' },
           mode: {
             type: 'string',
@@ -2063,7 +2101,7 @@ function rawDefinitions(ctx) {
             description: '仅 reviser 使用；缺省 patch。',
           },
         },
-        required: ['work', 'chapter', 'role'],
+        required: ['work', 'role'],
       },
       output: DELEGATE_OUTPUT,
       async execute(args, exec) {
@@ -2079,9 +2117,9 @@ function rawDefinitions(ctx) {
 
     action({
       name: 'story_next',
-      description: '查询这部作品下一步该做什么：动作名、章号、原因、缺什么（章纲/审稿/条目 id）与 blocked。'
-        + ' blocked 非空表示必须等作者在面板动作（全书计划/章纲确认），此时不要执行 action，也不要委派。'
-        + ' 返回 delegate 时优先用 story_delegate（writer/reviewer/reviser/summarizer）；没有 delegate 时按 action 走手动路径。'
+      description: '查询这部作品下一步该做什么：动作名、章号、原因、缺什么（章纲/审稿/条目 id/foundation stage）与 blocked。'
+        + ' blocked 非空表示必须等作者在面板动作（全书计划/章纲/基础设定确认），此时不要执行 action，也不要委派。'
+        + ' 返回 delegate 时优先用 story_delegate（writer/reviewer/reviser/summarizer/architect）；没有 delegate 时按 action 走手动路径。'
         + ' 每写完一步先调它，不要凭记忆猜下一步；它只读，不改任何文件。',
       parameters: {
         type: 'object',

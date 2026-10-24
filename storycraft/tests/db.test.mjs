@@ -104,6 +104,17 @@ try {
     contender.close()
   }
 
+  // A v6 database migrates in place: the additive foundation column is added.
+  const legacy = openWork(root, '测试书')
+  legacy.exec('ALTER TABLE meta DROP COLUMN foundation_approved_at')
+  legacy.exec('PRAGMA user_version = 6')
+  legacy.close()
+  const migrated = openWork(root, '测试书')
+  check('v6 migrates to v7', Number(migrated.prepare('PRAGMA user_version').get().user_version) === WORK_SCHEMA_VERSION)
+  check('v6 migration adds the foundation column',
+    migrated.prepare("SELECT name FROM pragma_table_info('meta') WHERE name = 'foundation_approved_at'").get() !== undefined)
+  migrated.close()
+
   // A newer schema must be refused, not silently downgraded.
   const newer = openWork(root, '测试书')
   newer.exec('PRAGMA user_version = 99')

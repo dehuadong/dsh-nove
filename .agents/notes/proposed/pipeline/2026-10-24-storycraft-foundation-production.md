@@ -98,6 +98,7 @@ R10 旧方案（一次生成 world/characters/plan/text-hook）已被对拍审�
 
 ## 风险
 
+- 落地需要一个 additive schema 变更：v7 给 `meta` 加 `foundation_approved_at`；v6 作品首次打开自动补列（v6→v7），不改其他表。
 - 四 stage 增加往返；必须有“已完成 stage 不重复”与断点续跑，否则作者会重复付费。
 - 子代理输出长度/质量波动；合同校验会拒绝，但需要错误可读、可重试。
 - foundation 确认增加一个作者闸门，面板不明显会卡流程；`story_next` 必须写清 blocked。

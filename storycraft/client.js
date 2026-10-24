@@ -17,6 +17,8 @@ window.__ModuleLoader__.load({
       chapter: '/api/dsh-storycraft/chapter',
       approve: '/api/dsh-storycraft/chapter/approve',
       outlineApprove: '/api/dsh-storycraft/outline/approve',
+      foundation: '/api/dsh-storycraft/foundation',
+      foundationApprove: '/api/dsh-storycraft/foundation/approve',
       review: '/api/dsh-storycraft/review',
       bible: '/api/dsh-storycraft/bible',
       brief: '/api/dsh-storycraft/brief',
@@ -349,6 +351,8 @@ window.__ModuleLoader__.load({
         chapter: (root, id, chapter, view, revision) => route(ROUTE.chapter, { root, id, chapter, view, revision }),
         approveChapterPlan: (root, sessionId, workId, chapter) => post(ROUTE.approve, { root, sessionId, workId, chapter }),
         approveOutline: (root, sessionId, workId) => post(ROUTE.outlineApprove, { root, sessionId, workId }),
+        foundation: (root, id) => route(ROUTE.foundation, { root, id }),
+        approveFoundation: (root, sessionId, workId) => post(ROUTE.foundationApprove, { root, sessionId, workId }),
         review: (root, id, chapter) => route(ROUTE.review, { root, id, chapter }),
         bible: (root, id) => route(ROUTE.bible, { root, id }),
         writeBible: (root, sessionId, workId, file, content, expectedVersion) => post('/api/dsh-storycraft/bible/write', {
@@ -916,6 +920,7 @@ window.__ModuleLoader__.load({
       const [selected, setSelected] = useState(undefined)
       const [stateOpen, setStateOpen] = useState(false)
       const [bible, setBible] = useState({ status: 'idle' })
+      const [foundation, setFoundation] = useState({ status: 'idle' })
       const [bibleEditor, setBibleEditor] = useState(undefined)
       const bibleTextareaRef = useRef(undefined)
       const bibleTriggerRef = useRef(undefined)
@@ -1101,6 +1106,16 @@ window.__ModuleLoader__.load({
       // A silent poll keeps the detail honest without replaying the loading
       // state, resetting the chapter selection, or writing the current pointer.
       useVisiblePolling(15000, refreshDetail)
+
+      const loadFoundation = async () => {
+        setFoundation({ status: 'loading' })
+        try {
+          const payload = await face.foundation(root, workId)
+          setFoundation({ status: 'ready', foundation: payload.foundation, documents: payload.documents ?? [] })
+        } catch (error) {
+          setFoundation({ status: 'error', error: error instanceof Error ? error.message : String(error) })
+        }
+      }
 
       const loadBible = async () => {
         setBible({ status: 'loading' })
@@ -1441,6 +1456,30 @@ window.__ModuleLoader__.load({
               title: '显示作者导出目录（只读路由，不把路径交给模型）',
               onClick: () => { void showExportDirectory() },
             }, '导出目录'),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn',
+              disabled: sessionId === undefined,
+              title: '查看基础设定（故事框架/卷图/规则/角色）与确认状态',
+              onClick: () => { void loadFoundation() },
+            }, foundation.status === 'loading' ? '读取基础设定…' : '基础设定'),
+            foundation.status === 'ready' && foundation.foundation?.complete === true && foundation.foundation?.approvedAt === undefined
+              ? h('button', {
+                type: 'button',
+                className: 'sc-btn sc-btn-primary',
+                title: '确认基础设定后，再写全书计划',
+                onClick: async () => {
+                  try {
+                    await face.approveFoundation(root, sessionId, manifest.workId)
+                    onNotice({ kind: 'ok', text: '基础设定已确认；下一步由作者决定何时继续会话。' })
+                    void loadFoundation()
+                    void load()
+                  } catch (error) {
+                    onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
+                  }
+                },
+              }, '确认基础设定')
+              : null,
             manifest.outline?.writtenAt !== undefined && manifest.outline?.approvedAt === undefined
               ? h('button', {
                 type: 'button',
@@ -1835,7 +1874,24 @@ window.__ModuleLoader__.load({
               },
             }, '刷新真值'),
           ),
-          bible.status === 'loading' ? h('p', { className: 'sc-muted' }, '读取真值…') : null,
+          foundation.status === 'error' ? h('p', { className: 'sc-notice sc-notice-info' }, foundation.error) : null,
+          foundation.status === 'ready'
+            ? h('div', { className: 'sc-item' },
+              h('div', { className: 'sc-item-head' },
+                h('span', { className: 'sc-item-name' }, '基础设定'),
+                h('span', { className: 'sc-badge' }, foundation.foundation?.complete === true ? '已生成' : '未完成'),
+                foundation.foundation?.approvedAt !== undefined ? h('span', { className: 'sc-badge sc-badge-ok' }, '已确认') : null,
+              ),
+              h('p', { className: 'sc-item-body' },
+                `阶段：frame ${foundation.foundation?.stages?.frame === true ? '✓' : '—'}；rules ${foundation.foundation?.stages?.rules === true ? '✓' : '—'}；`
+                + `roles ${foundation.foundation?.stages?.roles === true ? '✓' : '—'}；cards ${foundation.foundation?.stages?.cards === true ? '✓' : '—'}。`
+                + '这些产物由 architect 生成，brief/上下文/审稿会读取；作者确认后再写全书计划。'),
+              ...(foundation.documents ?? []).map(document => h('details', { className: 'sc-item', key: document.name },
+                h('summary', null, `${document.name}（v${String(document.revisionId).slice(0, 8)}）`),
+                h('pre', { className: 'sc-yaml' }, document.content),
+              )),
+            )
+            : null,          bible.status === 'loading' ? h('p', { className: 'sc-muted' }, '读取真值…') : null,
           bible.status === 'error' ? h('p', { className: 'sc-notice sc-notice-info' }, bible.error) : null,
           bible.status === 'ready'
             ? h('div', { className: 'sc-bible-grid' },

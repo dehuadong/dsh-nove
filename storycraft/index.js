@@ -13,12 +13,13 @@
 
 import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, resolve } from 'node:path'
-import { approveChapterPlan, approveOutline, createBackup, deleteBackup, deleteChapter, deleteMaterial, ensureReconciled, exportWorkAtomic, importMaterial, moveChapter, listMaterials, listTrash, listWorks, nextStep, purgeTrash, readManifest, restoreBackup, listBackups, readChapter, readReview, readWork, renameMaterial, restoreWork, setMaterialPurpose, status as readStatus, StoryError } from './storage.js'
+import { approveChapterPlan, approveFoundation, approveOutline, createBackup, deleteBackup, deleteChapter, deleteMaterial, ensureReconciled, exportWorkAtomic, importMaterial, moveChapter, listMaterials, listTrash, listWorks, nextStep, purgeTrash, readFoundationState, readManifest, restoreBackup, listBackups, readChapter, readReview, readWork, renameMaterial, restoreWork, setMaterialPurpose, status as readStatus, StoryError } from './storage.js'
 import { critique } from './critique.js'
 import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent } from './current.js'
 import { readVolumes } from './volumes.js'
 import { clearSessionCurrent, readSessionCurrent, setSessionCurrent } from './store-db.js'
 import { assembleBrief, extractStyleSamples, readBible, writeBible } from './bible.js'
+import { readFoundationDocuments, renderFoundationContent } from './artifact-store.js'
 import { backupsDir, exportsDir } from './db.js'
 
 /** Requires the host web server; without it the browser surface has no data. */
@@ -345,6 +346,57 @@ export function apply(ctx) {
             hydrateCurrent(await readCurrentFile(await rootOf(ctx, query)))
           }
           return { current: getCurrent(sessionId) }
+        })
+      },
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/foundation`,
+      handler: (req, res) => readRoute(req, res, async (query) => {
+        const root = await rootOf(ctx, query)
+        const workId = typeof query.get('id') === 'string' ? query.get('id') : ''
+        if (workId === '') throw new StoryError('invalid-query', '读取基础设定需要 id')
+        const foundation = readFoundationState(root, workId)
+        const documents = readFoundationDocuments(root, workId)
+        return {
+          workId,
+          foundation,
+          documents: [
+            ['story_frame', documents.storyFrame],
+            ['volume_map', documents.volumeMap],
+            ['book_rules', documents.bookRules],
+            ['roles_index', documents.rolesIndex],
+            ['current_focus', documents.currentFocus],
+          ].filter(([, entry]) => entry !== undefined).map(([name, entry]) => ({
+            name,
+            revisionId: entry.version,
+            content: renderFoundationContent(entry.content),
+          })),
+        }
+      }),
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/foundation/approve`,
+      handler: (req, res) => {
+        if (req.method !== 'POST') {
+          void readRoute(req, res, async () => {
+            throw new StoryError('method-not-allowed', '确认基础设定只接受 POST')
+          })
+          return
+        }
+        void postRoute(req, res, async (body) => {
+          const sessionId = typeof body?.sessionId === 'string' ? body.sessionId : ''
+          const workId = typeof body?.workId === 'string' ? body.workId : ''
+          if (sessionId === '' || workId === '') {
+            throw new StoryError('invalid-body', '确认基础设定需要 sessionId 与 workId')
+          }
+          const root = await rootOf(ctx, new URLSearchParams({ root: String(body?.root ?? '') }))
+          if (getCurrent(sessionId) !== workId) {
+            throw new StoryError('work-mismatch', '只在面板当前作品里确认基础设定')
+          }
+          const approved = approveFoundation(root, { work: workId })
+          return { workId, foundation: approved.foundation }
         })
       },
     }),

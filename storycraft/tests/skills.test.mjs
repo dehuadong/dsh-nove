@@ -26,7 +26,7 @@ function mount(mode) {
 
 const all = mount('all')
 const names = (await all.provider.list()).map(skill => skill.name)
-check('all serves every form, every role, the shared catalog, the shared methods and the state tools', names.length === 14, names.join(','))
+check('all serves every form, every role, the shared catalog, the shared methods and the state tools', names.length === 15, names.join(','))
 check('the orchestration skill is shared', names.includes('storycraft-studio-orchestration'))
 check('long form skill present', names.includes('storycraft-longform-chapter'))
 check('long form method present', names.includes('storycraft-longform-method'))
@@ -38,7 +38,7 @@ check('state settler skill present', names.includes('storycraft-state-settler'))
 check('short form skill present', names.includes('storycraft-short-story'))
 check('script skill present', names.includes('storycraft-short-drama'))
 check('every role craft is reachable from the work mode',
-  ['storycraft-write-craft', 'storycraft-review', 'storycraft-revise-craft', 'storycraft-plan-craft'].every(name => names.includes(name)),
+  ['storycraft-write-craft', 'storycraft-review', 'storycraft-revise-craft', 'storycraft-plan-craft', 'storycraft-architect'].every(name => names.includes(name)),
   names.join(','))
 check('no warning for all', all.warnings.length === 0, all.warnings.join('; '))
 const routed = [...Object.values(ROLE_META).map(meta => meta.skill), ...Object.values(FORM_META).map(meta => meta.skill)].filter(Boolean)
@@ -67,7 +67,7 @@ check('the review catalog holds review, state-check and state-settler skills',
 const one = mount('longform')
 const oneNames = (await one.provider.list()).map(skill => skill.name)
 check('one form serves its flow, legacy alias and shared method',
-  oneNames.length === 3 && oneNames.includes('storycraft-longform-chapter')
+  oneNames.length === 4 && oneNames.includes('storycraft-architect') && oneNames.includes('storycraft-longform-chapter')
   && oneNames.includes('storycraft-longform-method') && oneNames.includes('storycraft-long-writing'),
   oneNames.join(','))
 
