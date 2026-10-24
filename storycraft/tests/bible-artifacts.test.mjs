@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import * as s from '../storage.js'
 import * as b from '../bible.js'
 import { readTextArtifact } from '../artifact-store.js'
-import { openWork } from '../db.js'
+import { openWork } from '../dist/db.js'
 
 let failures = 0
 function check(name, condition, detail) {

@@ -5,9 +5,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../storage.js'
 import * as b from '../bible.js'
-import { mintHookId } from '../state-projection.js'
+import { mintHookId } from '../dist/state-projection.js'
 import { checkDraft } from '../landing.js'
-import { openWork } from '../db.js'
+import { openWork } from '../dist/db.js'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0

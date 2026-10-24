@@ -9,7 +9,7 @@ import * as tools from '../tools.js'
 import { readChapterSummary } from '../artifact-store.js'
 import { setCurrent } from '../dist/current.js'
 import { checkDraft } from '../landing.js'
-import { openWork } from '../db.js'
+import { openWork } from '../dist/db.js'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0

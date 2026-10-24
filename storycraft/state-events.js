@@ -2,18 +2,18 @@
  * Store-facing v2 state event helpers.
  *
  * The pure contract (ops, transitions, projections, hook id minting) lives in
- * `state-projection.js`; this module adds the append wrappers that read and
+ * `src/state-projection.ts`; this module adds the append wrappers that read and
  * write the work event log. Events outside the v2 contract are ignored by the
  * projection and never translated.
  */
 
 import { readEvents, appendStateEvent } from './store-db.js'
-import { applyFactOp, applyHookOp } from './state-projection.js'
+import { applyFactOp, applyHookOp } from './dist/state-projection.js'
 
 export {
   FACT_OPS, HOOK_OPS, STATE_LIMITS, applyFactOp, applyHookOp, mintHookId,
   projectFacts, projectHooks, projectState,
-} from './state-projection.js'
+} from './dist/state-projection.js'
 
 /** Append one hook op to the work's event log and return the new projection. */
 export function appendHookOp(root, input, options = {}) {

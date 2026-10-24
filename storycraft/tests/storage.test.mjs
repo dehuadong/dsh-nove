@@ -2,7 +2,7 @@
 import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { mintHookId } from '../state-projection.js'
+import { mintHookId } from '../dist/state-projection.js'
 import * as s from '../storage.js'
 import { reviewFixture } from './review-fixture.mjs'
 

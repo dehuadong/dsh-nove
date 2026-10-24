@@ -6,7 +6,7 @@ import * as s from '../storage.js'
 import {
   readChapterMemo, readChapterObservations, readChapterSummary, writeChapterObservations, writeChapterSummary,
 } from '../artifact-store.js'
-import { openWork } from '../db.js'
+import { openWork } from '../dist/db.js'
 
 let failures = 0
 function check(name, condition, detail) {

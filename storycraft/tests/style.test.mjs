@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../storage.js'
 import { assembleBrief, extractStyleSamples, readBible, writeBible } from '../bible.js'
-import { mergeBlock, styleBlock, styleProfile, stripBlock, STYLE_END, STYLE_START } from '../style.js'
-import { openWork } from '../db.js'
+import { mergeBlock, styleBlock, styleProfile, stripBlock, STYLE_END, STYLE_START } from '../dist/style.js'
+import { openWork } from '../dist/db.js'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -24,6 +24,10 @@ const profile = styleProfile([
 ])
 check('profile reports sentence metrics', profile.metrics.sentences > 0 && profile.metrics.paragraphs === 6
   && profile.metrics.dialogueRatio === 0, JSON.stringify(profile.metrics))
+check('style profile exposes metrics and sample shapes', typeof profile.metrics.avgSentence === 'number'
+  && Array.isArray(profile.samples)
+  && profile.samples.every(sample => typeof sample.chapter === 'number' && typeof sample.text === 'string'),
+JSON.stringify(profile.metrics))
 check('samples are 120–240 characters and at most 3', profile.samples.length === 3
   && profile.samples.every(sample => [...sample.text].length >= 120 && [...sample.text].length <= 240),
 JSON.stringify(profile.samples.map(sample => [...sample.text].length)))

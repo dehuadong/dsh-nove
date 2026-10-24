@@ -45,13 +45,18 @@ if (paths.length === 0) {
 }
 
 const failures = []
-const required = ['package.json', 'README.md', 'cordis.patch.yml', 'icon.svg', 'dist/scope.js']
+const required = ['package.json', 'README.md', 'cordis.patch.yml', 'icon.svg']
 for (const path of required) {
   if (!paths.includes(path)) failures.push(`缺少 ${path}`)
 }
 const rootJs = readdirSync(root).filter(name => name.endsWith('.js'))
+const srcTs = readdirSync(join(root, 'src')).filter(name => name.endsWith('.ts'))
 for (const name of rootJs) {
   if (!paths.includes(name)) failures.push(`缺少运行时模块 ${name}`)
+}
+for (const name of srcTs) {
+  const built = 'dist/' + name.replace(/\.ts$/u, '.js')
+  if (!paths.includes(built)) failures.push('缺少编译产物 ' + built)
 }
 if (!paths.some(path => path.startsWith('skills/'))) failures.push('缺少 skills/')
 

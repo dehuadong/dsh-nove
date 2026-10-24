@@ -116,7 +116,7 @@ check('short form loads its shared method, not the long-form method',
 check('screenplay loads its shared method, not the long-form method',
   shortDrama.includes('storycraft-script-writing') && !shortDrama.includes('storycraft-long-writing'))
 
-const projectionSource = await readFile(join(root, 'state-projection.js'), 'utf8')
+const projectionSource = await readFile(join(root, 'src', 'state-projection.ts'), 'utf8')
 const hookMatch = /const HOOK_OPS = \[([^\]]+)\]/u.exec(projectionSource)
 check('state projection exposes its hook ops', hookMatch !== null)
 const hookOps = hookMatch === null

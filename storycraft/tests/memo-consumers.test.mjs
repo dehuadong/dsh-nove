@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../storage.js'
-import { openWork } from '../db.js'
+import { openWork } from '../dist/db.js'
 import { readChapterMemo } from '../artifact-store.js'
 
 let failures = 0

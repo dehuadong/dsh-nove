@@ -8,11 +8,11 @@
 
 import { randomUUID } from 'node:crypto'
 import { StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, countWords, trimSummary } from './dist/domain.js'
-import { STATE_LIMITS } from './state-projection.js'
-import { assertRevisionMode } from './revision.js'
+import { STATE_LIMITS } from './dist/state-projection.js'
+import { assertRevisionMode } from './dist/revision.js'
 import {
   validateBookRules, validateRoleCard, validateRolesIndex, validateStoryFrame, validateVolumeMap,
-} from './artifact-contract.js'
+} from './dist/artifact-contract.js'
 import { checkWordRange } from './landing.js'
 import { readChapter } from './storage.js'
 

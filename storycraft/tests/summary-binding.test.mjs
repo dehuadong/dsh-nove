@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../storage.js'
 import * as b from '../bible.js'
-import { openDatabase, workFile } from '../db.js'
+import { openDatabase, workFile } from '../dist/db.js'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0

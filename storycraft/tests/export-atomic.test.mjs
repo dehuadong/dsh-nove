@@ -5,7 +5,7 @@ import { renameSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../storage.js'
-import { exportsDir, openWork } from '../db.js'
+import { exportsDir, openWork } from '../dist/db.js'
 
 let failures = 0
 function check(name, condition, detail) {

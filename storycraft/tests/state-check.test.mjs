@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { checkChapterState } from '../state-check.js'
 import { submitPayload } from '../submission.js'
-import { openWork } from '../db.js'
+import { openWork } from '../dist/db.js'
 import * as s from '../storage.js'
 import { reviewFixture } from './review-fixture.mjs'
 

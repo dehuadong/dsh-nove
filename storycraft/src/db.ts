@@ -11,9 +11,24 @@
 
 import { existsSync, mkdirSync, renameSync, rmSync, unlinkSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { StoryError, isWorkId, now } from './dist/domain.js'
+import { StoryError, isWorkId, now } from './domain.js'
 
-let DatabaseSync
+import type { DatabaseSync as SqliteDatabase } from 'node:sqlite'
+
+export type Database = SqliteDatabase
+
+export interface WorkMeta {
+  workId: string
+  title: string
+  form?: string
+  tags?: unknown
+  wordMin?: number
+  wordMax?: number
+  createdAt: string
+  updatedAt: string
+}
+
+let DatabaseSync: typeof import('node:sqlite').DatabaseSync | undefined
 try {
   ({ DatabaseSync } = await import('node:sqlite'))
 } catch {
@@ -201,45 +216,40 @@ CREATE INDEX IF NOT EXISTS idx_search_chapter ON search_docs(chapter);
 
 /**
  * Absolute catalog path of one workspace.
- * @param {string} root - workspace directory.
- * @returns {string} `<root>/.storycraft/catalog.db`.
  */
-export function catalogFile(root) {
+export function catalogFile(root: string): string {
   return join(root, STORE_DIR, 'catalog.db')
 }
 
 /** Absolute directory holding every work database. */
-export function worksDir(root) {
+export function worksDir(root: string): string {
   return join(root, STORE_DIR, 'works')
 }
 
 /** Absolute directory holding trashed work databases. */
-export function trashDir(root) {
+export function trashDir(root: string): string {
   return join(root, STORE_DIR, 'trash')
 }
 
 /** Absolute directory holding exports. */
-export function exportsDir(root) {
+export function exportsDir(root: string): string {
   return join(root, STORE_DIR, 'exports')
 }
 
 /** Absolute directory holding managed material copies. */
-export function materialsDir(root) {
+export function materialsDir(root: string): string {
   return join(root, STORE_DIR, 'materials')
 }
 
 /** Absolute directory holding backups. */
-export function backupsDir(root) {
+export function backupsDir(root: string): string {
   return join(root, STORE_DIR, 'backups')
 }
 
 /**
  * Absolute path of one work database.
- * @param {string} root - workspace directory.
- * @param {string} workId - work identity.
- * @returns {string} `<root>/.storycraft/works/<workId>.db`.
  */
-export function workFile(root, workId) {
+export function workFile(root: string, workId: unknown): string {
   const id = String(workId)
   if (!isWorkId(id)) {
     throw new StoryError('invalid-work-id', `作品 id 不合法：${id}`)
@@ -248,7 +258,7 @@ export function workFile(root, workId) {
 }
 
 /** Absolute path of one trashed work database. */
-export function trashFile(root, workId) {
+export function trashFile(root: string, workId: unknown): string {
   const id = String(workId)
   if (!isWorkId(id)) throw new StoryError('invalid-work-id', `作品 id 不合法：${id}`)
   return join(trashDir(root), `${id}.db`)
@@ -267,7 +277,7 @@ export function assertSqlite() {
 }
 
 /** Map an open/exec failure to the store's error codes. */
-function mapDatabaseError(error, message) {
+function mapDatabaseError(error: any, message: string): any {
   if (error instanceof StoryError) return error
   if (error?.code === 'SQLITE_BUSY' || error?.code === 'EBUSY'
     || /database is locked|SQLITE_BUSY|resource busy or locked|EBUSY/iu.test(String(error?.message))) {
@@ -281,16 +291,12 @@ function mapDatabaseError(error, message) {
 
 /**
  * Open one SQLite file with the store's pragmas.
- * @param {string} file - absolute database path.
- * @param {string} message - failure prefix for `db-corrupt`.
- * @param {{readOnly?: boolean, busyTimeout?: number}} [options] - `readOnly` opens a snapshot without WAL setup.
- * @returns {import('node:sqlite').DatabaseSync} open handle.
  */
-export function openDatabase(file, message = '作品库无法打开', options = {}) {
+export function openDatabase(file: string, message = '作品库无法打开', options: { readOnly?: boolean, busyTimeout?: number } = {}): Database {
   assertSqlite()
   let db
   try {
-    db = new DatabaseSync(file, options.readOnly === true ? { readOnly: true } : {})
+    db = new DatabaseSync!(file, options.readOnly === true ? { readOnly: true } : {})
     if (options.readOnly !== true) {
       // Set the wait before touching the journal: a diagnostic pass can ask for 0.
       db.exec(`PRAGMA busy_timeout = ${Number.isInteger(options.busyTimeout) ? options.busyTimeout : 5000}`)
@@ -309,7 +315,7 @@ export function openDatabase(file, message = '作品库无法打开', options = 
 }
 
 /** Read `PRAGMA user_version`. */
-function userVersion(db) {
+function userVersion(db: Database): number {
   try {
     return Number(db.prepare('PRAGMA user_version').get()?.user_version ?? 0)
   } catch (error) {
@@ -319,11 +325,8 @@ function userVersion(db) {
 
 /**
  * Open the workspace catalog, initializing it when absent.
- * @param {string} root - workspace directory.
- * @param {{create?: boolean, busyTimeout?: number}} [options] - `create: false` returns undefined instead of creating.
- * @returns {import('node:sqlite').DatabaseSync|undefined} open handle.
  */
-export function openCatalog(root, options = {}) {
+export function openCatalog(root: string, options: { create?: boolean, busyTimeout?: number } = {}): Database | undefined {
   assertSqlite()
   const file = catalogFile(root)
   if (!existsSync(file)) {
@@ -354,9 +357,9 @@ const WORK_SCHEMA_REQUIRED_COLUMNS = Object.freeze({
 })
 
 /** Reject a stale work file instead of letting a raw SQLite error surface later. */
-function assertWorkShape(db, workId) {
+function assertWorkShape(db: Database, workId: string): void {
   for (const [table, required] of Object.entries(WORK_SCHEMA_REQUIRED_COLUMNS)) {
-    const names = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map(row => row.name))
+    const names = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((row: any) => row.name))
     const missing = required.filter(name => !names.has(name))
     if (missing.length > 0) {
       throw new StoryError('schema-version-mismatch',
@@ -368,11 +371,8 @@ function assertWorkShape(db, workId) {
 /**
  * Open an existing work database. Never creates one: an id that was never
  * initialized is reported as `work-not-found`.
- * @param {string} root - workspace directory.
- * @param {string} workId - work identity.
- * @returns {import('node:sqlite').DatabaseSync} open handle.
  */
-export function openWork(root, workId) {
+export function openWork(root: string, workId: unknown): Database {
   assertSqlite()
   const file = workFile(root, workId)
   if (!existsSync(file)) throw new StoryError('work-not-found', `没有作品：${String(workId)}`)
@@ -383,7 +383,7 @@ export function openWork(root, workId) {
       throw new StoryError('schema-version-mismatch',
         `作品 ${workId} 的库版本 ${version} 不是支持的 ${WORK_SCHEMA_VERSION}：测试作品请删除重建，不做兼容迁移`)
     }
-    assertWorkShape(db, workId)
+    assertWorkShape(db, String(workId))
   } catch (error) {
     db.close()
     throw error
@@ -393,26 +393,22 @@ export function openWork(root, workId) {
 
 /**
  * Create one work database with its schema and metadata row.
- * @param {string} root - workspace directory.
- * @param {string} workId - work identity.
- * @param {object} meta - meta row fields.
- * @returns {string} the created file.
  */
-export function createWorkDatabase(root, workId, meta) {
+export function createWorkDatabase(root: string, workId: unknown, meta: WorkMeta): string {
   assertSqlite()
   const file = workFile(root, workId)
   if (existsSync(file)) throw new StoryError('work-exists', `作品已存在：${workId}`)
   mkdirSync(dirname(file), { recursive: true })
   let db
   try {
-    db = new DatabaseSync(file)
+    db = new DatabaseSync!(file)
     db.exec('PRAGMA journal_mode = WAL')
     db.exec('PRAGMA busy_timeout = 5000')
     db.exec('PRAGMA foreign_keys = ON')
     db.exec(WORK_SCHEMA)
-    db.prepare(`INSERT INTO meta (id, work_id, title, form, tags, plan_approval, word_min, word_max, created_at, updated_at)
-      VALUES (1, ?, ?, ?, ?, 'required', ?, ?, ?, ?)`).run(
-      meta.workId, meta.title, meta.form, meta.tags,
+    ;(db.prepare(`INSERT INTO meta (id, work_id, title, form, tags, plan_approval, word_min, word_max, created_at, updated_at)
+      VALUES (1, ?, ?, ?, ?, 'required', ?, ?, ?, ?)`) as any).run(
+      meta.workId, meta.title, meta.form, meta.tags as any,
       meta.wordMin ?? null, meta.wordMax ?? null, meta.createdAt, meta.updatedAt,
     )
     db.exec(`PRAGMA user_version = ${WORK_SCHEMA_VERSION}`)
@@ -432,9 +428,8 @@ export function createWorkDatabase(root, workId, meta) {
 
 /**
  * Remove one database together with its WAL sidecars.
- * @param {string} file - database path.
  */
-export function removeDatabaseFiles(file) {
+export function removeDatabaseFiles(file: string): void {
   // Guard every unlink: this Node build aborts on some `rmSync(force)` calls for
   // absent non-ASCII paths, and a missing file is already the desired state.
   for (const suffix of ['', '-wal', '-shm']) {
@@ -445,9 +440,8 @@ export function removeDatabaseFiles(file) {
 
 /**
  * Checkpoint a database so its file is self-contained before a move.
- * @param {import('node:sqlite').DatabaseSync} db - open handle.
  */
-export function checkpoint(db) {
+export function checkpoint(db: Database): void {
   try {
     db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
   } catch (error) {
@@ -457,10 +451,8 @@ export function checkpoint(db) {
 
 /**
  * Move a database file and its WAL sidecars.
- * @param {string} from - current path.
- * @param {string} to - target path.
  */
-export function moveDatabaseFiles(from, to) {
+export function moveDatabaseFiles(from: string, to: string): void {
   renameSync(from, to)
   for (const suffix of ['-wal', '-shm']) {
     if (existsSync(`${from}${suffix}`)) renameSync(`${from}${suffix}`, `${to}${suffix}`)
@@ -468,17 +460,14 @@ export function moveDatabaseFiles(from, to) {
 }
 
 /** Touch a work database's meta activity stamp. */
-export function touchMeta(db, at = now()) {
+export function touchMeta(db: Database, at = now()): void {
   db.prepare('UPDATE meta SET updated_at = ? WHERE id = 1').run(at)
 }
 
 /**
  * Run one write transaction (`BEGIN IMMEDIATE`).
- * @param {import('node:sqlite').DatabaseSync} db - open handle.
- * @param {() => any} fn - callback.
- * @returns {any} callback result.
  */
-export function transaction(db, fn) {
+export function transaction<T>(db: Database, fn: () => T): T {
   try {
     db.exec('BEGIN IMMEDIATE')
   } catch (error) {
@@ -500,24 +489,19 @@ export function transaction(db, fn) {
 
 /**
  * Run `PRAGMA integrity_check`.
- * @param {import('node:sqlite').DatabaseSync} db - open handle.
- * @returns {string} `ok` or the first error line.
  */
-export function integrityCheck(db) {
+export function integrityCheck(db: Database): unknown {
   return db.prepare('PRAGMA integrity_check').get()?.integrity_check ?? 'unknown'
 }
 
 /**
  * Copy a database through SQLite's backup API (WAL-safe).
- * @param {import('node:sqlite').DatabaseSync} db - open handle.
- * @param {string} destination - target file.
- * @returns {Promise<string>} destination.
  */
-export async function backupTo(db, destination) {
+export async function backupTo(db: Database, destination: string): Promise<string> {
   mkdirSync(dirname(destination), { recursive: true })
   if (existsSync(destination)) rmSync(destination, { force: true })
-  if (typeof db.backup === 'function') {
-    await db.backup(destination)
+  if (typeof (db as any).backup === 'function') {
+    await (db as any).backup(destination)
     return destination
   }
   // Older node:sqlite builds lack backup(); VACUUM INTO is a WAL-safe snapshot.
@@ -527,12 +511,8 @@ export async function backupTo(db, destination) {
 
 /**
  * Run one callback with an open work database.
- * @param {string} root - workspace directory.
- * @param {string} workId - work identity.
- * @param {(db: import('node:sqlite').DatabaseSync) => any} fn - callback.
- * @returns {any} callback result.
  */
-export function withWork(root, workId, fn) {
+export function withWork<T>(root: string, workId: unknown, fn: (db: Database) => T): T {
   const db = openWork(root, workId)
   try {
     return fn(db)

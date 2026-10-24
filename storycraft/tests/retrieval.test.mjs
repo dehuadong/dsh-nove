@@ -2,9 +2,9 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { mintHookId } from '../state-projection.js'
+import { mintHookId } from '../dist/state-projection.js'
 import * as s from '../storage.js'
-import { openWork } from '../db.js'
+import { openWork } from '../dist/db.js'
 import { buildQuery, codePointLength, select, snippetFor } from '../retrieval.js'
 import { reviewFixture } from './review-fixture.mjs'
 

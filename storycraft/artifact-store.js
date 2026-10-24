@@ -1,9 +1,9 @@
 /** Immutable artifact registry: contract validation plus SQLite persistence. */
 
 import { StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, chapterNumber, contentVersion, now } from './dist/domain.js'
-import { ARTIFACT_IDENTITY, validateArtifactRecord, validateChapterMemo, validateChapterMeta, validateChapterSummary } from './artifact-contract.js'
-import { openWork, touchMeta, transaction } from './db.js'
-import { syncSearchDoc } from './search-index.js'
+import { ARTIFACT_IDENTITY, validateArtifactRecord, validateChapterMemo, validateChapterMeta, validateChapterSummary } from './dist/artifact-contract.js'
+import { openWork, touchMeta, transaction } from './dist/db.js'
+import { syncSearchDoc } from './dist/search-index.js'
 
 function serialize(content) {
   if (typeof content === 'string') return { contentType: 'text', text: content }

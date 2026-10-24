@@ -2,7 +2,7 @@
 import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { trashDir, trashFile, workFile } from '../db.js'
+import { trashDir, trashFile, workFile } from '../dist/db.js'
 import * as s from '../storage.js'
 
 let failures = 0

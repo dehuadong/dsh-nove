@@ -20,7 +20,7 @@ import { readVolumes } from './volumes.js'
 import { clearSessionCurrent, readSessionCurrent, setSessionCurrent } from './store-db.js'
 import { assembleBrief, extractStyleSamples, readBible, writeBible } from './bible.js'
 import { listRoleCards, readFoundationDocuments, renderFoundationContent } from './artifact-store.js'
-import { backupsDir, exportsDir } from './db.js'
+import { backupsDir, exportsDir } from './dist/db.js'
 
 /** Requires the host web server; without it the browser surface has no data. */
 export const inject = ['webServer']

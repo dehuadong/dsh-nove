@@ -3,7 +3,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { validateChapterMeta } from '../artifact-contract.js'
+import { validateChapterMeta } from '../dist/artifact-contract.js'
 import { initWork } from '../storage.js'
 import {
   approveChapterPlan, approveOutline, readManifest, updateSettings, writeChapter, writeOutline, writePlan,

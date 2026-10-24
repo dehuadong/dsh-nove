@@ -7,7 +7,7 @@ import { initWork } from '../storage.js'
 import {
   approveChapterPlan, writeBible, writeChapter, writePlan, writeReview,
 } from '../store-db.js'
-import { openWork } from '../db.js'
+import { openWork } from '../dist/db.js'
 import {
   readChapterMeta, readChapterObservations, writeChapterObservations,
 } from '../artifact-store.js'

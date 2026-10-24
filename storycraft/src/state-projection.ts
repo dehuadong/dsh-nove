@@ -7,7 +7,7 @@
  */
 
 import { createHash } from 'node:crypto'
-import { StoryError, chapterNumber } from './dist/domain.js'
+import { StoryError, chapterNumber } from './domain.js'
 import { assertHookTransition, validateFact, validateHook } from './artifact-contract.js'
 
 /** Operations that only change hook metadata. */
@@ -19,41 +19,41 @@ export const FACT_OPS = ['upsert', 'expire']
 /** Bounds of one settlement payload. */
 export const STATE_LIMITS = { facts: 20, hooks: 30, newHooks: 8, text: 240 }
 
-function invalid(message, code = 'state-op-invalid') {
+function invalid(message: string, code = 'state-op-invalid'): never {
   throw new StoryError(code, message)
 }
 
-function object(value, label) {
+function object(value: any, label: string): any {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) invalid(`${label} 必须是对象`)
   return value
 }
 
-function text(value, label, optional = false) {
+function text(value: any, label: string, optional = false): any {
   if (value === undefined && optional) return undefined
   if (typeof value !== 'string' || value.trim() === '') invalid(`${label} 必须是非空字符串`)
   return value.trim()
 }
 
-function boundedText(value, label, optional = false) {
+function boundedText(value: any, label: string, optional = false): any {
   const trimmed = text(value, label, optional)
   if (trimmed === undefined) return undefined
   if ([...trimmed].length > STATE_LIMITS.text) invalid(`${label} 超过 ${STATE_LIMITS.text} 字`)
   return trimmed
 }
 
-function sortEvents(events) {
+function sortEvents(events: any[]): any[] {
   return [...events].sort((left, right) => Number(left?.seq ?? 0) - Number(right?.seq ?? 0))
 }
 
 /** Mint the canonical hook identity from its display text. */
-export function mintHookId(text) {
+export function mintHookId(text: any): string {
   const value = String(text ?? '').trim()
   if (value === '') invalid('新伏笔缺少 text')
   return `h-${createHash('sha1').update(value).digest('hex').slice(0, 8)}`
 }
 
 /** Project one hook event onto the map; unknown/legacy hook events are ignored. */
-function applyHookEvent(hooks, event) {
+function applyHookEvent(hooks: Map<any, any>, event: any): void {
   if (event.op === 'upsert') {
     const hook = object(event.hook, 'hook')
     const current = hooks.get(hook.hookId)
@@ -73,7 +73,7 @@ function applyHookEvent(hooks, event) {
 }
 
 /** Project one fact event onto the active fact list. */
-function applyFactEvent(facts, event) {
+function applyFactEvent(facts: any[], event: any): void {
   if (event.op === 'upsert') {
     const fact = event.fact
     if (fact === undefined) return
@@ -107,12 +107,10 @@ function applyFactEvent(facts, event) {
 /**
  * Fold new-contract hook/fact events into current projections.
  * Events without a v2 `op` are outside the contract and are ignored, never translated.
- * @param {object[]} events - event records, in any order.
- * @returns {{hooks: object[], facts: object[]}} projections.
  */
-export function projectState(events = []) {
-  const hooks = new Map()
-  const facts = []
+export function projectState(events: any[] = []): { hooks: any[], facts: any[] } {
+  const hooks = new Map<any, any>()
+  const facts: any[] = []
   for (const event of sortEvents(events)) {
     if (event?.kind === 'hook') applyHookEvent(hooks, event)
     else if (event?.kind === 'fact') applyFactEvent(facts, event)
@@ -121,17 +119,17 @@ export function projectState(events = []) {
 }
 
 /** Project only hooks. */
-export function projectHooks(events = []) {
+export function projectHooks(events: any[] = []): any[] {
   return projectState(events).hooks
 }
 
 /** Project only facts. */
-export function projectFacts(events = []) {
+export function projectFacts(events: any[] = []): any[] {
   return projectState(events).facts
 }
 
 /** Build the validated upsert payload, keeping the existing status/metadata. */
-function hookUpsert(input, current) {
+function hookUpsert(input: any, current: any): any {
   const raw = object(input.hook, 'hook')
   if (current === undefined && raw.status !== undefined && raw.status !== 'open') {
     invalid('新伏笔只能以 open 创建', 'hook-transition-invalid')
@@ -155,7 +153,7 @@ function hookUpsert(input, current) {
 }
 
 /** Advance one hook by one non-upsert op. */
-function hookTransition(current, op, chapter) {
+function hookTransition(current: any, op: any, chapter: any): any {
   if (op === 'mention') return current
   if (op === 'progress') {
     if (!['open', 'progressing', 'deferred'].includes(current.status)) {
@@ -173,7 +171,7 @@ function hookTransition(current, op, chapter) {
 }
 
 /** The status one non-upsert op targets. */
-function targetStatus(op) {
+function targetStatus(op: any): any {
   if (op === 'progress') return 'progressing'
   if (op === 'defer') return 'deferred'
   if (op === 'resolve') return 'resolved'
@@ -186,12 +184,8 @@ function targetStatus(op) {
  * With `allowReapply`, an op whose target equals the current status is an
  * idempotent no-op (a reopened chapter settles again without re-declaring it),
  * and `mention` stays a no-op event.
- * @param {object[]} events - existing events.
- * @param {object} input - `{op, hook}` for upsert, `{op, hookId, chapter}` otherwise.
- * @param {{allowReapply?: boolean}} [options] - reapply rules.
- * @returns {{event: object|null, state: {hooks: object[], facts: object[]}}} event to append (null for a no-op) and the projection.
  */
-export function applyHookOp(events, input, options = {}) {
+export function applyHookOp(events: any[], input: any, options: any = {}): any {
   object(input, 'hook op')
   const op = String(input.op ?? '')
   if (!HOOK_OPS.includes(op)) invalid(`未知的 hook op：${op}`)
@@ -216,7 +210,7 @@ export function applyHookOp(events, input, options = {}) {
 }
 
 /** Build one projected fact from an upsert op. */
-function factUpsert(input) {
+function factUpsert(input: any): any {
   const raw = object(input.fact, 'fact')
   const chapter = chapterNumber(input.chapter)
   const fact = {
@@ -236,12 +230,8 @@ function factUpsert(input) {
 
 /**
  * Apply one fact op to the current projection.
- * @param {object[]} events - existing events.
- * @param {object} input - `{op, fact, chapter, source}` or `{op, selector, chapter}`.
- * @param {{allowReapply?: boolean}} [options] - reapply rules.
- * @returns {{event: object|null, state: {hooks: object[], facts: object[]}}} event to append (null for a no-op) and the projection.
  */
-export function applyFactOp(events, input, options = {}) {
+export function applyFactOp(events: any[], input: any, options: any = {}): any {
   object(input, 'fact op')
   const op = String(input.op ?? '')
   if (!FACT_OPS.includes(op)) invalid(`未知的 fact op：${op}`)

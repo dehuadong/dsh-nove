@@ -214,17 +214,11 @@ storycraft/
   package.json                 # bundle 清单：dsh.bundle.patch + dsh.client
   cordis.patch.yml             # 入口行 + 一条预设声明（故事工坊，技能行 mode: all）
   index.js                     # Host 半边：只读路由 + 作者确认/素材管理/面板导出
-  db.js                        # SQLite 目录库 / 作品库 schema、连接、检查点与备份
   store-db.js                  # 全部读写：作品、章节、真值、卷、素材、检索、生命周期、导出备份
-  search-index.js              # FTS 索引文档同步与删除
-  state-projection.js          # fact/hook v2 投影、限额与状态折叠
   state-events.js              # v2 状态事件读写
   state-check.js               # story_state_check：只读语义对账、findings 与引文校验
   state-settle.js              # story_settle：settler 抽取、一次反馈重算、fold 或未解决回执
-  materials.js                 # 素材上传字节校验、文件名、哈希与元数据
-  search-text.js               # FTS 分词与素材标题/正文索引文本
   storage.js                   # 稳定门面：动作与路由从这里取领域函数与存储函数
-  domain.js                    # 共享词汇：错误码、id、阶段、审稿文本、事件折叠
   facts.js                     # 白名单唯一派生入口：只读已落库资料，正文与任务不参与
   context.js                   # 角色上下文拼装：按角色分段、保护级别、预算裁剪、检索段、轨迹、白名单摘要
   retrieval.js                 # 检索查询与整条选择（纯函数，无 I/O）
@@ -271,7 +265,7 @@ node scripts/pack-check.mjs
 
 ## TypeScript 接入
 
-当前已迁移到 TS：`scope`（L0）以及 L1 叶子层 `domain`、`chapter-edit`、`search-text`、`critique`、`materials`、`current`、`epub`。
+当前已迁移到 TS：`scope`（L0）、L1 叶子层 `domain`、`chapter-edit`、`search-text`、`critique`、`materials`、`current`、`epub`，以及 L2 `db`、`artifact-contract`、`search-index`、`style`、`revision`、`state-projection`。
 
 - 源文件：`src/*.ts`；`dist/` 由构建生成，不提交；
 - 安装依赖：`npm install`（`typescript` + `@types/node` 是 devDependencies，不进安装包）；
@@ -283,7 +277,7 @@ node scripts/pack-check.mjs
 
 ## 改动与生效
 
-包以 `link:` 装入 profile，改 `client.js` 后刷新窗口即可；改 `cordis.patch.yml` 或 Host 半边（`index.js`、`tools.js`、`delegate.js`、`db.js`、`store-db.js`）需要重启应用，或让 `plugin_manager` 把 bundle 关→开重载补丁。停用用 `set_bundle enabled:false`，卸载用 `remove_bundle`。
+包以 `link:` 装入 profile，改 `client.js` 后刷新窗口即可；改 `cordis.patch.yml` 或 Host 半边（`index.js`、`tools.js`、`delegate.js`、`store-db.js`、`src/*.ts`）需要重启应用，或让 `plugin_manager` 把 bundle 关→开重载补丁。停用用 `set_bundle enabled:false`，卸载用 `remove_bundle`。
 
 ## 阶段上下文
 

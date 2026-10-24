@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../storage.js'
-import { openCatalog, openDatabase, openWork, workFile } from '../db.js'
+import { openCatalog, openDatabase, openWork, workFile } from '../dist/db.js'
 
 let failures = 0
 function check(name, condition, detail) {

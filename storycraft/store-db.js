@@ -18,22 +18,22 @@ import {
   backupTo, checkpoint, createWorkDatabase, exportsDir, integrityCheck, WORK_SCHEMA_VERSION,
   materialsDir, moveDatabaseFiles, openCatalog, openDatabase, openWork, removeDatabaseFiles, touchMeta, transaction,
   trashDir, trashFile, workFile, worksDir, backupsDir,
-} from './db.js'
+} from './dist/db.js'
 import { MATERIAL_PURPOSES, MATERIAL_TITLE_MAX, materialMetadata, normalizeMaterialPurpose, prepareMaterial } from './dist/materials.js'
 import { chapterRemap } from './dist/chapter-edit.js'
 import { buildEpub } from './dist/epub.js'
 import { snippetFor } from './retrieval.js'
 import { materialIndexText, searchTokens } from './dist/search-text.js'
-import { dropSearchDoc, syncSearchDoc } from './search-index.js'
-import { STATE_LIMITS, applyFactOp, applyHookOp, mintHookId, projectState } from './state-projection.js'
+import { dropSearchDoc, syncSearchDoc } from './dist/search-index.js'
+import { STATE_LIMITS, applyFactOp, applyHookOp, mintHookId, projectState } from './dist/state-projection.js'
 
 export { searchTokens }
 import {
   StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, WORK_FORMS, chapterNumber, chapterStem, contentVersion, countWords,
   formOf, now, planApprovalPolicy, stageOf, summaryAdmissible, trimSummary, unitOf, workIdOf,
 } from './dist/domain.js'
-import { assertRevisionMode } from './revision.js'
-import { validateArtifactRecord } from './artifact-contract.js'
+import { assertRevisionMode } from './dist/revision.js'
+import { validateArtifactRecord } from './dist/artifact-contract.js'
 import {
   artifactRevision, FOUNDATION_DOCUMENTS, putArtifactOnDb, remapChapterArtifacts, renderChapterMemo, renderFoundationContent,
   writeChapterMemoOnDb, writeChapterObservationsOnDb, writeChapterSummaryOnDb, writeTextArtifactOnDb, readTextArtifactOnDb,

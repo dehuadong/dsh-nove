@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import {
   CATALOG_SCHEMA_VERSION, WORK_SCHEMA_VERSION, backupTo, catalogFile, createWorkDatabase, integrityCheck,
   openCatalog, openDatabase, openWork, sqliteAvailable, transaction, workFile,
-} from '../db.js'
+} from '../dist/db.js'
 
 let failures = 0
 function check(name, condition, detail) {

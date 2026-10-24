@@ -6,7 +6,7 @@
  * boundary with these functions.
  */
 
-import { StoryError, STAGES, SUMMARY_FIELDS, WORK_FORMS } from './dist/domain.js'
+import { StoryError, STAGES, SUMMARY_FIELDS, WORK_FORMS } from './domain.js'
 
 /** Contract version carried by new works. */
 export const ARTIFACT_CONTRACT_VERSION = 2
@@ -46,57 +46,59 @@ export const CHAPTER_STAGES = STAGES
 export const ARTIFACT_PROVENANCE = ['generated', 'imported', 'edited']
 export const SCRIPT_FORMATS = ['vertical_short_drama', 'screenplay', 'audio_drama', 'interactive_script', 'general_script']
 
+export type ArtifactRecord = Record<string, any>
+
 const ID_PATTERN = /^[a-z][a-z0-9_]*(?::[^\s:]+)*$/u
 
 /** Throw one contract error with a stable code. */
-function invalid(message, code = 'artifact-invalid') {
+function invalid(message: string, code = 'artifact-invalid'): never {
   throw new StoryError(code, message)
 }
 
-function object(value, label) {
+function object(value: any, label: string): any {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) invalid(`${label} 必须是对象`)
   return value
 }
 
-function keys(value, allowed, label) {
+function keys(value: any, allowed: readonly string[], label: string): void {
   for (const key of Object.keys(value)) {
     if (!allowed.includes(key)) invalid(`${label} 含未知字段：${key}`)
   }
 }
 
-function text(value, label, optional = false) {
+function text(value: any, label: string, optional = false): any {
   if (value === undefined && optional) return undefined
   if (typeof value !== 'string' || value.trim() === '') invalid(`${label} 必须是非空字符串`)
   return value
 }
 
-function textAllowEmpty(value, label, optional = false) {
+function textAllowEmpty(value: any, label: string, optional = false): any {
   if (value === undefined && optional) return undefined
   if (typeof value !== 'string') invalid(`${label} 必须是字符串`)
   return value
 }
 
-function integer(value, label, min = 0) {
+function integer(value: any, label: string, min = 0): any {
   if (!Number.isInteger(value) || value < min) invalid(`${label} 必须是 >= ${min} 的整数`)
   return value
 }
 
-function optionalInteger(value, label, min = 0) {
+function optionalInteger(value: any, label: string, min = 0): any {
   if (value === undefined) return undefined
   return integer(value, label, min)
 }
 
-function boolean(value, label) {
+function boolean(value: any, label: string): any {
   if (typeof value !== 'boolean') invalid(`${label} 必须是布尔值`)
   return value
 }
 
-function oneOf(value, allowed, label) {
+function oneOf(value: any, allowed: readonly any[], label: string): any {
   if (!allowed.includes(value)) invalid(`${label} 只能是 ${allowed.join(' / ')}`)
   return value
 }
 
-function strings(value, label, { min = 0, max = Infinity } = {}) {
+function strings(value: any, label: string, { min = 0, max = Infinity } = {}): any {
   if (!Array.isArray(value)) invalid(`${label} 必须是数组`)
   if (value.length < min) invalid(`${label} 至少 ${min} 项`)
   if (value.length > max) invalid(`${label} 最多 ${max} 项`)
@@ -104,22 +106,22 @@ function strings(value, label, { min = 0, max = Infinity } = {}) {
   return value
 }
 
-function list(value, label, validator, { min = 0, max = Infinity } = {}) {
+function list(value: any, label: string, validator: (value: any, label: string) => any, { min = 0, max = Infinity } = {}): any {
   if (!Array.isArray(value)) invalid(`${label} 必须是数组`)
   if (value.length < min) invalid(`${label} 至少 ${min} 项`)
   if (value.length > max) invalid(`${label} 最多 ${max} 项`)
-  return value.map((item, index) => validator(object(item, `${label}[${index}]`), `${label}[${index}]`))
+  return value.map((item: any, index: number) => validator(object(item, `${label}[${index}]`), `${label}[${index}]`))
 }
 
 /** Validate an artifact ID; IDs are lowercase, colon-separated, no paths. */
-export function validateArtifactId(value) {
+export function validateArtifactId(value: ArtifactRecord): ArtifactRecord {
   const id = text(value, 'artifactId')
   if (!ID_PATTERN.test(id)) invalid(`artifactId 不合法：${id}`)
   return id
 }
 
 /** Validate an artifact envelope. */
-export function validateArtifactEnvelope(value) {
+export function validateArtifactEnvelope(value: ArtifactRecord): ArtifactRecord {
   const input = object(value, 'artifact')
   keys(input, ['workId', 'artifactId', 'kind', 'scope', 'revisionId', 'content', 'provenance', 'createdAt'], 'artifact')
   text(input.workId, 'workId')
@@ -146,7 +148,7 @@ export function validateArtifactEnvelope(value) {
 }
 
 /** Validate a WorkConfig projection. */
-export function validateWorkConfig(value) {
+export function validateWorkConfig(value: ArtifactRecord): ArtifactRecord {
   const input = object(value, 'work')
   keys(input, ['workId', 'title', 'form', 'platform', 'genre', 'status', 'targetChapters',
     'chapterWordCount', 'language', 'parentWorkId', 'fanficMode', 'tags', 'planApproval',
@@ -186,7 +188,7 @@ export function validateWorkConfig(value) {
 }
 
 /** Validate a readable story_frame Markdown document. */
-export function validateStoryFrame(value) {
+export function validateStoryFrame(value: ArtifactRecord): ArtifactRecord {
   const content = text(value, 'story_frame')
   for (const heading of ['## 前提', '## 核心冲突', '## 主角动机', '## 约束', '## 因果解决']) {
     if (!content.includes(heading)) invalid(`story_frame 缺少 ${heading}`)
@@ -198,7 +200,7 @@ export function validateStoryFrame(value) {
 export const VOLUME_MAP_FIELDS = ['卷目标', '起止章', '关键节拍', '卷末承诺']
 
 /** Validate a readable volume_map Markdown document. */
-export function validateVolumeMap(value) {
+export function validateVolumeMap(value: ArtifactRecord): ArtifactRecord {
   const content = text(value, 'volume_map')
   const sections = content.split(/^##\s+/mu).slice(1)
   if (sections.length === 0) invalid('volume_map 至少需要一个卷标题')
@@ -213,7 +215,7 @@ export function validateVolumeMap(value) {
 }
 
 /** Validate book_rules.json plus its readable markdown. */
-export function validateBookRules(value) {
+export function validateBookRules(value: ArtifactRecord): ArtifactRecord {
   const input = object(value, 'book_rules')
   keys(input, ['version', 'narrativePerson', 'prohibitions', 'protagonist', 'genreLock',
     'enableFullCastTracking', 'fanficMode', 'allowedDeviations', 'markdown'], 'book_rules')
@@ -237,7 +239,7 @@ export function validateBookRules(value) {
 }
 
 /** Validate roles index; six display fields live only here. */
-export function validateRolesIndex(value) {
+export function validateRolesIndex(value: ArtifactRecord): ArtifactRecord {
   const input = object(value, 'roles')
   keys(input, ['roles'], 'roles')
   list(input.roles, 'roles.roles', (role, label) => {
@@ -247,13 +249,13 @@ export function validateRolesIndex(value) {
     for (const field of ['role', 'want', 'fear', 'limit', 'voice']) text(role[field], `${label}.${field}`)
     return role
   })
-  const names = new Set(input.roles.map(role => role.name))
+  const names = new Set(input.roles.map((role: any) => role.name))
   if (names.size !== input.roles.length) invalid('roles.roles 姓名重复')
   return input
 }
 
 /** Validate a role card; it does not duplicate the index's six fields. */
-export function validateRoleCard(value) {
+export function validateRoleCard(value: ArtifactRecord): ArtifactRecord {
   const input = object(value, 'role_card')
   keys(input, ['slug', 'name', 'tier', 'motivation', 'knowledge', 'relationshipPressure', 'limits', 'arc', 'markdown'], 'role_card')
   text(input.slug, 'role_card.slug')
@@ -267,7 +269,7 @@ export function validateRoleCard(value) {
 }
 
 /** Validate a chapter memo (stored as plan:<n>). */
-export function validateChapterMemo(value) {
+export function validateChapterMemo(value: ArtifactRecord): ArtifactRecord {
   const input = object(value, 'chapter_memo')
   keys(input, ['chapter', 'goal', 'body', 'threadRefs', 'perspective', 'obstacle', 'cost', 'turn'], 'chapter_memo')
   integer(input.chapter, 'chapter_memo.chapter', 1)
@@ -281,7 +283,7 @@ export function validateChapterMemo(value) {
 }
 
 /** Validate chapter metadata (a projection of chapter:<n>). */
-export function validateChapterMeta(value) {
+export function validateChapterMeta(value: ArtifactRecord): ArtifactRecord {
   const input = object(value, 'chapter_meta')
   keys(input, ['number', 'title', 'wordCount', 'stage', 'planApprovedAt', 'planRevision',
     'provenance', 'lengthTelemetry', 'tokenUsage', 'observationIds'], 'chapter_meta')
@@ -311,7 +313,7 @@ export function validateChapterMeta(value) {
 }
 
 /** Validate a structured chapter summary. */
-export function validateChapterSummary(value) {
+export function validateChapterSummary(value: ArtifactRecord): ArtifactRecord {
   const input = object(value, 'summary')
   keys(input, ['chapter', 'title', 'characters', 'events', 'stateChanges', 'hookActivity',
     'mood', 'chapterType', 'bodyRevision', 'rawText'], 'summary')
@@ -325,7 +327,7 @@ export function validateChapterSummary(value) {
 }
 
 /** Validate an observation. */
-export function validateObservation(value) {
+export function validateObservation(value: ArtifactRecord): ArtifactRecord {
   const input = object(value, 'observation')
   keys(input, ['id', 'code', 'summary', 'evidence', 'category', 'assessment', 'resolves', 'scope', 'target',
     'sourceRefs', 'severity', 'fix', 'mode'], 'observation')
@@ -362,7 +364,7 @@ export function validateObservation(value) {
 }
 
 /** Validate one review artifact: its observations carry bounded source refs. */
-export function validateReviewObservations(value) {
+export function validateReviewObservations(value: ArtifactRecord): ArtifactRecord {
   const input = object(value, 'review')
   keys(input, ['observations'], 'review')
   list(input.observations, 'review.observations', validateObservation)
@@ -375,7 +377,7 @@ export function validateReviewObservations(value) {
 }
 
 /** Validate a hook record. Upsert may not change status; ops use assertHookTransition. */
-export function validateHook(value) {
+export function validateHook(value: ArtifactRecord): ArtifactRecord {
   const input = object(value, 'hook')
   keys(input, ['hookId', 'startChapter', 'type', 'status', 'lastAdvancedChapter',
     'expectedPayoff', 'notes', 'dependsOn', 'paysOffInArc', 'text'], 'hook')
@@ -394,15 +396,15 @@ export function validateHook(value) {
 }
 
 /** Assert one hook status transition. */
-export function assertHookTransition(from, to) {
+export function assertHookTransition(from: string, to: string): string {
   oneOf(from, HOOK_STATUSES, 'hook.from')
   oneOf(to, HOOK_STATUSES, 'hook.to')
-  if (!HOOK_TRANSITIONS[from].includes(to)) invalid(`非法伏笔状态转移：${from} → ${to}`, 'hook-transition-invalid')
+  if (!(HOOK_TRANSITIONS as Record<string, string[]>)[from].includes(to)) invalid(`非法伏笔状态转移：${from} → ${to}`, 'hook-transition-invalid')
   return to
 }
 
 /** Validate a projected fact. */
-export function validateFact(value) {
+export function validateFact(value: ArtifactRecord): ArtifactRecord {
   const input = object(value, 'fact')
   keys(input, ['subject', 'predicate', 'object', 'validFromChapter', 'validUntilChapter', 'sourceChapter'], 'fact')
   for (const field of ['subject', 'predicate', 'object']) text(input[field], `fact.${field}`)
@@ -416,7 +418,7 @@ export function validateFact(value) {
 }
 
 /** Validate one context source. */
-export function validateContextSource(value) {
+export function validateContextSource(value: ArtifactRecord): ArtifactRecord {
   const input = object(value, 'context_source')
   keys(input, ['source', 'reason', 'excerpt', 'protection'], 'context_source')
   text(input.source, 'context_source.source')
@@ -427,7 +429,7 @@ export function validateContextSource(value) {
 }
 
 /** Validate a context package. */
-export function validateContextPackage(value) {
+export function validateContextPackage(value: ArtifactRecord): ArtifactRecord {
   const input = object(value, 'context_package')
   keys(input, ['chapter', 'selectedContext'], 'context_package')
   integer(input.chapter, 'context_package.chapter', 1)
@@ -436,7 +438,7 @@ export function validateContextPackage(value) {
 }
 
 /** Validate a chapter trace. */
-export function validateChapterTrace(value) {
+export function validateChapterTrace(value: ArtifactRecord): ArtifactRecord {
   const input = object(value, 'trace')
   keys(input, ['chapter', 'plannerInputs', 'composerInputs', 'selectedSources', 'contextTiers',
     'tokenBudget', 'compression', 'retrieval', 'notes', 'sections', 'trimmed', 'dropped', 'budget'], 'trace')
@@ -493,7 +495,7 @@ export function validateChapterTrace(value) {
 }
 
 /** Validate a short-story artifact. */
-export function validateShortStory(value) {
+export function validateShortStory(value: ArtifactRecord): ArtifactRecord {
   const input = object(value, 'short_story')
   keys(input, ['storyTitle', 'openingHook', 'chapters', 'rawContent', 'outline', 'draftReview',
     'revisionPlan', 'salesPackage', 'measurements'], 'short_story')
@@ -507,7 +509,7 @@ export function validateShortStory(value) {
     integer(chapter.charCount, `${label}.charCount`)
     return chapter
   })
-  const numbers = new Set(input.chapters.map(chapter => chapter.number))
+  const numbers = new Set(input.chapters.map((chapter: any) => chapter.number))
   if (numbers.size !== input.chapters.length) invalid('short_story.chapters 编号重复')
   textAllowEmpty(input.rawContent, 'short_story.rawContent')
   textAllowEmpty(input.outline, 'short_story.outline')
@@ -537,7 +539,7 @@ export function validateShortStory(value) {
   if (measurements.chapterLengths.length !== input.chapters.length) {
     invalid('short_story.measurements.chapterLengths 必须逐章对应')
   }
-  const byNumber = new Map(input.chapters.map(chapter => [chapter.number, chapter]))
+  const byNumber = new Map<any, any>(input.chapters.map((chapter: any) => [chapter.number, chapter]))
   for (const [index, entry] of measurements.chapterLengths.entries()) {
     const chapter = byNumber.get(entry.number)
     if (chapter === undefined) invalid(`short_story.measurements.chapterLengths[${index}] 指向不存在的章 ${entry.number}`)
@@ -545,13 +547,13 @@ export function validateShortStory(value) {
       invalid(`short_story.measurements.chapterLengths[${index}] 与第 ${entry.number} 章 charCount 不一致`)
     }
   }
-  const totalLength = input.chapters.reduce((total, chapter) => total + chapter.charCount, 0)
+  const totalLength = input.chapters.reduce((total: number, chapter: any) => total + chapter.charCount, 0)
   if (measurements.totalLength !== totalLength) invalid('short_story.measurements.totalLength 必须等于 charCount 之和')
   return input
 }
 
 /** Validate a script artifact. */
-export function validateScript(value) {
+export function validateScript(value: ArtifactRecord): ArtifactRecord {
   const input = object(value, 'script')
   keys(input, ['title', 'sourceKind', 'targetFormat', 'episodeCount', 'episodeDuration', 'spec', 'script', 'episodes'], 'script')
   text(input.title, 'script.title')
@@ -576,7 +578,7 @@ export function validateScript(value) {
     })
     return episode
   })
-  const numbers = new Set(input.episodes.map(episode => episode.number))
+  const numbers = new Set(input.episodes.map((episode: any) => episode.number))
   if (numbers.size !== input.episodes.length) invalid('script.episodes 编号重复')
   return input
 }
@@ -617,10 +619,9 @@ export const ARTIFACT_IDENTITY = {
 
 /**
  * Assert that an artifactId, kind and scope agree for a typed kind.
- * @returns {number|undefined} the chapter number for a chapter-scoped kind.
  */
-export function assertArtifactIdentity(kind, artifactId, scope) {
-  const spec = ARTIFACT_IDENTITY[kind]
+export function assertArtifactIdentity(kind: string, artifactId: string, scope: { chapter?: number } | undefined): number | undefined {
+  const spec = (ARTIFACT_IDENTITY as Record<string, any>)[kind]
   if (spec === undefined) return undefined
   if (spec.chapterScoped !== true && scope?.chapter !== undefined) {
     invalid(`${kind} 不接受 scope.chapter`)
@@ -642,10 +643,10 @@ export function assertArtifactIdentity(kind, artifactId, scope) {
  * Validate a complete artifact record: envelope, identity and kind-specific
  * content. This is the write boundary of the v6 registry.
  */
-export function validateArtifactRecord(value) {
+export function validateArtifactRecord(value: ArtifactRecord): ArtifactRecord {
   const envelope = validateArtifactEnvelope(value)
   const chapter = assertArtifactIdentity(envelope.kind, envelope.artifactId, envelope.scope)
-  const validator = ARTIFACT_CONTENT_VALIDATORS[envelope.kind]
+  const validator = (ARTIFACT_CONTENT_VALIDATORS as Record<string, any>)[envelope.kind]
   const content = validator === undefined ? envelope.content : validator(envelope.content)
   if ((envelope.kind === 'plan' || envelope.kind === 'summary') && content.chapter !== chapter) {
     invalid(`${envelope.kind} 的 content.chapter 必须等于 ${chapter}`)

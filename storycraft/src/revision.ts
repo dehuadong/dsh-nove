@@ -4,15 +4,16 @@
  * drifting away from `reviseChapter`.
  */
 
-import { StoryError, countWords } from './dist/domain.js'
-import { critique } from './dist/critique.js'
+import { StoryError, countWords } from './domain.js'
+import { critique } from './critique.js'
 
 /**
  * Validate one revision against its mode.
- * @param {{mode: string, chapter: number, oldBody: string, body: string}} input - revision input.
- * @returns {{oldWords: number, newWords: number, delta: number}} measured change.
  */
-export function assertRevisionMode(input) {
+export interface RevisionInput { mode: string, chapter: number, oldBody: string, body: string }
+export interface RevisionDelta { oldWords: number, newWords: number, delta: number }
+
+export function assertRevisionMode(input: RevisionInput): RevisionDelta {
   const mode = String(input.mode)
   const body = String(input.body ?? '')
   if (!['patch', 'polish', 'rewrite', 'deslop'].includes(mode)) {

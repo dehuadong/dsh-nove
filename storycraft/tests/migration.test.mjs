@@ -2,7 +2,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { openDatabase, openWork, workFile, WORK_SCHEMA_VERSION } from '../db.js'
+import { openDatabase, openWork, workFile, WORK_SCHEMA_VERSION } from '../dist/db.js'
 import * as s from '../storage.js'
 
 let failures = 0

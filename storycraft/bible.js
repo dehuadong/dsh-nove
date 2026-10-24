@@ -9,7 +9,7 @@
 
 import { StoryError, chapterNumber, chapterStem, contentVersion } from './dist/domain.js'
 import { buildQuery, select } from './retrieval.js'
-import { mergeBlock, styleBlock, styleProfile } from './style.js'
+import { mergeBlock, styleBlock, styleProfile } from './dist/style.js'
 import {
   listBodies, listSummaries, listSummaryStates, readBibleEntries, readBibleEntry, readBibleMap, readChapter as readChapterRow, readFoldedState,
   readManifest, readPlan, readSummary as readSummaryRow, readSummaryState, readVolumes, searchMemory, virtualPath,
