@@ -1,7 +1,7 @@
 # 交接文档：A0 tickets 已交付，L-R10a 消费者迁移规划未通过（2026-10-24）
 
 > 更新时间：2026-10-24
-> 仓库：`dehuadong/dsh-nove`，分支 `main`，HEAD `06f563b`。
+> 仓库：`dehuadong/dsh-nove`，分支 `main`，HEAD `2730395`。
 > 本轮范围：A0 #45 的实现 tickets #46–#49 已交付；L-R10a #51、S1 #53、observation #52 已立规划，Plan Review 未通过；#45 仍 in-progress。
 
 ## 1. 当前结论
@@ -38,7 +38,7 @@
 已接：ChapterMeta 投影、export/readWork/status 的 planRevision/provenance、reviser 的 observation 读取、短篇/剧本存储层隔离。
 未接：foundation（story_frame/volume_map/book_rules/roles）没有生产消费者；ChapterMemo/ChapterSummary 的生产者仍是旧 `chapter_plans`/`summaries`；hooks/facts v2 投影尚未替换 settler/state 链；observation/reviews 仍走 `reviews`。
 
-因此 **#46–#49 已关闭，#45 仍 in-progress；#51/#52/#53 均为 planning，不能进入实现。**
+因此 **#46–#49 已关闭，#45 仍 in-progress；#51/#52/#53/#54 均为 planning，不能进入实现。**
 
 ### S1a-demo #53 规划状态
 
@@ -51,12 +51,22 @@
 5. 实际约 72–76 处 `writePlan`、28 个测试文件；chapter-edit/store-chapter/storage/export/bible/state-check/tools 都要改；
 6. 合同 §8 的 memo 计划检索未接，`verifyObservationSources` 触及 #52，面板阻断提示未定义。
 
+### S1a-demo 合同补丁 #54 规划状态
+
+#54（`blocked`/章节编辑阻断/store 批准入口）两轮未通过，5 项冲突：
+
+1. `missing` 已承载 `plan-approval`，`blocked` 与其权限未分离；`delegateOf` 仍按 `missing` 抑制。
+2. helper 保留“无 memo legacy 通过”，S1a-demo 要求删除该回退；没有 owner/顺序。
+3. `chapterRemap(delete)` 只映射幸存章，删除最后章/被删章本身有 memo 时不命中；S0 又不含 memo，出现无 owner 窗口。
+4. body/参数校验与 `plan-not-approved` 的先后在 Note/AC 中矛盾。
+5. `story_next` 描述、orchestration 技能、面板阻断提示、`readWork.planApproved` 回退的 owner 未落。
+
 ## 3. 下一步
 
-1. 先裁决 `nextStep.blocked` 形状、章节编辑阻断范围与 store 级批准入口；或进一步缩到“只读 memo、不接批准/章节编辑”的纯消费演示。
-2. 不要直接实现 #51/#53；它们仍是 planning。
-3. S1a-demo 通过后再按同一方法规划 S2 summary、S3 state/foundation；真实链路 #50 在 L 完成后一次性执行，blocked by #51/#44/#52。
-4. E2E 环境阻塞解除后补跑；不能以真实链路替代 E2E。
+1. 先裁决 `missing`/`blocked` 的单一权威与 legacy fallback 归属；这是合同层选择，不是实现细节。
+2. 若不继续切片规划，建议做一次最小代码 spike（memo 写读 + 批准 + 消费者），用证据再回报价；不要进入正式 implement。
+3. 不要直接实现 #51/#53/#54；它们仍是 planning。
+4. 真实链路 #50 在 L 完成后一次性执行；E2E 环境阻塞解除后补跑。
 
 ## 4. 关键合同/决策
 
