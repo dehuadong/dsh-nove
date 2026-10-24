@@ -55,52 +55,21 @@ const ALL = 'all'
 /** Discovery rank; lower wins a name collision, and a preset-local catalog is authoritative. */
 const RANK = 100
 
-/** One skill directory as the registry stores it. */
-interface SkillCandidate {
-  /** Absolute path of the SKILL.md. */
-  path: string
-  /** Skill name the model invokes. */
+/**
+ * What this provider stores in `locator` and reads back in `get`. The registry
+ * treats it as opaque, so the shape belongs to this module.
+ */
+interface SkillLocator {
+  /** Catalog the skill belongs to. */
+  mode: string
+  /** Absolute skill directory. */
+  dir: string
+  /** Absolute SKILL.md path. */
+  file: string
+  /** Skill name. */
   name: string
-  /** One-line description. */
+  /** Description found at discovery time. */
   description: string
-  /** When to load the skill. */
-  whenToUse?: string
-  /** Invocation rights advertised to the model. */
-  invocation: { modelInvocable: boolean, userInvocable: boolean }
-  /** Where the body came from. */
-  source: string
-  /** Provider label. */
-  provider: string
-  /** Directory the skill can reference resources from. */
-  resourceBase: { kind: 'directory', path: string }
-  /** Discovery rank. */
-  rank: number
-  /** Data `get` needs to load the body without a second scan. */
-  locator: { mode: string, dir: string, file: string, name: string, description: string }
-}
-
-/** One skill as the registry serves it. */
-interface SkillDefinition {
-  /** Absolute path of the SKILL.md. */
-  path: string
-  /** Skill name the model invokes. */
-  name: string
-  /** One-line description. */
-  description: string
-  /** When to load the skill. */
-  whenToUse?: string
-  /** Invocation rights advertised to the model. */
-  invocation: { modelInvocable: boolean, userInvocable: boolean }
-  /** Where the body came from. */
-  source: string
-  /** Provider label. */
-  provider: string
-  /** Directory the skill can reference resources from. */
-  resourceBase: { kind: 'directory', path: string }
-  /** Markdown body. */
-  content: string
-  /** Routing metadata kept on the entry. */
-  metadata: { mode: string }
 }
 
 /** Frontmatter keys `parseSkill` returns. */
@@ -149,7 +118,7 @@ function parseSkill(text: string): ParsedSkill {
  * @param entry - directory name inside the catalog.
  * @returns the candidate, or undefined when the directory holds no usable SKILL.md.
  */
-function readCandidate(mode: string, provider: string, skillDir: string, entry: string): SkillCandidate | undefined {
+function readCandidate(mode: string, provider: string, skillDir: string, entry: string): DshSkillCandidate | undefined {
   const file = join(skillDir, entry, 'SKILL.md')
   let text: string
   try {
@@ -180,8 +149,9 @@ function readCandidate(mode: string, provider: string, skillDir: string, entry: 
  * @param candidate - entry previously returned by this provider.
  * @returns the definition, or undefined when the body disappeared.
  */
-function readDefinition(candidate: SkillCandidate): SkillDefinition | undefined {
-  const locator = candidate.locator
+function readDefinition(candidate: DshSkillCandidate): DshSkillDefinition | undefined {
+  // The registry treats the locator as opaque and hands back what `list` built.
+  const locator = candidate.locator as SkillLocator
   let text: string
   try {
     text = readFileSync(locator.file, 'utf8')
@@ -217,8 +187,8 @@ export function apply(ctx: DshContext, config: { mode?: unknown } = {}): void {
   }
   const provider = `storycraft-${mode}`
 
-  const list = async (): Promise<SkillCandidate[]> => {
-    const candidates: SkillCandidate[] = []
+  const list = async (): Promise<DshSkillCandidate[]> => {
+    const candidates: DshSkillCandidate[] = []
     for (const name of modes) {
       const catalogDir = join(SKILLS_ROOT, 'skills', name)
       let entries
@@ -236,7 +206,7 @@ export function apply(ctx: DshContext, config: { mode?: unknown } = {}): void {
     return candidates
   }
 
-  const get = async (candidate: SkillCandidate): Promise<SkillDefinition | undefined> => {
+  const get = async (candidate: DshSkillCandidate): Promise<DshSkillDefinition | undefined> => {
     if (candidate === null || typeof candidate !== 'object') return undefined
     return readDefinition(candidate)
   }
@@ -244,3 +214,4 @@ export function apply(ctx: DshContext, config: { mode?: unknown } = {}): void {
   const dispose = ctx.skills.registerProvider(() => ({ name: provider, list, get }))
   ctx.effect(() => () => { dispose() })
 }
+

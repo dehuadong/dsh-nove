@@ -113,22 +113,56 @@ interface DshTools {
   guard(guard: DshToolGuard): () => void
 }
 
-/** One skill candidate as the skill registry stores it. */
-interface DshSkillCandidate {
-  /** Absolute file path of the skill body. */
-  path: string
-  /** Skill name. */
-  name: string
-  /** One-line description. */
-  description?: string
-  /** When to load this skill. */
-  whenToUse?: string
+/** Invocation controls every skill entry carries. */
+interface DshSkillInvocation {
+  /** Whether model-facing catalogs include this skill. */
+  modelInvocable: boolean
+  /** Whether human-facing catalogs include this skill. */
+  userInvocable: boolean
 }
 
-/** One skill definition as the skill registry serves it. */
-interface DshSkillDefinition extends DshSkillCandidate {
-  /** Markdown body. */
+/** Provider-specific base a loaded body resolves relative resources against. */
+type DshSkillResourceBase =
+  | { kind: 'directory', path: string }
+  | { kind: 'url', url: string }
+  | { kind: 'opaque', description: string }
+
+/** Discovery-neutral skill metadata. */
+interface DshSkillSummary {
+  /** Absolute body path, absent for virtual skills. */
+  path?: string
+  /** Kebab-case identifier. */
+  name: string
+  /** Short routing description. */
+  description: string
+  /** Extra routing guidance. */
+  whenToUse?: string
+  /** Resolved invocation controls. */
+  invocation: DshSkillInvocation
+  /** Discovery source. */
+  source: string
+  /** Provider that owns the body. */
+  provider: string
+  /** Base for relative resources. */
+  resourceBase?: DshSkillResourceBase
+}
+
+/** Provider catalog entry the registry merges and later loads. */
+interface DshSkillCandidate extends DshSkillSummary {
+  /** Lower ranks win duplicate names. */
+  rank: number
+  /** Provider-owned handle the registry passes back to `get`. */
+  locator: unknown
+  /** Provider-specific frontmatter metadata. */
+  metadata?: Readonly<Record<string, unknown>>
+}
+
+/** Complete parsed skill, including the loaded body. */
+interface DshSkillDefinition extends DshSkillSummary {
+  /** Markdown body after frontmatter removal. */
   content: string
+  /** Provider-specific frontmatter metadata. */
+  metadata?: Readonly<Record<string, unknown>>
 }
 
 /** The provider row a mode registers. */
@@ -138,11 +172,10 @@ interface DshSkillProvider {
   /** List every candidate of this provider. */
   list(): Promise<DshSkillCandidate[]>
   /**
-   * Load one candidate's body. The registry hands back a candidate this provider
-   * produced, so the concrete fields belong to the provider.
+   * Load one candidate's body.
    * @param candidate - entry previously returned by `list`.
    */
-  get(candidate: any): Promise<DshSkillDefinition | undefined>
+  get(candidate: DshSkillCandidate): Promise<DshSkillDefinition | undefined>
 }
 
 /** Skill registry members this package calls. */

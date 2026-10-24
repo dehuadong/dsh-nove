@@ -67,7 +67,7 @@ type RoleName = keyof typeof ROLE_META
 
 /** Whether a model-supplied role name is declared in `ROLE_META`. */
 function isRoleName(role: string): role is RoleName {
-  // A plain-object lookup mirrors the action's historical validation exactly.
+  // Absent keys must read as absent, so the lookup stays on own properties.
   return (ROLE_META as Record<string, RoleMeta | undefined>)[role] !== undefined
 }
 
@@ -340,8 +340,8 @@ interface ChildRunInput extends DelegateHost {
  * Start one child and await its completion.
  *
  * The caller owns cleanup: this returns `{result, dispose}` so landing can
- * happen before the child is disposed, matching the pre-refactor order. On any
- * failure the helper disposes before rethrowing.
+ * happen before the child is disposed. On any failure the helper disposes
+ * before rethrowing.
  */
 export async function runChild(input: ChildRunInput): Promise<ChildRun> {
   const {

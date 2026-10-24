@@ -10,7 +10,7 @@ verification: hooks/facts v2 事件与 settle writer 已落地，CI 通过；证
 
 ## 问题
 
-v2 hook/fact 事件与投影已由 #47 落地（[`storycraft/state-events.js`](../../../../storycraft/state-events.js)）：`fact.upsert`/`fact.expire`、hook 的 `upsert`/`progress`/`mention`/`defer`/`resolve`/`supersede` 与转移表都在，`projectState` 能重建投影。
+v2 hook/fact 事件与投影已由 #47 落地（[`storycraft/src/state-events.ts`](../../../../storycraft/src/state-events.ts)）：`fact.upsert`/`fact.expire`、hook 的 `upsert`/`progress`/`mention`/`defer`/`resolve`/`supersede` 与转移表都在，`projectState` 能重建投影。
 
 但**没有任何生产者调用它**：settle 仍由 `foldState` 写旧 text-hook/string-fact（`entities`/`hooks` 形状），面板、brief、context、facts 白名单与检索都读旧 `foldEvents`。合同与运行分叉，同一份“当前状态”有两条互不相认的链路。
 

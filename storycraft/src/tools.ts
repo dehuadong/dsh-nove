@@ -2291,9 +2291,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
       },
       async execute(args, exec) {
         const root = workspaceOf(exec)
-        // `exportWork` declares `destination` required although its body and JSDoc
-        // treat it as optional; the action has always called it with two arguments.
-        const exported = (exportWork as (root: string, work: unknown) => unknown)(root, args.work)
+        const exported = exportWork(root, args.work)
         return { ok: true, workId: args.work, exported }
       },
     }),

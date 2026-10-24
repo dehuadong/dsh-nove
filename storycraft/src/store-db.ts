@@ -3250,7 +3250,7 @@ function versionStem(number: any, revision: any) {
  * @param {string} [destination] - target directory.
  * @returns {{directory: string, files: number}} export summary.
  */
-export function exportWork(root: string, work: unknown, destination: string): any {
+export function exportWork(root: string, work: unknown, destination?: string): any {
   const catalog = openCatalog(root, { create: false })
   if (catalog === undefined) throw new StoryError('work-not-found', `没有作品：${String(work)}`)
   try {

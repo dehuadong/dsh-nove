@@ -213,21 +213,25 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 storycraft/
   package.json                 # bundle 清单：dsh.bundle.patch + dsh.client
   cordis.patch.yml             # 入口行 + 一条预设声明（故事工坊，技能行 mode: all）
-  index.js                     # Host 半边：只读路由 + 作者确认/素材管理/面板导出
-  state-events.js              # v2 状态事件读写
-  state-check.js               # story_state_check：只读语义对账、findings 与引文校验
-  state-settle.js              # story_settle：settler 抽取、一次反馈重算、fold 或未解决回执
-  facts.js                     # 白名单唯一派生入口：只读已落库资料，正文与任务不参与
-  context.js                   # 角色上下文拼装：按角色分段、保护级别、预算裁剪、检索段、轨迹、白名单摘要
-  role-input.js                # story_context 与 story_delegate 共用的角色输入读取
-  landing.js                   # 落库前白名单校验（checkDraft），consistency.js 保持纯比较
-  delegate.js                  # 宿主侧角色委派：预检、子代理、输出校验、落库、回执
-  consistency.js               # 输出一致性：未登记人名/地名/尺寸告警，不阻断
-  bible.js                     # 真值、摘要与写前上下文
-  proposals.js                 # 提案：讨论与立项之间的桥
-  tools.js                     # 动作（注册在预设作用域）
-  skills.js                    # 按模式提供技能目录
-  client.js                    # 浏览器半边：侧栏入口 + 工作台
+  src/                         # Host 半边（TypeScript）：
+    index.ts                   #   只读路由 + 作者确认/素材管理/面板导出
+    tools.ts                   #   动作（注册在预设作用域）
+    delegate.ts                #   宿主侧角色委派：预检、子代理、输出校验、落库、回执
+    state-events.ts            #   v2 状态事件读写
+    state-check.ts             #   story_state_check：只读语义对账、findings 与引文校验
+    state-settle.ts            #   story_settle：settler 抽取、一次反馈重算、fold 或未解决回执
+    facts.ts                   #   白名单唯一派生入口：只读已落库资料，正文与任务不参与
+    context.ts                 #   角色上下文拼装：按角色分段、保护级别、预算裁剪、检索段、轨迹、白名单摘要
+    role-input.ts              #   story_context 与 story_delegate 共用的角色输入读取
+    landing.ts                 #   落库前白名单校验（checkDraft），consistency 保持纯比较
+    consistency.ts             #   输出一致性：未登记人名/地名/尺寸告警，不阻断
+    bible.ts                   #   真值、摘要与写前上下文
+    proposals.ts               #   提案：讨论与立项之间的桥
+    skills.ts                  #   按模式提供技能目录
+    …                          #   其余数据层与存储层模块
+  types/dsh.d.ts               # 本包实际使用的 DSH ctx/exec 面
+  dist/                        # tsc 产物，不提交；prepack 构建
+  client.js                    # 浏览器半边：侧栏入口 + 工作台（仍是 JavaScript）
   skills/<mode>/<skill>/…      # 技能正文与脚本
   icon.svg
 ```
