@@ -419,11 +419,12 @@ const OUTPUT_PROPERTIES = {
   },
   outline: {
     type: 'object',
-    description: '全书计划状态：writtenAt 写过、approvedAt 作者已确认。',
+    description: '全书计划状态：writtenAt 写过、approvedAt 作者已确认、revision 为写入的 artifact revision。',
     additionalProperties: false,
     properties: {
       writtenAt: { type: 'string' },
       approvedAt: { type: 'string' },
+      revision: { type: 'string' },
     },
   },
   unit: {
@@ -583,6 +584,8 @@ const OUTPUT_PROPERTIES = {
             stage: { type: 'string', description: 'Pipeline stage; later stages require the earlier ones.' },
             revision: { type: 'integer' },
             words: { type: 'integer' },
+            planRevision: { type: 'string' },
+            provenance: { type: 'string' },
             hasSummary: { type: 'boolean' },
             summaryRevision: { oneOf: [{ type: 'integer' }, { type: 'null' }] },
             summaryStale: { type: 'boolean' },
@@ -1331,7 +1334,11 @@ function rawDefinitions(ctx) {
             '全书计划还没确认：写完后请作者在面板点「确认全书计划」，再写章纲（模型不能代签）')
         }
         const result = await writePlan(root, { ...args, requireBody: true })
-        return { ok: true, workId: args.work, artifact: result.artifact }
+        return {
+          ok: true,
+          workId: args.work,
+          artifact: { artifactId: result.artifact.artifactId, revisionId: result.artifact.revisionId, kind: result.artifact.kind },
+        }
       },
     }),
 
@@ -1448,6 +1455,25 @@ function rawDefinitions(ctx) {
           },
         },
         required: ['work', 'chapter', 'problems'],
+      },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            ok: OUTPUT_PROPERTIES.ok,
+            workId: OUTPUT_PROPERTIES.workId,
+            artifact: OUTPUT_PROPERTIES.artifact,
+            problems: {
+              type: 'object',
+              additionalProperties: false,
+              properties: { total: { type: 'integer' }, open: { type: 'integer' } },
+              required: ['total', 'open'],
+            },
+          },
+          required: ['ok', 'workId', 'artifact', 'problems'],
+        },
+        render: OUTPUT.render,
       },
       async execute(args, exec) {
         const root = workspaceOf(exec)
