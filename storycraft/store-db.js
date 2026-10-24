@@ -824,18 +824,23 @@ export function writeFoundationStage(root, input) {
       }
       let records
       if (stage === 'frame') {
+        const focus = String(payload.currentFocus ?? '')
+        if ([...focus].length > 600) throw new StoryError('artifact-invalid', 'current_focus 超过 600 字')
         records = [
           record('bible:story_frame', 'story_frame', String(payload.storyFrame ?? ''), 'foundation/story_frame'),
           record('bible:volume_map', 'volume_map', String(payload.volumeMap ?? ''), 'foundation/volume_map'),
-          record('bible:current_focus', 'current_focus', String(payload.currentFocus ?? ''), 'foundation/current_focus'),
+          record('bible:current_focus', 'current_focus', focus, 'foundation/current_focus'),
         ]
       } else if (stage === 'rules') {
         records = [record('bible:book_rules', 'book_rules', payload.bookRules, 'foundation/book_rules')]
       } else if (stage === 'roles') {
+        const roles = Array.isArray(payload.rolesIndex?.roles) ? payload.rolesIndex.roles : []
+        if (roles.length > 20) throw new StoryError('artifact-invalid', 'roles 索引最多 20 人')
         records = [record('roles:index', 'role_index', payload.rolesIndex, 'foundation/roles/index')]
       } else {
         const cards = Array.isArray(payload.roleCards) ? payload.roleCards : []
         if (cards.length === 0) throw new StoryError('artifact-invalid', '角色卡至少需要一张')
+        if (cards.length > 12) throw new StoryError('artifact-invalid', '角色卡最多 12 张')
         const index = db.prepare("SELECT content FROM artifacts WHERE artifact_id = 'roles:index' ORDER BY rowid DESC LIMIT 1").get()
         const majorNames = new Set()
         if (index !== undefined) {
@@ -843,6 +848,8 @@ export function writeFoundationStage(root, input) {
             if (role.tier === 'major') majorNames.add(role.name)
           }
         }
+        const names = new Set()
+        const slugs = new Set()
         records = cards.map((card) => {
           if (!majorNames.has(card?.name)) {
             throw new StoryError('artifact-invalid', `角色卡 ${String(card?.name)} 不在 roles 索引的 major 条目里`)
@@ -850,14 +857,31 @@ export function writeFoundationStage(root, input) {
           if (card?.tier !== 'major') {
             throw new StoryError('artifact-invalid', `角色卡 ${String(card?.name)} 的 tier 必须是 major`)
           }
-          return record(`role:${String(card?.slug ?? '').trim()}`, 'role_card', card, `foundation/roles/${String(card?.slug ?? '').trim()}`)
+          const slug = String(card?.slug ?? '').trim()
+          if (names.has(card.name) || slugs.has(slug)) {
+            throw new StoryError('artifact-invalid', `角色卡重复：${String(card.name)}/${slug}`)
+          }
+          names.add(card.name)
+          slugs.add(slug)
+          return record(`role:${slug}`, 'role_card', card, `foundation/roles/${slug}`)
         })
+        if (cards.length > majorNames.size) {
+          throw new StoryError('artifact-invalid', `角色卡数量 ${cards.length} 超过 major 角色数 ${majorNames.size}`)
+        }
       }
+      let anyWritten = false
       const artifacts = records.map(({ envelope, source, text }) => {
-        putArtifactOnDb(db, envelope, { search: { docId: envelope.artifactId, kind: envelope.kind, source, text } })
+        const existing = db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ? AND revision_id = ?')
+          .get(envelope.artifactId, envelope.revisionId)
+        if (existing === undefined) {
+          putArtifactOnDb(db, envelope, { search: { docId: envelope.artifactId, kind: envelope.kind, source, text } })
+          anyWritten = true
+        }
         return { artifactId: envelope.artifactId, revisionId: envelope.revisionId, kind: envelope.kind }
       })
-      db.prepare('UPDATE meta SET foundation_approved_at = NULL, updated_at = ? WHERE id = 1').run(at)
+      if (anyWritten) {
+        db.prepare('UPDATE meta SET foundation_approved_at = NULL, updated_at = ? WHERE id = 1').run(at)
+      }
       return { workId, stage, artifacts, foundation: foundationStateOf(db) }
     })
   } finally {
@@ -901,19 +925,21 @@ export function nextStep(root, work) {
     const step = (() => {
       if (last === undefined) {
         if (outline === undefined || outline.writtenAt === undefined) {
-          const foundation = foundationStateOf(db)
-          if (foundation.complete !== true) {
-            return {
-              chapter, stage: 'planned', action: 'story_architect', foundationStage: foundation.nextStage,
-              reason: `还没有基础设定（${foundation.nextStage}）：让 architect 生成故事框架、规则与角色，再写全书计划`,
-              missing: [`foundation:${foundation.nextStage}`],
+          if (formOf(manifest) === 'longform') {
+            const foundation = foundationStateOf(db)
+            if (foundation.complete !== true) {
+              return {
+                chapter, stage: 'planned', action: 'story_architect', foundationStage: foundation.nextStage,
+                reason: `还没有基础设定（${foundation.nextStage}）：让 architect 生成故事框架、规则与角色，再写全书计划`,
+                missing: [`foundation:${foundation.nextStage}`],
+              }
             }
-          }
-          if (foundation.approvedAt === undefined) {
-            return {
-              chapter, stage: 'planned', action: 'story_architect',
-              reason: '基础设定已生成，等作者在面板「基础设定」里确认，再写全书计划',
-              blocked: ['foundation-approval'],
+            if (foundation.approvedAt === undefined) {
+              return {
+                chapter, stage: 'planned', action: 'story_architect',
+                reason: '基础设定已生成，等作者在面板「基础设定」里确认，再写全书计划',
+                blocked: ['foundation-approval'],
+              }
             }
           }
           return {

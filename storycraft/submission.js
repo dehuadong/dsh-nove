@@ -10,6 +10,9 @@ import { randomUUID } from 'node:crypto'
 import { StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, countWords, trimSummary } from './domain.js'
 import { STATE_LIMITS } from './state-projection.js'
 import { assertRevisionMode } from './revision.js'
+import {
+  validateBookRules, validateRoleCard, validateRolesIndex, validateStoryFrame, validateVolumeMap,
+} from './artifact-contract.js'
 import { checkWordRange } from './landing.js'
 import { readChapter } from './storage.js'
 
@@ -108,8 +111,29 @@ function validateShape(role, payload, stage) {
       for (const key of spec.keys) {
         if (typeof payload[key] !== 'string' || payload[key].trim() === '') return `architect frame 的 ${key} 必须是非空字符串`
       }
+      if ([...payload.currentFocus].length > 600) return 'architect frame 的 currentFocus 超过 600 字'
     }
-    if (stage === 'cards' && (!Array.isArray(payload.roleCards) || payload.roleCards.length === 0)) return 'architect cards 的 roleCards 必须是非空数组'
+    if (stage === 'cards') {
+      if (!Array.isArray(payload.roleCards) || payload.roleCards.length === 0) return 'architect cards 的 roleCards 必须是非空数组'
+      if (payload.roleCards.length > 12) return 'architect cards 最多 12 张'
+    }
+    if (stage === 'roles' && Array.isArray(payload.rolesIndex?.roles) && payload.rolesIndex.roles.length > 20) {
+      return 'architect roles 最多 20 人'
+    }
+    try {
+      if (stage === 'frame') {
+        validateStoryFrame(payload.storyFrame)
+        validateVolumeMap(payload.volumeMap)
+      } else if (stage === 'rules') {
+        validateBookRules(payload.bookRules)
+      } else if (stage === 'roles') {
+        validateRolesIndex(payload.rolesIndex)
+      } else {
+        for (const card of payload.roleCards) validateRoleCard(card)
+      }
+    } catch (error) {
+      return `architect ${spec.label} 不符合合同：${error?.message ?? String(error)}`
+    }
     return undefined
   }
   if (role === 'writer') {

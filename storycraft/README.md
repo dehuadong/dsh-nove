@@ -126,7 +126,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 - 已定稿章改章纲要先带 `reopen: true` 重写正文回退（`chapter-settled`）；
 - `reopen` 会追加一条 `reopen`；既有状态事件不撤回，重新结算时同状态 op 与重复 fact 按幂等处理。
 
-`story_next` 是只读查询：告诉模型下一步该调哪个动作、为什么、缺什么；可委派时返回 `delegate.role`（writer/reviewer/reviser/summarizer），主编据此调用 `story_delegate`，`action` 保留给手动路径。
+`story_next` 是只读查询：告诉模型下一步该调哪个动作、为什么、缺什么；可委派时返回 `delegate.role`（writer/reviewer/reviser/summarizer/architect，architect 另带 `stage`），主编据此调用 `story_delegate`，`action` 保留给手动路径。
 
 ## 动作
 
@@ -141,11 +141,11 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 | `story_settle` | 自动结算：settler 从正文抽取 v2 操作，确定性预检 + 语义检查；major/确定性差异带反馈重算一次；成功写事件并定稿，未解决返回 `settled:false`、proposed 与 findings，不写库 | 子代理调用 `subagent-cannot-land`；闸门同 `story_state`，另要求章已有正文（`chapter-not-written`）；服务缺失/超时/无提交/正文改版分别返回 `state-settle-*`，不产生半成品 |
 | `story_state` | 手动追加 v2 hook/fact 操作，返回 `counts.facts`/`counts.hooks`/`counts.newHooks`（实际写入的事件数）与 `warnings` | 作品或章不存在；未知 hookId `hook-not-found`；非法转移 `hook-transition-invalid`；无可失效 fact `fact-not-found`；空 payload `empty-state`；已定稿重复归档 `chapter-settled`；未修订完成或未清稿；无摘要 `summary-required`；摘要过期 `summary-stale` |
 | `story_status` | 只读汇总进度、阶段、版本、未处理问题、未解伏笔；每章带 `hasSummary` / `summaryRevision` / `summaryStale` | 作品不存在；作品库升级失败 `schema-migration-failed` |
-| `story_delegate` | 宿主侧跑一个角色（writer/reviewer/reviser/summarizer）：预检、装配上下文、启动子代理、消费 `story_submit`、落库，返回紧凑回执 | 预检/阶段错误按原码返回；服务缺失 `delegation-unavailable`；无合格提交 `delegation-no-submission`；当前版本已有摘要 `summary-exists` |
+| `story_delegate` | 宿主侧跑一个角色（writer/reviewer/reviser/summarizer/architect）：预检、装配上下文、启动子代理、消费 `story_submit`、落库，返回紧凑回执 | 预检/阶段错误按原码返回；服务缺失 `delegation-unavailable`；无合格提交 `delegation-no-submission`；当前版本已有摘要 `summary-exists` |
 | `story_submit` | 仅子代理调用：提交结构化角色结果，宿主校验字数/mode，失败可重提 | 父代理/非委派 `submit-parent-denied`；超 3 次 `submit-attempts-exhausted` |
 | `story_read` | 只读：按 `artifactId`/`revisionId` 读取当前章可读内容；`plan:<n>` 返回 memo JSON，可读旧 memo revision；越界返回 `artifact-not-readable` | 作品不存在；旧章/旧审稿版本 |
 | `story_context` | 只读按角色装配上下文；正文 ≥3 章时带 FTS5 检索段与 `trace.retrieval` | 缺章 `chapter-not-found`；缺章纲 `plan-not-found`；缺人物卡 `bible-missing` |
-| `story_next` | 只读：下一步动作、章号、原因、缺什么、`blocked`；可委派时带 `delegate.role` | 作品不存在 |
+| `story_next` | 只读：下一步动作、章号、原因、缺什么、`blocked`；可委派时带 `delegate.role`（architect 带 `stage`） | 作品不存在 |
 | `story_export` / `story_backup` | 见「作品操作与导出」 | 作品不存在 |
 
 字数口径只有一套：`domain.countWords`（CJK 字符 + 拉丁词，不含标点）；`story_critique` 的 `words` 用同一函数，标点数量单独放在 `chars`。

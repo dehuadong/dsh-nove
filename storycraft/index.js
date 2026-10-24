@@ -19,7 +19,7 @@ import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent } from 
 import { readVolumes } from './volumes.js'
 import { clearSessionCurrent, readSessionCurrent, setSessionCurrent } from './store-db.js'
 import { assembleBrief, extractStyleSamples, readBible, writeBible } from './bible.js'
-import { readFoundationDocuments, renderFoundationContent } from './artifact-store.js'
+import { listRoleCards, readFoundationDocuments, renderFoundationContent } from './artifact-store.js'
 import { backupsDir, exportsDir } from './db.js'
 
 /** Requires the host web server; without it the browser surface has no data. */
@@ -371,7 +371,11 @@ export function apply(ctx) {
             name,
             revisionId: entry.version,
             content: renderFoundationContent(entry.content),
-          })),
+          })).concat(listRoleCards(root, workId).map(card => ({
+            name: card.artifactId.slice('role:'.length),
+            revisionId: card.revisionId,
+            content: renderFoundationContent(card.content),
+          }))),
         }
       }),
     }),

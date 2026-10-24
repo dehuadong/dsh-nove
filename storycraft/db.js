@@ -390,8 +390,9 @@ export function openWork(root, workId) {
   const db = openDatabase(file)
   try {
     const version = userVersion(db)
-    if (version === WORK_SCHEMA_VERSION - 1) {
+    if (version === 6) {
       // v6 → v7: foundation approval timestamp is additive; existing works migrate in place.
+      // Future bumps need their own branch so an exists column is never added twice.
       transaction(db, () => {
         db.exec('ALTER TABLE meta ADD COLUMN foundation_approved_at TEXT')
       })

@@ -781,6 +781,7 @@ const NEXT_OUTPUT = {
     additionalProperties: false,
     properties: {
       ...OUTPUT_PROPERTIES,
+      foundationStage: { type: 'string', enum: ['frame', 'rules', 'roles', 'cards'] },
       blocked: {
         type: 'array',
         description: 'Author or host actions that must happen before the action can run.',
@@ -936,6 +937,7 @@ const DELEGATE_OUTPUT = {
             required: ['frame', 'rules', 'roles', 'cards'],
           },
           complete: { type: 'boolean' },
+          writtenAt: { type: 'string' },
           nextStage: { type: 'string', enum: ['frame', 'rules', 'roles', 'cards'] },
           approvedAt: { type: 'string' },
         },

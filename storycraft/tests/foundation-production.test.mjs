@@ -7,7 +7,7 @@ import { submitPayload } from '../submission.js'
 import * as s from '../storage.js'
 import * as b from '../bible.js'
 import { assembleRoleContext } from '../context.js'
-import { readFoundationDocuments } from '../artifact-store.js'
+import { readFoundationDocuments, readTextArtifact } from '../artifact-store.js'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -70,6 +70,9 @@ const card = {
 const root = await mkdtemp(join(tmpdir(), 'storycraft-foundation-production-'))
 try {
   const work = (await s.initWork(root, { title: '基础生成', wordRange: { min: 50, max: 5000 } })).workId
+  const shortWork = (await s.initWork(root, { title: '短篇不生成基础', form: 'short' })).workId
+  const shortNext = await s.nextStep(root, shortWork)
+  check('short works skip foundation', shortNext.action !== 'story_architect', JSON.stringify(shortNext))
   const first = await s.nextStep(root, work)
   check('a new work starts with the architect frame', first.action === 'story_architect'
     && first.foundationStage === 'frame' && first.delegate?.role === 'architect', JSON.stringify(first))
@@ -79,7 +82,7 @@ try {
   }, { service: fakeService([]), agent, signal }))
 
   const invalid = frame.storyFrame.replace('## 约束\n', '')
-  await rejects('an invalid frame lands nothing', 'artifact-invalid', () => delegateRole(root, {
+  await rejects('an invalid frame lands nothing', 'delegation-no-submission', () => delegateRole(root, {
     work, role: 'architect', stage: 'frame',
   }, { service: fakeService([{ payload: { ...frame, storyFrame: invalid } }]), agent, signal }))
   check('a rejected frame writes no artifact', s.readFoundationState(root, work).stages.frame === false)
@@ -89,6 +92,19 @@ try {
   })
   check('frame lands three artifacts', landed.foundationStage === 'frame'
     && landed.artifacts.length === 3 && landed.foundation.stages.frame === true, JSON.stringify(landed))
+  const rerun = await delegateRole(root, { work, role: 'architect', stage: 'frame' }, {
+    service: fakeService([{ payload: frame }]), agent, signal,
+  })
+  check('identical content rerun is a no-op', rerun.artifacts[0].revisionId === landed.artifacts[0].revisionId, JSON.stringify(rerun.artifacts))
+  const changedFocus = frame.currentFocus.replace('第一根梁', '第二根梁')
+  const changed = await delegateRole(root, { work, role: 'architect', stage: 'frame' }, {
+    service: fakeService([{ payload: { ...frame, currentFocus: changedFocus } }]), agent, signal,
+  })
+  check('changed content adds a revision', changed.artifacts[2].revisionId !== landed.artifacts[2].revisionId)
+  const oldRevision = readTextArtifact(root, {
+    work, artifactId: 'bible:current_focus', kind: 'current_focus', revisionId: landed.artifacts[2].revisionId,
+  })
+  check('old foundation revisions stay readable', oldRevision.artifact.content.includes('第一根梁'))
   const frameDocs = readFoundationDocuments(root, work)
   check('frame is readable through the artifact API',
     frameDocs.storyFrame.content.includes('荒原工程队') && frameDocs.volumeMap.content.includes('立住脚'), JSON.stringify(frameDocs.storyFrame))
