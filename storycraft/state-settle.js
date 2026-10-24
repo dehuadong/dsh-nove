@@ -206,7 +206,8 @@ export async function settleChapterState(root, input, host) {
       trace.perAttempt.push({ stage: 'settler', ms: Date.now() - settlerStart })
     } catch (error) {
       trace.perAttempt.push({ stage: 'settler', ms: Date.now() - settlerStart, error: String(error?.message ?? error) })
-      if (remaining() <= 0 || /超时|already aborted|timeout|取消/u.test(String(error?.message ?? ''))) {
+      trace.lastError = String(error?.message ?? error)
+      if (remaining() <= 0 || /超时|already aborted|timeout/u.test(String(error?.message ?? ''))) {
         return timedOut('settler 超时：' + String(error?.message ?? error), {
           revision, proposed, settlerAttempts, validatorAttempts,
         })
@@ -267,7 +268,8 @@ export async function settleChapterState(root, input, host) {
       trace.perAttempt.push({ stage: 'validator', ms: Date.now() - checkStart })
     } catch (error) {
       trace.perAttempt.push({ stage: 'validator', ms: Date.now() - checkStart, error: String(error?.message ?? error) })
-      if (remaining() <= 0 || /超时|already aborted|timeout|取消/u.test(String(error?.message ?? ''))) {
+      trace.lastError = String(error?.message ?? error)
+      if (remaining() <= 0 || /超时|already aborted|timeout/u.test(String(error?.message ?? ''))) {
         return timedOut('validator 超时：' + String(error?.message ?? error), {
           revision, proposed, warnings: pendingWarnings, items: pendingItems, settlerAttempts, validatorAttempts,
         })

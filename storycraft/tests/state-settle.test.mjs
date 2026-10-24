@@ -306,6 +306,14 @@ try {
     Date.now() - timeoutStarted < 3000 && s.readEvents(root, missingServiceWork).length === 0,
     JSON.stringify({ ms: Date.now() - timeoutStarted }))
 
+  const zeroBudget = await settleChapterState(root, { work: missingServiceWork, chapter: 1 }, {
+    service: timeoutService, agent, signal, settleTimeoutMs: 0,
+  })
+  check('an exhausted total budget returns before any child',
+    zeroBudget.settled === false && zeroBudget.reason === 'state-settle-timeout'
+    && zeroBudget.attempts?.settler === 0 && zeroBudget.trace?.perAttempt?.length === 0,
+    JSON.stringify(zeroBudget))
+
   const staleWork = makeWork('改版')
   makeChapter(staleWork)
   const staleService = fakeService([{

@@ -1076,6 +1076,7 @@ const STATE_SETTLE_OUTPUT = {
         additionalProperties: false,
         properties: {
           durationMs: { type: 'integer' },
+          lastError: { type: 'string' },
           perAttempt: {
             type: 'array',
             items: {
