@@ -102,6 +102,7 @@ A0 只负责字段合同、v6 registry、消费者映射与可测试的消费契
 - 新增段必须纳入 `TRIM_ORDER` 与保护级别：story_frame/book_rules 为 protected，volume_map/roles 按预算 compressible；不得让 8KB 预算静默溢出。
 - 测试用 `writeFoundationDocument` 写真实 artifact 验证消费，不只测 absent；R10b 后再补生产端测试。这不是“A0 假消费者”：R10b 是明确的后续生产者，#50 在 L 完成后验收。
 - 测试：`foundation-consumers.test.mjs`（foundation 段、审稿/结算约束、预算裁剪、导出）。
+- 段顺序、保护裁剪、roles 回退、检索 kind 与导出树见 [L-R10a S4b foundation 消费](2026-10-24-storycraft-foundation-consumers.md)。
 
 ### 3. 不双写与回退
 
