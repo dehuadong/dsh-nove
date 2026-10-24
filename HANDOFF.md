@@ -1,7 +1,7 @@
 # 交接文档：A0 tickets 已交付，L-R10a 消费者迁移规划未通过（2026-10-24）
 
 > 更新时间：2026-10-24
-> 仓库：`dehuadong/dsh-nove`，分支 `main`，HEAD `9c5f0d6`。
+> 仓库：`dehuadong/dsh-nove`，分支 `main`，HEAD `e28196f`。
 > 本轮范围：A0 #45 的实现 tickets #46–#49 已交付；L-R10a #51、S1 #53、observation #52 已立规划，Plan Review 未通过；#45 仍 in-progress。
 
 ## 1. 当前结论
@@ -38,16 +38,24 @@
 已接：ChapterMeta 投影、export/readWork/status 的 planRevision/provenance、reviser 的 observation 读取、短篇/剧本存储层隔离。
 未接：foundation（story_frame/volume_map/book_rules/roles）没有生产消费者；ChapterMemo/ChapterSummary 的生产者仍是旧 `chapter_plans`/`summaries`；hooks/facts v2 投影尚未替换 settler/state 链；observation/reviews 仍走 `reviews`。
 
-因此 **#46–#49 已关闭，#45 仍 in-progress；#53 已实现待最终验收，#54 rejected，#55/#56 仍 planning。**
+因此 **#46–#49 已关闭，#45 仍 in-progress；#53/#56 已实现待最终验收，#54 rejected，#55 仍 planning。**
 
 ### S1a-demo #53 实现状态（2026-10-24）
 
 - `story_plan` 写 `plan:<n>`，`chapter_plans` 不再读写；`body`/`threadRefs` 在 action 边界必填。
 - `readPlan`/brief/context/readChapter(view:'plan')/export/observation 引文都从 memo 渲染；`story_read(plan:n)` 返回 memo JSON，当前/旧 revision 可读。
 - 批准绑定 memo revision，正文首版/重写/修订不清空；`planApprovalState`/`assertPlanApproved` 统一闸门；`blocked` 与 `missing` 分离。
-- 删除/移动在 deleted ∪ old≠new 中存在 `scope_chapter` artifact 时 `chapter-edit-blocked`，且在 backup 前检查。
-- commit `09b7907`、`125f9ae`、`9c5f0d6`；`node storycraft/scripts/ci.mjs --no-e2e` → 44 个单测文件通过；E2E 未跑（Playwright 环境阻塞）。
-- 已知取舍：直接 store 调用允许省略 body（测试 fixture），`story_plan` action 用 `requireBody` 强制；`#56` 仍待做章节重映射。
+- commit `09b7907`、`125f9ae`、`9c5f0d6`；E2E 未跑（Playwright 环境阻塞）。
+- 已知取舍：直接 store 调用允许省略 body（测试 fixture），`story_plan` action 用 `requireBody` 强制。
+
+### S1b #56 实现状态（2026-10-24）
+
+- `remapChapterArtifacts`：删除/移动时只保留每章最新 plan/summary/review 等 chapter-scoped artifact，重算 content-hash，更新 ID/scope/content。
+- review target 指向被移动 memo 时重绑；identity 章的 review 也跟随；sourceRefs 的 `chapter:<n>`/`plan:<n>` 同步改号。
+- 受影响章的批准/revision 清空；move/delete 都有 backup；settled 章节拒绝。
+- `chapter-edit-blocked` 已移除；`artifact-remap.test.mjs` 覆盖移动/删除、review target、身份章、批准清空。
+- commit `fc42c4d`、`e28196f`；`node storycraft/scripts/ci.mjs --no-e2e` → 45 个单测文件通过；E2E 未跑。
+- 已知取舍：`chapter-remap-conflict` 只在目标已存在同 revision 不同内容时触发，正常一致数据不可达；context/trace 无生产 writer，只随 scope 迁移。
 
 ### S1a-demo #53 规划状态（历史）
 
