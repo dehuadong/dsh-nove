@@ -260,7 +260,7 @@ function validateShape(role, payload, stage) {
     for (const key of ['quote', 'problem', 'fix']) {
       if (typeof item[key] !== 'string' || item[key].trim() === '') return `reviewer 第 ${index + 1} 条缺少 ${key}`
     }
-    if (!['blocker', 'major', 'minor'].includes(item.severity)) return `reviewer 第 ${index + 1} 条 severity 非法`
+    if (!['blocking', 'major', 'minor'].includes(item.severity)) return `reviewer 第 ${index + 1} 条 severity 非法`
     if (!['patch', 'polish', 'rewrite', 'deslop'].includes(item.mode)) return `reviewer 第 ${index + 1} 条 mode 非法`
     if (item.resolves !== undefined && (typeof item.resolves !== 'string' || !/^O[1-9]\d*$/u.test(item.resolves))) {
       return `reviewer 第 ${index + 1} 条 resolves 非法`

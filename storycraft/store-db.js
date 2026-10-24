@@ -30,7 +30,7 @@ import { STATE_LIMITS, applyFactOp, applyHookOp, mintHookId, projectState } from
 export { searchTokens }
 import {
   StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, WORK_FORMS, chapterNumber, chapterStem, contentVersion, countWords,
-  formOf, now, parseReview, planApprovalPolicy, stageOf, summaryAdmissible, trimSummary, unitOf, workIdOf,
+  formOf, now, planApprovalPolicy, stageOf, summaryAdmissible, trimSummary, unitOf, workIdOf,
 } from './domain.js'
 import { assertRevisionMode } from './revision.js'
 import { validateArtifactRecord } from './artifact-contract.js'
@@ -1051,7 +1051,7 @@ export function nextStep(root, work) {
         return { chapter: last.number, stage, action: 'story_review', reason: `第 ${last.number} 章已有正文，先审稿`, missing: ['review'] }
       }
       candidate = latestReviewRow(db, last.number)
-      if (!reviewCovers(candidate, last, true)) {
+      if (!reviewCovers(candidate, last)) {
         return { chapter: last.number, stage, action: 'story_review', reason: `第 ${last.number} 章已有正文，先审稿`, missing: ['review'] }
       }
       if (isCleanReview(candidate) && candidate.revision !== last.currentRevision) {
@@ -1550,6 +1550,15 @@ export function readChapter(root, input) {
         revision: Number(content.bodyRevision),
       }
     }
+    if (input.view === 'review') {
+      const record = latestReviewRow(db, number)
+      if (record === undefined) throw new StoryError('review-required', `第 ${number} 章还没有审稿`)
+      return {
+        path: virtualPath(workId, `reviews/${chapterStem(number)}.r${record.round}.md`),
+        content: renderReviewMarkdown(number, record),
+        revision: record.revision,
+      }
+    }
     if (input.view === 'plan') {
       const content = readPlan(root, workId, number)
       if (content === undefined) throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲`)
@@ -1602,6 +1611,12 @@ export function writeReview(root, input) {
         },
         sourceRefs: Array.isArray(observation?.sourceRefs) ? observation.sourceRefs : [],
       }))
+      const previousIssues = new Set(openObservations(latestReviewRow(db, number)).map(observation => observation.id))
+      for (const observation of normalized) {
+        if (observation.assessment === 'resolved' && !previousIssues.has(observation.resolves)) {
+          throw new StoryError('artifact-invalid', `resolved observation 的 resolves 不是上一轮的 issue：${String(observation.resolves)}`)
+        }
+      }
       const written = writeChapterObservationsOnDb(db, root, {
         work: workId,
         chapter: number,
@@ -1633,6 +1648,10 @@ function reviewItems(observations) {
   return observations.map(observation => ({
     id: observation.id,
     done: observation.assessment !== 'issue',
+    assessment: observation.assessment,
+    severity: observation.severity,
+    evidence: observation.evidence ?? [],
+    resolves: observation.resolves,
     location: observation.sourceRefs?.[0]?.quote ?? observation.scope ?? '',
     problem: observation.summary,
     suggestion: observation.fix ?? '',
@@ -1938,7 +1957,7 @@ function assertStateGate(db, number, options = {}) {
   }
   const review = latestReviewRow(db, number)
   if (review === undefined) throw new StoryError('review-required', `第 ${number} 章还没有审稿清单：先审稿与修订，再定稿`)
-  const covers = reviewCovers(review, entry, true)
+  const covers = reviewCovers(review, entry)
   const open = openObservations(review)
   if (open.length > 0) {
     throw new StoryError('review-required',
@@ -3228,6 +3247,7 @@ export function exportWork(root, work, destination) {
         if (match === null) continue
         const number = Number(match[1])
         const content = JSON.parse(row.content)
+        put(join('reviews', `${chapterStem(number)}.r${Number(match[3])}.json`), `${JSON.stringify(content, null, 2)}\n`)
         put(join('reviews', `${chapterStem(number)}.r${Number(match[3])}.md`), renderReviewMarkdown(number, {
           round: Number(match[3]),
           revision: Number(match[2]),

@@ -194,30 +194,3 @@ export function trimSummary(text) {
   return { text: trimmed, chars: [...trimmed].length }
 }
 
-/**
- * Parse one review text into items.
- *
- * The stored line is `- [ ] Q1 :: location :: problem :: suggestion`; older
- * reviews may carry only a location and problem, or a single text field. The
- * location/problem/suggestion fields are what the reviewer and reviser task
- * sections need; ids and done flags drive the stage machine.
- * @param {string} text - review markdown.
- * @returns {Array<{id: string, done: boolean, line: number, location: string, problem: string, suggestion: string}>} parsed items.
- */
-export function parseReview(text) {
-  const items = []
-  for (const [index, line] of String(text).split(/\r?\n/).entries()) {
-    const match = /^- \[( |x)\] (Q\d+) :: (.*)$/u.exec(line)
-    if (match === null) continue
-    const parts = match[3].split(' :: ')
-    items.push({
-      id: match[2],
-      done: match[1] === 'x',
-      line: index,
-      location: parts.length >= 2 ? parts[0] : '',
-      problem: parts.length >= 2 ? parts[1] : match[3],
-      suggestion: parts.length >= 3 ? parts.slice(2).join(' :: ') : '',
-    })
-  }
-  return items
-}

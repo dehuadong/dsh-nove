@@ -160,7 +160,7 @@ function promptFor({ input, manifest, context, delegationId }) {
     lines.push('rawText 必填，只写本章发生的事实与状态变化，不超过 400 字；结构字段各不超过 120 字、可为空串；不评价、不补设定、不写下一章计划。')
     lines.push('提交成功后最终只回「已提交」；不要手动调用落盘动作。')
   } else {
-    lines.push('payload 格式：{"items":[{"quote":"正文或章纲里的逐字引文","problem":"问题","impact":"读者影响","severity":"blocker|major|minor","fix":"怎么修","mode":"patch|polish|rewrite|deslop","resolves":"可选：上一轮的 observation id"}]}。')
+    lines.push('payload 格式：{"items":[{"quote":"正文或章纲里的逐字引文","problem":"问题","impact":"读者影响","severity":"blocking|major|minor","fix":"怎么修","mode":"patch|polish|rewrite|deslop","resolves":"可选：上一轮的 observation id"}]}。')
     lines.push('quote 必须逐字出现在正文或本章章纲里；已修复的上一轮 issue 用 assessment resolved 的方式提交：填 resolves=上一轮 id，quote 填修复后的正文引文。')
     lines.push('没有问题时 payload 为 {"items":[]}；提交成功后最终只回「已提交」。')
   }
@@ -504,7 +504,7 @@ export async function delegateRole(root, input, host) {
         category: 'quality',
         assessment: item.resolves === undefined ? 'issue' : 'resolved',
         ...(item.resolves === undefined ? {} : { resolves: item.resolves }),
-        ...(item.severity === undefined ? {} : { severity: item.severity }),
+        ...(item.severity === undefined ? {} : { severity: item.severity === 'blocker' ? 'blocking' : item.severity }),
         ...(item.fix === undefined ? {} : { fix: item.fix }),
         ...(item.mode === undefined ? {} : { mode: item.mode }),
         sourceRefs: [{ sourceId: `chapter:${chapter}:r${entry.currentRevision}`, quote: item.quote }],
@@ -545,8 +545,7 @@ export async function delegateRole(root, input, host) {
     const { warnings } = await checkDraft(root, { work, chapter, body })
     assertActive(signal)
     const open = openObservationsOf(latestReview(root, work, chapter)).map(observation => observation.id)
-    const requested = Array.isArray(payload.resolved) ? payload.resolved.map(String) : open
-    const problemIds = requested.filter(id => open.includes(id))
+    const problemIds = Array.isArray(payload.resolved) ? payload.resolved.map(String) : open
     const revised = reviseChapter(root, {
       work, chapter, body, problemIds, mode,
       requirePlanApproval: readManifest(root, work).planApproval === 'required',

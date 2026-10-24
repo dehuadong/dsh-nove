@@ -58,6 +58,14 @@ try {
       sourceRefs: [{ sourceId: 'chapter:1:r1', quote: '不在正文里的句子' }],
     }],
   }))
+  throwsCode('resolved must point at a previous issue', 'artifact-invalid', () => s.writeReview(root, {
+    work, chapter: 1,
+    observations: [{
+      id: 'O9', summary: 'x', evidence: [], category: 'quality', assessment: 'resolved', resolves: 'O9',
+      sourceRefs: [{ sourceId: 'chapter:1:r1', quote: '甲把账本收好' }],
+    }],
+  }))
+  check('readChapter can render the review', s.readChapter(root, { work, chapter: 1, view: 'review' }).content.includes('O1'))
   const open = s.nextStep(root, work)
   check('an open issue points at revision', open.action === 'story_revise' && open.missing?.includes('O1'), JSON.stringify(open))
 
@@ -88,6 +96,8 @@ try {
   const { readFile } = await import('node:fs/promises')
   const reviewFile = await readFile(join(exported.directory, 'reviews', 'ch-0001.r1.md'), 'utf8')
   check('export renders observation reviews', reviewFile.includes('O1') && reviewFile.includes('伏笔没有推进'), reviewFile)
+  const reviewJson = await readFile(join(exported.directory, 'reviews', 'ch-0001.r1.json'), 'utf8')
+  check('export carries the observation JSON', JSON.parse(reviewJson).observations[0].id === 'O1', reviewJson)
 } finally {
   await rm(root, { recursive: true, force: true })
 }
