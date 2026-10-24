@@ -85,12 +85,14 @@ updated: 2026-10-24
 | 阶段 | 目标 | 范围/交付 | 退出条件 | 工作项 |
 | --- | --- | --- | --- | --- |
 | A0 | 全量产物合同 v2 | 逐项字段、权威、消费者、生命周期、初始化/测试重建、验收；覆盖 story_frame/volume_map/book_rules/角色卡/ChapterMemo/结构化摘要/hooks/facts/observation/context trace；定“共享方法技能 + 角色薄契约”的技能组织 | 合同评审通过；未决产品问题由作者裁决；矩阵与报告互链；消费者映射/契约可测，真实生产者/消费者归 L | #45 |
-| L 长篇 | 长篇全量对齐（迁移切片已完成，产品收口见 #62） | R10a 生产者/消费者迁移（#51）+ R10b architect 四阶段；long-writing 共享方法 + 4 refs；planner intent/memo/threadRefs；settler/validator 新模型；R9b/R11 适配；observation/reviews 后续（#52）；context 消费者 | 长篇产物、角色、技能、消费者、重建测试全过；R10a/R10b 关闭；#52 完成 | #44 + #51 + #52 |
+| L 长篇 | 长篇全量对齐（迁移切片已完成，产品收口见 #62） | R10a 生产者/消费者迁移（#51）+ R10b architect 四阶段；long-writing 共享方法 + 4 refs；planner intent/memo/threadRefs；settler/validator 新模型；R9b/R11 适配；observation/reviews 后续（#52）；context 消费者 | 长篇产物、角色、技能、消费者、重建测试全过；R10a/R10b 关闭；#52 完成；planner 委派、上下文预算/trace、多章/重开/删除重排、面板消费、导出验收按 #62 收口 | #44 + #51 + #52 + #62 |
 | S 短篇 | 短篇独立流水线 | outline → batch draft → draft review（sourceRefs）→ revision plan → package/cover prompt；short-writing + production-checklist；独立短篇产物/动作/UI | 短篇全链路产物、字数/钩子契约、review 证据、打包输出测试通过 | 待立 |
 | D 剧本 | 剧本独立流水线 | spec/script + 场次/集；script-writing + episode-scene-craft；目标格式/集数/时长；storyboard/互动影游另列 R8 | 剧本 spec/script、场次格式、导出测试通过 | 待立 |
 | 横向 | 分析/市场/导入/同人/封面/翻译/Play | R7/R7b/R7c/R8；A0 预留产物/字段 | 按各自触发条件验收 | 各阶段 Issue |
 
 依赖：A0 完成前不实现 R10/L/S/D；L 先于 S、D；横向能力不因当前未排期从范围删除。
+
+真实验收边界：#50 只验 L；S/D 流水线未落地前不测，各自另立验收项，不把三种形态并成一次真实测试。
 
 ### 实施顺序
 
