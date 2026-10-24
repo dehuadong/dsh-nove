@@ -2,7 +2,7 @@
 title: 故事工坊：settler 自动投影与语义对账
 status: implemented
 created: 2026-10-23
-updated: 2026-10-23
+updated: 2026-10-24
 verification: 37 单测全过（含 state-settle/submission/tools/skills）；动作 32、all 11、review 3；docs check 通过；E2E 未跑
 ---
 
@@ -13,6 +13,12 @@ verification: 37 单测全过（含 state-settle/submission/tools/skills）；�
 R9b 的 `story_state_check` 能让主编在定稿前核对 delta，但 delta 仍由主编手写。R9b 的测量显示手写 delta 会漏记重要变化、把叙述归属记错、把数字和伏笔状态写走样；检查只是事后发现，主编还要自己把正文事实转成 delta。
 
 R11 把这一步交给 settler 子代理：从本章正文抽取增量事实与伏笔变化，先过确定性预检，再过 R9b 语义检查；发现可重算的差异时带反馈重算一次，仍不一致就不自动定稿。`story_state` 保留为手动入口。
+
+## 部分替代（2026-10-24）
+
+[L-R10a 生产者/消费者迁移](../../proposed/pipeline/2026-10-24-storycraft-consumer-migration.md) 的 S3 **部分替代**本 Note 的 settler payload `{entities,hooks}` 与 `foldState` 的阶段/事件写入：v2 合同要求 hookOp/factOp 与 fact 有效期，旧 payload 无法表达。
+
+保留：审稿→修订→摘要→settle 的闸门顺序、最多一次重算、未解决不写状态的失败策略。R11 的旧引用不进入新作品；S3 完成后本 Note 的 payload/foldState 部分以新 Note 为准。
 
 ## 参考实现
 

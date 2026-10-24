@@ -2,7 +2,7 @@
 title: 故事工坊：产物合同 v2（数据模型与初始化）
 status: proposed
 created: 2026-10-23
-updated: 2026-10-23
+updated: 2026-10-24
 ---
 
 # Agent Note：故事工坊：产物合同 v2（数据模型与初始化）
@@ -15,7 +15,7 @@ updated: 2026-10-23
 
 ## 与既有记录
 
-- **artifact 身份语法由 [`2026-10-20-storycraft-artifact-identity.md`](2026-10-20-storycraft-artifact-identity.md) 拥有**；本 Note 只扩展 kind/字段，不另起一套 ID 语法。新增/变更的 ID 在 §2 表中列明；旧表（outline/plan/chapter/review/summary/state/bible/volume/export/backup/material）继续有效。本 Note 的“静态 artifact 保留历史 revision”**部分替代**该 Note 的“upsert 不保留历史”；L 交付时更新该 Note 的状态/验收并互相链接。
+- **artifact 身份语法由 [`2026-10-20-storycraft-artifact-identity.md`](2026-10-20-storycraft-artifact-identity.md) 拥有**；本 Note 只扩展 kind/字段，不另起一套 ID 语法。新增/变更的 ID 在 §2 表中列明；旧表（outline/plan/chapter/summary/state/bible）在 [L-R10a 生产者/消费者迁移](2026-10-24-storycraft-consumer-migration.md) 的对应切片迁移前仍是现行运行路径，迁移后不再写读；review/reviews 由 #52 单独迁移，volume/material/export/backup 仍按现有表/路径运行、R10a 不迁移。本 Note 不把旧表当作 A0 后的长期权威。本 Note 的“静态 artifact 保留历史 revision”**部分替代**该 Note 的“upsert 不保留历史”；L 交付时更新该 Note 的状态/验收并互相链接。
 - R6a 的 [`2026-10-23-storycraft-longform-method-references.md`](../../implemented/pipeline/2026-10-23-storycraft-longform-method-references.md) 记录 hook 只有三态、text 身份、不引入 `superseded`/`lastAdvancedChapter`。本 Note 的 hookId/生命周期与该记录**部分替代**：R6a 在 L 交付前仍是现行运行契约；L 交付时更新 R6a 的状态/验收并互相链接，不提前把新字段用于现有代码。
 - R11 的 [`2026-10-23-storycraft-settler-auto-projection.md`](../../implemented/pipeline/2026-10-23-storycraft-settler-auto-projection.md) 已交付；本 Note 不改变其“审稿→修订→摘要→settle”的闸门顺序，只把产物迁到新模型（L 阶段）。
 - 旧 R10 方案已 rejected：[`2026-10-23-storycraft-foundation-delegation.md`](../../rejected/pipeline/2026-10-23-storycraft-foundation-delegation.md)。
@@ -398,7 +398,7 @@ Storyboard / interactive film / play / translation / cover 是 R8 产物：A0 �
 1. A0 覆盖的每个 artifact（world/style/intent/current_focus/story_frame/volume_map/book_rules/roles/plan/summary/hooks/facts/observations/context/trace/short_story/script）都有字段、权威、生命周期、消费者；R8 的 storyboard/interactive_film/play_world/cover/translation 在 A0 只验收 kind/envelope/identity，字段与消费者验收明确归 R8；
 2. 只支持 v6；旧版本/测试旧作品直接报 `schema-version-mismatch` 并重建，没有兼容/迁移路径；
 3. 新作品只写本合同；不存在 `legacy`/`unverified`/迁移字段；
-4. 每个 artifact 至少一个真实消费者（brief/context/检索/审稿/结算/导出）按新结构读取，不能只按 channel 抽样；
+4. A0 定义每个 artifact 的消费者映射与可测试契约；真实生产者/消费者由 L-R10a #51 按 artifact 矩阵验收（短篇/剧本 S/D，context/trace R12，observation/reviews 由 #52 单独验收），只按 channel 抽样不算；
 5. 短篇/剧本/分镜的产物不映射到 Chapter；R8 产物的字段 deferral 在 #45 记录；
 6. 作者闸门 `planApproval`/outline approved/`planApprovedAt` 在 WorkConfig/ChapterMeta 中保留；
 7. 结构合同测试覆盖必填、拒绝和消费者；测试库每次重建；矩阵与 #45 互链。
