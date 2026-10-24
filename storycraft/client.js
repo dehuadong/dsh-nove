@@ -2458,7 +2458,7 @@ window.__ModuleLoader__.load({
           selected === undefined ? h('nav', { className: 'sc-list', 'aria-label': '作品类型' },
             h('div', { className: 'sc-list-label' }, '视图'),
             h('button', { type: 'button', className: 'sc-work', 'aria-current': homeView === 'works' ? 'true' : 'false', onClick: () => setHomeView('works') }, '作品'),
-            h('button', { type: 'button', className: 'sc-work', 'aria-current': homeView === 'trash' ? 'true' : 'false', onClick: () => setHomeView('trash') }, 回收站 ),
+            h('button', { type: 'button', className: 'sc-work', 'aria-current': homeView === 'trash' ? 'true' : 'false', onClick: () => setHomeView('trash') }, '回收站'),
             h('div', { className: 'sc-list-label' }, '类型'),
             ...FORMS.map(form => h('button', {
               key: form.id,
