@@ -34,18 +34,18 @@ updated: 2026-10-23
 
 | 参考角色 | 职责 | 我们的落点 | 状态 |
 | --- | --- | --- | --- |
-| architect | 书级设计（世界观、卷、人物弧、初始伏笔） | 规划角色 + 全书计划；无 foundation 委派 | 部分：缺 story_frame / volume_map / book_rules 分层与初始伏笔投影（`architect.ts:142-184`） |
-| planner | 单章计划（目标/阻力/代价/变化） | 规划角色 + `story_context` + 章纲 | 部分：`story_context` 有 planner 枚举，`story_delegate` 不含 planner（`tools.js:1118,1783`） |
+| architect | 书级设计（世界观、卷、人物弧、初始伏笔） | 规划角色 + `story_delegate` architect 四阶段 | 已采纳：frame/rules/roles/cards 由 #44 生产；planner 仍未委派 |
+| planner | 单章计划（目标/阻力/代价/变化） | 规划角色 + `story_context` + 章纲 | 部分：`story_delegate` 仍不含 planner，章纲由主编写 |
 | writer | 写正文 | 写手子代理 + `storycraft-write-craft` + 形态技能 | 已采纳：form 路由已接；定稿时由 `story_settle` 自动抽取 |
-| auditor / reviewer | 审稿清单与证据 | 审稿子代理 + `storycraft-review` | 部分：有问题清单，无 observation code / 行号证据（`continuity.ts:74-97`） |
-| reviser | 按条目改稿 | 修订者子代理 + `storycraft-revise-craft` | 部分：有 mode；无 observation 输入 |
+| auditor / reviewer | 审稿清单与证据 | 审稿子代理 + `storycraft-review` | 部分：已有 observation code/quote/sourceRefs；行号与前后 revision 对比仍缺 |
+| reviser | 按条目改稿 | 修订者子代理 + `storycraft-revise-craft` | 已采纳：按 observation id 处理，可标 resolved |
 | settler | 把事实与伏笔归档 | `story_settle` + `storycraft-state-settler` | 已采纳：定稿时自动抽取；未解决回退 `story_state` |
-| continuity | 跨章连续性检查 | 并入审稿技能 | 部分：无 observation code、无前后 revision 对比 |
+| continuity | 跨章连续性检查 | 并入审稿技能 | 部分：已有 observation code；跨章前后 revision 对比未做 |
 | detector | AI 内容检测打分 | `story_critique` + `deslop` | 已采纳（换实现） |
 | composer | 上下文选择/编译（另含多段拼接） | `story_context` 固定分段 + 8000 字符预算 | 部分：无 token 预算、语义选择与持久化 trace；拼接不做 |
 | researcher / radar | 素材与趋势检索 | 材料库 + 检索 | 部分：有库与召回，无研究方法与来源 rubric |
-| short-fiction | 短篇专门流水线 | `storycraft-short-story` + 同一动作 | 部分：有方法，委派不加载形态技能 |
-| script-storyboard | 剧本/分镜 | 剧本形态 | 部分：有短剧技能，无分镜对象 |
+| short-fiction | 短篇专门流水线 | `storycraft-short-story` + 同一动作 | 部分：R6b 形态路由已接；独立短篇流水线未落地 |
+| script-storyboard | 剧本/分镜 | 剧本形态 | 部分：有短剧技能；独立 spec/场次流水线与分镜对象未落地 |
 
 ### 技能对拍
 
@@ -82,10 +82,10 @@ updated: 2026-10-23
 | 交接点 | 参考实现 | 我们当前 | 差距 | 状态 | 决定 |
 | --- | --- | --- | --- | --- | --- |
 | 结构化提交 | 模型经 typed tool 提交，宿主校验后落盘 | `story_submit` + `submission.js` 校验 | 无 | 对齐 | 保留 |
-| 委派角色 | architect / planner / writer / reviser / settler / validator | writer / reviewer / reviser / summarizer / settler / validator | 缺 architect、planner；settler/validator 已有 | 部分 | 先补 planner/architect |
+| 委派角色 | architect / planner / writer / reviser / settler / validator | architect / writer / reviewer / reviser / summarizer / settler / validator | architect 已补；planner 仍缺 | 部分 | 补 planner |
 | 作者闸门 | 计划/章纲确认 + 提案确认 | 面板确认 + 提案同意 | 无 | 对齐 | 确认后不自动发送 |
 | 完成证据 | 只认 ActionResult / artifact revision | 委派回执 + revision | 回执有，artifact 证据弱 | 部分 | 回执补 artifact id/版本 |
-| foundation 交接 | 三段式 submit + 原子写 story_frame/volume_map/book_rules/role cards | 三次 `story_bible_write` / `story_outline` | 无一次生成与初始伏笔投影 | 缺失 | R10 |
+| foundation 交接 | 三段式 submit + 原子写 story_frame/volume_map/book_rules/role cards | `story_delegate` architect 四阶段 | 已对齐 | 已采纳 | #44 |
 | 章计划交接 | planner 产出 ChapterIntent + ChapterMemo | 章纲五字段 | 无独立 memo | 部分 | 保留章纲，不新增对象 |
 | 上下文装配 | composer：半窗预算、语义选择、trace | `story_context` 固定段 + 8000 字符 | 无 token 预算/trace | 部分 | R12 |
 | 状态投影 | writer 提交后自动 factOps/hookOps + baseline | `story_settle` 自动抽取 + R9b 校验 + 一次重算；未解决不定稿 | 部分：定稿时抽取，不提前持久化候选 | 已采纳 | #43 |

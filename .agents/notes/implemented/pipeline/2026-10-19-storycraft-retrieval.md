@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：检索召回的设计（纯 JS BM25）
-status: proposed
+status: implemented
 created: 2026-10-19
 updated: 2026-10-21
+verification: FTS5 检索与 BM25 排序已落地，search 测试与 CI 50 个单元文件通过；证据见 #16。
 ---
 
 # Agent Note：故事工坊：检索召回的设计（纯 JS BM25）
@@ -15,7 +16,7 @@ updated: 2026-10-21
 
 `story_context` 的「最近脉络」只覆盖最近 3 章；早期伏笔、旧场景与人物细节无法按需召回。参考实现用 FTS + BM25；我们不引入 SQLite 或第三方依赖。
 
-## 提案
+## 决定
 
 ### 语料收集：新 `corpus.js`
 
@@ -77,7 +78,11 @@ corpus.collect(root, work, { beforeChapter, role })
 - **复用 foldEvents 的实体**：丢章号、且被客户端状态 UI 依赖；否决，改为 corpus 直读事件。
 - **持久化索引**：暂缓，性能验收兜底。
 
-## 验收条件
+## 后果
+
+该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+
+## 验证
 
 产品行为与验收由 #16 拥有。本设计只证明以下实现性质：
 

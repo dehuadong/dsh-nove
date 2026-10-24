@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：产物合同 v2（数据模型与初始化）
-status: proposed
+status: implemented
 created: 2026-10-23
 updated: 2026-10-24
+verification: 产物合同 v2 与 registry 已落地，消费者/初始化测试与 CI 通过；证据见 #45–#49。
 ---
 
 # Agent Note：故事工坊：产物合同 v2（数据模型与初始化）
@@ -20,7 +21,7 @@ updated: 2026-10-24
 - R11 的 [`2026-10-23-storycraft-settler-auto-projection.md`](../../implemented/pipeline/2026-10-23-storycraft-settler-auto-projection.md) 已交付；本 Note 不改变其“审稿→修订→摘要→settle”的闸门顺序，只把产物迁到新模型（L 阶段）。
 - 旧 R10 方案已 rejected：[`2026-10-23-storycraft-foundation-delegation.md`](../../rejected/pipeline/2026-10-23-storycraft-foundation-delegation.md)。
 
-## 提案
+## 决定
 
 ### 1. 共同原则
 
@@ -397,7 +398,11 @@ Storyboard / interactive film / play / translation / cover 是 R8 产物：A0 �
 - **把短篇/剧本压进 Chapter**：产物字段和流水线不同，信息损失；否决。
 - **保留 v5 读、v6 写**：测试作品可直接重建，双读没有收益；否决。
 
-## 验收条件
+## 后果
+
+该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+
+## 验证
 
 1. A0 覆盖的每个 artifact（world/style/intent/current_focus/story_frame/volume_map/book_rules/roles/plan/summary/hooks/facts/observations/context/trace/short_story/script）都有字段、权威、生命周期、消费者；R8 的 storyboard/interactive_film/play_world/cover/translation 在 A0 只验收 kind/envelope/identity，字段与消费者验收明确归 R8；
 2. 只支持 v6；旧版本/测试旧作品直接报 `schema-version-mismatch` 并重建，没有兼容/迁移路径；

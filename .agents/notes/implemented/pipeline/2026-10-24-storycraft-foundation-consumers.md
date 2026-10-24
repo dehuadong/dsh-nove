@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：L-R10a S4b foundation 消费
-status: proposed
+status: implemented
 created: 2026-10-24
 updated: 2026-10-24
+verification: foundation 消费已接入 brief/context/检索/导出，CI 通过；证据见 #60。
 ---
 
 # Agent Note：故事工坊：L-R10a S4b foundation 消费
@@ -30,7 +31,7 @@ S4b 只接消费（brief/context/检索/审稿/结算/导出），不生产。
 - 角色卡与 `characters` 六字段的关系：R10a 保留 `bible.characters` 只读；S4b 在 roles index 存在时优先用角色卡，缺失时回退六字段（不删旧路径）。
 - 审稿/结算的既有约束归 `context.js`/`role-input.js` 与审稿技能；本 Note 只增加 foundation 段，不改审稿标准。
 
-## 提案
+## 决定
 
 ### 1. brief（写前上下文）
 
@@ -76,7 +77,11 @@ S4b 只接消费（brief/context/检索/审稿/结算/导出），不生产。
 - **S4b 同时实现 R10b 生产**：#44 已有 owner 与确认闸门，合并会越界；否决。
 - **roles 覆盖 characters 并删除旧路径**：R10b 未交付前会产生空人物段；否决，先并存回退。
 
-## 验收条件
+## 后果
+
+该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+
+## 验证
 
 1. brief 输出 13 段且顺序如上；缺失 foundation 时对应段 `absent:true`，brief 仍成功。
 2. `storyFrame`/`bookRules` 为 protected；预算不足时裁剪在 protected 段前停止并报 `overBudget`，不被静默删除。

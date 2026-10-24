@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：L-R10a S3 hooks/facts 迁移
-status: proposed
+status: implemented
 created: 2026-10-24
 updated: 2026-10-24
+verification: hooks/facts v2 事件与 settle writer 已落地，CI 通过；证据见 #58。
 ---
 
 # Agent Note：故事工坊：L-R10a S3 hooks/facts 迁移
@@ -36,7 +37,7 @@ S3 把生产者与消费者整体切到 v2 事件，旧格式退出运行。
 - [`2026-10-23-storycraft-longform-method-references.md`](../../implemented/pipeline/2026-10-23-storycraft-longform-method-references.md) 的“hook 三态、text 身份”在 L 交付时被合同 v2 §5 替代；S3 交付时同步该记录。
 - observation/reviews 生命周期归 #52；本 Note 不改审稿链。
 
-## 提案
+## 决定
 
 ### 1. 提交面
 
@@ -104,7 +105,11 @@ settler 与手动 `story_state` 使用同一形状：
 - **迁移旧事件**：全项目不做旧作品迁移；否决。
 - **结算顺带写摘要（参考实现方式）**：摘要归 S2 的独立 summarizer，合并会破坏阶段机的摘要前置；否决。
 
-## 验收条件
+## 后果
+
+该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+
+## 验证
 
 1. settler 与手动 `story_state` 只写 v2 hook/fact 事件；`entities`/`hooks` 旧形状被拒，错误码稳定。
 2. `hookId` 由宿主铸造、同 text 复用；`progress`/`mention`/`defer`/`resolve`/`supersede` 按转移表更新投影；非法转移不写事件。

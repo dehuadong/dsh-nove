@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：reviser 模式与字数恢复修正（#19 实测）
-status: proposed
+status: implemented
 created: 2026-10-20
 updated: 2026-10-20
+verification: reviser 模式/字数恢复校验已并入 story_submit，测试与 CI 通过；证据见 #23。
 ---
 
 # Agent Note：故事工坊：reviser 模式与字数恢复修正（#19 实测）
@@ -40,7 +41,7 @@ updated: 2026-10-20
 - 本项不改 #22 的 artifact ID/阶段上下文。
 - 本项与 #23 合并：`story_submit` 同时负责“结果从哪来”和“结果是否合格”；#19 只验证。
 
-## 提案
+## 决定
 
 ### 1. 把 reviser 校验放进 `story_submit`
 
@@ -95,7 +96,11 @@ updated: 2026-10-20
 - **继续用提示词要求完整成章**：实测 8 字成功，提示词不能替代校验；否决。
 - **把 reviser 改成宿主内 worker**：放弃 DSH subagent，超出 #19 范围；否决。
 
-## 验收条件
+## 后果
+
+该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+
+## 验证
 
 1. 委派 reviser 低于 min 返回 `submit-word-range`，不落盘；
 2. 8 字 rewrite 回归测试被拒绝，不再成功；

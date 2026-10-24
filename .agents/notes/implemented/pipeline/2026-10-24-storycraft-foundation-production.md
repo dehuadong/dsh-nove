@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：L-R10b foundation 生产
-status: proposed
+status: implemented
 created: 2026-10-24
 updated: 2026-10-24
+verification: architect 四阶段生产已落地，真实会话跑通 frame/rules/roles/cards；证据见 #44。
 ---
 
 # Agent Note：故事工坊：L-R10b foundation 生产
@@ -28,7 +29,7 @@ R10 旧方案（一次生成 world/characters/plan/text-hook）已被对拍审�
 - 委派机制、提交协议与重试规则由 [`2026-10-20-storycraft-host-delegation.md`](2026-10-20-storycraft-host-delegation.md) 拥有；本项只增加 architect 角色与 foundation 落地。
 - 旧 R10 设计已否决：[`rejected/pipeline/2026-10-23-storycraft-foundation-delegation.md`](../../rejected/pipeline/2026-10-23-storycraft-foundation-delegation.md)；不恢复 world/characters/plan/text-hook 方案。
 
-## 提案
+## 决定
 
 ### 1. 生产入口：architect 角色，四个 stage
 
@@ -83,7 +84,11 @@ R10 旧方案（一次生成 world/characters/plan/text-hook）已被对拍审�
 - **由模型自行确认 foundation**：作者闸门失效；否决，确认只在面板。
 - **沿用旧 text-hook 初始化**：与 v2 hook/fact 模型冲突；否决。
 
-## 验收条件
+## 后果
+
+该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+
+## 验证
 
 1. `story_delegate` 接受 `role:'architect'` + `stage`，四个 stage 分别落地合同产物；非法 payload 整批拒绝且不产生任何 revision。
 2. 每个 stage 可独立重跑；重跑生成新 revision、清 `foundation.approvedAt`；旧 revision 可读。

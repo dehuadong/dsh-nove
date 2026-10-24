@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：L-R10a 生产者/消费者迁移
-status: proposed
+status: implemented
 created: 2026-10-24
 updated: 2026-10-24
+verification: L 生产者/消费者迁移已落地，真实单章链路见 #50；证据见 #51。
 ---
 
 # Agent Note：故事工坊：L-R10a 生产者/消费者迁移
@@ -16,11 +17,11 @@ A0 已交付 v6 artifact registry 与 typed 读写，但生产动作仍写旧表
 ## 与既有记录
 
 - 产物字段、权威与消费者表由 [`2026-10-23-storycraft-artifact-contract-v2.md`](2026-10-23-storycraft-artifact-contract-v2.md) 拥有；本 Note 只拥有**迁移顺序、生产者/消费者切换点、旧结构退役与延期归属**，不重写字段合同。本 Note 部分替代该 Note 验收 4 的“A0 内完成真实消费者”，改为按下方矩阵分工。
-- 路线图 [`2026-10-19-storycraft-roadmap.md`](../workspace/2026-10-19-storycraft-roadmap.md) 拥有 L 的范围与退出条件；#44 是 R10b（architect 生成 foundation），#51 是本 Note 的 R10a。
+- 路线图 [`2026-10-19-storycraft-roadmap.md`](../../proposed/workspace/2026-10-19-storycraft-roadmap.md) 拥有 L 的范围与退出条件；#44 是 R10b（architect 生成 foundation），#51 是本 Note 的 R10a。
 - R11 的 [`2026-10-23-storycraft-settler-auto-projection.md`](../../implemented/pipeline/2026-10-23-storycraft-settler-auto-projection.md) 的“审稿→修订→摘要→settle”顺序与一次重算规则保留；其 settler payload `{entities,hooks}` 与 `foldState` 的阶段/事件写入由 S3 **部分替代**。替代理由：v2 合同要求 hookOp/factOp 与 fact 有效期，旧 payload 无法表达；R11 的旧引用不进入新作品。
 - R6a 的 [`2026-10-23-storycraft-longform-method-references.md`](../../implemented/pipeline/2026-10-23-storycraft-longform-method-references.md) 已部分替代；R10a 不改方法正文。
 
-## 提案
+## 决定
 
 ### 1. 边界与 #45 AC4 的归属
 
@@ -126,7 +127,11 @@ A0 只负责字段合同、v6 registry、消费者映射与可测试的消费契
 - **保留旧表读取作为回退**：会长期双源；旧路径只在回退提交中恢复，不在运行时并存。
 - **把 observation 与 reviews 一起并入本段**：需要新增 observation ID/解决语义与审稿轮次合同，超出本段；单独立项。
 
-## 验收条件
+## 后果
+
+该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+
+## 验证
 
 1. 每个切片的生产者只写新结构；该切片的旧表/旧事件不再写、不再读（observation/reviews 明确除外）。
 2. 每个 artifact 有**具名消费者**，不是“某个通道命中一次”：

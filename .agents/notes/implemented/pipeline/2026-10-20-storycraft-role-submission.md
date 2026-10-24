@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：角色结果结构化提交（保留 DSH subagent）
-status: proposed
+status: implemented
 created: 2026-10-20
 updated: 2026-10-20
+verification: story_submit 结构化提交与失败重试已落地，submission 测试与 CI 通过；证据见 #23。
 ---
 
 # Agent Note：故事工坊：角色结果结构化提交（保留 DSH subagent）
@@ -50,7 +51,7 @@ updated: 2026-10-20
 - 交付时在 `host-delegation` 加部分替代 banner，并更新 #23/#22 的验证边界。
 - 本 Note 新增 SubmissionStore 10 分钟 TTL；host-delegation 的“无新 TTL”不覆盖本通道。
 
-## 提案
+## 决定
 
 ### 1. 协议
 
@@ -184,7 +185,11 @@ Entry 额外保存 `mode`、`wordRange`、`attempts`；校验读取当前正文�
 - **让子代理直接调用 `story_write`/`story_revise`**：会绕过父代理校验与 `subagent-cannot-land`；否决。
 - **把正文写临时文件再读**：引入文件路径与清理问题，回到 #22 要消除的路径通道；否决。
 
-## 验收条件
+## 后果
+
+该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+
+## 验证
 
 1. 子代理只通过 `story_submit` 交结果，**最终回答**不含正文；每次调用计一次，最多 3 次尝试；
 2. 父代理不解析最终文本，只从 SubmissionStore 取结构化结果；

@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：L-R10a S1b 章节 artifact 重映射
-status: proposed
+status: implemented
 created: 2026-10-24
 updated: 2026-10-24
+verification: 章节 artifact 重映射与批准清空已落地，CI 通过；证据见 #56。
 ---
 
 # Agent Note：故事工坊：L-R10a S1b 章节 artifact 重映射
@@ -28,7 +29,7 @@ S1a-demo 只能临时阻断有 memo 的删/移。本 Note 规划 S1b：把章节
 - 字段合同由 [`2026-10-23-storycraft-artifact-contract-v2.md`](2026-10-23-storycraft-artifact-contract-v2.md) 拥有；本 Note 只定重映射算法、顺序与失败行为。
 - observation 语义仍归 #52；S1b 只处理已有 review artifact 的 target 引用，不定义新的 observation 生命周期。
 
-## 提案
+## 决定
 
 ### 1. 重映射对象
 
@@ -79,7 +80,11 @@ S1a-demo 只能临时阻断有 memo 的删/移。本 Note 规划 S1b：把章节
 - **引入稳定 chapter UUID**：更彻底但超出 S1b；保持章号身份。
 - **S1b 不处理 review target**：会留下悬空引用；本切片只做清理/重绑，不定义 observation 生命周期。
 
-## 验收条件
+## 后果
+
+该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+
+## 验证
 
 1. 删除/移动后，`plan`/`summary`/`review` 的 artifactId 章号段、`scope_chapter`、`content.chapter` 与新章号一致；旧 ID 不可读；`context`/`trace` 只同步 `scope_chapter`。
 2. 只保留每章最新 revision；旧 revision 删除；不得把旧 revision 搬到新 ID。

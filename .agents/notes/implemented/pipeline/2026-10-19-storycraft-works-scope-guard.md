@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：works 读取的会话作用域守卫
-status: proposed
+status: implemented
 created: 2026-10-19
 updated: 2026-10-20
+verification: scope 守卫与 scope.test 已落地，CI 50 个单元文件通过。
 ---
 
 # Agent Note：故事工坊：works 读取的会话作用域守卫
@@ -11,7 +12,7 @@ updated: 2026-10-20
 
 技能约定「讨论阶段不碰 `works/`」是提示词。原生工具能直接读历史作品：`read`/`edit`/`write` 的 `file_path`、`glob`/`grep` 省略 `path` 时的整工作区递归、`pwsh`/`bash` 的 `workdir`、`read_image`。参考实现的防线在工具面（会话绑定作品、读已注册产物、跨作品拒绝），我们要在同一层补。
 
-## 提案
+## 决定
 
 ### 作用域根
 
@@ -68,7 +69,11 @@ scopeDenial({ tool, arguments, cwd, worksRoot, dbRoot, currentWork }) -> string 
 - **允许显式读参考作品**：扩大污染面；暂不做。
 - **`realpath` 规范化**：需要异步，守卫是同步接口；记为残余风险。
 
-## 验收条件
+## 后果
+
+该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+
+## 验证
 
 产品行为与验收由 #17 拥有。本设计只证明：
 

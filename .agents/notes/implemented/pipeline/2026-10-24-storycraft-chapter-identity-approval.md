@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：L-R10a 章节身份与批准合同
-status: proposed
+status: implemented
 created: 2026-10-24
 updated: 2026-10-24
+verification: 章节身份与作者批准合同已落地，批准 API/面板与测试通过；证据见 #55。
 ---
 
 # Agent Note：故事工坊：L-R10a 章节身份与批准合同
@@ -38,7 +39,7 @@ S1a/S1a-demo/合同补丁反复卡在同一组基础合同：章号既是章节�
 - 参考实现的 UUID 出现在 **chapter version**，不是 chapter identity。我们当前 `chapter_versions` 用整数 revision，这是另一个对拍差异，单独立项，不混入本章节身份合同。
 - 如果目标要求的是“正文版本 UUID”，应新增 S1c 处理 `chapter_versions` 的身份与迁移；本章节合同不覆盖。
 
-## 提案
+## 决定
 
 ### 1. 章节身份与重映射 owner
 
@@ -104,7 +105,11 @@ S1a/S1a-demo/合同补丁反复卡在同一组基础合同：章号既是章节�
 - **阻断所有章节编辑直到 S1b**：只阻断 mapping/deleted 中存在 artifact 的编辑，范围更窄。
 - **由 S1b 同时改写 context/trace 的 ID**：当前没有生产者，改号规则无从验证，且与 R12 的 ID 方案可能冲突；改为 R12 落地时接同一 identity 规则。
 
-## 验收条件
+## 后果
+
+该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+
+## 验证
 
 1. 章节号身份、identity-change 例外、S1b 为 `plan`/`summary`/`review` 重映射唯一 owner、`state` 不参与、`context`/`trace` ID 归 R12，在合同 v2、consumer-migration、S1b Note 与 #51 中表述一致。
 2. 删除/移动后，`plan`/`summary`/`review` 的 artifactId 章号段、`scope_chapter`、`content.chapter` 与新章号一致；旧 ID 不可读；identity 章不变；未受影响章不变；`context`/`trace` 只随 `scope_chapter`。

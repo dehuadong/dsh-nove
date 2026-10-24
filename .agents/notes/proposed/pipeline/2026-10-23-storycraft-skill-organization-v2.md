@@ -7,11 +7,13 @@ updated: 2026-10-23
 
 # Agent Note：故事工坊：Skill/角色组织 v2（共享方法 + 三形态流水线）
 
+> 部分交付：A0-5 共享方法与 L 角色薄契约已落地；S/D 独立流水线未落地，保留 proposed。
+
 ## 问题
 
 当前 11 个技能把长篇方法拆成 write-craft、longform-chapter、longform-method，角色再各自带一份；短篇和剧本复用长篇章节阶段机。全量对拍确认：参考实现的方法更完整，短篇/剧本是独立流水线。继续按角色拆方法会重复、漂移，继续共用阶段机会把不同产物压成同一种。
 
-本 Note 定技能/角色/流水线组织；产物字段与迁移归 [产物合同 v2](2026-10-23-storycraft-artifact-contract-v2.md)。
+本 Note 定技能/角色/流水线组织；产物字段与迁移归 [产物合同 v2](../../implemented/pipeline/2026-10-23-storycraft-artifact-contract-v2.md)。
 
 ## 与既有记录
 

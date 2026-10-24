@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：L-R10a S2 ChapterSummary 迁移
-status: proposed
+status: implemented
 created: 2026-10-24
 updated: 2026-10-24
+verification: 结构化摘要与 revision 绑定已落地，CI 通过；证据见 #57。
 ---
 
 # Agent Note：故事工坊：L-R10a S2 ChapterSummary 迁移
@@ -34,7 +35,7 @@ A0 已登记 `summary:<n>` 身份与 ChapterSummary 字段（`rawText` 与 `body
   - [`2026-10-21-storycraft-summary-revision-binding.md`](../../implemented/pipeline/2026-10-21-storycraft-summary-revision-binding.md)：`summaries.revision` 的存储位置与读取路径；`bodyRevision` 的 stale 语义、manifest 的 `summaryRevision`/`summaryStale` 口径继续适用。
 - observation/reviews 生命周期归 #52；本 Note 不改审稿轮次、reviser 与 observation 语义。
 
-## 提案
+## 决定
 
 ### 1. 生产
 
@@ -87,7 +88,11 @@ A0 已登记 `summary:<n>` 身份与 ChapterSummary 字段（`rawText` 与 `body
 - **迁移旧 `summaries` 行为 artifact**：属旧作品迁移，全项目统一不做；否决。
 - **S2 顺带把摘要接进 reviewer/settler**：与 #52 的 prompt 改造重叠，会二次改审稿输入；否决，归 #52。
 
-## 验收条件
+## 后果
+
+该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+
+## 验证
 
 1. 摘要只写 `summary:<n>`；测试断言 `summaries` 写入为 0。
 2. 委派 summarizer 提交结构字段后落盘 ChapterSummary；`chapter`/`bodyRevision` 由 host 盖章，child 伪造值被忽略。

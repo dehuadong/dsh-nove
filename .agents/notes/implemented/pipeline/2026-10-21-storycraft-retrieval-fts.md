@@ -16,7 +16,7 @@ verification: f491ed6；27 个单测 + 11 条 E2E；真实第 4 章 `story_conte
 
 `story_context` 的「最近脉络」只覆盖最近 3 章摘要；更早的伏笔与卷记忆无法按需召回。作品库已有 FTS5 + BM25（`store-db.js` 的 `search_docs` / `search_fts`），但只有内部 `search()` 使用，没有接入角色上下文；#25 补了摘要 revision 绑定，过期摘要不能再被当成当前记忆。
 
-旧设计 [检索召回的设计（纯 JS BM25）](../../proposed/pipeline/2026-10-19-storycraft-retrieval.md) 以“读摘要文件、不引入 SQLite/FTS5”为前提，已被 #18 的作品库取代。本 Note 承接其“段位置、预算、trace”结论，替换语料与排名实现；角色查询表、开启条件与产品验收由 [#16](https://github.com/dehuadong/dsh-nove/issues/16) 拥有。
+旧设计 [检索召回的设计（纯 JS BM25）](../../implemented/pipeline/2026-10-19-storycraft-retrieval.md) 以“读摘要文件、不引入 SQLite/FTS5”为前提，已被 #18 的作品库取代。本 Note 承接其“段位置、预算、trace”结论，替换语料与排名实现；角色查询表、开启条件与产品验收由 [#16](https://github.com/dehuadong/dsh-nove/issues/16) 拥有。
 
 参考实现（InkOS）的可验证做法：FTS5/BM25、前一章摘要保底、Hook ID 定向回溯、retrieval trace；它还会把未命中文档交给 LLM 语义选择。第一版只吸收确定性部分。
 

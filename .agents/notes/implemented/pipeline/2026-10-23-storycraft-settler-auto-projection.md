@@ -16,7 +16,7 @@ R11 把这一步交给 settler 子代理：从本章正文抽取增量事实与�
 
 ## 部分替代（2026-10-24）
 
-[L-R10a 生产者/消费者迁移](../../proposed/pipeline/2026-10-24-storycraft-consumer-migration.md) 的 S3 **部分替代**本 Note 的 settler payload `{entities,hooks}` 与 `foldState` 的阶段/事件写入：v2 合同要求 hookOp/factOp 与 fact 有效期，旧 payload 无法表达。
+[L-R10a 生产者/消费者迁移](../../implemented/pipeline/2026-10-24-storycraft-consumer-migration.md) 的 S3 **部分替代**本 Note 的 settler payload `{entities,hooks}` 与 `foldState` 的阶段/事件写入：v2 合同要求 hookOp/factOp 与 fact 有效期，旧 payload 无法表达。
 
 保留：审稿→修订→摘要→settle 的闸门顺序、最多一次重算、未解决不写状态的失败策略。R11 的旧引用不进入新作品；S3 完成后本 Note 的 payload/foldState 部分以新 Note 为准。
 

@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：模型可见的 artifact 身份与阶段上下文契约
-status: proposed
+status: implemented
 created: 2026-10-20
 updated: 2026-10-21
+verification: artifact 身份与阶段上下文契约已落地，消费者测试与 CI 通过；证据见 #22。
 ---
 
 # Agent Note：故事工坊：模型可见的 artifact 身份与阶段上下文契约
@@ -40,7 +41,7 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
 - `implemented/pipeline/2026-10-19-storycraft-sqlite-store.md` 的 `artifact.path` 契约、`implemented/pipeline/2026-10-19-storycraft-role-input-contracts.md` 的 `story_context.sections[].source` 契约、`implemented/pipeline/2026-10-17-storycraft-bible-and-brief.md` 的章节真值说明由本项部分替代；交付时更新并互相链接。
 - `proposed/pipeline/2026-10-20-storycraft-host-delegation.md` 的 `story_delegate` 回执增加 artifact ID；回执原本没有 path，只增加 ID 字段，不改变 1,500 字符预算。
 
-## 提案
+## 决定
 
 ### 1. 模型可见的 artifact
 
@@ -188,7 +189,11 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
 - **只删六条动作的 path**：bible/brief/export/backup/delete 仍泄漏路径；放弃。
 - **复制参考的 artifact 系统**：超出本项，只做模型可见身份、读取与阶段上下文。
 
-## 验收条件
+## 后果
+
+该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+
+## 验证
 
 本 Note 证明设计自洽；产品验收见 #22。
 

@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：L-R10a S4a bible 条目迁移
-status: proposed
+status: implemented
 created: 2026-10-24
 updated: 2026-10-24
+verification: world/style/intent/outline bible artifact 已落地，CI 通过；证据见 #59。
 ---
 
 # Agent Note：故事工坊：L-R10a S4a bible 条目迁移
@@ -29,7 +30,7 @@ A0 已登记 `world`/`style`/`intent`/`outline` artifact 与消费矩阵，但�
 - characters 的六字段合同与 `bible_write` 校验仍归现有实现（`bible.js` 的 `validateBibleContent` 与 README 的真值说明）；S4a 不迁移它。
 - foundation（story_frame/volume_map/book_rules/roles）消费归 S4b，生产归 #44；本项不写这四类 artifact。
 
-## 提案
+## 决定
 
 ### 1. 存储与生产者
 
@@ -81,7 +82,11 @@ A0 已登记 `world`/`style`/`intent`/`outline` artifact 与消费矩阵，但�
 - **读取或迁移旧 bible 行**：没有旧作品，保留旧行兼容层只会掩盖双权威；否决。
 - **参考实现的整目录文件权威**：我们的工作库是 SQLite，文件只是导出产物；否决。
 
-## 验收条件
+## 后果
+
+该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+
+## 验证
 
 1. world/style/intent 只写 artifact、不写 `bible` 表；characters 仍写表；`bible` 表不再出现 plan 行写入。
 2. 四类 artifact 的 revisionId 是内容哈希；旧 revision 可读；同内容重复写入是幂等 no-op。

@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：宿主侧章节生产委派（主上下文不搬运正文）
-status: proposed
+status: implemented
 created: 2026-10-20
 updated: 2026-10-20
+verification: 宿主侧委派已落地，delegate 测试与真实单章链路通过；证据见 #19。
 ---
 
 # Agent Note：故事工坊：宿主侧章节生产委派（主上下文不搬运正文）
@@ -35,7 +36,7 @@ updated: 2026-10-20
 - `implemented/pipeline/2026-10-19-storycraft-role-input-contracts.md` 规定输入由只读动作交付、派发一律走 `story_context`、前置校验只在 `story_context`。本设计**部分改变**该决定：`story_delegate` 由宿主直接装配 writer/reviewer/reviser 输入并做宿主侧预检，不再走 `story_context`；手动派发仍沿用原契约。交付时更新该记录。
 - `implemented/pipeline/2026-10-18-storycraft-quality-layer.md` 决定字数只作审稿提示、不做硬判定。本设计**部分改变**该决定：`story_delegate` 的 writer/reviser 硬校验 `[min,max]`；手动 `story_write` / `story_revise` 不新增校验。委派 reviser 的校验由 #23 的 `story_submit` 执行。交付时更新该记录。
 
-## 提案
+## 决定
 
 ### 边界
 
@@ -213,7 +214,11 @@ story_delegate(
 - **允许子代理直接调用 `story_write`**：主上下文最小，但绕过主编校验与落盘控制，重演已否决的“子代理落盘”风险；否决。
 - **保持现状，只改提示词禁止贴正文**：最终回复可以不贴，但子代理交接、`story_context` 返回和 `story_write` 参数仍重复；不解决根因；否决。
 
-## 验收条件
+## 后果
+
+该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+
+## 验证
 
 本设计证明：
 

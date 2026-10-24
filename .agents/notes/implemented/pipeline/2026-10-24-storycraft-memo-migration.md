@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：L-R10a S1a-demo ChapterMemo 只读消费链
-status: proposed
+status: implemented
 created: 2026-10-24
 updated: 2026-10-24
+verification: ChapterMemo 生产与消费已切换，CI 50 个单元文件通过；证据见 #51/#53。
 ---
 
 # Agent Note：故事工坊：L-R10a S1a-demo ChapterMemo 只读消费链
@@ -28,7 +29,7 @@ A0 已交付 ChapterMemo 合同、`plan:<n>` 身份与写入 registry 的 API，
 - [`2026-10-24-storycraft-chapter-identity-approval.md`](2026-10-24-storycraft-chapter-identity-approval.md)（#55）**部分替代**本 Note 的 `missing:['plan-approval']`、批准消费/失效与章节编辑条款；冲突以 #55 为准，S1a-demo 实施时同步删改。
 - 章节编辑的既有实现是 `applyChapterMapping`、`deleteChapter`、`moveChapter`；本切片不改它们，只在 deleted ∪ `{old !== new}` 中存在 `scope_chapter` artifact 时阻止编辑。
 
-## 提案
+## 决定
 
 ### 1. 生产
 
@@ -100,7 +101,11 @@ A0 已交付 ChapterMemo 合同、`plan:<n>` 身份与写入 registry 的 API，
 - **S1a-demo 同时支持章节编辑重映射**：FK/批准/revision 一致性问题会带入本切片；拆到 S1b。
 - **S1a-demo 既不重映射也不处理章节编辑**：memo 会与章节号失配；否决，S1b 与本章切片在同一交付窗口实现。
 
-## 验收条件
+## 后果
+
+该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+
+## 验证
 
 1. `story_plan` 只写 `plan:<n>`，`chapter_plans` 不再写；测试断言旧表写入为 0。
 2. `readPlan`/brief/context/`readChapter(view:'plan')`/export 从 memo 渲染，包含五项、body、threadRefs；可选字段缺失时省略行。

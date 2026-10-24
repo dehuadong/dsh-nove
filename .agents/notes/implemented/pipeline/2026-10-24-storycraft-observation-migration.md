@@ -1,8 +1,9 @@
 ---
 title: 故事工坊：L-R10a observation/reviews 收口
-status: proposed
+status: implemented
 created: 2026-10-24
 updated: 2026-10-24
+verification: observation/review 生命周期已落地，真实审稿轮次产生 resolved/issue 证据；证据见 #52。
 ---
 
 # Agent Note：故事工坊：L-R10a observation/reviews 收口
@@ -31,7 +32,7 @@ updated: 2026-10-24
 - 委派/提交由 [`2026-10-20-storycraft-host-delegation.md`](2026-10-20-storycraft-host-delegation.md) 拥有；本项改 reviewer/reviser 的提交与门禁，不新增角色。
 - S2 summary、S3 state、S4a/S4b/S4c 的读取面不改；本项只把审稿事实从 `reviews` 表切到 observation artifact。
 
-## 提案
+## 决定
 
 ### 1. Observation 合同增补
 
@@ -92,7 +93,11 @@ updated: 2026-10-24
 - **每轮 review 用可编辑 revision 覆盖**：review 是历史证据，覆盖会丢失“上一轮说了什么”；否决，追加新轮次。
 - **保留旧 reviews 表或迁移文本勾选**：没有旧作品，保留历史表只会留下双权威与误读路径；否决。
 
-## 验收条件
+## 后果
+
+该设计已按决定落地；生产与消费路径已切换，旧路径不再写入，未保留旧作品迁移或兼容层。
+
+## 验证
 
 1. Observation 合同含必填 `id` 与 `resolves`；review artifact 内容 `{observations}`；`id` 在 artifact 内唯一，`code` 不再当 ID。
 2. reviewer 委派/`story_review` 写 observation artifact，`reviews` 表不再写；非法 quote/缺 id 被拒。

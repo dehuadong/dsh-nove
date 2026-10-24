@@ -24,13 +24,13 @@ verification: 单测：settler 超时回执（不重试、无事件）、总预�
 ## 对拍参考
 
 - `inkos-master/packages/core/src/agents/settler-tool.ts` 与 `harness/builtin-profiles.ts`：settler 以正文为证据、validator 只出建议；参考实现不会让子代理去搜索插件源文件。
-- 本项目 `../../proposed/pipeline/2026-10-20-storycraft-host-delegation.md` 的超时/重试边界：child 有单次 timeout，语义失败才重试；**传输超时不等于语义拒绝**。
+- 本项目 `../../implemented/pipeline/2026-10-20-storycraft-host-delegation.md` 的超时/重试边界：child 有单次 timeout，语义失败才重试；**传输超时不等于语义拒绝**。
 - 裁决：**采纳**“单次 child 超时 + 语义重试”，但必须补上 **settle 总截止时间** 与“超时不重试”；技能正文不再引导子代理用 glob 找参考文件。
 
 ## 与既有记录
 
-- 状态投影与 v2 操作合同归 [`../../proposed/pipeline/2026-10-24-storycraft-state-migration.md`](../../proposed/pipeline/2026-10-24-storycraft-state-migration.md) 与 artifact 合同；本项不改字段/转移。
-- 委派超时与提交重试归 [`2026-10-20-storycraft-host-delegation.md`](../../proposed/pipeline/2026-10-20-storycraft-host-delegation.md)；本项只加 settle 层的总预算与超时分类。
+- 状态投影与 v2 操作合同归 [`../../implemented/pipeline/2026-10-24-storycraft-state-migration.md`](../../implemented/pipeline/2026-10-24-storycraft-state-migration.md) 与 artifact 合同；本项不改字段/转移。
+- 委派超时与提交重试归 [`2026-10-20-storycraft-host-delegation.md`](../../implemented/pipeline/2026-10-20-storycraft-host-delegation.md)；本项只加 settle 层的总预算与超时分类。
 - 验收证据归 `#50`，本项是它发现的阻塞（`#61`）。
 
 ## 决定

@@ -8,7 +8,7 @@ verification: e0992f9；23 个单测 + 11 条 E2E；真实第 4 章摘要窗口 
 
 # Agent Note：故事工坊：章节摘要的角色提交通道
 
-> 2026-10-24 部分替代：summarizer 的 payload 形状（`{summary}` 改为结构化 `{rawText, title, …}`）与 `summary:<n>` 落盘由 [L-R10a S2 ChapterSummary 迁移](../../proposed/pipeline/2026-10-24-storycraft-summary-migration.md) 拥有；本 Note 的角色枚举、3 次尝试、失败 envelope、回执形状与面板固定指令继续适用。
+> 2026-10-24 部分替代：summarizer 的 payload 形状（`{summary}` 改为结构化 `{rawText, title, …}`）与 `summary:<n>` 落盘由 [L-R10a S2 ChapterSummary 迁移](../../implemented/pipeline/2026-10-24-storycraft-summary-migration.md) 拥有；本 Note 的角色枚举、3 次尝试、失败 envelope、回执形状与面板固定指令继续适用。
 
 > 2026-10-21 部分修订：摘要绑定正文 revision、过期识别与迁移由 [摘要 revision 绑定](2026-10-21-storycraft-summary-revision-binding.md) 承接；本 Note 的 `summary-exists` 语义改为“当前版本已有摘要”，`nextStep`/`hasSummary` 的旧描述以新 Note 为准。
 
