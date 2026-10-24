@@ -96,6 +96,7 @@ function promptFor(input) {
   return [
     `你是《${input.manifest.title}》（${input.workId}）第 ${input.chapter} 章的语义状态对账子代理。`,
     '开工前先调用 skill 工具加载 `storycraft-state-check`，严格按它判断。',
+    '不要用 glob/grep 搜索技能或插件文件；方法以加载到的技能正文为准。',
     '',
     '## 本次任务',
     `核对下面拟写入的状态 payload 是否被本章正文 r${input.revision} 支持，找出正文里发生但 payload 没记的重要变化。`,

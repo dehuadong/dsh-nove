@@ -292,10 +292,17 @@ try {
     String(s.readEvents(root, missingServiceWork).length))
 
   const timeoutService = { startActivation: () => ({ result: new Promise(() => {}), dispose: async () => {} }) }
-  await rejects('a timed-out settler is a failure', 'state-settle-failed',
-    () => settleChapterState(root, { work: missingServiceWork, chapter: 1 }, {
-      service: timeoutService, agent, signal, timeoutMs: 20,
-    }))
+  const timeoutStarted = Date.now()
+  const timedOut = await settleChapterState(root, { work: missingServiceWork, chapter: 1 }, {
+    service: timeoutService, agent, signal, timeoutMs: 1000, settleTimeoutMs: 50,
+  })
+  check('a timed-out settler returns a timeout receipt',
+    timedOut.settled === false && timedOut.reason === 'state-settle-timeout'
+    && timedOut.attempts?.settler === 1 && Array.isArray(timedOut.trace?.perAttempt)
+    && timedOut.trace.perAttempt[0]?.stage === 'settler', JSON.stringify(timedOut))
+  check('a timeout does not retry and writes no events',
+    Date.now() - timeoutStarted < 3000 && s.readEvents(root, missingServiceWork).length === 0,
+    JSON.stringify({ ms: Date.now() - timeoutStarted }))
 
   const staleWork = makeWork('改版')
   makeChapter(staleWork)

@@ -1060,7 +1060,7 @@ const STATE_SETTLE_OUTPUT = {
       warnings: OUTPUT_PROPERTIES.warnings,
       items: { type: 'array', items: STATE_CHECK_ITEM },
       proposed: STATE_SETTLE_PROPOSED,
-      reason: { type: 'string', enum: ['state-reconcile-required', 'state-invalid'] },
+      reason: { type: 'string', enum: ['state-reconcile-required', 'state-invalid', 'state-settle-timeout'] },
       message: { type: 'string' },
       attempts: {
         type: 'object',
@@ -1074,7 +1074,22 @@ const STATE_SETTLE_OUTPUT = {
       trace: {
         type: 'object',
         additionalProperties: false,
-        properties: { durationMs: { type: 'integer' } },
+        properties: {
+          durationMs: { type: 'integer' },
+          perAttempt: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                stage: { type: 'string', enum: ['settler', 'validator'] },
+                ms: { type: 'integer' },
+                error: { type: 'string' },
+              },
+              required: ['stage', 'ms'],
+            },
+          },
+        },
         required: ['durationMs'],
       },
       artifact: OUTPUT_PROPERTIES.artifact,

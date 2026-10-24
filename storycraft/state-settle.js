@@ -19,6 +19,9 @@ import { checkChapterState } from './state-check.js'
 /** One settler/validator child run's budget. */
 const STATE_SETTLE_TIMEOUT_MS = 180000
 
+/** Whole settlement budget; a timeout returns a receipt instead of retrying. */
+const SETTLE_TOTAL_TIMEOUT_MS = 480000
+
 /** Severity values that force a second settler attempt. */
 const BLOCKING_SEVERITY = 'major'
 
@@ -52,7 +55,7 @@ function unresolved(input) {
     warnings: input.warnings,
     items: input.items,
     attempts: { settler: input.settlerAttempts, validator: input.validatorAttempts },
-    trace: { durationMs: Date.now() - input.started },
+    trace: input.trace ?? { durationMs: Date.now() - input.started },
   }
 }
 
@@ -81,6 +84,7 @@ function settlerPrompt(input) {
   return [
     `你是《${input.manifest.title}》（${input.workId}）第 ${input.chapter} 章的 settler 子代理。`,
     '开工前先调用 skill 工具加载 `storycraft-state-settler`，严格按它抽取。',
+    '不要用 glob/grep 搜索技能或插件文件；方法以加载到的技能正文为准。',
     '',
     '## 本次任务',
     `把本章正文 r${input.revision} 明确发生的增量事实与伏笔变化投影成 delta。`,
@@ -106,7 +110,7 @@ function settlerPrompt(input) {
 }
 
 /** Run one settler child and return its accepted delta payload. */
-async function runSettler(root, input, host) {
+async function runSettler(root, input, host, timeoutMs) {
   const opened = openSubmission({ role: 'settler', workId: input.workId, chapter: input.chapter })
   let child
   try {
@@ -117,7 +121,7 @@ async function runSettler(root, input, host) {
       prompt: settlerPrompt({ ...input, delegationId: opened.delegationId }),
       label: '故事工坊-状态结算',
       signal: host?.signal,
-      timeoutMs: Number.isFinite(host?.timeoutMs) ? host.timeoutMs : STATE_SETTLE_TIMEOUT_MS,
+      timeoutMs,
       unavailableCode: 'state-settle-unavailable',
       failedCode: 'state-settle-failed',
       unavailableMessage: '当前组合没有可用的 subagents 服务：无法自动结算状态',
@@ -155,6 +159,17 @@ export async function settleChapterState(root, input, host) {
   const work = String(input.work)
   const chapter = chapterNumber(input.chapter)
   const started = Date.now()
+  const settleTimeoutMs = Number.isFinite(host?.settleTimeoutMs) ? host.settleTimeoutMs : SETTLE_TOTAL_TIMEOUT_MS
+  const deadline = started + settleTimeoutMs
+  const trace = { durationMs: 0, perAttempt: [] }
+  const remaining = () => Math.max(0, deadline - Date.now())
+  const timedOut = (message, extra = {}) => unresolved({
+    work, chapter, revision: extra.revision ?? 0, reason: 'state-settle-timeout', message,
+    proposed: extra.proposed ?? { factOps: {}, hookOps: {}, newHooks: [] },
+    warnings: extra.warnings ?? [], items: extra.items ?? [],
+    settlerAttempts: extra.settlerAttempts ?? 0, validatorAttempts: extra.validatorAttempts ?? 0,
+    started, trace,
+  })
   const pre = statePreflight(root, { work, chapter, requireBody: true })
   const manifest = readManifest(root, work)
   const bodyRead = readChapter(root, { work, chapter })
@@ -175,10 +190,24 @@ export async function settleChapterState(root, input, host) {
   let validatorAttempts = 0
 
   for (let attempt = 1; attempt <= 2; attempt += 1) {
+    if (remaining() <= 0) return timedOut('结算总预算已用完', { revision, proposed, settlerAttempts, validatorAttempts })
     settlerAttempts = attempt
-    const payload = await runSettler(root, {
-      workId: work, chapter, manifest, body: bodyRead.content, revision, seq, folded, summary, plan, cards, feedback,
-    }, host)
+    const settlerStart = Date.now()
+    let payload
+    try {
+      payload = await runSettler(root, {
+        workId: work, chapter, manifest, body: bodyRead.content, revision, seq, folded, summary, plan, cards, feedback,
+      }, host, Math.min(Number.isFinite(host?.timeoutMs) ? host.timeoutMs : STATE_SETTLE_TIMEOUT_MS, remaining()))
+      trace.perAttempt.push({ stage: 'settler', ms: Date.now() - settlerStart })
+    } catch (error) {
+      trace.perAttempt.push({ stage: 'settler', ms: Date.now() - settlerStart, error: String(error?.message ?? error) })
+      if (remaining() <= 0 || /超时|already aborted|timeout|取消/u.test(String(error?.message ?? ''))) {
+        return timedOut('settler 超时：' + String(error?.message ?? error), {
+          revision, proposed, settlerAttempts, validatorAttempts,
+        })
+      }
+      throw error
+    }
     const afterSettler = entryOf(readManifest(root, work), chapter)
     if (afterSettler === undefined || afterSettler.currentRevision !== revision || lastSeq(root, work) !== seq) {
       throw new StoryError('state-settle-stale', `第 ${chapter} 章在结算期间发生变化：请对当前版本重跑`)
@@ -206,8 +235,9 @@ export async function settleChapterState(root, input, host) {
 
     if (preview.appended === 0) {
       if (attempt === 1 || pendingItems.length === 0) {
+        trace.durationMs = Date.now() - started
         return land(root, {
-          work, chapter, revision, seq, payload: proposed, warnings: pendingWarnings, items: [], settlerAttempts, validatorAttempts, started,
+          work, chapter, revision, seq, payload: proposed, warnings: pendingWarnings, items: [], settlerAttempts, validatorAttempts, started, trace,
         })
       }
       return unresolved({
@@ -216,16 +246,27 @@ export async function settleChapterState(root, input, host) {
       })
     }
 
+    if (remaining() <= 0) {
+      return timedOut('结算总预算已用完', { revision, proposed, warnings: pendingWarnings, items: pendingItems, settlerAttempts, validatorAttempts })
+    }
     validatorAttempts += 1
+    const checkStart = Date.now()
     let check
     try {
       check = await checkChapterState(root, { work, chapter, ...proposed }, {
         service: host?.service,
         agent: host?.agent,
         signal: host?.signal,
-        timeoutMs: host?.timeoutMs,
+        timeoutMs: Math.min(Number.isFinite(host?.timeoutMs) ? host.timeoutMs : STATE_SETTLE_TIMEOUT_MS, remaining()),
       })
+      trace.perAttempt.push({ stage: 'validator', ms: Date.now() - checkStart })
     } catch (error) {
+      trace.perAttempt.push({ stage: 'validator', ms: Date.now() - checkStart, error: String(error?.message ?? error) })
+      if (remaining() <= 0 || /超时|already aborted|timeout|取消/u.test(String(error?.message ?? ''))) {
+        return timedOut('validator 超时：' + String(error?.message ?? error), {
+          revision, proposed, warnings: pendingWarnings, items: pendingItems, settlerAttempts, validatorAttempts,
+        })
+      }
       if (error?.code === 'state-check-stale') {
         throw new StoryError('state-settle-stale', `第 ${chapter} 章在结算期间改版：请对当前版本重跑`)
       }
@@ -253,9 +294,10 @@ export async function settleChapterState(root, input, host) {
     }
     const blocking = check.items.filter(item => item.severity === BLOCKING_SEVERITY)
     if (blocking.length === 0) {
+      trace.durationMs = Date.now() - started
       return land(root, {
         work, chapter, revision, seq, payload: proposed,
-        warnings: check.warnings, items: check.items, settlerAttempts, validatorAttempts, started,
+        warnings: check.warnings, items: check.items, settlerAttempts, validatorAttempts, started, trace,
       })
     }
     if (attempt === 1) {
