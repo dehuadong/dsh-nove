@@ -42,7 +42,7 @@ corpus.collect(root, work, { beforeChapter, role })
 | 卷 | `volume:<id>` |
 | 人物卡 | `card:<name>` |
 
-`context.js` 调 `collect`，把结果传给 `retrieval.rank`；两个模块都加进 `package.json` 的 `files`。
+`context.js` 调 `collect`，把结果传给 `retrieval.rank`；根目录运行时 `.js` 由 `package.json` 的 `*.js` 覆盖，无需逐条列 `files`。
 
 ### 查询与位置
 

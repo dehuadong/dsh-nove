@@ -215,7 +215,9 @@ storycraft/
   index.js                     # Host 半边：只读路由 + 作者确认/素材管理/面板导出
   db.js                        # SQLite 目录库 / 作品库 schema、连接、检查点与备份
   store-db.js                  # 全部读写：作品、章节、真值、卷、素材、检索、生命周期、导出备份
-  state-validation.js          # story_state 的确定性预检：重复事实、伏笔状态机、二次归档
+  search-index.js              # FTS 索引文档同步与删除
+  state-projection.js          # fact/hook v2 投影、限额与状态折叠
+  state-events.js              # v2 状态事件读写
   state-check.js               # story_state_check：只读语义对账、findings 与引文校验
   state-settle.js              # story_settle：settler 抽取、一次反馈重算、fold 或未解决回执
   materials.js                 # 素材上传字节校验、文件名、哈希与元数据
@@ -249,6 +251,22 @@ storycraft/
 
 - 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑 19 条页面 spec（工作台 17 + 预设 2）——侧栏入口、页面读数、作者确认、摘要徽标、素材导入/重命名/删除、面板导出、章节倒序分页/前移后移、文风样例、真值抽屉、备份恢复、指令门禁、预设声明与刷新。不调用模型，零额度；需要本机装有 Playwright（可用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装它的目录）。
 - 端到端验收、评审与证据记录在 issue `dehuadong/dsh-nove#18`。
+
+## 安装与打包
+
+开发时 profile 用 `link:` 指向本目录，改 `client.js` 刷新即生效；这是调试路径，不是安装包路径。
+
+发布/验收用 tarball：
+
+```powershell
+cd storycraft
+npm pack
+node scripts/pack-check.mjs
+```
+
+`npm pack` 的清单由 `package.json` 的 `files` 拥有，`pack-check.mjs` 检查实际 tarball：所有根运行时 `.js`、`skills/`、`cordis.patch.yml`、`icon.svg`、`README.md` 必须在；`tests/`、`e2e/`、根 `scripts/`、报告与临时目录必须不在。`skills/*/scripts/*.mjs` 属于技能资源，会随 `skills/` 打包。`node storycraft/scripts/ci.mjs --no-e2e` 会先跑这项检查。
+
+安装时用 `npm pack` 产出的 tarball（DSH 的 bundle 安装入口），不要直接把仓库目录当安装包。回滚时重新安装上一个 tarball；开发环境切回 `link:`。
 
 ## 改动与生效
 

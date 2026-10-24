@@ -109,7 +109,7 @@ summarizer 不启用检索；空查询（token 为空）直接返回 `enabled:fa
 2. `store-db.js`：`searchMemory` 与共享 `queryDocs`；过滤 current/stale、reopen、hook、volume；
 3. `context.js`：计算 `enabled`/target/`excludeIds`（循环最近摘要时收集 id），在 `recent` 之后调用，生成段；裁剪后写最终 trace；同步更新 #12 的段/裁剪顺序记录；
 4. `tools.js`：`OUTPUT_PROPERTIES.trace` 增加 `retrieval` 对象（`hits` 用 `sourceIds`，含可选 `error`），顺手修正现有 `trace.sections` 的 `source`/`sourceIds` 声明漂移；
-5. `package.json` 的 `files` 加 `retrieval.js`；
+5. 根目录运行时 `.js` 由 `package.json` 的 `*.js` 覆盖；
 6. `context.test` fixture 至少 3 章有正文，并构造一个能词法命中的查询；`dropped[0]` 只在 `retrieval` 段存在时断言为 `retrieval`，禁用/零命中时仍断言 `recent`；新增 `retrieval.test`；AC1 的命中摘要必须比最近 3 章更旧，否则会被 `recent` 去重。
 
 ### 6. 明确不做

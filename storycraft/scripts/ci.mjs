@@ -25,10 +25,13 @@ function run(command, args, cwd) {
   return result.status ?? 1
 }
 
+const packCode = run(process.execPath, [path.join('scripts', 'pack-check.mjs')], storycraftDir)
+let failed = 0
+if (packCode !== 0) failed = 1
+
 const tests = readdirSync(path.join(storycraftDir, 'tests'))
   .filter(name => name.endsWith('.test.mjs'))
   .sort()
-let failed = 0
 
 for (const name of tests) {
   const code = run(process.execPath, [path.join('tests', name)], storycraftDir)

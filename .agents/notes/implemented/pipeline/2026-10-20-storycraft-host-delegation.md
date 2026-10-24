@@ -173,7 +173,7 @@ story_delegate(
 - `delegate.js` 不导入 `tools.js`，避免循环；
 - 新建 `landing.js`（或同级 landing 帮助模块）承载 `checkDraft` 与 `checkWordRange` 等“读白名单/作品范围并校验”的 IO 帮助函数；`delegate.js` 的 writer/reviser 共用；`consistency.js` 保持纯比较；
 - 角色输入读取抽到可复用函数，避免 `story_context` 与 `story_delegate` 各自维护一份正文/审稿加载逻辑；
-- 新增模块加入 `package.json` 的 `files`。
+- 根目录新增运行时 `.js` 由 `package.json` 的 `*.js` 覆盖，不再逐条列 `files`；打包清单由 `scripts/pack-check.mjs` 检查。
 
 ### 人设、技能与文档同步
 
