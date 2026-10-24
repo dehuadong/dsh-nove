@@ -136,6 +136,19 @@ function validateShape(role, payload, stage) {
     }
     return undefined
   }
+  if (role === 'planner') {
+    const allowed = ['perspective', 'goal', 'obstacle', 'cost', 'turn', 'body', 'threadRefs']
+    for (const key of Object.keys(payload)) {
+      if (!allowed.includes(key)) return `planner 不接受字段 ${key}`
+    }
+    for (const key of ['perspective', 'goal', 'obstacle', 'cost', 'turn', 'body']) {
+      if (typeof payload[key] !== 'string' || payload[key].trim() === '') return `planner 缺少 ${key}`
+    }
+    if (!Array.isArray(payload.threadRefs) || payload.threadRefs.some(ref => typeof ref !== 'string')) {
+      return 'planner 的 threadRefs 必须是字符串数组'
+    }
+    return undefined
+  }
   if (role === 'writer') {
     if (typeof payload.title !== 'string' || payload.title.trim() === '') return 'writer 缺少 title'
     if (typeof payload.body !== 'string' || payload.body.trim() === '') return 'writer 缺少 body'

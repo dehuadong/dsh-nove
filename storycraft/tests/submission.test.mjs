@@ -51,6 +51,47 @@ try {
     && consumed.payload.body.length === 60 && consumeSubmission(writer.delegationId) === undefined, JSON.stringify(consumed))
   closeSubmission(writer.delegationId)
 
+  const planner = openSubmission({ role: 'planner', workId: work, chapter: 2 })
+  const plannerMissing = await submitPayload({
+    delegationId: planner.delegationId, depth: 1, root,
+    payload: { perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't', threadRefs: [] },
+  })
+  check('planner missing body is retryable', plannerMissing.ok === false
+    && plannerMissing.error.code === 'submit-invalid' && plannerMissing.retryable === true, JSON.stringify(plannerMissing))
+  const plannerAccepted = await submitPayload({
+    delegationId: planner.delegationId, depth: 1, root,
+    payload: {
+      perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't',
+      body: '章纲正文。', threadRefs: ['h-1'],
+    },
+  })
+  check('planner valid submission is accepted', plannerAccepted.ok === true && plannerAccepted.submitted === true, JSON.stringify(plannerAccepted))
+  closeSubmission(planner.delegationId)
+
+  const plannerExtra = openSubmission({ role: 'planner', workId: work, chapter: 2 })
+  const extraKey = await submitPayload({
+    delegationId: plannerExtra.delegationId, depth: 1, root,
+    payload: {
+      perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't',
+      body: '章纲正文。', threadRefs: [], work: 'other', chapter: 9,
+    },
+  })
+  check('planner rejects extra work/chapter keys', extraKey.ok === false
+    && extraKey.error.code === 'submit-invalid' && extraKey.retryable === true, JSON.stringify(extraKey))
+  closeSubmission(plannerExtra.delegationId)
+
+  const plannerThreads = openSubmission({ role: 'planner', workId: work, chapter: 2 })
+  const badThreads = await submitPayload({
+    delegationId: plannerThreads.delegationId, depth: 1, root,
+    payload: {
+      perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't',
+      body: '章纲正文。', threadRefs: [{ id: 'h-1' }],
+    },
+  })
+  check('planner rejects non-string threadRefs', badThreads.ok === false
+    && badThreads.error.code === 'submit-invalid' && badThreads.retryable === true, JSON.stringify(badThreads))
+  closeSubmission(plannerThreads.delegationId)
+
   const unknown = await submitPayload({ delegationId: 'missing', depth: 1, root, payload: { title: '一', body: '写'.repeat(60) } })
   check('unknown delegation is rejected', unknown.ok === false && unknown.error.code === 'submit-unknown-delegation', JSON.stringify(unknown))
 

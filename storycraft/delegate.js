@@ -13,7 +13,7 @@ import { createHash } from 'node:crypto'
 import {
   FORM_META, StoryError, chapterNumber, formOf, latestReview, readFoundationState,
   readManifest, readPlan, readSummaryState, reviseChapter, stageOf, summaryAdmissible, unitOf, writeChapter, writeFoundationStage,
-  writeReview, writeSummary,
+  writeReview, writeSummary, writePlan,
 } from './storage.js'
 import { readFoundationDocuments } from './artifact-store.js'
 import { loadRoleInput } from './role-input.js'
@@ -46,6 +46,7 @@ export const ROLE_META = {
   reviser: { label: '修订', skill: 'storycraft-revise-craft' },
   summarizer: { label: '摘要' },
   architect: { label: '架构师', skill: 'storycraft-architect' },
+  planner: { label: '规划', skill: 'storycraft-plan-craft' },
 }
 
 export function writerSkills(form) {
@@ -67,6 +68,16 @@ function preflight(root, input) {
   const { work, chapter, role, mode } = input
   const manifest = readManifest(root, work)
   const entry = chapterEntryOf(manifest, chapter)
+
+  if (role === 'planner') {
+    if (manifest.outline?.approvedAt === undefined) {
+      throw new StoryError('outline-required', '全书计划还没确认：先写并确认全书计划，再委派 planner 写章纲')
+    }
+    if (readPlan(root, work, chapter) !== undefined) {
+      throw new StoryError('plan-exists', `第 ${chapter} 章已有章纲：改章纲请由主编手动 story_plan，planner 只写首次章纲`)
+    }
+    return { manifest, entry }
+  }
 
   if (role === 'writer') {
     const plan = readPlan(root, work, chapter)
@@ -146,6 +157,9 @@ function promptFor({ input, manifest, context, delegationId }) {
   if (input.role === 'writer') {
     lines.push('payload 格式：{"title":"本章标题","body":"整章正文"}。')
     lines.push('不要省略正文，不要把正文作为最终回答；提交成功后最终只回「已提交」。')
+  } else if (input.role === 'planner') {
+    lines.push('payload 格式：{"perspective":"视角人物","goal":"本章目标","obstacle":"阻力","cost":"代价","turn":"结尾变化","body":"章纲正文","threadRefs":["可选：伏笔 id"]}。')
+    lines.push('五项、body、threadRefs 都必须提交；threadRefs 是字符串数组，可为空。不要写正文，不要确认章纲；提交成功后最终只回「已提交」。')
   } else if (input.role === 'reviser') {
     lines.push('payload 格式：{"body":"修订后的整章正文","resolved":["可选：本轮处理的 observation id"]}。')
     const modeRule = input.mode === 'rewrite'
@@ -471,6 +485,23 @@ export async function delegateRole(root, input, host) {
     }
     const payload = submission.payload
     assertActive(signal)
+
+    if (role === 'planner') {
+      const { perspective, goal, obstacle, cost, turn, body, threadRefs } = payload
+      const written = writePlan(root, {
+        work, chapter, perspective, goal, obstacle, cost, turn, body, threadRefs, requireBody: true, requireAbsent: true,
+      })
+      return fitReceipt({
+        ok: true,
+        workId: work,
+        chapter,
+        role,
+        stage: landedStage(root, work, chapter),
+        planApproved: written.planApproved,
+        artifact: { workId: work, artifactId: `plan:${chapter}`, revisionId: written.artifact.revisionId, kind: 'plan' },
+        submissionAttempts: attempts,
+      })
+    }
 
     if (role === 'writer') {
       const { title, body } = payload

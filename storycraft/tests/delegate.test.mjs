@@ -114,6 +114,58 @@ try {
     { name: '甲', role: '主视角', want: 'w', fear: 'f', limit: 'l', voice: 'v' },
   ]))
 
+  // Planner: outline approved, no plan yet; the delegate writes plan:<n> only.
+  const plannerWork = s.initWork(root, { title: '规划委派' }).workId
+  s.writeOutline(root, { work: plannerWork, mainline: '一条主线' })
+  s.approveOutline(root, { work: plannerWork })
+  const plannerNext = s.nextStep(root, plannerWork)
+  check('nextStep advertises planner delegation', plannerNext.action === 'story_plan' && plannerNext.delegate?.role === 'planner', JSON.stringify(plannerNext))
+  const plannerService = fakeService([completed({
+    payload: {
+      perspective: '甲', goal: '查清旧案', obstacle: '证人失踪', cost: '失去靠山', turn: '发现证人是自己人',
+      body: '本章章纲正文。', threadRefs: [],
+    },
+  })])
+  const planner = await delegateRole(root, { work: plannerWork, chapter: 1, role: 'planner' }, { service: plannerService, agent, signal })
+  check('planner delegates and lands an unapproved plan', planner.ok === true && planner.role === 'planner' && planner.planApproved === false && planner.stage === 'planned', JSON.stringify(planner))
+  check('planner receipt carries no plan body', !('body' in planner) && !('threadRefs' in planner), JSON.stringify(planner))
+  check('planner prompt names the plan-craft skill', plannerService.specs[0].request.prompt[0].text.includes('storycraft-plan-craft'))
+  const storedPlan = s.readPlan(root, plannerWork, 1)
+  check('planner plan lands under the bound work/chapter', typeof storedPlan === 'string' && storedPlan.includes('查清旧案') && planner.artifact?.artifactId === 'plan:1', String(storedPlan))
+  await rejects('planner refuses to overwrite an existing plan', 'plan-exists',
+    () => delegateRole(root, { work: plannerWork, chapter: 1, role: 'planner' }, { service: fakeService([]), agent, signal }))
+
+  const blockedPlan = s.initWork(root, { title: '待确认计划' }).workId
+  s.writeOutline(root, { work: blockedPlan, mainline: '一条主线' })
+  const blockedNext = s.nextStep(root, blockedPlan)
+  check('outline-blocked plan step does not advertise planner',
+    blockedNext.action === 'story_plan' && blockedNext.blocked?.includes('outline-approval') && blockedNext.delegate === undefined,
+    JSON.stringify(blockedNext))
+
+  const shortPlanWork = s.initWork(root, { title: '短篇不委派规划', form: 'short' }).workId
+  s.writeOutline(root, { work: shortPlanWork, mainline: '一条主线' })
+  s.approveOutline(root, { work: shortPlanWork })
+  const shortPlanNext = s.nextStep(root, shortPlanWork)
+  check('short form does not advertise planner delegation',
+    shortPlanNext.action === 'story_plan' && shortPlanNext.delegate === undefined, JSON.stringify(shortPlanNext))
+
+  const unavailablePlan = s.initWork(root, { title: '无服务规划' }).workId
+  s.writeOutline(root, { work: unavailablePlan, mainline: '一条主线' })
+  s.approveOutline(root, { work: unavailablePlan })
+  await rejects('planner reports unavailable service', 'delegation-unavailable',
+    () => delegateRole(root, { work: unavailablePlan, chapter: 1, role: 'planner' }, { agent, signal }))
+
+  const emptyPlanService = fakeService([completed({})])
+  await rejects('planner without submission does not land a plan', 'delegation-no-submission',
+    () => delegateRole(root, { work: unavailablePlan, chapter: 1, role: 'planner' }, { service: emptyPlanService, agent, signal }))
+  check('planner no-submission wrote no plan', s.readPlan(root, unavailablePlan, 1) === undefined)
+
+  // Without an approved outline the planner is not started.
+  const noOutline = s.initWork(root, { title: '无计划' }).workId
+  await rejects('planner requires an approved outline', 'outline-required',
+    () => delegateRole(root, { work: noOutline, chapter: 1, role: 'planner' }, { service: fakeService([]), agent, signal }))
+
+
   // Before the body exists, the next step points at the writer and advertises a delegate.
   const before = s.nextStep(root, work)
   check('nextStep advertises writer delegation', before.action === 'story_write' && before.delegate?.role === 'writer', JSON.stringify(before))

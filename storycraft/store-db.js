@@ -942,6 +942,7 @@ export function approveFoundation(root, input) {
  */
 export function nextStep(root, work) {
   const manifest = readManifest(root, work)
+  const plannerDelegate = formOf(manifest) === 'longform' ? { delegate: { role: 'planner' } } : {}
   const db = openWork(root, manifest.workId)
   try {
     const hasPlan = number => db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ?').get(`plan:${number}`) !== undefined
@@ -983,7 +984,7 @@ export function nextStep(root, work) {
             blocked: ['outline-approval'],
           }
         }
-        return { chapter, stage: 'planned', action: 'story_plan', reason: '还没有任何章节：先写第 1 章章纲', missing: [] }
+        return { chapter, stage: 'planned', action: 'story_plan', reason: '还没有任何章节：先写第 1 章章纲', missing: [], ...plannerDelegate }
       }
       const stage = stageOf(last)
       const hasBody = last.currentRevision > 0
@@ -1020,7 +1021,7 @@ export function nextStep(root, work) {
             reason: '全书计划等作者确认：先在面板点「确认全书计划」，再写下一章章纲', blocked: ['outline-approval'],
           }
         }
-        return { chapter: next, stage: 'planned', action: 'story_plan', reason: `第 ${last.number} 章已定稿：写第 ${next} 章章纲`, missing: [] }
+        return { chapter: next, stage: 'planned', action: 'story_plan', reason: `第 ${last.number} 章已定稿：写第 ${next} 章章纲`, missing: [], ...plannerDelegate }
       }
       if (!hasPlan(last.number)) {
         if (outline === undefined || outline.writtenAt === undefined) {
@@ -1035,7 +1036,7 @@ export function nextStep(root, work) {
             reason: '全书计划等作者确认：在面板点「确认全书计划」，再写章纲', blocked: ['outline-approval'],
           }
         }
-        return { chapter: last.number, stage, action: 'story_plan', reason: `第 ${last.number} 章缺章纲`, missing: [] }
+        return { chapter: last.number, stage, action: 'story_plan', reason: `第 ${last.number} 章缺章纲`, missing: [], ...plannerDelegate }
       }
       if (!hasBody) {
         if (planApprovalPolicy(manifest) === 'required' && last.planApproved !== true) {
@@ -1382,7 +1383,7 @@ export function restoreWork(root, input) {
 /**
  * Write one chapter plan. A fresh plan is unapproved until the author confirms it.
  * @param {string} root - workspace directory.
- * @param {{work: string, chapter: number|string, perspective: string, goal: string, obstacle: string, cost: string, turn: string}} input - plan fields.
+ * @param {{work: string, chapter: number|string, perspective: string, goal: string, obstacle: string, cost: string, turn: string, requireBody?: boolean, requireAbsent?: boolean}} input - plan fields.
  * @returns {object} result with a virtual artifact path.
  */
 export function writePlan(root, input) {
@@ -1409,6 +1410,12 @@ export function writePlan(root, input) {
   const db = openWork(root, workId)
   try {
     return transaction(db, () => {
+      if (input.requireAbsent === true) {
+        const existing = db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ?').get(`plan:${number}`)
+        if (existing !== undefined) {
+          throw new StoryError('plan-exists', `第 ${number} 章已有章纲：planner 只写首次章纲`)
+        }
+      }
       const entry = ensureChapter(db, number)
       if (stageOf(entry) === 'settled') {
         throw new StoryError('chapter-settled', `第 ${number} 章已定稿：改章纲前先带 reopen 重写正文回退`)
