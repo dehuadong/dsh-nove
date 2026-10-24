@@ -11,15 +11,15 @@
  */
 
 import { deriveWhitelist, readCards, summariseWhitelist } from './facts.js'
-import { readFoundationDocuments, renderFoundationContent } from './dist/artifact-store.js'
+import { readFoundationDocuments, renderFoundationContent } from './artifact-store.js'
 import {
   StoryError, chapterNumber, chapterStem, formOf, planApprovalPolicy, unitOf,
-} from './dist/domain.js'
+} from './domain.js'
 import {
   readBibleMap, readChapter as readChapterRow, readFoldedState, readManifest, readPlan,
   readVolumes, readSummaryState, searchMemory, virtualPath,
-} from './dist/store-db.js'
-import { buildQuery, select } from './dist/retrieval.js'
+} from './store-db.js'
+import { buildQuery, select } from './retrieval.js'
 
 /** Default budget for one role context, in characters. */
 export const DEFAULT_CONTEXT_BUDGET = 8000
@@ -27,8 +27,14 @@ export const DEFAULT_CONTEXT_BUDGET = 8000
 /** Section order used when trimming: earlier compressible sections go first. */
 const TRIM_ORDER = ['retrieval', 'recent', 'state', 'characters', 'style']
 
+/** Roles one context can be assembled for. */
+type Role = 'writer' | 'planner' | 'reviewer' | 'reviser' | 'summarizer'
+
+/** How the budget treats one section. */
+type SectionProtection = 'protected' | 'compressible'
+
 /** Fixed authority order per role. */
-const AUTHORITY = {
+const AUTHORITY: Record<Role, string> = {
   writer: [
     '权威顺序：作者本轮要求 > 本章章纲 > 既成事实与禁令 > 卷纲兜底。',
     '章纲里写的必须落地；上下文里没有的人名、地名、数字不得自造。',
@@ -51,8 +57,14 @@ const AUTHORITY = {
   ].join('\n'),
 }
 
+/** One standards segment and the skill it summarises. */
+interface StandardSegment {
+  source: string
+  content: string
+}
+
 /** Standards segments, summarised from the role skills. */
-const STANDARDS = {
+const STANDARDS: Record<'reviewer' | 'reviser', StandardSegment> = {
   reviewer: {
     source: 'skills/review/storycraft-review',
     content: [
@@ -71,30 +83,187 @@ const STANDARDS = {
   },
 }
 
+/** One review already on record, as the context reads it. */
+interface ContextReview {
+  round?: number
+  revision?: number
+  open?: Array<{ id: string, problem: string }>
+}
+
+/** Assembly input. */
+interface RoleContextInput {
+  /** workspace directory. */
+  root: string
+  /** work identity. */
+  work: string
+  /** chapter number; optional for work-scoped planning. */
+  chapter?: number | string
+  /** role name. */
+  role: Role
+  /** author instruction for this run. */
+  instruction?: string
+  /** task text composed by the calling action. */
+  task?: string
+  /** chapter body (reviewer/reviser/summarizer paths). */
+  body?: string
+  /** planning scope. */
+  scope?: 'work' | 'chapter'
+  /** character budget. */
+  budget?: number
+  /** latest review, when the calling action already read one. */
+  review?: ContextReview
+  /** revision mode (reviser path). */
+  mode?: string
+}
+
+/** Injectable store reads, used by tests to exercise fail-open retrieval. */
+interface ContextDependencies {
+  searchMemory?: typeof searchMemory
+}
+
 /** One section record. */
-function section(name, title, content, protection, source) {
+interface ContextSection {
+  name: string
+  title: string
+  content: string
+  protection: SectionProtection
+  source: string
+}
+
+/** One section after budgeting: `trimmed` marks the compressed ones. */
+interface TracedSection extends ContextSection {
+  trimmed: boolean
+}
+
+/** One retrieval hit kept in the trace. */
+interface RetrievalTraceHit {
+  id: string
+  kind: string
+  sourceIds: string[]
+  score: number
+  sent: boolean
+}
+
+/** Retrieval trace; disabled when no query was built. */
+interface RetrievalTrace {
+  enabled: boolean
+  query: string
+  candidateCount: number
+  hits: RetrievalTraceHit[]
+  error?: string
+}
+
+/** One section as the trace reports it. */
+interface TraceSection {
+  name: string
+  protection: SectionProtection
+  source: string
+  chars: number
+  dropped?: true
+  trimmed?: true
+}
+
+/** What the assembly sent, shortened and dropped. */
+interface ContextTrace {
+  budget: number
+  sections: TraceSection[]
+  trimmed: string[]
+  dropped: string[]
+  missing: Array<{ name: string, reason: string }>
+  overflow: boolean
+  retrieval?: RetrievalTrace
+}
+
+/** The assembled context package. */
+interface RoleContext {
+  sections: TracedSection[]
+  text: string
+  trace: ContextTrace
+  whitelist: ReturnType<typeof summariseWhitelist>
+  taskText: string
+}
+
+/** Character card fields this module reads. */
+interface CharacterCard {
+  name?: string
+  role: string
+  limit?: string
+  voice?: string
+}
+
+/** Chapter fields this module reads from the manifest. */
+interface ContextChapter {
+  number: number
+  currentRevision?: number
+  planApproved?: boolean
+}
+
+/** Manifest fields this module reads; the manifest itself comes from the store. */
+interface ContextManifest {
+  workId: string
+  chapters: ContextChapter[]
+  wordRange?: { min: number, max: number }
+}
+
+/** One folded event hook. */
+interface FoldedHook {
+  status: string
+  text: string
+  startChapter: number
+}
+
+/** One folded event fact. */
+interface FoldedFact {
+  subject: string
+  predicate: string
+  object: string
+  validUntilChapter: number | null
+}
+
+/** The folded event projection, owned by the store. */
+interface FoldedState {
+  hooks: FoldedHook[]
+  facts: FoldedFact[]
+}
+
+/** One summary state row; `text` is set whenever `state` is `current`. */
+interface SummaryStateRow {
+  state: 'current' | 'stale' | 'missing'
+  text: string
+  revision: number | null
+  currentRevision: number
+}
+
+/** Read one summary state; the store types `text` loosely for missing summaries. */
+function summaryStateOf(root: string, work: string, chapter: number): SummaryStateRow {
+  // Dynamic boundary: `text` is absent only outside `current`, which this module
+  // never reads; every other field is carried through unchanged.
+  return readSummaryState(root, work, chapter) as SummaryStateRow
+}
+
+/** One section record. */
+function section(
+  name: string,
+  title: string,
+  // Callers hand in strings or an absent value; content is normalised below.
+  content: unknown,
+  protection: SectionProtection,
+  source: string,
+): ContextSection {
   return { name, title, content: String(content ?? '').trim(), protection, source }
 }
 
 /**
  * Assemble the context one role needs.
- * @param {object} input - assembly input.
- * @param {string} input.root - workspace directory.
- * @param {string} input.work - work identity.
- * @param {number} [input.chapter] - chapter number; optional for work-scoped planning.
- * @param {'writer'|'planner'|'reviewer'|'reviser'|'summarizer'} input.role - role name.
- * @param {string} [input.instruction] - author instruction for this run.
- * @param {string} [input.task] - task text composed by the calling action.
- * @param {string} [input.body] - chapter body (reviewer/reviser/summarizer paths).
- * @param {'work'|'chapter'} [input.scope] - planning scope.
- * @param {number} [input.budget] - character budget.
- * @returns {Promise<{sections: object[], text: string, trace: object, whitelist: object, taskText: string}>} the context package.
  */
-export async function assembleRoleContext(input, dependencies = {}) {
+export async function assembleRoleContext(
+  input: RoleContextInput,
+  dependencies: ContextDependencies = {},
+): Promise<RoleContext> {
   const { root, role } = input
   const retrieve = typeof dependencies.searchMemory === 'function' ? dependencies.searchMemory : searchMemory
   const scope = input.scope === 'work' ? 'work' : 'chapter'
-  const manifest = readManifest(root, input.work)
+  const manifest: ContextManifest = readManifest(root, input.work)
   const work = manifest.workId
   const number = scope === 'work' ? undefined : chapterNumber(input.chapter)
   const entry = number === undefined ? undefined : manifest.chapters.find(item => item.number === number)
@@ -105,7 +274,7 @@ export async function assembleRoleContext(input, dependencies = {}) {
   const unit = unitOf(form)
   const needsPlan = role === 'writer' || role === 'reviewer' || role === 'reviser'
 
-  const chapterPlan = entry === undefined ? undefined : readPlan(root, work, entry.number)
+  const chapterPlan: string | undefined = entry === undefined ? undefined : readPlan(root, work, entry.number)
   if (needsPlan && chapterPlan === undefined) {
     throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲：先 story_plan，再派活`)
   }
@@ -119,13 +288,13 @@ export async function assembleRoleContext(input, dependencies = {}) {
 
   const foundation = readFoundationDocuments(root, work)
   const indexRoles = Array.isArray(foundation.rolesIndex?.content?.roles) ? foundation.rolesIndex.content.roles : undefined
-  const characters = indexRoles !== undefined && indexRoles.length > 0
+  const characters: CharacterCard[] = indexRoles !== undefined && indexRoles.length > 0
     ? indexRoles
     : (await readCards(root, work)) ?? []
-  const storyFrameText = renderFoundationContent(foundation.storyFrame?.content)
-  const bookRulesText = renderFoundationContent(foundation.bookRules?.content)
-  const volumeMapText = renderFoundationContent(foundation.volumeMap?.content)
-  const focusText = renderFoundationContent(foundation.currentFocus?.content)
+  const storyFrameText: string = renderFoundationContent(foundation.storyFrame?.content)
+  const bookRulesText: string = renderFoundationContent(foundation.bookRules?.content)
+  const volumeMapText: string = renderFoundationContent(foundation.volumeMap?.content)
+  const focusText: string = renderFoundationContent(foundation.currentFocus?.content)
   if (characters.length === 0 && role !== 'planner' && role !== 'summarizer') {
     throw new StoryError('bible-missing', '人物卡缺失：先用 story_bible_write 建 bible/characters.json 再派活')
   }
@@ -136,8 +305,8 @@ export async function assembleRoleContext(input, dependencies = {}) {
   }
 
   const bible = readBibleMap(root, work)
-  const intent = bible.get('intent') ?? ''
-  const planText = bible.get('plan') ?? ''
+  const intent: string = bible.get('intent') ?? ''
+  const planText: string = bible.get('plan') ?? ''
   const volumes = readVolumes(root, work)
   const volumeTitles = volumes
     .map(volume => `- ${volume.title}（第 ${volume.from}–${volume.to} 章）${volume.summary === undefined || volume.summary === '' ? '' : `：${volume.summary}`}`)
@@ -192,9 +361,9 @@ export async function assembleRoleContext(input, dependencies = {}) {
       `${virtualPath(work, 'manifest')} + ${virtualPath(work, 'bible/characters.json')} + ${virtualPath(work, 'bible/intent.md')}`)
 
   // 4. state — compressible
-  const folded = readFoldedState(root, work)
+  const folded: FoldedState = readFoldedState(root, work)
   const openHooks = folded.hooks.filter(hook => ['open', 'progressing', 'deferred'].includes(hook.status))
-  const factGroups = new Map()
+  const factGroups = new Map<string, string[]>()
   for (const fact of folded.facts) {
     if (fact.validUntilChapter !== null) continue
     const list = factGroups.get(fact.subject) ?? []
@@ -214,20 +383,20 @@ export async function assembleRoleContext(input, dependencies = {}) {
   const state = section('state', '人物与状态', stateLines.join('\n'), 'compressible', virtualPath(work, 'state/events.jsonl'))
 
   // 5. recent — compressible; the summary stage reads only the current chapter and state.
-  let recent
-  const recentSummaryIds = []
+  let recent: ContextSection | undefined
+  const recentSummaryIds: string[] = []
   if (role !== 'summarizer') {
-    const summaries = []
+    const summaries: string[] = []
     const lastNumber = number ?? (manifest.chapters.length === 0 ? 1 : manifest.chapters[manifest.chapters.length - 1].number + 1)
     for (let index = Math.max(1, lastNumber - 3); index < lastNumber; index += 1) {
-      const summary = readSummaryState(root, work, index)
+      const summary = summaryStateOf(root, work, index)
       if (summary.state === 'current') {
         summaries.push(`第 ${index} 章：${summary.text.trim()}`)
         recentSummaryIds.push(`summary:${index}`)
       }
     }
     if (lastNumber > 1) {
-      let previousBody
+      let previousBody: string | undefined
       try {
         previousBody = readChapterRow(root, { work, chapter: lastNumber - 1 }).content
       } catch {
@@ -244,8 +413,8 @@ export async function assembleRoleContext(input, dependencies = {}) {
   const query = retrievalEnabled
     ? buildQuery({ taskText, chapterPlan, openHooks, instruction })
     : ''
-  let retrieval
-  let retrievalTrace = { enabled: false, query: '', candidateCount: 0, hits: [] }
+  let retrieval: ContextSection | undefined
+  let retrievalTrace: RetrievalTrace = { enabled: false, query: '', candidateCount: 0, hits: [] }
   if (query.trim() !== '') {
     try {
       const candidates = retrieve(root, work, query, number === undefined ? {} : { beforeChapter: number })
@@ -256,12 +425,14 @@ export async function assembleRoleContext(input, dependencies = {}) {
       }
       retrievalTrace = { enabled: true, query, candidateCount: candidates.length, hits: picked.hits }
     } catch (error) {
+      // A thrown store error is a dynamic boundary: only its stable `code` is read.
+      const code = (error as { code?: unknown } | null | undefined)?.code
       retrievalTrace = {
         enabled: true,
         query,
         candidateCount: 0,
         hits: [],
-        error: typeof error?.code === 'string' ? error.code : 'retrieval-failed',
+        error: typeof code === 'string' ? code : 'retrieval-failed',
       }
     }
   }
@@ -270,18 +441,18 @@ export async function assembleRoleContext(input, dependencies = {}) {
   const style = section('style', '文风要点', bible.get('style') ?? '', 'compressible', virtualPath(work, 'bible/style.md'))
 
   // planner-only: book plan, volume map and character cards
-  const planSection = role === 'planner'
+  const planSection: ContextSection | undefined = role === 'planner'
     ? section('plan', '全书计划与故事框架', [
       focusText === '' ? '' : `当前焦点：${focusText.trim()}`,
       planText === '' ? '（还没有全书计划）' : planText.trim(),
       storyFrameText === '' ? '' : `故事框架：\n${storyFrameText.trim()}`,
     ].filter(line => line !== '').join('\n'), 'protected', `${virtualPath(work, 'foundation')} + ${virtualPath(work, 'outline/plan.md')}`)
     : undefined
-  const volumeMapSection = role === 'planner'
+  const volumeMapSection: ContextSection | undefined = role === 'planner'
     ? section('volumeMap', '卷图', volumeMapText === '' ? volumeTitles : volumeMapText.trim(),
       'compressible', volumeMapText === '' ? virtualPath(work, 'volumes') : virtualPath(work, 'foundation/volume_map.md'))
     : undefined
-  const characterBrief = role === 'planner'
+  const characterBrief: ContextSection | undefined = role === 'planner'
     ? section('characters', '人物卡（节选）', characters.slice(0, 6).map(item => [
       `- ${item.name}：${item.role}`,
       ...(item.limit === undefined ? [] : [`  边界：${item.limit}`]),
@@ -292,8 +463,10 @@ export async function assembleRoleContext(input, dependencies = {}) {
     : undefined
 
   // The plan feeds writer/reviewer/reviser; writer/reviewer/reviser/summarizer read the body.
+  // `number` is defined whenever a chapter-plan section exists: work-scoped planning
+  // never reaches `needsPlan`, which is writer/reviewer/reviser only.
   const chapterPlanSection = role === 'writer' ? undefined
-    : needsPlan ? section('plan', '本章章纲', chapterPlan ?? '', 'protected', virtualPath(work, `outline/${chapterStem(number)}.plan.md`)) : undefined
+    : needsPlan ? section('plan', '本章章纲', chapterPlan ?? '', 'protected', virtualPath(work, `outline/${chapterStem(number as number)}.plan.md`)) : undefined
   const bodySection = body === ''
     ? undefined
     : section('body', '待处理的正文', `---正文开始---\n${body}\n---正文结束---`, 'protected', virtualPath(work, 'chapters/'))
@@ -302,7 +475,7 @@ export async function assembleRoleContext(input, dependencies = {}) {
     : undefined
 
   // Section order follows the role contract.
-  const sections = [authority, task, ...(constraints === undefined ? [] : [constraints])]
+  const sections: ContextSection[] = [authority, task, ...(constraints === undefined ? [] : [constraints])]
   if (role === 'planner') {
     if (planSection !== undefined) sections.push(planSection)
     if (volumeMapSection !== undefined) sections.push(volumeMapSection)
@@ -317,9 +490,12 @@ export async function assembleRoleContext(input, dependencies = {}) {
   if (standard !== undefined) sections.push(standard)
 
   // Budget: compress or drop compressible sections; protected stay.
-  const budget = Number.isInteger(input.budget) && input.budget > 0 ? input.budget : DEFAULT_CONTEXT_BUDGET
-  const trace = { budget, sections: [], trimmed: [], dropped: [], missing: [], overflow: false }
-  const segments = sections.map(item => ({ ...item, trimmed: false }))
+  const requestedBudget = input.budget
+  const budget = requestedBudget !== undefined && Number.isInteger(requestedBudget) && requestedBudget > 0
+    ? requestedBudget
+    : DEFAULT_CONTEXT_BUDGET
+  const trace: ContextTrace = { budget, sections: [], trimmed: [], dropped: [], missing: [], overflow: false }
+  const segments: TracedSection[] = sections.map(item => ({ ...item, trimmed: false }))
   for (const item of segments) {
     if (item.content === '') trace.missing.push({ name: item.name, reason: '没有可用内容' })
   }

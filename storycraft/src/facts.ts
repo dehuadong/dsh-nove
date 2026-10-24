@@ -9,20 +9,49 @@
  */
 
 import { parseCharacters } from './bible.js'
-import { chapterNumber } from './dist/domain.js'
+import { chapterNumber } from './domain.js'
 import {
   listBodies, listSummaries, readBibleEntry, readBibleMap, readFoldedState, readManifest, readPlan, readVolumes,
-} from './dist/store-db.js'
+} from './store-db.js'
 
 /** Chinese digit values used to normalise numerals before comparison. */
-const DIGITS = { 零: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 }
+const DIGITS: Record<string, number> = { 零: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 }
+
+/** One character card: the six-field contract stored in `bible:characters`. */
+interface CharacterCard {
+  name: string
+  role: string
+  want: string
+  fear: string
+  limit: string
+  voice: string
+}
+
+/** The names, places and numbers that landed content already established. */
+interface Whitelist {
+  names: string[]
+  places: string[]
+  numbers: string[]
+}
+
+/** Input of one whitelist derivation. */
+interface DeriveWhitelistInput {
+  work: string
+  chapter?: number
+}
+
+/** Counts and samples of one whitelist; the only shape tool output shows. */
+interface WhitelistSummary {
+  counts: { names: number, places: number, numbers: number }
+  sample: { names: string[], places: string[], numbers: string[] }
+}
 
 /**
  * Convert a Chinese numeral into digits when it is a plain number.
- * @param {string} text - numeral text.
- * @returns {string} digits, or the input when it is not a numeral.
+ * @param text - numeral text.
+ * @returns digits, or the input when it is not a numeral.
  */
-export function toArabic(text) {
+export function toArabic(text: string): string {
   if (!/^[零一二三四五六七八九十百千万两]+$/u.test(text)) return text
   let total = 0
   let section = 0
@@ -81,12 +110,12 @@ const INNER_STOP = new Set([
  * The candidate list is deliberately permissive: it is only a warning source,
  * never a hard gate. Role nouns and dialogue fragments are left to the author
  * and the work's character cards; a global denylist cannot enumerate them.
- * @param {string} text - prose to scan.
- * @param {string[]} known - names already accepted; a window containing one is skipped.
- * @returns {string[]} candidate names.
+ * @param text - prose to scan.
+ * @param known - names already accepted; a window containing one is skipped.
+ * @returns candidate names.
  */
-export function extractSpeakerNames(text, known = []) {
-  const names = []
+export function extractSpeakerNames(text: string, known: string[] = []): string[] {
+  const names: string[] = []
   for (const verb of SPEECH_VERBS) {
     const pattern = new RegExp(`([\u4e00-\u9fa5]{1,5})${verb}(?=[：:，,。！？!?、“])`, 'gu')
     for (const match of String(text).matchAll(pattern)) {
@@ -104,22 +133,24 @@ export function extractSpeakerNames(text, known = []) {
 
 /**
  * Read the character cards of one work, tolerating a missing entry.
- * @param {string} root - workspace directory.
- * @param {string} workId - work identity.
- * @returns {Promise<object[]>} card records.
+ * @param root - workspace directory.
+ * @param workId - work identity.
+ * @returns card records.
  */
-export async function readCards(root, workId) {
+export async function readCards(root: string, workId: unknown): Promise<CharacterCard[]> {
+  // `workId` goes straight to the store, which takes it untyped; the stored
+  // row is a dynamic boundary whose content parseCharacters validates.
   const content = readBibleEntry(root, workId, 'characters')?.content
   return content === undefined ? [] : parseCharacters(content)
 }
 
 /**
  * Derive the whitelist from landed content only.
- * @param {string} root - workspace directory.
- * @param {{work: string, chapter?: number}} input - derivation input.
- * @returns {Promise<{names: string[], places: string[], numbers: string[]}>} whitelist.
+ * @param root - workspace directory.
+ * @param input - derivation input.
+ * @returns whitelist.
  */
-export async function deriveWhitelist(root, input) {
+export async function deriveWhitelist(root: string, input: DeriveWhitelistInput): Promise<Whitelist> {
   const manifest = readManifest(root, input.work)
   const work = manifest.workId
   const cards = await readCards(root, work)
@@ -135,13 +166,16 @@ export async function deriveWhitelist(root, input) {
   // secondary cast (阿六、秦老卒…), and flagging them as invented blocks real work.
   const known = cards.map(card => card.name).filter(name => typeof name === 'string' && name !== '')
   const established = new Set(known)
+  // The folded event projection is a dynamic boundary: hook/fact shapes are
+  // owned by state-projection, not re-declared here.
   const prior = readFoldedState(root, work)
   for (const fact of prior.facts) established.add(fact.subject)
   const current = input.chapter === undefined ? undefined : chapterNumber(input.chapter)
-  const textFiles = []
+  const textFiles: string[] = []
   for (const version of listBodies(root, work)) {
     if (current !== undefined && version.number === current) continue
-    textFiles.push(version.body)
+    // SQLite widens every column to SQLOutputValue; `body` is a TEXT column.
+    textFiles.push(version.body as string)
   }
   for (const summary of listSummaries(root, work)) {
     textFiles.push(summary.text)
@@ -155,15 +189,15 @@ export async function deriveWhitelist(root, input) {
   }
 
   const stateText = [
-    ...prior.facts.map(fact => `${fact.subject} ${fact.predicate} ${fact.object}`),
-    ...prior.hooks.map(hook => hook.text),
+    ...prior.facts.map((fact: any) => `${fact.subject} ${fact.predicate} ${fact.object}`),
+    ...prior.hooks.map((hook: any) => hook.text),
   ].join('\n')
   const source = [intent, plan, volumes, chapterPlan, stateText, ...textFiles].join('\n')
 
   const places = new Set(
     (source.match(PLACE_PATTERN) ?? []).filter(place => !PLACE_STOP.test(place)),
   )
-  const numbers = new Set()
+  const numbers = new Set<string>()
   for (const match of source.matchAll(/[0-9]+(?:\.[0-9]+)?/gu)) numbers.add(match[0])
   for (const match of source.matchAll(/[零一二三四五六七八九十百千万两]+/gu)) {
     numbers.add(match[0])
@@ -180,10 +214,10 @@ export async function deriveWhitelist(root, input) {
 /**
  * Summarise a whitelist for tool output: counts and a few samples, never the
  * whole list (it must not read as an allow-list).
- * @param {{names: string[], places: string[], numbers: string[]}} whitelist - derived whitelist.
- * @returns {{names: number, places: number, numbers: number, sample: {names: string[], places: string[], numbers: string[]}}} summary.
+ * @param whitelist - derived whitelist.
+ * @returns summary.
  */
-export function summariseWhitelist(whitelist) {
+export function summariseWhitelist(whitelist: Whitelist): WhitelistSummary {
   return {
     counts: {
       names: whitelist.names.length,

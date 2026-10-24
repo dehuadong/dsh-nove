@@ -7,25 +7,110 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, countWords, trimSummary } from './dist/domain.js'
-import { STATE_LIMITS } from './dist/state-projection.js'
-import { assertRevisionMode } from './dist/revision.js'
+import { StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, countWords, trimSummary } from './domain.js'
+import { STATE_LIMITS } from './state-projection.js'
+import { assertRevisionMode } from './revision.js'
 import {
   validateBookRules, validateRoleCard, validateRolesIndex, validateStoryFrame, validateVolumeMap,
-} from './dist/artifact-contract.js'
+} from './artifact-contract.js'
 import { checkWordRange } from './landing.js'
-import { readChapter } from './dist/storage.js'
+import { readChapter } from './storage.js'
 
 /** Entries live long enough for a slow child, never beyond the host run. */
 const SUBMISSION_TTL_MS = 10 * 60 * 1000
 const MAX_ATTEMPTS = 3
 const MAX_PAYLOAD_BYTES = 64 * 1024
 
-/** @type {Map<string, object>} */
-const submissions = new Map()
+/** Word range bound on one delegation. */
+interface WordRange {
+  min: number
+  max: number
+}
+
+/** Model-produced role payload; every shape is checked field by field below. */
+type SubmissionPayload = Record<string, any>
+
+/** One delegation entry, from opening until its payload is consumed. */
+interface SubmissionEntry {
+  role: string
+  workId: string
+  chapter: number | null
+  stage?: string
+  mode?: string
+  wordRange?: WordRange
+  payload: SubmissionPayload | undefined
+  attempts: number
+  consumed: boolean
+  bytes: number
+  expiresAt: number
+}
+
+/** Binding the host records before starting the child. */
+interface SubmissionBinding {
+  role: string
+  workId: string
+  chapter?: number
+  stage?: string
+  mode?: string
+  wordRange?: WordRange
+}
+
+/** Identity handed to the child. */
+interface SubmissionHandle {
+  delegationId: string
+  attempts: number
+}
+
+/** Accepted payload handed back to the landing path. */
+interface ConsumedSubmission {
+  payload: SubmissionPayload | undefined
+  attempts: number
+  bytes: number
+  consumed: boolean
+}
+
+/** Extra fields a retryable failure may carry so the child can correct itself. */
+interface FailureExtra {
+  retryable?: boolean
+  words?: number
+  min?: number
+  max?: number
+  actual?: string | number
+  limit?: string | number
+}
+
+/** Structured failure the child inspects; never thrown. */
+interface FailureEnvelope {
+  ok: false
+  error: { code: string, message: string }
+  retryable: boolean
+  words?: number
+  min?: number
+  max?: number
+  actual?: string | number
+  limit?: string | number
+}
+
+/** Successful receipt for an accepted payload. */
+interface SubmitSuccess {
+  ok: true
+  submitted: true
+  bytes: number
+  words?: number
+}
+
+/** One `story_submit` call from a child. */
+interface SubmitInput {
+  delegationId: string
+  payload: SubmissionPayload
+  depth: number
+  root: string
+}
+
+const submissions = new Map<string, SubmissionEntry>()
 
 /** Remove one expired entry. */
-function purge(id, entry) {
+function purge(id: string, entry: SubmissionEntry | undefined): SubmissionEntry | undefined {
   if (entry !== undefined && entry.expiresAt <= Date.now()) {
     submissions.delete(id)
     return undefined
@@ -35,10 +120,10 @@ function purge(id, entry) {
 
 /**
  * Bind role/work/chapter before starting the child.
- * @param {{role: string, workId: string, chapter: number, mode?: string, wordRange?: object}} input - delegation binding.
- * @returns {{delegationId: string, attempts: number}} identity handed to the child.
+ * @param input - delegation binding.
+ * @returns identity handed to the child.
  */
-export function openSubmission(input) {
+export function openSubmission(input: SubmissionBinding): SubmissionHandle {
   const delegationId = randomUUID()
   submissions.set(delegationId, {
     role: String(input.role),
@@ -57,7 +142,7 @@ export function openSubmission(input) {
 }
 
 /** Build a failure envelope the child can inspect and retry. */
-function failure(code, message, extra = {}) {
+function failure(code: string, message: string, extra: FailureExtra = {}): FailureEnvelope {
   return {
     ok: false,
     error: { code, message },
@@ -83,23 +168,28 @@ const VALIDATOR_CODES = new Set([
 ])
 
 /** Per-field character caps for one validator finding. */
-const VALIDATOR_LIMITS = { where: 120, problem: 160, evidence: 240, impact: 120, fix: 120 }
+const VALIDATOR_LIMITS: Record<string, number> = { where: 120, problem: 160, evidence: 240, impact: 120, fix: 120 }
 
 /** Settler delta bounds; the host still re-normalizes and validates it. */
 
-/** Validate the role-specific payload shape. */
-function validateShape(role, payload, stage) {
+/**
+ * Validate the role-specific payload shape.
+ *
+ * The payload is model-produced JSON, so it arrives as `any` and every field
+ * is probed at runtime; only the checks below give it a shape.
+ */
+function validateShape(role: string, payload: any, stage: string | undefined): string | undefined {
   if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
     return 'payload 必须是对象'
   }
   if (role === 'architect') {
-    const stages = {
+    const stages: Record<string, { keys: string[], label: string }> = {
       frame: { keys: ['storyFrame', 'volumeMap', 'currentFocus'], label: 'frame' },
       rules: { keys: ['bookRules'], label: 'rules' },
       roles: { keys: ['rolesIndex'], label: 'roles' },
       cards: { keys: ['roleCards'], label: 'cards' },
     }
-    const spec = stages[stage]
+    const spec = stage === undefined ? undefined : stages[stage]
     if (spec === undefined) return `未知的 architect stage：${String(stage)}`
     for (const key of spec.keys) {
       if (payload[key] === undefined) return `architect ${spec.label} 缺少 ${key}`
@@ -132,7 +222,7 @@ function validateShape(role, payload, stage) {
         for (const card of payload.roleCards) validateRoleCard(card)
       }
     } catch (error) {
-      return `architect ${spec.label} 不符合合同：${error?.message ?? String(error)}`
+      return `architect ${spec.label} 不符合合同：${(error as { message?: string } | undefined)?.message ?? String(error)}`
     }
     return undefined
   }
@@ -144,7 +234,7 @@ function validateShape(role, payload, stage) {
     for (const key of ['perspective', 'goal', 'obstacle', 'cost', 'turn', 'body']) {
       if (typeof payload[key] !== 'string' || payload[key].trim() === '') return `planner 缺少 ${key}`
     }
-    if (!Array.isArray(payload.threadRefs) || payload.threadRefs.some(ref => typeof ref !== 'string')) {
+    if (!Array.isArray(payload.threadRefs) || payload.threadRefs.some((ref: unknown) => typeof ref !== 'string')) {
       return 'planner 的 threadRefs 必须是字符串数组'
     }
     return undefined
@@ -158,7 +248,7 @@ function validateShape(role, payload, stage) {
     if (typeof payload.body !== 'string' || payload.body.trim() === '') return 'reviser 缺少 body'
     if (payload.resolved !== undefined) {
       if (!Array.isArray(payload.resolved)) return 'reviser 的 resolved 必须是数组'
-      if (payload.resolved.some(id => typeof id !== 'string' || !/^O[1-9]\d*$/u.test(id))) return 'reviser 的 resolved 必须是 observation id'
+      if (payload.resolved.some((id: unknown) => typeof id !== 'string' || !/^O[1-9]\d*$/u.test(id))) return 'reviser 的 resolved 必须是 observation id'
     }
     return undefined
   }
@@ -174,7 +264,7 @@ function validateShape(role, payload, stage) {
     return undefined
   }
   if (role === 'settler') {
-    const bounded = (value, label) => {
+    const bounded = (value: unknown, label: string): string | undefined => {
       if (typeof value !== 'string' || value.trim() === '') return `${label} 必须是非空字符串`
       if ([...value.trim()].length > STATE_LIMITS.text) return `${label} 超过 ${STATE_LIMITS.text} 字`
       return undefined
@@ -286,10 +376,10 @@ function validateShape(role, payload, stage) {
  * Accept one submission from a child and validate it before consumption.
  * Validation failures are returned, not thrown, so the child keeps the
  * actionable values and can retry in the same run.
- * @param {{delegationId: string, payload: object, depth: number, root: string}} input - submission.
- * @returns {Promise<object>} success or retryable failure envelope.
+ * @param input - submission.
+ * @returns success or retryable failure envelope.
  */
-export async function submitPayload(input) {
+export async function submitPayload(input: SubmitInput): Promise<FailureEnvelope | SubmitSuccess> {
   if (input.depth <= 0) return failure('submit-parent-denied', 'story_submit 只允许被派发的子代理调用')
   const id = String(input.delegationId)
   const entry = purge(id, submissions.get(id))
@@ -306,7 +396,7 @@ export async function submitPayload(input) {
       ? failure('submit-attempts-exhausted', `提交尝试超过 ${MAX_ATTEMPTS} 次：${shapeError}`)
       : failure('submit-invalid', shapeError, { retryable: true })
   }
-  let bytes
+  let bytes: number
   try {
     bytes = Buffer.byteLength(JSON.stringify(payload), 'utf8')
   } catch {
@@ -337,7 +427,7 @@ export async function submitPayload(input) {
         role: entry.role,
         ...(entry.mode === undefined ? {} : { mode: entry.mode }),
         body: payload.body,
-        chapter: entry.chapter,
+        chapter: entry.chapter as number,
         wordRange: entry.wordRange,
       })
     } catch (error) {
@@ -359,10 +449,10 @@ export async function submitPayload(input) {
   }
 
   if (entry.role === 'reviser') {
-    let current
+    let current: string
     try {
-      current = readChapter(input.root, { work: entry.workId, chapter: entry.chapter }).content
-      assertRevisionMode({ mode: entry.mode, chapter: entry.chapter, oldBody: current, body: payload.body })
+      current = readChapter(input.root, { work: entry.workId, chapter: entry.chapter as number }).content
+      assertRevisionMode({ mode: entry.mode as string, chapter: entry.chapter as number, oldBody: current, body: payload.body })
     } catch (error) {
       if (error instanceof StoryError && error.code === 'revise-mode-violation') {
         return entry.attempts >= MAX_ATTEMPTS
@@ -384,10 +474,10 @@ export async function submitPayload(input) {
 
 /**
  * Consume the accepted payload; the caller must close the entry afterwards.
- * @param {string} delegationId - identity.
- * @returns {{payload: object, attempts: number, bytes: number}|undefined} accepted payload.
+ * @param delegationId - identity.
+ * @returns accepted payload.
  */
-export function consumeSubmission(delegationId) {
+export function consumeSubmission(delegationId: string): ConsumedSubmission | undefined {
   const entry = purge(String(delegationId), submissions.get(String(delegationId)))
   if (entry === undefined) return undefined
   const result = { payload: entry.payload, attempts: entry.attempts, bytes: entry.bytes, consumed: entry.consumed === true }
@@ -396,6 +486,6 @@ export function consumeSubmission(delegationId) {
 }
 
 /** Remove one delegation entry in every outcome. */
-export function closeSubmission(delegationId) {
+export function closeSubmission(delegationId: string): void {
   submissions.delete(String(delegationId))
 }

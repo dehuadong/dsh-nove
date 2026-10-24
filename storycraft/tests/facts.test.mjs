@@ -3,8 +3,8 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../dist/storage.js'
-import * as b from '../bible.js'
-import { deriveWhitelist, summariseWhitelist } from '../facts.js'
+import * as b from '../dist/bible.js'
+import { deriveWhitelist, summariseWhitelist } from '../dist/facts.js'
 import { writeVolume } from '../dist/volumes.js'
 
 let failures = 0

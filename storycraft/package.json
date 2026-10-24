@@ -10,10 +10,10 @@
   },
   "icon": "./icon.svg",
   "exports": {
-    ".": "./index.js",
+    ".": "./dist/index.js",
     "./client": "./client.js",
     "./skills": "./skills.js",
-    "./tools": "./tools.js",
+    "./tools": "./dist/tools.js",
     "./package.json": "./package.json"
   },
   "files": [

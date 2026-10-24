@@ -5,20 +5,41 @@
  * `consistency.js` can stay a pure comparator. It does not write anything.
  */
 
-import { StoryError, countWords } from './dist/domain.js'
+import { StoryError, countWords } from './domain.js'
 import { deriveWhitelist } from './facts.js'
 import { checkConsistency } from './consistency.js'
+
+/** The body about to land, and the chapter that owns it. */
+interface DraftInput {
+  work: string
+  chapter: number
+  body: string
+}
+
+/** Warnings that never block a write. */
+interface LandingWarnings {
+  warnings: string[]
+}
+
+/** Word-range input shared by the writing and revising roles. */
+interface WordRangeInput {
+  role: 'writer' | 'reviser'
+  mode?: string
+  body: string
+  chapter: number
+  wordRange?: { min: number, max: number }
+}
 
 /**
  * Validate a draft against the work's landed whitelist.
  *
  * Names, places and measurements only warn, so a false positive
  * cannot reject good prose.
- * @param {string} root - workspace directory.
- * @param {{work: string, chapter: number, body: string}} draft - the body about to land.
- * @returns {Promise<{warnings: string[]}>} warnings that do not block.
+ * @param root - workspace directory.
+ * @param draft - the body about to land.
+ * @returns warnings that do not block.
  */
-export async function checkDraft(root, draft) {
+export async function checkDraft(root: string, draft: DraftInput): Promise<LandingWarnings> {
   const whitelist = await deriveWhitelist(root, { work: draft.work, chapter: draft.chapter })
   const consistency = checkConsistency({ body: draft.body, whitelist })
   const warnings = [...consistency.warnings]
@@ -34,10 +55,10 @@ export async function checkDraft(root, draft) {
  * The manual write path keeps word count advisory; only host-side delegation
  * blocks out-of-range drafts. Both writer and reviser check min and max; the
  * delegated reviser cannot change the mode bound in its submission entry.
- * @param {{role: 'writer'|'reviser', mode?: string, body: string, chapter: number, wordRange?: {min: number, max: number}}} input - range input.
- * @returns {{warnings: string[]}} non-blocking warnings.
+ * @param input - range input.
+ * @returns non-blocking warnings.
  */
-export function checkWordRange(input) {
+export function checkWordRange(input: WordRangeInput): LandingWarnings {
   const range = input.wordRange
   if (range === undefined) return { warnings: [] }
   const words = countWords(String(input.body ?? ''))

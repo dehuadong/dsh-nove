@@ -7,14 +7,177 @@
  * fallback when reconciliation cannot be resolved.
  */
 
-import { StoryError, chapterNumber } from './dist/storage.js'
+import { StoryError, chapterNumber } from './storage.js'
 import {
   previewState, readChapter, readEvents, readFoldedState, readManifest, readPlan, readSummary, settleState, statePreflight,
-} from './dist/storage.js'
+} from './storage.js'
 import { readCards } from './facts.js'
 import { closeSubmission, consumeSubmission, openSubmission } from './submission.js'
 import { runChild } from './delegate.js'
 import { checkChapterState } from './state-check.js'
+
+/** One chapter entry from the manifest. */
+interface ManifestChapter {
+  number: number
+  currentRevision: number
+}
+
+/** Manifest fields the settler prompt reads; the store owns the full shape. */
+interface ManifestView {
+  title: string
+  chapters: ManifestChapter[]
+}
+
+/** Folded state fields the prompt serialises; the projection owns the full shape. */
+interface FoldedView {
+  facts: unknown[]
+  hooks: unknown[]
+}
+
+/** The card field the prompt filters on; the card contract belongs to `facts.ts`. */
+interface CardView {
+  name: string
+}
+
+/** Model-produced state delta; the projection and the store validate every field. */
+interface StatePayload {
+  // Model-supplied operations are a dynamic JSON boundary typed by the projection.
+  factOps?: any
+  // Model-supplied hook operations, same boundary as `factOps`.
+  hookOps?: any
+  // New hooks are model-supplied records, same boundary as `factOps`.
+  newHooks?: any[]
+}
+
+/** One semantic-check finding as this module reports it back. */
+interface Finding {
+  code: string
+  where: string
+  problem: string
+  severity?: string
+  fix?: string
+}
+
+/** Host dependencies supplied by the action layer. */
+interface SettleHost {
+  // `ctx.get('subagents')` is a DSH dynamic boundary; the Harness owns the service shape.
+  service?: any
+  // `exec.agent` is a DSH dynamic boundary; the Harness owns the agent shape.
+  agent?: any
+  /** Caller cancellation from `exec.signal`. */
+  signal?: AbortSignal
+  /** Per-child budget override; defaults to STATE_SETTLE_TIMEOUT_MS. */
+  timeoutMs?: number
+  /** Whole-settlement budget override; defaults to SETTLE_TOTAL_TIMEOUT_MS. */
+  settleTimeoutMs?: number
+}
+
+/** One settlement request. */
+interface SettleInput {
+  work: string
+  chapter: number | string
+}
+
+/** What one settler run needs; the prompt adds the delegation identity. */
+interface SettlerInput {
+  workId: string
+  chapter: number
+  manifest: ManifestView
+  body: string
+  revision: number
+  seq: number
+  folded: FoldedView
+  summary: string
+  plan: string
+  cards: CardView[]
+  feedback: string
+}
+
+/** Settler prompt input: the run input plus the submission identity. */
+interface SettlerPromptInput extends SettlerInput {
+  delegationId: string
+}
+
+/** One child stage's timing on a settlement trace. */
+interface AttemptTrace {
+  stage: string
+  ms: number
+  error?: string
+}
+
+/** Whole-settlement timing while attempts run. */
+interface SettlementTrace {
+  durationMs: number
+  perAttempt: AttemptTrace[]
+  lastError?: string
+}
+
+/** Timing detail on a receipt; landing reports only the total. */
+interface ReceiptTrace {
+  durationMs: number
+  perAttempt?: AttemptTrace[]
+  lastError?: string
+}
+
+/** One unresolved receipt before any write. */
+interface UnresolvedInput {
+  work: string
+  chapter: number
+  revision: number
+  reason: string
+  message?: string
+  proposed: StatePayload
+  warnings: string[]
+  items: Finding[]
+  settlerAttempts: number
+  validatorAttempts: number
+  started: number
+  trace?: SettlementTrace
+}
+
+/** Per-path overrides for a timeout receipt. */
+interface TimeoutExtra {
+  revision?: number
+  proposed?: StatePayload
+  warnings?: string[]
+  items?: Finding[]
+  settlerAttempts?: number
+  validatorAttempts?: number
+}
+
+/** What the accepted payload lands with. */
+interface LandInput {
+  work: string
+  chapter: number
+  revision: number
+  seq: number
+  payload: StatePayload
+  warnings: string[]
+  items: Finding[]
+  settlerAttempts: number
+  validatorAttempts: number
+  started: number
+  /** Accepted for symmetry with the other paths; landing reports only the total. */
+  trace?: SettlementTrace
+}
+
+/** What a settlement returns: a landed receipt or an unresolved proposal. */
+interface SettleReceipt {
+  ok: true
+  settled: boolean
+  workId: string
+  chapter: number
+  revision: number
+  reason?: string
+  message?: string
+  proposed?: StatePayload
+  warnings: string[]
+  items: Finding[]
+  attempts: { settler: number; validator: number }
+  trace: ReceiptTrace
+  counts?: Record<string, number>
+  artifact?: { workId: string; artifactId: string; revisionId: string; kind: string }
+}
 
 /** One settler/validator child run's budget. */
 const STATE_SETTLE_TIMEOUT_MS = 180000
@@ -25,25 +188,27 @@ const SETTLE_TOTAL_TIMEOUT_MS = 480000
 /** Severity values that force a second settler attempt. */
 const BLOCKING_SEVERITY = 'major'
 
-function entryOf(manifest, number) {
+/** The manifest entry of one chapter, when the manifest lists it. */
+function entryOf(manifest: ManifestView, number: number): ManifestChapter | undefined {
   return manifest.chapters.find(item => item.number === number)
 }
 
-function lastSeq(root, work) {
-  const events = readEvents(root, work)
+/** The last appended state event's sequence, or zero for an empty log. */
+function lastSeq(root: string, work: string): number {
+  const events: Array<{ seq: number | string }> = readEvents(root, work)
   return events.length === 0 ? 0 : Number(events[events.length - 1].seq)
 }
 
 /** Render validation feedback for the second settler attempt. */
-function feedbackFor(items) {
+function feedbackFor(items: Finding[]): string {
   return items
     .map(item => `- [${item.code}] ${item.where}：${item.problem}；${item.fix}`)
     .join('\n')
 }
 
 /** Build one unresolved receipt; no write has happened at this point. */
-function unresolved(input) {
-  const trace = input.trace ?? {}
+function unresolved(input: UnresolvedInput): SettleReceipt {
+  const trace: SettlementTrace = input.trace ?? { durationMs: 0, perAttempt: [] }
   trace.durationMs = Date.now() - input.started
   return {
     ok: true,
@@ -61,7 +226,8 @@ function unresolved(input) {
   }
 }
 
-function section(title, content) {
+/** Render one optional prompt section. */
+function section(title: string, content: unknown): string {
   const text = String(content ?? '').trim()
   return text === '' ? '' : `## ${title}\n${text}`
 }
@@ -70,7 +236,7 @@ function section(title, content) {
  * Build the settler prompt. The body is the only evidence; prior state, plan,
  * summary and cards are context. `feedback` is present only on the retry.
  */
-function settlerPrompt(input) {
+function settlerPrompt(input: SettlerPromptInput): string {
   const baseline = JSON.stringify({
     chapter: input.chapter,
     revision: input.revision,
@@ -112,17 +278,17 @@ function settlerPrompt(input) {
 }
 
 /** Run one settler child and return its accepted delta payload. */
-async function runSettler(root, input, host, timeoutMs) {
+async function runSettler(root: string, input: SettlerInput, host: SettleHost, timeoutMs: number): Promise<StatePayload> {
   const opened = openSubmission({ role: 'settler', workId: input.workId, chapter: input.chapter })
   let child
   try {
     child = await runChild({
-      service: host?.service,
-      agent: host?.agent,
+      service: host.service,
+      agent: host.agent,
       cwd: root,
       prompt: settlerPrompt({ ...input, delegationId: opened.delegationId }),
       label: '故事工坊-状态结算',
-      signal: host?.signal,
+      signal: host.signal,
       timeoutMs,
       unavailableCode: 'state-settle-unavailable',
       failedCode: 'state-settle-failed',
@@ -152,20 +318,24 @@ async function runSettler(root, input, host, timeoutMs) {
 
 /**
  * Settle one chapter automatically.
- * @param {string} root - workspace directory.
- * @param {{work: string, chapter: number|string}} input - work/chapter.
- * @param {{service?: object, agent?: object, signal?: AbortSignal, timeoutMs?: number}} host - host dependencies.
- * @returns {Promise<object>} settled receipt, or an unresolved proposed delta; never writes on unresolved.
+ * @param root - workspace directory.
+ * @param input - work/chapter.
+ * @param host - host dependencies.
+ * @returns settled receipt, or an unresolved proposed delta; never writes on unresolved.
  */
-export async function settleChapterState(root, input, host) {
+export async function settleChapterState(
+  root: string,
+  input: SettleInput,
+  host: SettleHost = {},
+): Promise<SettleReceipt> {
   const work = String(input.work)
   const chapter = chapterNumber(input.chapter)
   const started = Date.now()
-  const settleTimeoutMs = Number.isFinite(host?.settleTimeoutMs) ? host.settleTimeoutMs : SETTLE_TOTAL_TIMEOUT_MS
+  const settleTimeoutMs = Number.isFinite(host.settleTimeoutMs) ? host.settleTimeoutMs! : SETTLE_TOTAL_TIMEOUT_MS
   const deadline = started + settleTimeoutMs
-  const trace = { durationMs: 0, perAttempt: [] }
-  const remaining = () => Math.max(0, deadline - Date.now())
-  const timedOut = (message, extra = {}) => {
+  const trace: SettlementTrace = { durationMs: 0, perAttempt: [] }
+  const remaining = (): number => Math.max(0, deadline - Date.now())
+  const timedOut = (message: string, extra: TimeoutExtra = {}): SettleReceipt => {
     trace.durationMs = Date.now() - started
     return unresolved({
     work, chapter, revision: extra.revision ?? 0, reason: 'state-settle-timeout', message,
@@ -176,21 +346,21 @@ export async function settleChapterState(root, input, host) {
     })
   }
   const pre = statePreflight(root, { work, chapter, requireBody: true })
-  const manifest = readManifest(root, work)
+  const manifest: ManifestView = readManifest(root, work)
   const bodyRead = readChapter(root, { work, chapter })
   const revision = bodyRead.revision
   const seq = lastSeq(root, work)
-  const folded = readFoldedState(root, work)
+  const folded: FoldedView = readFoldedState(root, work)
   const summary = pre.summaryState.state === 'current' ? (readSummary(root, work, chapter) ?? '') : ''
   const plan = readPlan(root, work, chapter) ?? ''
   const cards = (await readCards(root, work))
     .filter(card => bodyRead.content.includes(card.name))
     .slice(0, 8)
 
-  let proposed = { factOps: {}, hookOps: {}, newHooks: [] }
+  let proposed: StatePayload = { factOps: {}, hookOps: {}, newHooks: [] }
   let feedback = ''
-  let pendingWarnings = []
-  let pendingItems = []
+  let pendingWarnings: string[] = []
+  let pendingItems: Finding[] = []
   let settlerAttempts = 0
   let validatorAttempts = 0
 
@@ -198,13 +368,14 @@ export async function settleChapterState(root, input, host) {
     if (remaining() <= 0) return timedOut('结算总预算已用完', { revision, proposed, settlerAttempts, validatorAttempts })
     settlerAttempts = attempt
     const settlerStart = Date.now()
-    let payload
+    let payload: StatePayload
     try {
       payload = await runSettler(root, {
         workId: work, chapter, manifest, body: bodyRead.content, revision, seq, folded, summary, plan, cards, feedback,
-      }, host, Math.min(Number.isFinite(host?.timeoutMs) ? host.timeoutMs : STATE_SETTLE_TIMEOUT_MS, remaining()))
+      }, host, Math.min(Number.isFinite(host.timeoutMs) ? host.timeoutMs! : STATE_SETTLE_TIMEOUT_MS, remaining()))
       trace.perAttempt.push({ stage: 'settler', ms: Date.now() - settlerStart })
-    } catch (error) {
+    } catch (error: any) {
+      // A thrown child/service error crosses a dynamic boundary; only `message` is read.
       trace.perAttempt.push({ stage: 'settler', ms: Date.now() - settlerStart, error: String(error?.message ?? error) })
       trace.lastError = String(error?.message ?? error)
       if (remaining() <= 0 || /超时|already aborted|timeout/u.test(String(error?.message ?? ''))) {
@@ -227,7 +398,8 @@ export async function settleChapterState(root, input, host) {
     let preview
     try {
       preview = previewState(root, { work, chapter, ...proposed, allowEmpty: true })
-    } catch (error) {
+    } catch (error: any) {
+      // A store rejection crosses the SQLite boundary; only `message` is read.
       if (attempt === 1) {
         feedback = `上一次 payload 不合法：${error?.message ?? error}`
         pendingWarnings = [`state-invalid: ${error?.message ?? error}`]
@@ -260,13 +432,14 @@ export async function settleChapterState(root, input, host) {
     let check
     try {
       check = await checkChapterState(root, { work, chapter, ...proposed }, {
-        service: host?.service,
-        agent: host?.agent,
-        signal: host?.signal,
-        timeoutMs: Math.min(Number.isFinite(host?.timeoutMs) ? host.timeoutMs : STATE_SETTLE_TIMEOUT_MS, remaining()),
+        service: host.service,
+        agent: host.agent,
+        signal: host.signal,
+        timeoutMs: Math.min(Number.isFinite(host.timeoutMs) ? host.timeoutMs! : STATE_SETTLE_TIMEOUT_MS, remaining()),
       })
       trace.perAttempt.push({ stage: 'validator', ms: Date.now() - checkStart })
-    } catch (error) {
+    } catch (error: any) {
+      // The semantic check crosses a module boundary; only `code` and `message` are read.
       trace.perAttempt.push({ stage: 'validator', ms: Date.now() - checkStart, error: String(error?.message ?? error) })
       trace.lastError = String(error?.message ?? error)
       if (remaining() <= 0 || /超时|already aborted|timeout/u.test(String(error?.message ?? ''))) {
@@ -323,8 +496,8 @@ export async function settleChapterState(root, input, host) {
 }
 
 /** Re-check staleness, write the accepted payload, and build the success receipt. */
-function land(root, input) {
-  const latest = readManifest(root, input.work)
+function land(root: string, input: LandInput): SettleReceipt {
+  const latest: ManifestView = readManifest(root, input.work)
   const latestEntry = entryOf(latest, input.chapter)
   if (latestEntry === undefined || latestEntry.currentRevision !== input.revision
     || lastSeq(root, input.work) !== input.seq) {

@@ -261,19 +261,20 @@ node scripts/pack-check.mjs
 
 ## TypeScript 接入
 
-当前已迁移到 TS：L0 `scope`、L1 叶子层、L2 数据层，以及 L3 `store-db`、`artifact-store`、`storage`、`retrieval`、`volumes`。`src/store-rows.ts` 定义 SQLite 表行类型；`store-db` 已移除 `@ts-nocheck`，严格编译通过。
+Host 代码已迁到 TS 的 L0–L4 层：`scope`、叶子层、数据层、存储层，以及消费与 DSH 接缝（`bible`、`facts`、`landing`、`consistency`、`context`、`role-input`、`submission`、`proposals`、`state-check`、`state-settle`、`state-events`、`delegate`、`tools`、`index`）。`src/store-rows.ts` 定义 SQLite 表行类型，`types/dsh.d.ts` 声明本包实际使用的 DSH `ctx`/`exec` 面。
 
-- 源文件：`src/*.ts`；`dist/` 由构建生成，不提交；
+- 源文件：`src/*.ts`，全部经 `strict` 编译；`dist/` 由构建生成，不提交；
+- 包入口：`exports` 的 `.` 指向 `dist/index.js`、`./tools` 指向 `dist/tools.js`；
 - 安装依赖：`npm install`（`typescript` + `@types/node` 是 devDependencies，不进安装包）；
 - 编译：`npm run build` → `dist/*.js`；`prepack` 自动 build；
-- 消费者直接 import `./dist/<module>.js`，没有根 JS 第二份实现；
-- 其他 Host 模块和 `client.js` 仍是 JavaScript；Client 的 esbuild 不在本次接入内。
+- 模块之间 import 写同层 `'./<module>.js'`，编译后解析到 `dist/`；根 JS 消费者写 `'./dist/<module>.js'`，没有第二份实现；
+- `skills.js` 与 `client.js` 仍是 JavaScript；Client 单独走 esbuild，不在 Host 迁移内。
 
 开发 `link:` 时先 build；改 `src/*.ts` 后重新 build，不手改 `dist/`。
 
 ## 改动与生效
 
-包以 `link:` 装入 profile，改 `client.js` 后刷新窗口即可；改 `cordis.patch.yml` 或 Host 半边（`index.js`、`tools.js`、`delegate.js`、`src/*.ts`）需要重启应用，或让 `plugin_manager` 把 bundle 关→开重载补丁。停用用 `set_bundle enabled:false`，卸载用 `remove_bundle`。
+包以 `link:` 装入 profile，改 `client.js` 后刷新窗口即可；改 `cordis.patch.yml` 或 Host 半边（`src/*.ts`）需要重启应用，或让 `plugin_manager` 把 bundle 关→开重载补丁。停用用 `set_bundle enabled:false`，卸载用 `remove_bundle`。
 
 ## 阶段上下文
 

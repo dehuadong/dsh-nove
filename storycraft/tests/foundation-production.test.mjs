@@ -2,11 +2,11 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { delegateRole } from '../delegate.js'
-import { submitPayload } from '../submission.js'
+import { delegateRole } from '../dist/delegate.js'
+import { submitPayload } from '../dist/submission.js'
 import * as s from '../dist/storage.js'
-import * as b from '../bible.js'
-import { assembleRoleContext } from '../context.js'
+import * as b from '../dist/bible.js'
+import { assembleRoleContext } from '../dist/context.js'
 import { readFoundationDocuments, readTextArtifact } from '../dist/artifact-store.js'
 
 let failures = 0

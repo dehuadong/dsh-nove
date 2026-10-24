@@ -3,7 +3,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { appendFactOp, appendHookOp, applyFactOp, applyHookOp, projectFacts, projectHooks } from '../state-events.js'
+import { appendFactOp, appendHookOp, applyFactOp, applyHookOp, projectFacts, projectHooks } from '../dist/state-events.js'
 import { initWork, readFoldedState } from '../dist/storage.js'
 import { openWork } from '../dist/db.js'
 import { readEvents, writePlan } from '../dist/store-db.js'

@@ -11,22 +11,127 @@
 import {
   StoryError, chapterNumber, previewState, readChapter, readFoldedState, readManifest, readPlan, readSummary,
   readSummaryState, stageOf,
-} from './dist/storage.js'
+} from './storage.js'
 import { readCards } from './facts.js'
 import { closeSubmission, consumeSubmission, openSubmission, STATE_CHECK_NO_EVIDENCE } from './submission.js'
 import { runChild } from './delegate.js'
 
+/** One chapter entry from the manifest. */
+interface ManifestChapter {
+  number: number
+  currentRevision: number
+  stage?: string
+}
+
+/** Manifest fields the prompt reads; the store owns the full shape. */
+interface ManifestView {
+  title: string
+  chapters: ManifestChapter[]
+}
+
+/** Folded state fields the prompt serialises; the projection owns the full shape. */
+interface FoldedView {
+  facts: Array<{ subject: string }>
+  hooks: Array<{ hookId: string }>
+}
+
+/** The card field the prompt filters on; the card contract belongs to `facts.ts`. */
+interface CardView {
+  name: string
+}
+
+/** Model-produced state delta; `previewState` validates every field in the store. */
+interface StateDelta {
+  // Model-supplied operations are a dynamic JSON boundary typed by the projection.
+  factOps: any
+  // Model-supplied hook operations, same boundary as `factOps`.
+  hookOps: any
+  // New hooks are model-supplied records, same boundary as `factOps`.
+  newHooks: any[]
+}
+
+/** One finding after evidence verification. */
+interface Finding {
+  code: string
+  where: string
+  problem: string
+  evidence: string
+  impact: string
+  severity: string
+  fix: string
+  evidenceVerified: boolean | null
+}
+
+/** What one check's verification returns. */
+interface VerifiedFindings {
+  items: Finding[]
+  warnings: string[]
+}
+
+/** One proposed delta to check. */
+interface StateCheckInput {
+  work: string
+  chapter: number | string
+  // Model-supplied operations are a dynamic JSON boundary typed by the projection.
+  factOps?: any
+  // Model-supplied hook operations, same boundary as `factOps`.
+  hookOps?: any
+  // New hooks are model-supplied records, same boundary as `factOps`.
+  newHooks?: any[]
+}
+
+/** Host dependencies supplied by the action layer. */
+interface StateCheckHost {
+  // `ctx.get('subagents')` is a DSH dynamic boundary; the Harness owns the service shape.
+  service?: any
+  // `exec.agent` is a DSH dynamic boundary; the Harness owns the agent shape.
+  agent?: any
+  /** Caller cancellation from `exec.signal`. */
+  signal?: AbortSignal
+  /** Per-run budget override; defaults to STATE_CHECK_TIMEOUT_MS. */
+  timeoutMs?: number
+}
+
+/** The prompt input assembled from the store and the proposed delta. */
+interface PromptInput {
+  workId: string
+  chapter: number
+  manifest: ManifestView
+  body: string
+  revision: number
+  payload: StateDelta
+  folded: FoldedView
+  summary: string
+  plan: string
+  cards: CardView[]
+  delegationId: string
+}
+
+/** What one check returns; never writes. */
+interface StateCheckReceipt {
+  ok: true
+  workId: string
+  chapter: number
+  revision: number
+  checked: true
+  items: Finding[]
+  counts: Record<string, number>
+  warnings: string[]
+  trace: { durationMs: number; submissionAttempts: number }
+}
+
 /** One check's child budget; a validator run is shorter than a chapter run. */
 const STATE_CHECK_TIMEOUT_MS = 180000
 
-const SEVERITY_RANK = { major: 0, minor: 1 }
+const SEVERITY_RANK: Record<string, number> = { major: 0, minor: 1 }
 
-function entryOf(manifest, number) {
+/** The manifest entry of one chapter, when the manifest lists it. */
+function entryOf(manifest: ManifestView, number: number): ManifestChapter | undefined {
   return manifest.chapters.find(item => item.number === number)
 }
 
 /** Collapse whitespace so a copied quote survives line endings. */
-function compact(text) {
+function compact(text: unknown): string {
   return String(text ?? '').replace(/\s+/gu, '')
 }
 
@@ -36,13 +141,14 @@ function compact(text) {
  * A quote that is not a contiguous part of the body is kept but flagged, so a
  * hallucinated citation cannot pose as verified. Absence of a passage is
  * represented by `null`, not by a failed quote.
- * @param {Array<object>} items - validator findings.
- * @param {string} body - the checked chapter body.
- * @returns {{items: Array<object>, warnings: string[]}} bounded findings.
+ * @param items - validator findings.
+ * @param body - the checked chapter body.
+ * @returns bounded findings.
  */
-function verifyEvidence(items, body) {
+function verifyEvidence(items: any[], body: string): VerifiedFindings {
+  // Validator findings arrive as model-produced JSON; every field is normalised below.
   const compactBody = compact(body)
-  const warnings = []
+  const warnings: string[] = []
   const checked = items.map(item => {
     const evidence = String(item.evidence).trim()
     let evidenceVerified = null
@@ -66,7 +172,7 @@ function verifyEvidence(items, body) {
 }
 
 /** Render one optional prompt section. */
-function section(title, content) {
+function section(title: string, content: unknown): string {
   const text = String(content ?? '').trim()
   return text === '' ? '' : `## ${title}\n${text}`
 }
@@ -74,11 +180,11 @@ function section(title, content) {
 /**
  * Build the validator child prompt. The body is the only evidence; the other
  * sections are context and are labelled as such.
- * @param {object} input - work, chapter, manifest, body, revision, delta, folded, summary, plan, cards, delegationId.
- * @returns {string} prompt text.
+ * @param input - work, chapter, manifest, body, revision, delta, folded, summary, plan, cards, delegationId.
+ * @returns prompt text.
  */
-function promptFor(input) {
-  const subjects = new Set((input.payload.factOps?.upsert ?? []).map(fact => fact?.subject).filter(Boolean))
+function promptFor(input: PromptInput): string {
+  const subjects = new Set((input.payload.factOps?.upsert ?? []).map((fact: any) => fact?.subject).filter(Boolean))
   const hookIds = new Set(Object.values(input.payload.hookOps ?? {}).flat())
   const priorFacts = input.folded.facts.filter(fact => subjects.has(fact.subject))
   const priorHooks = input.folded.hooks.filter(hook => hookIds.has(hook.hookId))
@@ -121,15 +227,19 @@ function promptFor(input) {
 
 /**
  * Check one proposed state payload against the current chapter body.
- * @param {string} root - workspace directory.
- * @param {object} input - work, chapter, factOps, hookOps, newHooks.
- * @param {{service?: object, agent?: object, signal?: AbortSignal, timeoutMs?: number}} host - host dependencies.
- * @returns {Promise<object>} bounded findings; never writes.
+ * @param root - workspace directory.
+ * @param input - work, chapter, factOps, hookOps, newHooks.
+ * @param host - host dependencies.
+ * @returns bounded findings; never writes.
  */
-export async function checkChapterState(root, input, host) {
+export async function checkChapterState(
+  root: string,
+  input: StateCheckInput,
+  host: StateCheckHost = {},
+): Promise<StateCheckReceipt> {
   const work = String(input.work)
   const chapter = chapterNumber(input.chapter)
-  const payload = {
+  const payload: StateDelta = {
     factOps: input.factOps ?? {},
     hookOps: input.hookOps ?? {},
     newHooks: input.newHooks ?? [],
@@ -137,7 +247,8 @@ export async function checkChapterState(root, input, host) {
   let preview
   try {
     preview = previewState(root, { work, chapter, ...payload })
-  } catch (error) {
+  } catch (error: any) {
+    // A store rejection crosses the SQLite boundary; only `code` is read.
     if (error?.code === 'empty-state') throw new StoryError('empty-state', '语义对账至少要给出一条人物事实或伏笔变化')
     throw error
   }
@@ -145,7 +256,7 @@ export async function checkChapterState(root, input, host) {
     throw new StoryError('empty-state', '语义对账至少要给出一条人物事实或伏笔变化')
   }
 
-  const manifest = readManifest(root, work)
+  const manifest: ManifestView = readManifest(root, work)
   const entry = entryOf(manifest, chapter)
   if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${chapter} 章`)
   if (stageOf(entry) === 'settled') {
@@ -155,7 +266,7 @@ export async function checkChapterState(root, input, host) {
     throw new StoryError('chapter-not-written', `第 ${chapter} 章还没有正文：先写正文，再对状态 delta 做语义对账`)
   }
 
-  const folded = readFoldedState(root, work)
+  const folded: FoldedView = readFoldedState(root, work)
 
   const chapterBody = readChapter(root, { work, chapter })
   const body = chapterBody.content
@@ -170,8 +281,8 @@ export async function checkChapterState(root, input, host) {
   try {
     const started = Date.now()
     child = await runChild({
-      service: host?.service,
-      agent: host?.agent,
+      service: host.service,
+      agent: host.agent,
       cwd: root,
       prompt: promptFor({
         workId: work,
@@ -187,8 +298,8 @@ export async function checkChapterState(root, input, host) {
         delegationId: opened.delegationId,
       }),
       label: '故事工坊-状态对账',
-      signal: host?.signal,
-      timeoutMs: Number.isFinite(host?.timeoutMs) ? host.timeoutMs : STATE_CHECK_TIMEOUT_MS,
+      signal: host.signal,
+      timeoutMs: Number.isFinite(host.timeoutMs) ? host.timeoutMs! : STATE_CHECK_TIMEOUT_MS,
       unavailableCode: 'state-check-unavailable',
       failedCode: 'state-check-failed',
       unavailableMessage: '当前组合没有可用的 subagents 服务：无法做语义状态对账',
@@ -211,7 +322,7 @@ export async function checkChapterState(root, input, host) {
         `状态对账子代理没有提交通过校验的结果（尝试 ${attempts} 次）`)
     }
 
-    const latest = readManifest(root, work)
+    const latest: ManifestView = readManifest(root, work)
     const latestEntry = entryOf(latest, chapter)
     if (latestEntry === undefined || latestEntry.currentRevision !== revision) {
       throw new StoryError('state-check-stale', `第 ${chapter} 章在核对期间改版：请对当前版本重跑`)

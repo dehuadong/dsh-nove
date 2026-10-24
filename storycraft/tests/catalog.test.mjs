@@ -97,7 +97,7 @@ try {
   try {
     const startupWork = store.initWork(startupRoot, { title: '启动对账' }).workId
     await rm(workFile(startupRoot, startupWork), { force: true })
-    const { apply } = await import('../index.js')
+    const { apply } = await import('../dist/index.js')
     apply({
       get: name => (name === 'workspaceRegistry' ? { list: () => [{ path: startupRoot }] } : undefined),
       webServer: { register: () => () => {} },

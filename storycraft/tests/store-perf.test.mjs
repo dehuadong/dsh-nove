@@ -2,7 +2,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import * as bible from '../bible.js'
+import * as bible from '../dist/bible.js'
 import * as store from '../dist/store-db.js'
 import { select } from '../dist/retrieval.js'
 import { reviewFixture } from './review-fixture.mjs'

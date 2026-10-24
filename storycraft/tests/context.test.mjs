@@ -3,9 +3,9 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../dist/storage.js'
-import * as b from '../bible.js'
+import * as b from '../dist/bible.js'
 import { openWork } from '../dist/db.js'
-import { assembleRoleContext } from '../context.js'
+import { assembleRoleContext } from '../dist/context.js'
 
 let failures = 0
 function check(name, condition, detail) {

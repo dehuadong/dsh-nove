@@ -3,8 +3,8 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { closeSubmission, consumeSubmission, openSubmission, submitPayload } from '../submission.js'
-import { SUBMIT_OUTPUT } from '../tools.js'
+import { closeSubmission, consumeSubmission, openSubmission, submitPayload } from '../dist/submission.js'
+import { SUBMIT_OUTPUT } from '../dist/tools.js'
 import * as s from '../dist/storage.js'
 import { reviewFixture } from './review-fixture.mjs'
 

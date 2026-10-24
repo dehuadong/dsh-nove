@@ -1,7 +1,7 @@
 // The work mode mounts one skill row that serves every form and every role.
 import { apply } from '../skills.js'
 import { FORM_META, planApprovalPolicy } from '../dist/domain.js'
-import { ROLE_META, writerSkills } from '../delegate.js'
+import { ROLE_META, writerSkills } from '../dist/delegate.js'
 
 let failures = 0
 function check(name, condition, detail) {

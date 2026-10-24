@@ -2,11 +2,11 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { delegateRole } from '../delegate.js'
-import { checkWordRange } from '../landing.js'
-import { submitPayload } from '../submission.js'
+import { delegateRole } from '../dist/delegate.js'
+import { checkWordRange } from '../dist/landing.js'
+import { submitPayload } from '../dist/submission.js'
 import * as s from '../dist/storage.js'
-import { writeBible } from '../bible.js'
+import { writeBible } from '../dist/bible.js'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0
@@ -386,7 +386,7 @@ try {
     () => delegateRole(root, { work, chapter: 4, role: 'reviser' }, { service: fakeService([]), agent, signal }))
 
   // The model-visible action wires the same delegation path through ctx.get.
-  const { apply } = await import('../tools.js')
+  const { apply } = await import('../dist/tools.js')
   const registered = []
   const hostService = fakeService([completed({
     output: [{ type: 'text', text: '<<<TITLE 第二章 TITLE>>>\n<<<CHAPTER 第二章正文。CHAPTER>>>' }],

@@ -1,5 +1,5 @@
 // Consistency checks between a writer output and the context whitelist.
-import { checkConsistency } from '../consistency.js'
+import { checkConsistency } from '../dist/consistency.js'
 
 let failures = 0
 function check(name, condition, detail) {

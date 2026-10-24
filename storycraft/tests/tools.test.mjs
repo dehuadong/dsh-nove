@@ -2,13 +2,13 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import * as tools from '../tools.js'
+import * as tools from '../dist/tools.js'
 import * as s from '../dist/storage.js'
 import { openWork } from '../dist/db.js'
-import { readProposal } from '../proposals.js'
+import { readProposal } from '../dist/proposals.js'
 import { clearCurrent, setCurrent } from '../dist/current.js'
-import { checkDraft } from '../landing.js'
-import { submitPayload } from '../submission.js'
+import { checkDraft } from '../dist/landing.js'
+import { submitPayload } from '../dist/submission.js'
 
 let failures = 0
 function check(name, condition, detail) {

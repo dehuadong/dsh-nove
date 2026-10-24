@@ -33,7 +33,7 @@ updated: 2026-10-24
 - 单个插件包，没有 monorepo；Cordis 按包名加载 Host 入口；
 - DSH Client 通过 `__ModuleLoader__` 加载单文件 `client.js`，不能用 tsc 直接产出多模块；
 - 当前 package 的 `exports` 和 `dsh.bundle.patch` 已固定入口，迁移期间要保持可加载；
-- 因此采用 `src/*.ts` → `dist/*.js`，迁移期根 JS 仍作为未迁移模块与稳定入口；全部迁完后把 `exports` 指向 `dist/`，再移除根 JS。
+- 因此采用 `src/*.ts` → `dist/*.js`，迁移期根 JS 仍作为未迁移模块与稳定入口；入口模块（`index`、`tools`、`skills`）迁到 TS 的当层改写 `exports` 目标，全部迁完后移除根 JS。
 
 采用 `src/*.ts` → `dist/*.js`：
 
@@ -49,7 +49,7 @@ updated: 2026-10-24
 ### 2. 类型来源
 
 - Host 模块没有直接 `@deepseek-ai/*` import，DSH API 通过 `ctx`/`exec` 参数进入；
-- T3 前建 `types/dsh.d.ts`，只声明故事工坊实际使用的 Context/Exec/Agent/Subagent 面，不引入整个 DSH 包依赖；
+- T3 前建 `types/dsh.d.ts`，只声明故事工坊实际使用的 Context/Exec/Agent/Subagent 面，不引入整个 DSH 包依赖；本地声明要显式纳入 `tsconfig.json` 的 `include`，否则不参与编译；
 - 如果后续 DSH 提供稳定 `.d.ts`，替换本地声明，删除 shim；
 - Client 的 React 类型在 T4 用 `@types/react` devDependency，不进安装包。
 
@@ -63,7 +63,8 @@ updated: 2026-10-24
 | L1 | `domain`、`chapter-edit`、`search-text`、`critique`、`materials`、`current`、`epub` | 只依赖 Node/domain；先建立类型与测试基线 |
 | L2 | `db`、`artifact-contract`、`search-index`、`style`、`revision`、`state-projection` | 数据/规则叶子 |
 | L3 | `store-db`、`artifact-store`、`storage`、`retrieval`、`volumes` | 中心存储与查询；`store-db` 单独一批 |
-| L4 | `bible`、`facts`、`landing`、`context`、`role-input`、`submission`、`delegate`、`state-check`、`state-settle`、`tools`、`index` | 角色/状态消费与 DSH 接缝 |
+| L4 | `bible`、`facts`、`landing`、`consistency`、`context`、`role-input`、`submission`、`proposals`、`state-check`、`state-settle`、`state-events`、`delegate`、`tools`、`index` | 角色/状态消费与 DSH 接缝；`consistency`/`proposals` 是 `landing`/`tools` 的编译边界，`state-events` 运行时无消费者，删除另见 #72 |
+| L4b | `skills` | 技能 provider 入口；迁到 `dist/` 后包内 `skills/` 目录基准上跳一级，`exports` 的 `./skills` 当层改指 dist |
 | L5 | `client` | 浏览器入口；单独用 esbuild 打成单文件 |
 
 每层完成后：`ci --no-e2e`、pack-check、tarball 安装 smoke 全过；下一层才开始。

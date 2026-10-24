@@ -14,8 +14,9 @@ import {
   FORM_META, StoryError, chapterNumber, formOf, latestReview, readFoundationState,
   readManifest, readPlan, readSummaryState, reviseChapter, stageOf, summaryAdmissible, unitOf, writeChapter, writeFoundationStage,
   writeReview, writeSummary, writePlan,
-} from './dist/storage.js'
-import { readFoundationDocuments } from './dist/artifact-store.js'
+  type Form,
+} from './storage.js'
+import { readFoundationDocuments } from './artifact-store.js'
 import { loadRoleInput } from './role-input.js'
 import { checkDraft } from './landing.js'
 import { closeSubmission, consumeSubmission, openSubmission } from './submission.js'
@@ -23,13 +24,19 @@ import { closeSubmission, consumeSubmission, openSubmission } from './submission
 /** One child run's budget; the timer is cleared before landing. */
 const DELEGATE_TIMEOUT_MS = 600000
 
+/** One review observation as the store returns it; only id and assessment are read. */
+interface ReviewObservation {
+  id: string
+  assessment?: string
+}
+
 /** Observations that still block settlement. */
-function openObservationsOf(review) {
+function openObservationsOf(review: { observations?: ReviewObservation[] } | undefined): ReviewObservation[] {
   return (review?.observations ?? []).filter(observation => observation.assessment === 'issue')
 }
 
 /** Short hash for a review receipt revision. */
-function hashText(text) {
+function hashText(text: unknown): string {
   return createHash('sha256').update(String(text ?? '')).digest('hex').slice(0, 12)
 }
 
@@ -39,6 +46,12 @@ const MAX_WARNINGS = 5
 /** Maximum characters in one warning. */
 const MAX_WARNING_CHARS = 120
 
+/** One role's receipt label and the skill the child must load. */
+interface RoleMeta {
+  label: string
+  skill?: string
+}
+
 /** Role labels and role-specific skills; writer adds the form skill separately. */
 export const ROLE_META = {
   writer: { label: '写手', skill: 'storycraft-write-craft' },
@@ -47,24 +60,70 @@ export const ROLE_META = {
   summarizer: { label: '摘要' },
   architect: { label: '架构师', skill: 'storycraft-architect' },
   planner: { label: '规划', skill: 'storycraft-plan-craft' },
+} as const
+
+/** Role names the action dispatches. */
+type RoleName = keyof typeof ROLE_META
+
+/** Whether a model-supplied role name is declared in `ROLE_META`. */
+function isRoleName(role: string): role is RoleName {
+  // A plain-object lookup mirrors the action's historical validation exactly.
+  return (ROLE_META as Record<string, RoleMeta | undefined>)[role] !== undefined
 }
 
-export function writerSkills(form) {
+export function writerSkills(form: Form): string[] {
   return [...new Set([ROLE_META.writer.skill, FORM_META[formOf({ form })].skill])]
 }
 
-function chapterEntryOf(manifest, number) {
+/** One chapter entry from the manifest. */
+interface ManifestChapter {
+  number: number
+  currentRevision: number
+  planApproved?: boolean
+  stage?: string
+}
+
+/** Manifest fields this module reads; the store owns the full shape. */
+interface ManifestView {
+  workId: string
+  title: string
+  chapters: ManifestChapter[]
+  outline?: { approvedAt?: string }
+  planApproval?: string
+  wordRange?: { min: number, max: number }
+}
+
+/** The chapter entry of one manifest, when the manifest lists it. */
+function chapterEntryOf(manifest: ManifestView, number: number): ManifestChapter | undefined {
   return manifest.chapters.find(item => item.number === number)
+}
+
+/** Latest review fields preflight reads; the store owns the rest. */
+interface PreflightReview {
+  revision: number
+  items: Array<{ done?: boolean }>
+  observations?: ReviewObservation[]
+}
+
+/** One preflight request. */
+interface PreflightInput {
+  work: string
+  chapter: number
+  role: RoleName
+  mode: string
+}
+
+/** Preflight result: the manifest and the chapter entry, when present. */
+interface PreflightResult {
+  manifest: ManifestView
+  entry: ManifestChapter | undefined
 }
 
 /**
  * Stage preflight before a child is started, so a doomed run never burns a full
  * generation. The codes match the existing store actions.
- * @param {string} root - workspace.
- * @param {{work: string, chapter: number, role: string, mode: string}} input - request.
- * @returns {{manifest: object, entry: object|undefined}} preflight result.
  */
-function preflight(root, input) {
+function preflight(root: string, input: PreflightInput): PreflightResult {
   const { work, chapter, role, mode } = input
   const manifest = readManifest(root, work)
   const entry = chapterEntryOf(manifest, chapter)
@@ -115,7 +174,7 @@ function preflight(root, input) {
 
   if (role === 'reviewer') return { manifest, entry }
 
-  const latest = latestReview(root, work, chapter)
+  const latest: PreflightReview | undefined = latestReview(root, work, chapter)
   if (latest === undefined) throw new StoryError('review-required', `第 ${chapter} 章还没有审稿：先 story_review`)
   const open = latest.items.filter(item => !item.done)
   if (open.length === 0) {
@@ -127,17 +186,29 @@ function preflight(root, input) {
   return { manifest, entry }
 }
 
+/** Context package the shared role-input loader assembles. */
+type RoleContext = Awaited<ReturnType<typeof loadRoleInput>>['context']
+
 /** Render the assembled sections as the child's context block. */
-function contextText(context) {
+function contextText(context: RoleContext): string {
   return context.sections
     .filter(section => section.content !== '')
     .map(section => `## ${section.title}\n${section.content}`)
     .join('\n\n')
 }
 
+/** One child prompt request. */
+interface PromptRequest {
+  input: { role: RoleName, chapter: number, mode: string }
+  manifest: ManifestView
+  context: RoleContext
+  delegationId: string
+}
+
 /** Build the child prompt for one role. */
-function promptFor({ input, manifest, context, delegationId }) {
-  const meta = ROLE_META[input.role]
+function promptFor({ input, manifest, context, delegationId }: PromptRequest): string {
+  // Only the label and the optional skill are read from the role table.
+  const meta: RoleMeta = ROLE_META[input.role]
   const form = formOf(manifest)
   const formMeta = FORM_META[form]
   const skills = input.role === 'writer' ? writerSkills(form) : (meta.skill === undefined ? [] : [meta.skill])
@@ -181,7 +252,7 @@ function promptFor({ input, manifest, context, delegationId }) {
   lines.push('story_submit 返回 ok:false 时，按 error.retryable 修正 payload 后重提，最多 3 次；不要把工具错误当成最终失败。')
   return lines.join('\n')
 }
-function abortPromise(signal, message, code) {
+function abortPromise(signal: AbortSignal, message: string, code: string): Promise<never> {
   return new Promise((_, reject) => {
     if (signal.aborted) {
       reject(new StoryError(code, message))
@@ -191,14 +262,23 @@ function abortPromise(signal, message, code) {
   })
 }
 
+/** Error code and message one unavailable-child refusal uses. */
+interface AvailabilityOptions {
+  unavailableCode?: string
+  unavailableMessage?: string
+}
+
 /**
  * Refuse a run before any preflight or DB read when no child can be started.
  * Shared by chapter delegation (to keep its error order) and the state check.
- * @param {object|undefined} service - subagents service.
- * @param {object|undefined} agent - calling agent.
- * @param {{unavailableCode?: string, unavailableMessage?: string}} [options] - error shape.
  */
-function assertChildAvailability(service, agent, options = {}) {
+function assertChildAvailability(
+  // `ctx.get('subagents')` is a DSH dynamic boundary; the Harness owns the service shape.
+  service: any,
+  // `exec.agent` is a DSH dynamic boundary; the Harness owns the agent shape.
+  agent: any,
+  options: AvailabilityOptions = {},
+): void {
   const unavailableCode = options.unavailableCode ?? 'delegation-unavailable'
   const unavailableMessage = options.unavailableMessage
     ?? '当前组合没有可用的 subagents 服务：请走手动 story_context + subagent 路径'
@@ -213,16 +293,57 @@ function assertChildAvailability(service, agent, options = {}) {
   }
 }
 
+/** One started child from the subagents service. */
+interface ChildActivation {
+  // The run envelope belongs to the subagents service; the Harness owns its shape.
+  result: Promise<any>
+  dispose(): Promise<void> | void
+}
+
+/** Child completion fields this module reads; the service owns the rest. */
+interface ChildResult {
+  stopReason?: string
+  diagnostic?: string
+}
+
+/** A started child and the cleaner the caller must run. */
+interface ChildRun {
+  result: ChildResult
+  dispose: () => Promise<void>
+}
+
+/** Host dependencies supplied by the action layer. */
+interface DelegateHost {
+  // `ctx.get('subagents')` is a DSH dynamic boundary; the Harness owns the service shape.
+  service?: any
+  // `exec.agent` is a DSH dynamic boundary; the Harness owns the agent shape.
+  agent?: any
+  /** Caller cancellation from `exec.signal`. */
+  signal?: AbortSignal
+  /** Per-run budget override; defaults to DELEGATE_TIMEOUT_MS. */
+  timeoutMs?: number
+}
+
+/** One child run's request; service and agent reuse the host boundary. */
+interface ChildRunInput extends DelegateHost {
+  cwd: string
+  prompt: string
+  label: string
+  timeoutMs: number
+  availability?: boolean
+  unavailableCode?: string
+  failedCode?: string
+  unavailableMessage?: string
+}
+
 /**
  * Start one child and await its completion.
  *
  * The caller owns cleanup: this returns `{result, dispose}` so landing can
  * happen before the child is disposed, matching the pre-refactor order. On any
  * failure the helper disposes before rethrowing.
- * @param {object} input - service, agent, cwd, prompt, label, signal, timeoutMs.
- * @returns {Promise<{result: object, dispose: () => Promise<void>}>} child result and cleaner.
  */
-export async function runChild(input) {
+export async function runChild(input: ChildRunInput): Promise<ChildRun> {
   const {
     service, agent, cwd, prompt, label, signal, timeoutMs,
     availability = true,
@@ -238,9 +359,9 @@ export async function runChild(input) {
   const timer = setTimeout(() => timeout.abort(), timeoutMs)
   const callerSignal = signal ?? new AbortController().signal
   const combined = AbortSignal.any([callerSignal, timeout.signal])
-  let activation
+  let activation: ChildActivation | undefined
   let disposed = false
-  const dispose = async () => {
+  const dispose = async (): Promise<void> => {
     if (disposed) return
     disposed = true
     clearTimeout(timer)
@@ -266,15 +387,17 @@ export async function runChild(input) {
         signal: combined,
         delivery: 'caller',
       })
-    } catch (error) {
+    } catch (error: any) {
+      // A startActivation rejection crosses the service boundary; only code and message are read.
       if (error?.code === 'UNSUPPORTED_CAPABILITY' || /provider|capabilit/iu.test(String(error?.message))) {
         throw new StoryError(unavailableCode, `子代理 provider 不可用：${error?.message ?? error}`)
       }
       throw new StoryError(failedCode, `子代理启动失败：${error?.message ?? error}`)
     }
 
+    // The inner catch above always throws, so a started activation exists here.
     const result = await Promise.race([
-      activation.result,
+      activation!.result,
       abortPromise(callerSignal, '子代理调用被取消', failedCode),
       abortPromise(timeout.signal, '子代理调用超时', failedCode),
     ]).catch(error => {
@@ -290,7 +413,7 @@ export async function runChild(input) {
 }
 
 /** Shorten receipt warnings to the contract budget and mark truncation. */
-function receiptWarnings(warnings) {
+function receiptWarnings(warnings: readonly unknown[] | undefined): string[] {
   const list = (warnings ?? []).map(warning => String(warning))
   const truncated = list.length > MAX_WARNINGS
   const kept = list.slice(0, truncated ? MAX_WARNINGS - 1 : MAX_WARNINGS)
@@ -301,8 +424,11 @@ function receiptWarnings(warnings) {
   return kept
 }
 
+/** Compact receipt; the size guard trims only the warning list. */
+type Receipt = Record<string, unknown> & { warnings?: string[] }
+
 /** Keep one receipt under the serialized character budget. */
-function fitReceipt(receipt) {
+function fitReceipt(receipt: Receipt): Receipt {
   const budget = 1500
   const value = { ...receipt }
   if (JSON.stringify(value).length <= budget) return value
@@ -315,20 +441,47 @@ function fitReceipt(receipt) {
 }
 
 /** Refuse to land after the caller cancelled the run. */
-function assertActive(signal) {
+function assertActive(signal: AbortSignal): void {
   if (signal.aborted) {
     throw new StoryError('delegation-failed', '子代理调用已取消，结果未落库')
   }
 }
 
 /** Read the landed stage after one write. */
-function landedStage(root, work, chapter) {
+function landedStage(root: string, work: string, chapter: number): ReturnType<typeof stageOf> {
   const manifest = readManifest(root, work)
   return stageOf(chapterEntryOf(manifest, chapter))
 }
 
+/** Foundation stages the architect child can produce. */
+type FoundationStage = 'frame' | 'rules' | 'roles' | 'cards'
+
+/** Whether a model-supplied stage is one of the four foundation stages. */
+function isFoundationStage(stage: string): stage is FoundationStage {
+  return (['frame', 'rules', 'roles', 'cards'] as readonly string[]).includes(stage)
+}
+
+/** Rendered foundation text handed to the architect child. */
+interface FoundationDocuments {
+  storyFrame?: string
+  volumeMap?: string
+  /** Roles index content is a store row; it is serialized for the prompt as-is. */
+  rolesIndex?: unknown
+}
+
+/** One foundation-stage prompt request. */
+interface ArchitectPromptRequest {
+  work: string
+  stage: FoundationStage
+  instruction: string
+  delegationId: string
+  // `readManifest` returns `any`; the store owns the full manifest shape.
+  manifest: ReturnType<typeof readManifest>
+  foundation: FoundationDocuments
+}
+
 /** Build the architect child prompt for one foundation stage. */
-function architectPrompt({ work, stage, instruction, delegationId, manifest, foundation }) {
+function architectPrompt({ work, stage, instruction, delegationId, manifest, foundation }: ArchitectPromptRequest): string {
   const labels = { frame: '故事框架与卷图', rules: '作品规则', roles: '角色索引', cards: '角色卡' }
   const shapes = {
     frame: 'payload 格式：{"storyFrame":"# 故事框架…（含 ## 前提/## 核心冲突/## 主角动机/## 约束/## 因果解决）","volumeMap":"## 第一卷\\n- 卷目标：…\\n- 起止章：…\\n- 关键节拍：…\\n- 卷末承诺：…","currentFocus":"# 当前焦点\\n…"}。',
@@ -356,11 +509,18 @@ function architectPrompt({ work, stage, instruction, delegationId, manifest, fou
   ].join('\n')
 }
 
+/** Architect action arguments after the role dispatch. */
+interface ArchitectInput {
+  work: unknown
+  stage?: unknown
+  instruction?: unknown
+}
+
 /** Run one foundation stage through the architect child and land it. */
-async function delegateArchitect(root, input, host) {
+async function delegateArchitect(root: string, input: ArchitectInput, host: DelegateHost): Promise<Receipt> {
   const work = String(input.work)
   const stage = String(input.stage ?? '')
-  if (!['frame', 'rules', 'roles', 'cards'].includes(stage)) {
+  if (!isFoundationStage(stage)) {
     throw new StoryError('foundation-stage-invalid', `未知的 foundation stage：${stage}`)
   }
   assertChildAvailability(host?.service, host?.agent)
@@ -380,9 +540,9 @@ async function delegateArchitect(root, input, host) {
       rolesIndex: documents.rolesIndex?.content,
     },
   })
-  const timeoutMs = Number.isFinite(host.timeoutMs) ? host.timeoutMs : DELEGATE_TIMEOUT_MS
+  const timeoutMs = Number.isFinite(host.timeoutMs) ? host.timeoutMs! : DELEGATE_TIMEOUT_MS
   const signal = host.signal ?? new AbortController().signal
-  let child
+  let child: ChildRun | undefined
   try {
     child = await runChild({
       service: host?.service,
@@ -420,17 +580,47 @@ async function delegateArchitect(root, input, host) {
   }
 }
 
+/** Action arguments for `story_delegate`; each field is validated before use. */
+interface DelegateInput {
+  work?: unknown
+  role?: unknown
+  chapter?: unknown
+  mode?: unknown
+  stage?: unknown
+  instruction?: unknown
+}
+
+/** Revision write input: the store's declared input plus the problem list the action layer carries. */
+type RevisionInput = Parameters<typeof reviseChapter>[1] & {
+  problemIds: string[]
+  requirePlanApproval: boolean
+}
+
+/** Summary write input: the store's declared input plus the structured payload and absent-only guard. */
+type SummaryInput = Parameters<typeof writeSummary>[1] & {
+  content: unknown
+  ifAbsent: boolean
+}
+
+/** One reviewer item from the child's validated payload. */
+interface ReviewerItem {
+  quote: string
+  problem: string
+  /** Reader impact the child may omit or mistype; only its text is checked. */
+  impact?: unknown
+  severity?: string
+  fix?: string
+  mode?: string
+  resolves?: string
+}
+
 /**
  * Run one role through the subagents service and land its result.
- * @param {string} root - workspace directory.
- * @param {object} input - action arguments.
- * @param {{service?: object, agent?: object, signal?: AbortSignal}} host - host dependencies.
- * @returns {Promise<object>} compact receipt.
  */
-export async function delegateRole(root, input, host) {
+export async function delegateRole(root: string, input: DelegateInput, host: DelegateHost): Promise<Receipt> {
   const work = String(input.work)
   const role = String(input.role)
-  if (ROLE_META[role] === undefined) {
+  if (!isRoleName(role)) {
     throw new StoryError('delegation-failed', `未知角色：${role}`)
   }
   if (role === 'architect') return delegateArchitect(root, { ...input, work }, host)
@@ -439,7 +629,7 @@ export async function delegateRole(root, input, host) {
   const mode = role === 'reviser' && typeof input.mode === 'string' ? input.mode : 'patch'
   assertChildAvailability(host?.service, host?.agent)
 
-  preflight(root, { work, chapter, role, mode })
+  const { manifest } = preflight(root, { work, chapter, role, mode })
   const loaded = await loadRoleInput(root, {
     work, chapter, role,
     ...(typeof input.instruction === 'string' ? { instruction: input.instruction } : {}),
@@ -452,11 +642,11 @@ export async function delegateRole(root, input, host) {
     ...(role === 'reviser' ? { mode } : {}),
     ...(loaded.manifest.wordRange === undefined ? {} : { wordRange: loaded.manifest.wordRange }),
   })
-  const prompt = promptFor({ input: { role, chapter, mode }, manifest: loaded.manifest, context: loaded.context, delegationId: opened.delegationId })
+  const prompt = promptFor({ input: { role, chapter, mode }, manifest, context: loaded.context, delegationId: opened.delegationId })
 
-  const timeoutMs = Number.isFinite(host.timeoutMs) ? host.timeoutMs : DELEGATE_TIMEOUT_MS
+  const timeoutMs = Number.isFinite(host.timeoutMs) ? host.timeoutMs! : DELEGATE_TIMEOUT_MS
   const signal = host.signal ?? new AbortController().signal
-  let child
+  let child: ChildRun | undefined
   try {
     child = await runChild({
       service: host?.service,
@@ -527,8 +717,9 @@ export async function delegateRole(root, input, host) {
     }
 
     if (role === 'reviewer') {
-      const entry = chapterEntryOf(loaded.manifest, chapter)
-      const observations = payload.items.map((item, index) => ({
+      const entry = chapterEntryOf(manifest, chapter)
+      const items = payload.items as ReviewerItem[]
+      const observations = items.map((item, index) => ({
         id: `O${index + 1}`,
         summary: item.problem,
         evidence: typeof item.impact === 'string' && item.impact.trim() === '' ? [] : [item.impact],
@@ -538,7 +729,8 @@ export async function delegateRole(root, input, host) {
         ...(item.severity === undefined ? {} : { severity: item.severity === 'blocker' ? 'blocking' : item.severity }),
         ...(item.fix === undefined ? {} : { fix: item.fix }),
         ...(item.mode === undefined ? {} : { mode: item.mode }),
-        sourceRefs: [{ sourceId: `chapter:${chapter}:r${entry.currentRevision}`, quote: item.quote }],
+        // Preflight guarantees a written chapter for the reviewer role.
+        sourceRefs: [{ sourceId: `chapter:${chapter}:r${entry!.currentRevision}`, quote: item.quote }],
       }))
       const written = writeReview(root, { work, chapter, observations })
       return fitReceipt({
@@ -551,7 +743,7 @@ export async function delegateRole(root, input, host) {
         artifact: { workId: work, artifactId: written.artifactId, revisionId: written.revisionId, kind: 'review' },
         problems: {
           total: written.observations.length,
-          open: written.observations.filter(observation => observation.assessment === 'issue').length,
+          open: written.observations.filter((observation: { assessment?: string }) => observation.assessment === 'issue').length,
         },
         submissionAttempts: attempts,
       })
@@ -559,7 +751,8 @@ export async function delegateRole(root, input, host) {
 
     if (role === 'summarizer') {
       assertActive(signal)
-      const receipt = writeSummary(root, { work, chapter, content: payload, ifAbsent: true })
+      const summaryInput: SummaryInput = { work, chapter, content: payload, ifAbsent: true }
+      const receipt = writeSummary(root, summaryInput)
       return fitReceipt({
         ok: true,
         workId: work,
@@ -577,10 +770,11 @@ export async function delegateRole(root, input, host) {
     assertActive(signal)
     const open = openObservationsOf(latestReview(root, work, chapter)).map(observation => observation.id)
     const problemIds = Array.isArray(payload.resolved) ? payload.resolved.map(String) : open
-    const revised = reviseChapter(root, {
+    const revisionInput: RevisionInput = {
       work, chapter, body, problemIds, mode,
       requirePlanApproval: readManifest(root, work).planApproval === 'required',
-    })
+    }
+    const revised = reviseChapter(root, revisionInput)
     return fitReceipt({
       ok: true,
       workId: work,

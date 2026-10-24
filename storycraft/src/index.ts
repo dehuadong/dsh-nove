@@ -13,14 +13,14 @@
 
 import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, resolve } from 'node:path'
-import { approveChapterPlan, approveFoundation, approveOutline, createBackup, deleteBackup, deleteChapter, deleteMaterial, ensureReconciled, exportWorkAtomic, importMaterial, moveChapter, listMaterials, listTrash, listWorks, nextStep, purgeTrash, readFoundationState, readManifest, restoreBackup, listBackups, readChapter, readReview, readWork, renameMaterial, restoreWork, setMaterialPurpose, status as readStatus, StoryError } from './dist/storage.js'
-import { critique } from './dist/critique.js'
-import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent } from './dist/current.js'
-import { readVolumes } from './dist/volumes.js'
-import { clearSessionCurrent, readSessionCurrent, setSessionCurrent } from './dist/store-db.js'
+import { approveChapterPlan, approveFoundation, approveOutline, createBackup, deleteBackup, deleteChapter, deleteMaterial, ensureReconciled, exportWorkAtomic, importMaterial, moveChapter, listMaterials, listTrash, listWorks, nextStep, purgeTrash, readFoundationState, readManifest, restoreBackup, listBackups, readChapter, readReview, readWork, renameMaterial, restoreWork, setMaterialPurpose, status as readStatus, StoryError } from './storage.js'
+import { critique } from './critique.js'
+import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent } from './current.js'
+import { readVolumes } from './volumes.js'
+import { clearSessionCurrent, readSessionCurrent, setSessionCurrent } from './store-db.js'
 import { assembleBrief, extractStyleSamples, readBible, writeBible } from './bible.js'
-import { listRoleCards, readFoundationDocuments, renderFoundationContent } from './dist/artifact-store.js'
-import { backupsDir, exportsDir } from './dist/db.js'
+import { listRoleCards, readFoundationDocuments, renderFoundationContent } from './artifact-store.js'
+import { backupsDir, exportsDir } from './db.js'
 
 /** Requires the host web server; without it the browser surface has no data. */
 export const inject = ['webServer']
@@ -28,13 +28,24 @@ export const inject = ['webServer']
 /** Route prefix owned by this plugin. */
 const BASE = '/api/dsh-storycraft'
 
+/** One foundation document as the artifact store returns it. */
+type FoundationDocument = NonNullable<ReturnType<typeof readFoundationDocuments>['storyFrame']>
+
+/** Options of a write route. */
+interface PostRouteOptions {
+  /** Reject a body that is not declared as JSON. */
+  requireJson?: boolean
+  /** Largest body this route accepts, in bytes. */
+  maxBytes?: number
+}
+
 /**
  * Answer one request with JSON.
- * @param {object} res - ServerResponse.
- * @param {number} status - HTTP status.
- * @param {unknown} body - serializable payload.
+ * @param res - ServerResponse.
+ * @param status - HTTP status.
+ * @param body - serializable payload.
  */
-function json(res, code, body) {
+function json(res: import('node:http').ServerResponse, code: number, body: unknown): void {
   res.writeHead(code, {
     'content-type': 'application/json; charset=utf-8',
     'cache-control': 'no-store',
@@ -44,26 +55,30 @@ function json(res, code, body) {
 
 /**
  * Whether the request came from this machine over loopback.
- * @param {object} req - IncomingMessage.
- * @returns {boolean} true for a loopback peer.
+ * @param req - IncomingMessage.
+ * @returns true for a loopback peer.
  */
-function isLoopback(req) {
+function isLoopback(req: import('node:http').IncomingMessage): boolean {
   const address = req.socket?.remoteAddress
   return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1'
 }
 
 /** The single failure envelope every route answers with. */
-function failure(code, message) {
+function failure(code: string, message: string): { ok: false, error: { code: string, message: string } } {
   return { ok: false, error: { code, message } }
 }
 
 /**
  * Guard a read route and answer with one envelope shape.
- * @param {object} req - IncomingMessage.
- * @param {object} res - ServerResponse.
- * @param {(query: URLSearchParams) => Promise<object>} handler - route body returning the success payload.
+ * @param req - IncomingMessage.
+ * @param res - ServerResponse.
+ * @param handler - route body returning the success payload.
  */
-async function readRoute(req, res, handler) {
+async function readRoute(
+  req: import('node:http').IncomingMessage,
+  res: import('node:http').ServerResponse,
+  handler: (query: URLSearchParams) => Promise<object>,
+): Promise<void> {
   if (req.method !== 'GET') {
     json(res, 405, failure('method-not-allowed', '请使用 GET。'))
     return
@@ -86,11 +101,18 @@ async function readRoute(req, res, handler) {
 
 /**
  * Guard a write route that reads a small JSON body.
- * @param {object} req - IncomingMessage.
- * @param {object} res - ServerResponse.
- * @param {(body: object) => Promise<object>} handler - route body returning the success payload.
+ * @param req - IncomingMessage.
+ * @param res - ServerResponse.
+ * @param handler - route body returning the success payload.
+ * @param options - body requirements of this route.
  */
-async function postRoute(req, res, handler, options = {}) {
+async function postRoute(
+  req: import('node:http').IncomingMessage,
+  res: import('node:http').ServerResponse,
+  // Parsed request JSON is a dynamic boundary: each route narrows the fields it reads.
+  handler: (body: any) => Promise<object>,
+  options: PostRouteOptions = {},
+): Promise<void> {
   if (req.method !== 'POST') {
     json(res, 405, failure('method-not-allowed', '请使用 POST。'))
     return
@@ -104,17 +126,18 @@ async function postRoute(req, res, handler, options = {}) {
       && !String(req.headers['content-type'] ?? '').toLowerCase().startsWith('application/json')) {
       throw new StoryError('invalid-body', '请求必须是 application/json')
     }
-    const chunks = []
+    const chunks: Buffer[] = []
     let size = 0
+    const maxBytes = options.maxBytes
     for await (const chunk of req) {
       size += chunk.length
-      if (Number.isInteger(options.maxBytes) && size > options.maxBytes) {
+      if (maxBytes !== undefined && Number.isInteger(maxBytes) && size > maxBytes) {
         throw new StoryError('body-too-large', '请求体超过上限')
       }
       chunks.push(chunk)
     }
     const text = Buffer.concat(chunks).toString('utf8')
-    let body
+    let body: any
     try {
       body = text === '' ? {} : JSON.parse(text)
     } catch {
@@ -132,10 +155,10 @@ async function postRoute(req, res, handler, options = {}) {
 
 /**
  * Read the persisted session → work pointers of one workspace.
- * @param {string} root - workspace directory.
- * @returns {Promise<Record<string, string>>} the map, empty when absent.
+ * @param root - workspace directory.
+ * @returns the map, empty when absent.
  */
-async function readCurrentFile(root) {
+async function readCurrentFile(root: string): Promise<Record<string, string>> {
   try {
     return readSessionCurrent(root)
   } catch {
@@ -150,17 +173,19 @@ async function readCurrentFile(root) {
  * The browser names the workspace it shows; the host only agrees for a
  * directory its own registry knows, so a crafted request cannot turn these
  * routes into an arbitrary-tree reader.
- * @param {object} ctx - host plugin context.
- * @param {string} root - requested workspace directory.
- * @returns {boolean} true when the path is a known workspace, or when this
+ * @param ctx - host plugin context.
+ * @param root - requested workspace directory.
+ * @returns true when the path is a known workspace, or when this
  *   deployment composes no registry to check against.
  */
-async function workspaceRootOf(ctx, root) {
-  const registry = ctx.get('workspaceRegistry')
+async function workspaceRootOf(ctx: DshContext, root: string): Promise<string> {
+  // Host service: the registry shape is dynamic, so it stays `any` and only the
+  // members read here are narrowed.
+  const registry: any = ctx.get('workspaceRegistry')
   if (registry === undefined || typeof registry.list !== 'function') {
     throw new StoryError('workspace-registry-unavailable', '宿主没有工作区注册表，无法校验作品根')
   }
-  const canonical = async (value) => {
+  const canonical = async (value: string): Promise<string> => {
     try {
       return await realpath(resolve(value))
     } catch {
@@ -168,8 +193,8 @@ async function workspaceRootOf(ctx, root) {
     }
   }
   const wanted = await canonical(root)
-  const normalize = value => value.replace(/\\/g, '/').toLowerCase()
-  const known = await Promise.all((registry.list() ?? []).map(workspace => canonical(workspace.path)))
+  const normalize = (value: string): string => value.replace(/\\/g, '/').toLowerCase()
+  const known: string[] = await Promise.all((registry.list() ?? []).map((workspace: any) => canonical(workspace.path)))
   if (!known.some(path => normalize(path) === normalize(wanted))) {
     throw new StoryError('unknown-workspace', `宿主不认识这个工作区目录：${root}`)
   }
@@ -178,11 +203,11 @@ async function workspaceRootOf(ctx, root) {
 
 /**
  * The workspace root a read names.
- * @param {object} ctx - host plugin context.
- * @param {URLSearchParams} query - request query.
- * @returns {string} absolute workspace directory.
+ * @param ctx - host plugin context.
+ * @param query - request query.
+ * @returns absolute workspace directory.
  */
-async function rootOf(ctx, query) {
+async function rootOf(ctx: DshContext, query: URLSearchParams): Promise<string> {
   const root = query.get('root') ?? ''
   if (root === '' || !isAbsolute(root)) {
     throw new StoryError('invalid-root', '缺少绝对路径参数 root（当前工作区目录）')
@@ -191,14 +216,14 @@ async function rootOf(ctx, query) {
 }
 
 /** The work identity a read names. */
-function workOf(query) {
+function workOf(query: URLSearchParams): string {
   const id = query.get('id') ?? ''
   if (id === '') throw new StoryError('invalid-work', '缺少参数 id（作品 id）')
   return id
 }
 
 /** The chapter number a read names. */
-function chapterOf(query) {
+function chapterOf(query: URLSearchParams): number {
   const chapter = Number(query.get('chapter') ?? '')
   if (!Number.isInteger(chapter) || chapter < 1) throw new StoryError('invalid-chapter', '缺少参数 chapter（章号）')
   return chapter
@@ -206,20 +231,22 @@ function chapterOf(query) {
 
 /**
  * Register the read-only routes.
- * @param {object} ctx - host plugin context (service: webServer).
+ * @param ctx - host plugin context (service: webServer).
  */
-export function apply(ctx) {
+export function apply(ctx: DshContext): void {
   // Reconcile the catalog against the files at startup, for every workspace the
   // host already knows. A workspace registered later is reconciled on first use.
   try {
-    const registry = ctx.get('workspaceRegistry')
+    // Host service, same dynamic shape as in `workspaceRootOf`.
+    const registry: any = ctx.get('workspaceRegistry')
     for (const workspace of registry?.list?.() ?? []) {
       if (typeof workspace?.path === 'string') ensureReconciled(workspace.path)
     }
   } catch {
     // Reconciliation is diagnostic; it never blocks the host surfaces.
   }
-  const writeWorkTarget = async (body) => {
+  // Request JSON is a dynamic boundary: both helpers narrow the fields they read.
+  const writeWorkTarget = async (body: any): Promise<{ root: string, workId: string }> => {
     const sessionId = typeof body?.sessionId === 'string' ? body.sessionId : ''
     const workId = typeof body?.workId === 'string' ? body.workId : ''
     if (sessionId === '' || workId === '') throw new StoryError('invalid-body', '操作需要 sessionId 与 workId')
@@ -233,7 +260,7 @@ export function apply(ctx) {
     }
     return { root, workId }
   }
-  const targetWork = async (body) => {
+  const targetWork = async (body: any): Promise<{ root: string, workId: string }> => {
     const sessionId = typeof body?.sessionId === 'string' ? body.sessionId : ''
     const workId = typeof body?.workId === 'string' ? body.workId : ''
     if (sessionId === '' || workId === '') throw new StoryError('invalid-body', '操作需要 sessionId 与 workId')
@@ -358,21 +385,24 @@ export function apply(ctx) {
         if (workId === '') throw new StoryError('invalid-query', '读取基础设定需要 id')
         const foundation = readFoundationState(root, workId)
         const documents = readFoundationDocuments(root, workId)
+        const foundationRows: Array<[string, FoundationDocument | undefined]> = [
+          ['story_frame', documents.storyFrame],
+          ['volume_map', documents.volumeMap],
+          ['book_rules', documents.bookRules],
+          ['roles_index', documents.rolesIndex],
+          ['current_focus', documents.currentFocus],
+        ]
         return {
           workId,
           foundation,
-          documents: [
-            ['story_frame', documents.storyFrame],
-            ['volume_map', documents.volumeMap],
-            ['book_rules', documents.bookRules],
-            ['roles_index', documents.rolesIndex],
-            ['current_focus', documents.currentFocus],
-          ].filter(([, entry]) => entry !== undefined).map(([name, entry]) => ({
+          documents: foundationRows.filter(([, entry]) => entry !== undefined).map(([name, entry]) => ({
             name,
-            revisionId: entry.version,
-            content: renderFoundationContent(entry.content),
+            // The filter above drops documents this work has not written yet.
+            revisionId: entry!.version,
+            content: renderFoundationContent(entry!.content),
           })).concat(listRoleCards(root, workId).map(card => ({
-            name: card.artifactId.slice('role:'.length),
+            // Artifact ids are stored as TEXT; the store read types the column dynamically.
+            name: (card.artifactId as string).slice('role:'.length),
             revisionId: card.revisionId,
             content: renderFoundationContent(card.content),
           }))),
@@ -638,7 +668,8 @@ export function apply(ctx) {
       path: `${BASE}/bible`,
       handler: (req, res) => readRoute(req, res, async (query) => {
         const root = await rootOf(ctx, query)
-        const file = query.get('file') ?? undefined
+        // `URLSearchParams.get` answers `null`; the original guard keeps `undefined` for an absent file.
+        const file: string | null | undefined = query.get('file') ?? undefined
         return { ...(await readBible(root, workOf(query), file === null ? undefined : file)) }
       }),
     }),
@@ -668,12 +699,14 @@ export function apply(ctx) {
       kind: 'exact',
       path: `${BASE}/roster`,
       handler: (req, res) => readRoute(req, res, async () => {
-        const registry = ctx.get('agentPresets')
+        // Host service: the agent-preset registry shape is dynamic; only the
+        // members listed here are read.
+        const registry: any = ctx.get('agentPresets')
         if (registry === undefined || typeof registry.list !== 'function') return { available: false, presets: [] }
         const presets = await registry.list()
         return {
           available: true,
-          presets: (presets ?? []).map(preset => ({
+          presets: (presets ?? []).map((preset: any) => ({
             id: preset.id,
             name: preset.name ?? null,
             description: preset.description ?? null,
@@ -689,7 +722,8 @@ export function apply(ctx) {
       handler: (req, res) => readRoute(req, res, async (query) => {
         const id = query.get('id') ?? ''
         if (id === '') throw new StoryError('missing-id', '缺少 id 参数。')
-        const registry = ctx.get('agentPresets')
+        // Host service: same dynamic preset registry as in the roster route.
+        const registry: any = ctx.get('agentPresets')
         if (registry === undefined || typeof registry.readDocument !== 'function') return { available: false }
         const document = await registry.readDocument(id)
         return {

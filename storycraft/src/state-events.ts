@@ -7,16 +7,30 @@
  * projection and never translated.
  */
 
-import { readEvents, appendStateEvent } from './dist/store-db.js'
-import { applyFactOp, applyHookOp } from './dist/state-projection.js'
+import { readEvents, appendStateEvent } from './store-db.js'
+import { applyFactOp, applyHookOp } from './state-projection.js'
 
 export {
   FACT_OPS, HOOK_OPS, STATE_LIMITS, applyFactOp, applyHookOp, mintHookId,
   projectFacts, projectHooks, projectState,
-} from './dist/state-projection.js'
+} from './state-projection.js'
+
+/** One model-supplied op payload; the projection validates every field. */
+interface OpInput {
+  work: unknown
+  [key: string]: unknown
+}
+
+/** The new projection plus the append sequence, when an event was written. */
+interface AppendResult {
+  // Projection shapes are open maps owned by `state-projection.ts`.
+  event: any
+  state: any
+  seq?: number
+}
 
 /** Append one hook op to the work's event log and return the new projection. */
-export function appendHookOp(root, input, options = {}) {
+export function appendHookOp(root: string, input: OpInput, options: { allowReapply?: boolean } = {}): AppendResult {
   const work = String(input.work)
   const events = readEvents(root, work)
   const result = applyHookOp(events, input, options)
@@ -29,7 +43,7 @@ export function appendHookOp(root, input, options = {}) {
 }
 
 /** Append one fact op to the work's event log and return the new projection. */
-export function appendFactOp(root, input, options = {}) {
+export function appendFactOp(root: string, input: OpInput, options: { allowReapply?: boolean } = {}): AppendResult {
   const work = String(input.work)
   const events = readEvents(root, work)
   const result = applyFactOp(events, input, options)

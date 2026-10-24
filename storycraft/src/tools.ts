@@ -24,34 +24,93 @@ import {
   readSummaryState,
   reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter, setSessionCurrent,
   status as readStatus, updateSettings, workIdOf, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
-} from './dist/storage.js'
-import { readChapterMemo, readChapterSummary, readTextArtifact } from './dist/artifact-store.js'
+} from './storage.js'
+import { readChapterMemo, readChapterSummary, readTextArtifact } from './artifact-store.js'
 import {
   assembleBrief as assembleBriefFor, readBible as readBibleEntries,
   writeBible as writeBibleEntry, writeSummary as writeSummaryEntry,
 } from './bible.js'
-import { readVolumes, writeVolume } from './dist/volumes.js'
-import { critique } from './dist/critique.js'
+import { readVolumes, writeVolume } from './volumes.js'
+import { critique } from './critique.js'
 import { loadRoleInput } from './role-input.js'
 import { delegateRole } from './delegate.js'
 import { checkChapterState } from './state-check.js'
 import { settleChapterState } from './state-settle.js'
 import { submitPayload } from './submission.js'
 import { checkDraft } from './landing.js'
-import { getCurrent, hydrate as hydrateCurrent, markHydrated, resolveWork, setCurrent, shouldHydrate } from './dist/current.js'
+import { getCurrent, hydrate as hydrateCurrent, markHydrated, resolveWork, setCurrent, shouldHydrate } from './current.js'
 import { join } from 'node:path'
 import { createProposal, markProposalUsed, readProposal } from './proposals.js'
-import { SCOPE_MESSAGES, scopeDenial } from './dist/scope.js'
+import { SCOPE_MESSAGES, scopeDenial } from './scope.js'
+
+/**
+ * A JSON Schema node as this module writes it.
+ *
+ * Schemas are data the registry reads; nested members stay loose so shared
+ * fragments can be spread without redeclaring the whole subset.
+ */
+type SchemaNode = Record<string, any>
+
+/**
+ * Parsed model arguments of one action call.
+ *
+ * Model JSON is a DSH dynamic boundary: the registry validates it against the
+ * action's `parameters` schema and the store validates every field again, so
+ * actions read it as an untyped record instead of a hand-maintained mirror.
+ */
+type ModelArgs = Record<string, any>
+
+/** Model-facing artifact identity; the host owns the storage path. */
+interface ArtifactRef {
+  workId: string
+  artifactId: string
+  // The store hands back its typed SQLite column; at runtime it is always the revision text.
+  revisionId: any
+  kind: string
+}
+
+/** The structured failure every action returns. */
+interface FailureEnvelope {
+  ok: false
+  missing?: string[]
+  error: { code: string, message: string }
+}
+
+/** Manifest fields the actions read; the store owns the full shape. */
+interface ManifestView {
+  title?: string
+  chapters: Array<{ number: number, currentRevision: number }>
+  outline?: { approvedAt?: string }
+  wordRange?: { min: number, max: number }
+}
+
+/** One action spec accepted by the {@link action} factory. */
+interface ActionSpec {
+  name: string
+  description: string
+  parameters: SchemaNode
+  output?: DshToolOutput
+  mutates?: boolean
+  execute(args: ModelArgs, exec: DshToolExecution): Promise<any>
+}
+
+/** A registry-ready action; `mutates` drives the delegation guard. */
+interface ActionDefinition extends DshToolDefinition {
+  description: string
+  parameters: SchemaNode
+  output: DshToolOutput
+  mutates: boolean
+}
 
 /**
  * The session that owns one tool call.
  *
  * The tool runtime exposes the calling agent, whose `id` is the session id; the
  * positional `sessionId` is kept as a fallback for tests and older callers.
- * @param {object} exec - tool run context.
- * @returns {string|undefined} session identity.
+ * @param exec - tool run context.
+ * @returns session identity.
  */
-function sessionOf(exec) {
+function sessionOf(exec: DshToolExecution): string | undefined {
   const id = exec?.agent?.id ?? exec?.sessionId
   return typeof id === 'string' && id !== '' ? id : undefined
 }
@@ -61,10 +120,10 @@ function sessionOf(exec) {
  *
  * A spawned subagent's session header carries the depth fixed at delegation,
  * so a resumed child keeps it; the main session is 0.
- * @param {object} exec - tool run context.
- * @returns {number} positive delegation depth, or 0 for the main session.
+ * @param exec - tool run context.
+ * @returns positive delegation depth, or 0 for the main session.
  */
-function delegationDepthOf(exec) {
+function delegationDepthOf(exec: DshToolExecution): number {
   const depth = exec?.agent?.session?.header?.delegationDepth
   return typeof depth === 'number' && depth > 0 ? depth : 0
 }
@@ -82,13 +141,13 @@ const DELEGATED_DENIED_TOOLS = new Set(['write', 'edit', 'pwsh', 'bash'])
 const DELEGATED_DENIAL = '你是被派发的子代理：只把结果返回给派发者，不写文件。落盘由派发者用故事工坊动作完成。'
 
 /** Requires the tool registry; without it this row stays inert. */
-export const inject = ['tools']
+export const inject: string[] = ['tools']
 
 /** Provider label used in diagnostics. */
-export const name = 'storycraft-tools'
+export const name: string = 'storycraft-tools'
 
 /** Workspace directory for one call. */
-function workspaceOf(exec) {
+function workspaceOf(exec: DshToolExecution): string {
   const cwd = exec?.agent?.session?.header?.cwd
   if (typeof cwd !== 'string' || cwd === '') {
     throw new StoryError('no-workspace', '这个会话没有工作区目录，无法定位作品根')
@@ -103,11 +162,11 @@ function workspaceOf(exec) {
  * After a host restart only `session_current` remains, so the first read for a
  * root/session loads it. A catalog failure is treated as "no pointer": this
  * helper is also called from the total, non-throwing scope guard.
- * @param {string} root - workspace directory.
- * @param {string|undefined} sessionId - session identity.
- * @returns {string|undefined} current work id.
+ * @param root - workspace directory.
+ * @param sessionId - session identity.
+ * @returns current work id.
  */
-function sessionCurrentOf(root, sessionId) {
+function sessionCurrentOf(root: string, sessionId: string | undefined): string | undefined {
   const current = getCurrent(sessionId)
   if (current !== undefined) return current
   if (typeof root !== 'string' || root === '' || typeof sessionId !== 'string' || sessionId === '') {
@@ -124,7 +183,7 @@ function sessionCurrentOf(root, sessionId) {
 }
 
 /** Turn a thrown value into the structured failure every action returns. */
-function failureOf(error) {
+function failureOf(error: unknown): FailureEnvelope {
   if (error instanceof StoryError) {
     const missing = error.code === 'bible-missing'
       ? error.message.replace(/^.*?：/u, '').split('（')[0].split('、').map(name => name.trim()).filter(Boolean)
@@ -139,7 +198,7 @@ function failureOf(error) {
   return { ok: false, error: { code: 'internal', message } }
 }
 
-const RETRIEVAL_TRACE = {
+const RETRIEVAL_TRACE: SchemaNode = {
   type: 'object',
   additionalProperties: false,
   description: 'FTS retrieval trace for one role context or brief.',
@@ -167,7 +226,7 @@ const RETRIEVAL_TRACE = {
   required: ['enabled', 'query', 'candidateCount', 'hits'],
 }
 
-const BRIEF_RETRIEVAL_TRACE = {
+const BRIEF_RETRIEVAL_TRACE: SchemaNode = {
   ...RETRIEVAL_TRACE,
   properties: {
     ...RETRIEVAL_TRACE.properties,
@@ -176,7 +235,7 @@ const BRIEF_RETRIEVAL_TRACE = {
 }
 
 /** Output properties shared by every action. */
-const OUTPUT_PROPERTIES = {
+const OUTPUT_PROPERTIES: SchemaNode = {
   ok: { type: 'boolean', description: 'Whether the action completed.' },
   workId: { type: 'string', description: 'Work identity.' },
   artifact: {
@@ -607,7 +666,7 @@ const OUTPUT_PROPERTIES = {
 }
 
 /** Reject reads of an older chapter; summaries remain available through brief. */
-function assertCurrentChapter(manifest, chapter) {
+function assertCurrentChapter(manifest: ManifestView, chapter: number | undefined): void {
   const latest = manifest.chapters.length === 0 ? 0 : manifest.chapters[manifest.chapters.length - 1].number
   if (chapter !== undefined && Number.isFinite(chapter) && chapter < latest) {
     throw new StoryError('artifact-not-readable', `只能读当前章 ${latest}；旧章请用 story_brief 的摘要`)
@@ -615,19 +674,23 @@ function assertCurrentChapter(manifest, chapter) {
 }
 
 /** Short content hash used as a stable upsert revision. */
-function contentRevision(text) {
+function contentRevision(text: unknown): string {
   return createHash('sha256').update(String(text ?? '')).digest('hex').slice(0, 12)
 }
 
 /**
  * Turn one internal virtual artifact into the model-facing identity.
  * The path stays inside the host; the model only receives IDs.
- * @param {string} root - workspace directory.
- * @param {string} workId - work identity.
- * @param {{path?: string, revision?: number}} artifact - internal artifact.
- * @returns {Promise<object|undefined>} model-facing reference.
+ * @param root - workspace directory.
+ * @param workId - work identity.
+ * @param artifact - internal artifact.
+ * @returns model-facing reference.
  */
-async function artifactRef(root, workId, artifact) {
+async function artifactRef(
+  root: string,
+  workId: string,
+  artifact: { path?: string, revision?: number } | null | undefined,
+): Promise<ArtifactRef | undefined> {
   const path = String(artifact?.path ?? '')
   if (path === '') return undefined
   const rel = path.replace(/^works\/[^/]+\//u, '')
@@ -645,7 +708,8 @@ async function artifactRef(root, workId, artifact) {
     if (/^reviews\/ch-\d+\.r\d+\.md$/u.test(rel)) {
       const chapter = Number(/ch-(\d+)/u.exec(rel)?.[1])
       const round = Number(/\.r(\d+)\.md$/u.exec(rel)?.[1] ?? 1)
-      const review = latestReview(root, workId, chapter)
+      // The store owns the review shape; this layer only reads its current text out.
+      const review: any = latestReview(root, workId, chapter)
       const bodyRev = review?.revision ?? 1
       return {
         workId,
@@ -689,7 +753,7 @@ async function artifactRef(root, workId, artifact) {
 }
 
 /** Map one internal source string to model-facing source IDs. */
-async function sourceIdsOf(root, workId, source) {
+async function sourceIdsOf(root: string, workId: string, source: unknown): Promise<string[]> {
   if (typeof source !== 'string' || source.trim() === '') return []
   const refs = []
   for (const part of source.split(/\s+\+\s+/u).map(value => value.trim()).filter(Boolean)) {
@@ -706,15 +770,18 @@ async function sourceIdsOf(root, workId, source) {
 /**
  * Replace every model-visible path with an artifact identity.
  * Internal storage keeps `virtualPath`; only this boundary is sanitized.
- * @param {unknown} value - action output.
- * @param {string} root - workspace directory.
- * @param {string} workId - work identity.
- * @returns {Promise<unknown>} sanitized output.
+ * @param value - action output.
+ * @param root - workspace directory.
+ * @param workId - work identity.
+ * @returns sanitized output.
  */
-async function sanitizeOutput(value, root, workId) {
+// The result is arbitrary receipt JSON: its keys depend on the action, and only
+// the action boundary serialises it.
+async function sanitizeOutput(value: unknown, root: string, workId: string): Promise<any> {
   if (Array.isArray(value)) return Promise.all(value.map(item => sanitizeOutput(item, root, workId)))
   if (value === null || typeof value !== 'object') return value
-  const output = {}
+  // Fields are copied one by one below; each carries the source object's own type.
+  const output: Record<string, any> = {}
   for (const [key, item] of Object.entries(value)) {
     if (key === 'artifact' && item !== null && typeof item === 'object' && typeof item.path === 'string') {
       const ref = await artifactRef(root, workId, item)
@@ -746,7 +813,7 @@ async function sanitizeOutput(value, root, workId) {
           path: undefined,
         }
       }))
-      output.files = output.files.map(file => Object.fromEntries(Object.entries(file).filter(([name, v]) => name !== 'path' && v !== undefined)))
+      output.files = output.files.map((file: any) => Object.fromEntries(Object.entries(file).filter(([name, v]) => name !== 'path' && v !== undefined)))
       continue
     }
     if (key === 'exported' && item !== null && typeof item === 'object') {
@@ -764,7 +831,7 @@ async function sanitizeOutput(value, root, workId) {
 }
 
 /** Output declaration shared by every action. */
-const OUTPUT = {
+const OUTPUT: DshToolOutput = {
   schema: {
     type: 'object',
     additionalProperties: false,
@@ -778,7 +845,7 @@ const OUTPUT = {
  * `story_next` adds one optional hint without changing the shared schema every
  * other action advertises.
  */
-const NEXT_OUTPUT = {
+const NEXT_OUTPUT: DshToolOutput = {
   schema: {
     type: 'object',
     additionalProperties: false,
@@ -806,7 +873,7 @@ const NEXT_OUTPUT = {
 }
 
 /** Shared v2 state payload schema for `story_state` and `story_state_check`. */
-const STATE_PAYLOAD_PROPERTIES = {
+const STATE_PAYLOAD_PROPERTIES: SchemaNode = {
   factOps: {
     type: 'object',
     additionalProperties: false,
@@ -871,7 +938,7 @@ const STATE_PAYLOAD_PROPERTIES = {
 }
 
 /** Output contract for one delegated role submission. */
-export const SUBMIT_OUTPUT = {
+export const SUBMIT_OUTPUT: DshToolOutput = {
   schema: {
     type: 'object',
     additionalProperties: false,
@@ -900,7 +967,7 @@ export const SUBMIT_OUTPUT = {
   render: OUTPUT.render,
 }
 /** Compact receipt of one host-side role delegation. */
-const DELEGATE_OUTPUT = {
+const DELEGATE_OUTPUT: DshToolOutput = {
   schema: {
     type: 'object',
     additionalProperties: false,
@@ -980,7 +1047,7 @@ const DELEGATE_OUTPUT = {
 }
 
 /** One advisory semantic finding returned by `story_state_check`. */
-const STATE_CHECK_ITEM = {
+const STATE_CHECK_ITEM: SchemaNode = {
   type: 'object',
   additionalProperties: false,
   properties: {
@@ -1000,7 +1067,7 @@ const STATE_CHECK_ITEM = {
 }
 
 /** Read-only output of one semantic state check. */
-const STATE_CHECK_OUTPUT = {
+const STATE_CHECK_OUTPUT: DshToolOutput = {
   schema: {
     type: 'object',
     additionalProperties: false,
@@ -1040,14 +1107,14 @@ const STATE_CHECK_OUTPUT = {
 }
 
 /** Proposed settler payload echoed on an unresolved automatic settlement. */
-const STATE_SETTLE_PROPOSED = {
+const STATE_SETTLE_PROPOSED: SchemaNode = {
   type: 'object',
   additionalProperties: false,
   properties: STATE_PAYLOAD_PROPERTIES,
 }
 
 /** Output of one automatic state settlement. */
-const STATE_SETTLE_OUTPUT = {
+const STATE_SETTLE_OUTPUT: DshToolOutput = {
   schema: {
     type: 'object',
     additionalProperties: false,
@@ -1106,7 +1173,7 @@ const STATE_SETTLE_OUTPUT = {
  * Output contract for `story_context`. It cannot reuse the brief's section shape:
  * those sections require `bytes` and have no protection level.
  */
-const CONTEXT_OUTPUT = {
+const CONTEXT_OUTPUT: DshToolOutput = {
   schema: {
     type: 'object',
     additionalProperties: false,
@@ -1143,17 +1210,17 @@ const CONTEXT_OUTPUT = {
 
 /**
  * One action definition.
- * @param {object} spec - name, description, parameters, execute.
- * @returns {object} a registry-ready ToolDefinition.
+ * @param spec - name, description, parameters, execute.
+ * @returns a registry-ready ToolDefinition.
  */
-function action(spec) {
+function action(spec: ActionSpec): ActionDefinition {
   return {
     name: spec.name,
     description: spec.description,
     parameters: spec.parameters,
     output: spec.output ?? OUTPUT,
     mutates: spec.mutates === true,
-    async execute(args, exec) {
+    async execute(args: ModelArgs, exec: DshToolExecution) {
       if (spec.mutates === true && delegationDepthOf(exec) > 0) {
         return failureOf(new StoryError('subagent-cannot-land', DELEGATED_DENIAL))
       }
@@ -1176,7 +1243,7 @@ function action(spec) {
 }
 
 /** The long-form action set. */
-function rawDefinitions(ctx) {
+function rawDefinitions(ctx: DshContext): ActionDefinition[] {
   return [
     action({
       name: 'story_init',
@@ -1387,7 +1454,7 @@ function rawDefinitions(ctx) {
       async execute(args, exec) {
         const root = workspaceOf(exec)
         if (args.chapter !== undefined) assertCurrentChapter(readManifest(root, args.work), Number(args.chapter))
-        const loaded = await loadRoleInput(root, args)
+        const loaded = await loadRoleInput(root, args as Parameters<typeof loadRoleInput>[1])
         const context = loaded.context
         const chapter = args.chapter === undefined ? undefined : (loaded.entry?.number ?? Number(args.chapter))
         const review = loaded.review
@@ -1434,8 +1501,8 @@ function rawDefinitions(ctx) {
       async execute(args, exec) {
         const root = workspaceOf(exec)
         const policy = planApprovalPolicy(await readManifest(root, args.work))
-        const { warnings } = await checkDraft(root, args)
-        const result = await writeChapter(root, { ...args, requirePlanApproval: policy === 'required' })
+        const { warnings } = await checkDraft(root, args as Parameters<typeof checkDraft>[1])
+        const result = await writeChapter(root, { ...args, requirePlanApproval: policy === 'required' } as Parameters<typeof writeChapter>[1])
         return {
           ok: true, workId: args.work, artifact: result.artifact, words: result.words,
           ...(warnings.length === 0 ? {} : { warnings }),
@@ -1495,9 +1562,9 @@ function rawDefinitions(ctx) {
       async execute(args, exec) {
         const root = workspaceOf(exec)
         const manifest = await readManifest(root, args.work)
-        const entry = manifest.chapters.find(item => item.number === args.chapter)
+        const entry = manifest.chapters.find((item: any) => item.number === args.chapter)
         if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${args.chapter} 章`)
-        const observations = args.problems.map((problem, index) => ({
+        const observations = args.problems.map((problem: any, index: number) => ({
           id: `O${index + 1}`,
           summary: problem.problem,
           evidence: [],
@@ -1515,7 +1582,7 @@ function rawDefinitions(ctx) {
           artifact: { workId: args.work, artifactId: result.artifactId, revisionId: result.revisionId, kind: 'review' },
           problems: {
             total: observations.length,
-            open: observations.filter(observation => observation.assessment === 'issue').length,
+            open: observations.filter((observation: any) => observation.assessment === 'issue').length,
           },
         }
       },
@@ -1550,8 +1617,8 @@ function rawDefinitions(ctx) {
       async execute(args, exec) {
         const root = workspaceOf(exec)
         const policy = planApprovalPolicy(await readManifest(root, args.work))
-        const { warnings } = await checkDraft(root, args)
-        const result = await reviseChapter(root, { ...args, requirePlanApproval: policy === 'required' })
+        const { warnings } = await checkDraft(root, args as Parameters<typeof checkDraft>[1])
+        const result = await reviseChapter(root, { ...args, requirePlanApproval: policy === 'required' } as unknown as Parameters<typeof reviseChapter>[1])
         return {
           ok: true, workId: args.work, artifact: result.artifact, resolved: result.resolved,
           ...(warnings.length === 0 ? {} : { warnings }),
@@ -1581,7 +1648,7 @@ function rawDefinitions(ctx) {
         }
         const root = workspaceOf(exec)
         const service = typeof ctx?.get === 'function' ? ctx.get('subagents') : undefined
-        return checkChapterState(root, args, {
+        return checkChapterState(root, args as Parameters<typeof checkChapterState>[1], {
           service,
           agent: exec.agent,
           signal: exec.signal,
@@ -1608,7 +1675,7 @@ function rawDefinitions(ctx) {
       async execute(args, exec) {
         const root = workspaceOf(exec)
         const service = typeof ctx?.get === 'function' ? ctx.get('subagents') : undefined
-        return settleChapterState(root, args, {
+        return settleChapterState(root, args as Parameters<typeof settleChapterState>[1], {
           service,
           agent: exec.agent,
           signal: exec.signal,
@@ -1737,9 +1804,11 @@ function rawDefinitions(ctx) {
             ...(args.revisionId === undefined ? {} : { revisionId: String(args.revisionId) }),
           })
           content = String(read.artifact.content)
-          ref = { ...ref, artifactId: 'outline', revisionId: read.artifact.revisionId, kind: 'outline' }
+          // The store column is text even though its return type is the SQLite value union.
+          ref = { ...ref, artifactId: 'outline', revisionId: read.artifact.revisionId as string, kind: 'outline' }
         } else if (kind === 'plan') {
-          let memo
+          // Store reads return the artifact envelope, which only this branch unwraps.
+          let memo: any
           try {
             memo = readChapterMemo(root, {
               work: workId,
@@ -1747,7 +1816,9 @@ function rawDefinitions(ctx) {
               ...(args.revisionId === undefined ? {} : { revisionId: String(args.revisionId) }),
             })
           } catch (error) {
-            if (error?.code === 'artifact-not-found' || error?.code === 'chapter-not-found') {
+            // A thrown store error is a dynamic boundary: only its stable `code` is read.
+            const code = (error as { code?: unknown } | null | undefined)?.code
+            if (code === 'artifact-not-found' || code === 'chapter-not-found') {
               throw new StoryError('plan-not-found', `第 ${chapterNumber} 章还没有章纲`)
             }
             throw error
@@ -1768,7 +1839,8 @@ function rawDefinitions(ctx) {
           content = JSON.stringify({ observations: review.observations }, null, 2)
           ref = { ...ref, artifactId: review.artifactId, revisionId: review.revisionId, kind: 'review' }
         } else if (kind === 'summary') {
-          let summary
+          // Store reads return the artifact envelope, which only this branch unwraps.
+          let summary: any
           try {
             summary = readChapterSummary(root, {
               work: workId,
@@ -1776,7 +1848,9 @@ function rawDefinitions(ctx) {
               ...(args.revisionId === undefined ? {} : { revisionId: String(args.revisionId) }),
             })
           } catch (error) {
-            if (error?.code === 'artifact-not-found' || error?.code === 'chapter-not-found') {
+            // A thrown store error is a dynamic boundary: only its stable `code` is read.
+            const code = (error as { code?: unknown } | null | undefined)?.code
+            if (code === 'artifact-not-found' || code === 'chapter-not-found') {
               throw new StoryError('summary-not-found', `第 ${chapterNumber} 章还没有摘要`)
             }
             throw error
@@ -1800,7 +1874,7 @@ function rawDefinitions(ctx) {
               ...(args.revisionId === undefined ? {} : { revisionId: String(args.revisionId) }),
             })
             content = String(read.artifact.content)
-            ref = { ...ref, ...expected, revisionId: read.artifact.revisionId }
+            ref = { ...ref, ...expected, revisionId: read.artifact.revisionId as string }
           }
         } else if (kind === 'state') {
           content = readEventsText(root, workId)
@@ -2017,7 +2091,7 @@ function rawDefinitions(ctx) {
         const root = workspaceOf(exec)
         const current = sessionCurrentOf(root, sessionOf(exec))
         if (current === undefined) return { ok: true, current: null }
-        let manifest
+        let manifest: ManifestView | undefined
         try {
           manifest = readManifest(root, current)
         } catch {
@@ -2217,7 +2291,9 @@ function rawDefinitions(ctx) {
       },
       async execute(args, exec) {
         const root = workspaceOf(exec)
-        const exported = exportWork(root, args.work)
+        // `exportWork` declares `destination` required although its body and JSDoc
+        // treat it as optional; the action has always called it with two arguments.
+        const exported = (exportWork as (root: string, work: unknown) => unknown)(root, args.work)
         return { ok: true, workId: args.work, exported }
       },
     }),
@@ -2245,9 +2321,9 @@ function rawDefinitions(ctx) {
 
 /**
  * The registered action list: `work` is optional and resolved per session.
- * @returns {object[]} action definitions.
+ * @returns action definitions.
  */
-function definitions(ctx) {
+function definitions(ctx: DshContext): ActionDefinition[] {
   return rawDefinitions(ctx).map(withCurrentWork)
 }
 
@@ -2256,10 +2332,10 @@ function definitions(ctx) {
  *
  * An explicit `work` still wins, so callers that know the id are unaffected; the
  * schema stops requiring it so a session pointed at a work can omit it.
- * @param {object} definition - registered action definition.
- * @returns {object} the same definition with a wrapped execute.
+ * @param definition - registered action definition.
+ * @returns the same definition with a wrapped execute.
  */
-function withCurrentWork(definition) {
+function withCurrentWork(definition: ActionDefinition): ActionDefinition {
   // story_current reports the pointer itself; resolving it first would throw
   // exactly when the author still has no work.
   if (definition.name === 'story_current') return definition
@@ -2309,11 +2385,11 @@ function withCurrentWork(definition) {
 
 /**
  * Walk to the root session of one call (a subagent points at its dispatcher).
- * @param {object} ctx - plugin context.
- * @param {object} session - calling session.
- * @returns {object|undefined} root session.
+ * @param ctx - plugin context.
+ * @param session - calling session.
+ * @returns root session.
  */
-function rootSessionOf(ctx, session) {
+function rootSessionOf(ctx: DshContext, session: DshSession): DshSession | undefined {
   let current = session
   const sessions = typeof ctx?.get === 'function' ? ctx.get('sessions') : undefined
   for (let depth = 0; depth < 8; depth += 1) {
@@ -2328,11 +2404,11 @@ function rootSessionOf(ctx, session) {
 
 /**
  * The live working directory of one session, falling back to its header.
- * @param {object} ctx - plugin context.
- * @param {object} session - calling session.
- * @returns {string|undefined} absolute directory.
+ * @param ctx - plugin context.
+ * @param session - calling session.
+ * @returns absolute directory.
  */
-function workingDirectoryOf(ctx, session) {
+function workingDirectoryOf(ctx: DshContext, session: DshSession): string | undefined {
   const service = typeof ctx?.get === 'function' ? ctx.get('workingDirectory') : undefined
   try {
     const value = service?.get?.(session)
@@ -2346,11 +2422,11 @@ function workingDirectoryOf(ctx, session) {
 
 /**
  * Deny file/DB access outside the session's work scope. Details live in scope.js.
- * @param {object} ctx - plugin context.
- * @param {object} exec - pending tool call.
- * @returns {string|undefined} denial copy.
+ * @param ctx - plugin context.
+ * @param exec - pending tool call.
+ * @returns denial copy.
  */
-function scopeDenialOf(ctx, exec) {
+function scopeDenialOf(ctx: DshContext, exec: DshToolExecution): string | undefined {
   const session = exec?.agent?.session
   if (session === undefined) return undefined
   const root = rootSessionOf(ctx, session)
@@ -2370,16 +2446,16 @@ function scopeDenialOf(ctx, exec) {
 
 /**
  * Register the studio actions in the calling (preset) scope.
- * @param {object} ctx - plugin context (services: tools).
+ * @param ctx - plugin context (services: tools).
  */
-export function apply(ctx) {
+export function apply(ctx: DshContext): void {
   // The guard lives in this preset's scope, so it applies to the main agent and
   // to every subagent spawned into the same composition; the depth predicate
   // keeps the main agent unrestricted.
-  const denyDelegatedWrites = exec => (
-    delegationDepthOf(exec) > 0 && DELEGATED_DENIED_TOOLS.has(exec.name) ? DELEGATED_DENIAL : undefined
+  const denyDelegatedWrites = (exec: DshToolExecution) => (
+    delegationDepthOf(exec) > 0 && DELEGATED_DENIED_TOOLS.has(exec.name as string) ? DELEGATED_DENIAL : undefined
   )
-  const denyOutOfScope = exec => scopeDenialOf(ctx, exec)
+  const denyOutOfScope = (exec: DshToolExecution) => scopeDenialOf(ctx, exec)
   const disposers = [
     ctx.tools.guard(denyDelegatedWrites),
     ctx.tools.guard(denyOutOfScope),

@@ -11,7 +11,7 @@ import { openWork } from '../dist/db.js'
 import {
   readChapterMeta, readChapterObservations, writeChapterObservations,
 } from '../dist/artifact-store.js'
-import { loadRoleInput } from '../role-input.js'
+import { loadRoleInput } from '../dist/role-input.js'
 
 let failures = 0
 function check(name, condition, detail) {
