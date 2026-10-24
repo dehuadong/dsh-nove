@@ -16,7 +16,45 @@ import {
 } from 'node:fs'
 import { join } from 'node:path'
 import type { Database } from './db.js'
-import type { ChapterRow, ChapterVersionRow, MetaRow, WorkRow } from './store-rows.js'
+import type { ArtifactRow, ChapterRow, ChapterVersionRow, EventRow, MetaRow, WorkRow } from './store-rows.js'
+
+export interface WriteChapterInput {
+  work: string
+  chapter: number | string
+  title?: string
+  body: string
+  rewrite?: boolean
+  reopen?: boolean
+  requirePlanApproval?: boolean
+}
+
+export interface ReadChapterInput {
+  work: string
+  chapter: number | string
+  view?: 'body' | 'plan' | 'summary' | 'review'
+  revision?: number
+}
+
+export interface WriteReviewInput {
+  work: string
+  chapter: number | string
+  observations: Array<Record<string, any>>
+}
+
+export interface ReviseChapterInput {
+  work: string
+  chapter: number | string
+  body: string
+  mode?: string
+  reopen?: boolean
+}
+
+export interface WriteSummaryInput {
+  work: string
+  chapter: number | string
+  revision?: number
+  text?: string
+}
 import {
   backupTo, checkpoint, createWorkDatabase, exportsDir, integrityCheck, WORK_SCHEMA_VERSION,
   materialsDir, moveDatabaseFiles, openCatalog, openDatabase, openWork, removeDatabaseFiles, touchMeta, transaction,
@@ -314,7 +352,7 @@ const DEFAULT_BIBLE = {
  * @param {string} work - work identity.
  * @returns {object} manifest.
  */
-export function readManifest(root, work) {
+export function readManifest(root: string, work: unknown): any {
   const catalog = openCatalog(root, { create: false })
   if (catalog === undefined) throw new StoryError('work-not-found', `没有作品：${String(work)}`)
   try {
@@ -378,7 +416,7 @@ export function readManifest(root, work) {
  * @param {{title: string, workId?: string, form?: string, wordRange?: {min: number, max: number}, tags?: string[]}} input - creation input.
  * @returns {{workId: string, path: string, manifest: object}} created work.
  */
-export function initWork(root, input) {
+export function initWork(root: string, input: any): any {
   const title = String(input.title ?? '').trim()
   if (title === '') throw new StoryError('invalid-title', '作品需要标题')
   const form = input.form === undefined ? 'longform' : String(input.form)
@@ -537,7 +575,7 @@ export function ensureReconciled(root) {
  * @param {string} root - workspace directory.
  * @returns {Array<object>} work summaries.
  */
-export function listWorks(root) {
+export function listWorks(root: string): any[] {
   ensureReconciled(root)
   const catalog = openCatalog(root, { create: false })
   if (catalog === undefined) return []
@@ -601,7 +639,7 @@ export function listWorks(root) {
  * @param {string} root - workspace directory.
  * @returns {Array<{workId: string, title: string, trashedAt: string, path: string}>} trash entries.
  */
-export function listTrash(root) {
+export function listTrash(root: string): any[] {
   ensureReconciled(root)
   const catalog = openCatalog(root, { create: false })
   if (catalog === undefined) return []
@@ -625,7 +663,7 @@ export function listTrash(root) {
  * @param {string} work - work identity.
  * @returns {object} work detail payload.
  */
-export function readWork(root, work) {
+export function readWork(root: string, work: unknown): any {
   const manifest = readManifest(root, work)
   const db = openWork(root, manifest.workId)
   try {
@@ -1485,7 +1523,7 @@ export function approveChapterPlan(root, input) {
  * @param {{work: string, chapter: number|string, title?: string, body: string, rewrite?: boolean, reopen?: boolean, requirePlanApproval?: boolean}} input - body input.
  * @returns {object} result with a virtual artifact path.
  */
-export function writeChapter(root, input) {
+export function writeChapter(root: string, input: WriteChapterInput): any {
   const number = chapterNumber(input.chapter)
   const body = String(input.body ?? '')
   if (body.trim() === '') throw new StoryError('empty-body', '正文不能为空')
@@ -1495,7 +1533,7 @@ export function writeChapter(root, input) {
     return transaction(db, () => {
       const meta = metaOf(db)
       const entry = chapterRow(db, number)
-      const plan = db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ?').get(`plan:${number}`)
+      const plan = db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ?').get(`plan:${number}`) as Pick<ArtifactRow, 'artifact_id'> | undefined
       if (entry === undefined || plan === undefined) {
         throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲：先 story_plan，再写正文`)
       }
@@ -1518,7 +1556,7 @@ export function writeChapter(root, input) {
       dropSearchDoc(db, `chapter:${number}:r${revision - 1}`)
       syncSearchDoc(db, `chapter:${number}:r${revision}`, 'chapter', `chapters/${chapterStem(number)}`, number, body)
       if (settled) {
-        const seq = (db.prepare('SELECT max(seq) AS n FROM events').get()?.n ?? 0) + 1
+        const seq = Number((db.prepare('SELECT max(seq) AS n FROM events').get() as { n: number } | undefined)?.n ?? 0) + 1
         db.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
           .run(seq, at, number, 'reopen', JSON.stringify({ kind: 'reopen' }))
       }
@@ -1543,7 +1581,7 @@ export function writeChapter(root, input) {
  * @param {{work: string, chapter: number|string, view?: 'body'|'plan'|'summary', revision?: number}} input - read input.
  * @returns {{path: string, content: string, revision: number}} chapter text.
  */
-export function readChapter(root, input) {
+export function readChapter(root: string, input: ReadChapterInput): { path: string, content: string, revision: number } {
   const number = chapterNumber(input.chapter)
   const workId = String(input.work)
   const manifest = readManifest(root, workId)
@@ -1601,7 +1639,7 @@ export function readChapter(root, input) {
  * @param {{work: string, chapter: number|string, observations: object[]}} input - observations.
  * @returns {object} review receipt.
  */
-export function writeReview(root, input) {
+export function writeReview(root: string, input: WriteReviewInput): any {
   const number = chapterNumber(input.chapter)
   const observations = Array.isArray(input.observations) ? input.observations : []
   const workId = String(input.work)
@@ -1748,7 +1786,7 @@ export function readReview(root, work, chapter) {
  * @param {{work: string, chapter: number|string, body: string, problemIds?: string[], mode?: string}} input - revision input.
  * @returns {object} result with a virtual artifact path.
  */
-export function reviseChapter(root, input) {
+export function reviseChapter(root: string, input: ReviseChapterInput): any {
   const number = chapterNumber(input.chapter)
   const body = String(input.body ?? '')
   if (body.trim() === '') throw new StoryError('empty-body', '正文不能为空')
@@ -1825,7 +1863,7 @@ export function reviseChapter(root, input) {
  * @param {{work: string, chapter: number|string, text?: string, content?: object, ifAbsent?: boolean}} input - summary input.
  * @returns {{workId: string, chapter: number, chars: number, truncated: boolean, summaryRevision: number, artifact: object}} receipt.
  */
-export function writeSummary(root, input) {
+export function writeSummary(root: string, input: WriteSummaryInput): any {
   const number = chapterNumber(input.chapter)
   const source = input.content === undefined ? { rawText: input.text } : input.content
   const { text, chars } = trimSummary(source?.rawText)
@@ -2175,7 +2213,7 @@ export function previewState(root, input) {
  * @param {{work: string, chapter: number|string, factOps?: object, hookOps?: object, newHooks?: object[], allowEmpty?: boolean, requireBody?: boolean}} input - settlement payload.
  * @returns {object} counts, active projection and the appended sequence number.
  */
-export function settleState(root, input) {
+export function settleState(root: string, input: any): any {
   const number = chapterNumber(input.chapter)
   const workId = String(input.work)
   const db = openWork(root, workId)
@@ -3207,7 +3245,7 @@ function versionStem(number, revision) {
  * @param {string} [destination] - target directory.
  * @returns {{directory: string, files: number}} export summary.
  */
-export function exportWork(root, work, destination) {
+export function exportWork(root: string, work: unknown, destination: string): any {
   const catalog = openCatalog(root, { create: false })
   if (catalog === undefined) throw new StoryError('work-not-found', `没有作品：${String(work)}`)
   try {
@@ -3340,7 +3378,7 @@ export function exportWork(root, work, destination) {
  * @param {object} [options] - test seam for rename/remove/export tree.
  * @returns {Promise<{directory: string, files: number}>} export result.
  */
-export async function exportWorkAtomic(root, work, options = {}) {
+export async function exportWorkAtomic(root: string, work: unknown, options: any = {}): Promise<any> {
   const rename = typeof options.rename === 'function' ? options.rename : renameSync
   const remove = typeof options.remove === 'function' ? options.remove : rmSync
   const write = typeof options.exportTree === 'function' ? options.exportTree : exportWork
