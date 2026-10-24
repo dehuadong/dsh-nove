@@ -13,6 +13,14 @@ updated: 2026-10-24
 
 S1a-demo 只能临时阻断有 memo 的删/移。本 Note 规划 S1b：把章节号重映射扩展到全部 chapter-scoped artifact，并解除阻断。
 
+## 对拍参考
+
+- `inkos-master/packages/core/src/models/chapter.ts`：`ChapterMetaSchema` 用 `number` 标识章节；`chapter-persistence.ts` 也按 `chapterNumber` 更新索引。
+- `inkos-master/packages/core/src/state/chapter-workspace.ts`：`ChapterVersion.id` 用 `${timestamp}_${source}_${randomUUID()}`；UUID 属于正文版本文件，不属于章节身份。
+- `inkos-master/packages/core/src/harness/source-sync.ts`：artifact revision 为 `rev-<sha256 前 16 位>`，artifactId 为“可读名 + 路径哈希”；不是 chapter UUID。
+- 我们的实现：保留 chapter number 身份；S1b 重映射 chapter-scoped artifact，revision 用 content hash；不引入 chapter UUID。正文版本 UUID 是另一个对拍差异（S1c），不在本切片。
+- 裁决：采纳参考的“章节按 number、版本单独持 ID”的结构；不把 UUID 提升为章节身份。
+
 ## 与既有记录
 
 - 章节身份与批准由 [`2026-10-24-storycraft-chapter-identity-approval.md`](2026-10-24-storycraft-chapter-identity-approval.md) 拥有；本 Note 承接它的 identity-change 例外与批准失效规则。

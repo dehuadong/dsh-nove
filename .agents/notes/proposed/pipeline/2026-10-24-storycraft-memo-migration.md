@@ -13,6 +13,13 @@ A0 已交付 ChapterMemo 合同、`plan:<n>` 身份与写入 registry 的 API，
 
 本 Note 只规划 **S1a-demo：当前 memo 的生产 + 只读消费链**。章节移动/删除、旧 revision 写入回退、observation target、summary/state/foundation 不在本切片。
 
+## 对拍参考
+
+- `inkos-master/packages/core/src/models/input-governance.ts` 与 `agents/planner.ts`：ChapterMemo 是结构化字段（目标/阻力/代价/变化/正文等），不是一段 `chapter_plans` 文本。
+- `inkos-master/packages/core/src/harness/artifact-revisions.ts`：artifact revision 以 `revisionId` 标识，`checksum` 单独存 SHA-256；`source-sync.ts` 用 `rev-<sha256 前 16 位>` 生成 revision。
+- 我们的实现：`story_plan` 写 `plan:<n>` 结构化 memo，`renderChapterMemo` 只做读取边界渲染；revision 用 content hash；批准绑定 memo revision。采纳“结构化 memo + 独立 revision/checksum”，不采纳把 memo 塞回文本表。
+- 裁决：memo 是当前权威，旧表只读退役；章节重映射归 S1b。
+
 ## 与既有记录
 
 - 字段合同由 [`2026-10-23-storycraft-artifact-contract-v2.md`](2026-10-23-storycraft-artifact-contract-v2.md) §4 拥有；本 Note 拥有 memo 的生产、读取、渲染与批准。
