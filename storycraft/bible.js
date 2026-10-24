@@ -23,7 +23,7 @@ export const BIBLE_FILES = {
   world: { file: 'bible/world.md', kind: 'markdown' },
   characters: { file: 'bible/characters.json', kind: 'characters' },
   style: { file: 'bible/style.md', kind: 'markdown' },
-  plan: { file: 'bible/plan.md', kind: 'markdown' },
+  plan: { file: 'outline/plan.md', kind: 'markdown' },
   intent: { file: 'bible/intent.md', kind: 'markdown' },
 }
 
@@ -247,8 +247,8 @@ export async function importBible(root, workId) {
       skipped.push(`bible:${target.name}（已有内容，未覆盖）`)
       continue
     }
-    writeBibleRow(root, { work: manifest.workId, name: target.name, content: target.content })
-    imported.push({ from: target.from, to: `bible:${target.name}`, version: contentVersion(target.content) })
+    const receipt = writeBibleRow(root, { work: manifest.workId, name: target.name, content: target.content })
+    imported.push({ from: target.from, to: `bible:${target.name}`, version: receipt.version })
   }
   const headings = (pattern) => cast === undefined
     ? []

@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../storage.js'
-import { assembleBrief, extractStyleSamples, writeBible } from '../bible.js'
+import { assembleBrief, extractStyleSamples, readBible, writeBible } from '../bible.js'
 import { mergeBlock, styleBlock, styleProfile, stripBlock, STYLE_END, STYLE_START } from '../style.js'
 import { openWork } from '../db.js'
 
@@ -61,7 +61,7 @@ try {
   }
   await writeBible(root, work, 'style', author)
   const first = await extractStyleSamples(root, work)
-  const style = await (await import('../bible.js')).readBible(root, work, 'style').then(result => result.files[0])
+  const style = (await readBible(root, work, 'style')).files[0]
   check('extract writes samples into style', first.sampleCount === 3 && first.sampleChars > 0
     && style.content.startsWith(author) && style.content.includes(STYLE_START), JSON.stringify(first))
   check('version is the content hash', style.version === first.version)
@@ -70,7 +70,7 @@ try {
   await s.writeChapter(root, { work, chapter: 1, body: `改后的正文。${'另一句。'.repeat(80)}`, rewrite: true })
   const changed = await extractStyleSamples(root, work)
   check('changed body changes the version', changed.version !== first.version, `${first.version} ${changed.version}`)
-  const changedStyle = (await (await import('../bible.js')).readBible(root, work, 'style')).files[0].content
+  const changedStyle = (await readBible(root, work, 'style')).files[0].content
   check('author text survives re-extraction', changedStyle.startsWith(author), changedStyle.slice(0, 60))
   check('old revision is not sampled after rewrite', !changedStyle.includes('第1章用于测试'), changedStyle.slice(0, 300))
   const brief = await assembleBrief(root, work, 3)

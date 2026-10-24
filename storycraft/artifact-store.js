@@ -605,7 +605,7 @@ function verifyObservationSources(root, work, chapter, bodyRevision, observation
 /**
  * Write one Markdown truth artifact (`bible:world`/`bible:style`/`bible:intent`/
  * `outline`) on a caller-owned handle and transaction. The same content is an
- * idempotent no-op; content always ends with a newline before hashing.
+ * idempotent no-op; the content is stored and hashed exactly as given.
  * @param {object} db - open work database.
  * @param {{work: string, artifactId: string, kind: string, content: string, provenance?: string, createdAt?: string}} input - write input.
  * @returns {{artifactId: string, kind: string, revisionId: string, content: string, created: boolean}} written artifact.
@@ -636,6 +636,16 @@ export function writeTextArtifactOnDb(db, input) {
     createdAt: input.createdAt ?? now(),
   })
   return { artifactId: input.artifactId, kind: input.kind, revisionId, content, created: true }
+}
+
+/**
+ * Read one truth artifact's latest or explicit revision.
+ * @param {string} root - workspace directory.
+ * @param {{work: string, artifactId: string, kind: string, revisionId?: string}} input - read input.
+ * @returns {{artifact: object}} artifact payload.
+ */
+export function readTextArtifact(root, input) {
+  return readTyped(root, input, { artifactId: input.artifactId, kind: input.kind })
 }
 
 /**

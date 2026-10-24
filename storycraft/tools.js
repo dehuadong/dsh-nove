@@ -25,7 +25,7 @@ import {
   reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter, setSessionCurrent,
   status as readStatus, updateSettings, workIdOf, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
 } from './storage.js'
-import { readChapterMemo, readChapterSummary } from './artifact-store.js'
+import { readChapterMemo, readChapterSummary, readTextArtifact } from './artifact-store.js'
 import {
   assembleBrief as assembleBriefFor, importBible as importFromDesign, readBible as readBibleEntries,
   writeBible as writeBibleEntry, writeSummary as writeSummaryEntry,
@@ -656,9 +656,19 @@ async function artifactRef(root, workId, artifact) {
       const summary = readChapterSummary(root, { work: workId, chapter })
       return { workId, artifactId: `summary:${chapter}`, revisionId: summary.artifact.revisionId, kind: 'summary' }
     }
+    if (rel === 'outline/plan.md') {
+      const entry = readBibleEntry(root, workId, 'plan')
+      return { workId, artifactId: 'outline', revisionId: entry?.version ?? 'current', kind: 'outline' }
+    }
     if (/^bible\//u.test(rel)) {
       const file = rel.slice('bible/'.length).replace(/\.(?:md|json)$/u, '')
-      return { workId, artifactId: `bible:${file}`, revisionId: contentRevision(readBibleEntry(root, workId, file)?.content), kind: 'bible' }
+      const entry = readBibleEntry(root, workId, file)
+      return {
+        workId,
+        artifactId: `bible:${file}`,
+        revisionId: entry?.version ?? 'current',
+        kind: file === 'characters' ? 'bible' : file,
+      }
     }
     if (rel === 'state/events.jsonl') {
       const events = readEvents(root, workId)
@@ -1244,12 +1254,12 @@ function rawDefinitions(ctx) {
           ...(typeof args.volumes === 'string' ? { volumes: args.volumes } : {}),
           ...(typeof args.ending === 'string' ? { ending: args.ending } : {}),
         })
-        const content = readBibleEntry(root, result.workId, 'plan')?.content ?? ''
+        const entry = readBibleEntry(root, result.workId, 'plan')
         return {
           ok: true,
           workId: result.workId,
           outline: result.outline,
-          artifact: { workId: result.workId, artifactId: 'outline', revisionId: contentRevision(content), kind: 'outline' },
+          artifact: { workId: result.workId, artifactId: 'outline', revisionId: entry?.version ?? 'current', kind: 'outline' },
         }
       },
     }),
@@ -1569,7 +1579,7 @@ function rawDefinitions(ctx) {
         additionalProperties: false,
         properties: {
           work: { type: 'string', description: '作品 id。' },
-          file: { type: 'string', enum: ['world', 'characters', 'style', 'plan', 'intent'], description: '写哪一份。' },
+          file: { type: 'string', enum: ['world', 'characters', 'style', 'intent'], description: '写哪一份。' },
           content: { type: 'string', description: '完整内容（Markdown 或人物档案 JSON）。' },
         },
         required: ['work', 'file', 'content'],
@@ -1637,9 +1647,14 @@ function rawDefinitions(ctx) {
           }
         }
         if (kind === 'outline') {
-          const entry = readBibleEntry(root, workId, 'plan')
-          content = entry?.content ?? ''
-          ref = { ...ref, artifactId: 'outline', revisionId: entry?.version ?? 'current', kind: 'outline' }
+          const read = readTextArtifact(root, {
+            work: workId,
+            artifactId: 'outline',
+            kind: 'outline',
+            ...(args.revisionId === undefined ? {} : { revisionId: String(args.revisionId) }),
+          })
+          content = String(read.artifact.content)
+          ref = { ...ref, artifactId: 'outline', revisionId: read.artifact.revisionId, kind: 'outline' }
         } else if (kind === 'plan') {
           let memo
           try {
@@ -1687,13 +1702,22 @@ function rawDefinitions(ctx) {
           ref = { ...ref, artifactId: `summary:${chapterNumber}`, revisionId: summary.artifact.revisionId, kind: 'summary' }
         } else if (kind === 'bible') {
           const file = parts.join(':')
-          const entry = readBibleEntry(root, workId, file)
-          content = entry?.content ?? ''
-          ref = {
-            ...ref,
-            artifactId: file === 'plan' ? 'outline' : `bible:${file}`,
-            revisionId: entry?.version ?? 'current',
-            kind: file === 'plan' ? 'outline' : file,
+          if (file === 'characters') {
+            const entry = readBibleEntry(root, workId, file)
+            content = entry?.content ?? ''
+            ref = { ...ref, artifactId: `bible:${file}`, revisionId: entry?.version ?? 'current', kind: file }
+          } else {
+            const name = file === 'plan' ? 'plan' : file
+            const expected = name === 'plan'
+              ? { artifactId: 'outline', kind: 'outline' }
+              : { artifactId: `bible:${name}`, kind: name }
+            const read = readTextArtifact(root, {
+              work: workId,
+              ...expected,
+              ...(args.revisionId === undefined ? {} : { revisionId: String(args.revisionId) }),
+            })
+            content = String(read.artifact.content)
+            ref = { ...ref, ...expected, revisionId: read.artifact.revisionId }
           }
         } else if (kind === 'state') {
           content = readEventsText(root, workId)

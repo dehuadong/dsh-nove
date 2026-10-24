@@ -375,6 +375,9 @@ export function initWork(root, input) {
             writeTextArtifactOnDb(db, {
               work: workId, artifactId: truth.artifactId, kind: truth.kind, content, createdAt: at,
             })
+            if (truth.kind !== 'outline') {
+              syncSearchDoc(db, truth.artifactId, truth.kind, `bible/${name}`, 0, content)
+            }
           }
         })
       } finally {
@@ -2085,7 +2088,7 @@ export function writeBible(root, input) {
           work: workId, artifactId: truth.artifactId, kind: truth.kind, content,
         })
         if (written.created) {
-          syncSearchDoc(db, truth.artifactId, truth.kind, `bible/${name === 'plan' ? 'plan' : name}`, 0, written.content)
+          syncSearchDoc(db, truth.artifactId, truth.kind, `bible/${name}`, 0, written.content)
         }
         touchMeta(db)
         return { workId, name, version: written.revisionId }

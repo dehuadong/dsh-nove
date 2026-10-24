@@ -41,8 +41,9 @@ A0 已登记 `world`/`style`/`intent`/`outline` artifact 与消费矩阵，但�
 | 全书计划 | `outline` artifact（Markdown） | `story_outline` |
 | characters | `bible` 表的 `characters` 行（六字段 JSON） | 保持现状；roles 由 R10b 生产 |
 
-- 四个文本 artifact 用 `kind` 同名、`artifactId` 为 `bible:world`/`bible:style`/`bible:intent`/`outline`，`revisionId` 为内容哈希；内容统一加尾部换行后入 registry。
-- 每次写入生成新 revision；旧 revision 可读（`story_read` 按 ID 与 revisionId），不做原地覆盖。
+- 四个文本 artifact 用 `kind` 同名、`artifactId` 为 `bible:world`/`bible:style`/`bible:intent`/`outline`，`revisionId` 为内容哈希；内容按原文入 registry，不强制补换行（`story_outline` 自己生成带换行的文本）。
+- 每次写入生成新 revision；旧 revision 可读（`story_read` 按 ID 与 revisionId）。作者把内容改回旧文本时，该内容的历史 revision 被移到最新位置成为当前版本（内容哈希不变、历史仍可读），不产生重复 revision。
+- `initWork` 预建四个文本条目的占位内容（world/style/intent/outline），与 characters 行一致；其中 world/style/intent 同时写入检索文档。outline 占位不算“已写全书计划”，闸门仍看 `meta.outline_written_at`。
 - `writeOutline` 在同一事务内写 outline artifact 并更新 `meta.outline_written_at`、清空 `outline_approved_at`；`approveOutline` 只记录确认时间。**不新增 `outline_revision` 列**：outline 的唯一写入口就是 `story_outline`，写入即清批准，时间戳就足以表达“确认的是当前文本”；无需 schema 升级。
 - `story_bible_write` 的 `file` 枚举保持 world/characters/style/intent；`plan` 仍禁止经它写入（全书计划只走 `story_outline` + 作者确认）。
 - `story_style_extract` 写 style artifact，受管样例块的合并/去重逻辑不变。
@@ -60,7 +61,9 @@ A0 已登记 `world`/`style`/`intent`/`outline` artifact 与消费矩阵，但�
 | `story_bible_import` | world 写入 world artifact；不导入 outline/characters（现状保持） |
 | 面板 | 真值编辑区按 artifact 内容读写；显示 `bible` 只剩 characters（文案不把 plan 列成可编辑项） |
 
-- `readBible`/`readBibleMap` 保留返回形状（`{name, content, version}`），`version` 改用 artifact revisionId（字符串）；`writeBible` 的内部 `expectedVersion` 与最新 revisionId 比较，冲突仍返回 `bible-conflict`；工具输出 schema 的 `version` 同步为字符串。
+- `readBible`/`readBibleMap` 保留返回形状（`{name, content, version}`），`version` 改用 artifact revisionId（字符串）；`writeBible` 的内部 `expectedVersion` 与最新 revisionId 比较，冲突仍返回 `bible-conflict`；工具输出 schema 的 `version` 同步为字符串。`readBible` 的 `plan` 虚拟路径改为 `outline/plan.md`，与导出一致。
+- `story_read` 对 characters 仍用 `bible:characters`/kind `bible`（表行）；world/style/intent 用 `bible:<name>`/kind 同名；plan 用 `outline`/kind `outline`。
+- `story_bible_import` 只写 world artifact，导入回执的 `version` 用写入返回的 revisionId（不是对原文另算一次哈希）。
 - 错误码保持：`bible-missing`、`bible-invalid`、`outline-required`、`outline-not-approved`；artifact 层新增错误按 registry 既有码（`artifact-not-found`/`artifact-invalid`）透传。
 
 ### 3. 旧数据与边界

@@ -429,14 +429,14 @@ test.describe('故事工坊工作台', () => {
     await expect.poll(() => {
       const db = openWork(runtime.fixtureWorkspace, work)
       try {
-        return db.prepare("SELECT content FROM bible WHERE name = 'style'").get()?.content ?? ''
+        return db.prepare("SELECT content FROM artifacts WHERE artifact_id = 'bible:style' ORDER BY rowid DESC LIMIT 1").get()?.content ?? ''
       } finally {
         db.close()
       }
     }, { timeout: 15_000 }).toContain(STYLE_START)
     const db = openWork(runtime.fixtureWorkspace, work)
     try {
-      expect(db.prepare("SELECT content FROM bible WHERE name = 'style'").get().content).toContain('样例 3')
+      expect(db.prepare("SELECT content FROM artifacts WHERE artifact_id = 'bible:style' ORDER BY rowid DESC LIMIT 1").get().content).toContain('样例 3')
     } finally {
       db.close()
     }
@@ -449,7 +449,7 @@ test.describe('故事工坊工作台', () => {
     const title = `真值编辑${Date.now()}`
     const work = store.initWork(runtime.fixtureWorkspace, { title }).workId
     const seedDb = openWork(runtime.fixtureWorkspace, work)
-    seedDb.prepare("DELETE FROM bible WHERE name IN ('plan', 'style')").run()
+    seedDb.prepare("DELETE FROM artifacts WHERE artifact_id IN ('outline', 'bible:style')").run()
     seedDb.close()
     await openWorkbench(page)
     await page.getByRole('button', { name: new RegExp(title) }).evaluate(node => node.click())
@@ -458,7 +458,7 @@ test.describe('故事工坊工作台', () => {
     await page.getByRole('tab', { name: '真值', exact: true }).evaluate(node => node.click())
     const worldItem = page.locator('.sc-item').filter({ hasText: 'bible/world.md' })
     await expect(worldItem).toBeVisible({ timeout: 15_000 })
-    await expect(page.locator('.sc-item').filter({ hasText: 'bible/plan.md' }).getByRole('button', { name: '编辑', exact: true })).toHaveCount(0)
+    await expect(page.locator('.sc-item').filter({ hasText: 'outline/plan.md' }).getByRole('button', { name: '编辑', exact: true })).toHaveCount(0)
     await worldItem.getByRole('button', { name: '编辑', exact: true }).evaluate(node => node.click())
     const worldArea = page.getByLabel('编辑真值 world')
     await worldArea.evaluate(node => { node.value = '# 世界观\n\n新井台。\n' })
@@ -467,7 +467,7 @@ test.describe('故事工坊工作台', () => {
     await expect.poll(() => {
       const db = openWork(runtime.fixtureWorkspace, work)
       try {
-        return db.prepare("SELECT content FROM bible WHERE name = 'world'").get()?.content ?? ''
+        return db.prepare("SELECT content FROM artifacts WHERE artifact_id = 'bible:world' ORDER BY rowid DESC LIMIT 1").get()?.content ?? ''
       } finally {
         db.close()
       }
@@ -484,7 +484,7 @@ test.describe('故事工坊工作台', () => {
     await expect.poll(() => {
       const db = openWork(runtime.fixtureWorkspace, work)
       try {
-        return db.prepare("SELECT content FROM bible WHERE name = 'style'").get()?.content ?? ''
+        return db.prepare("SELECT content FROM artifacts WHERE artifact_id = 'bible:style' ORDER BY rowid DESC LIMIT 1").get()?.content ?? ''
       } finally {
         db.close()
       }
@@ -504,7 +504,7 @@ test.describe('故事工坊工作台', () => {
     await page.getByRole('button', { name: '取消', exact: true }).evaluate(node => node.click())
     const db = openWork(runtime.fixtureWorkspace, work)
     try {
-      expect(db.prepare("SELECT content FROM bible WHERE name = 'intent'").get().content).not.toContain('不保存')
+      expect(db.prepare("SELECT content FROM artifacts WHERE artifact_id = 'bible:intent' ORDER BY rowid DESC LIMIT 1").get().content).not.toContain('不保存')
     } finally {
       db.close()
     }

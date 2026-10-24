@@ -1,9 +1,10 @@
 // S4a: world/style/intent/outline live as artifacts; bible keeps characters only.
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, stat, mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../storage.js'
 import * as b from '../bible.js'
+import { readTextArtifact } from '../artifact-store.js'
 import { openWork } from '../db.js'
 
 let failures = 0
@@ -53,10 +54,14 @@ try {
   check('identical content is an idempotent no-op', repeat.version === world.version && worldRows === worldRowsAfter,
     JSON.stringify({ worldRows, worldRowsAfter }))
 
-  await b.writeBible(root, work, 'world', '# 世界观\n\n第二版。\n')
+  const second = await b.writeBible(root, work, 'world', '# 世界观\n\n第二版。\n')
   const reverted = await b.writeBible(root, work, 'world', '# 世界观\n\n荒原上以前有过城。\n')
   check('reverting to an older text makes it current again',
     reverted.version === world.version && s.readBibleEntry(root, work, 'world').content.includes('荒原上以前有过城'))
+  const oldRead = readTextArtifact(root, {
+    work, artifactId: 'bible:world', kind: 'world', revisionId: second.version,
+  })
+  check('an older truth revision stays readable', oldRead.artifact.content.includes('第二版'), JSON.stringify(oldRead.artifact))
 
   const written = s.writeOutline(root, { work, mainline: '工程队在荒原立国。', volumes: '三卷。', ending: '开放。' })
   check('outline is written as an artifact',
@@ -106,6 +111,16 @@ try {
     typeof characters.version === 'string' && JSON.parse(s.readBibleEntry(root, work, 'characters').content)[0].name === '林澈')
 
   throwsCode('writeBible refuses plan', 'approval-moved', () => s.writeBible(root, { work, name: 'plan', content: 'x' }))
+
+  const legacyWork = await s.initWork(root, { title: '旧文件导入' })
+  await mkdir(join(root, 'works', legacyWork.workId, 'design'), { recursive: true })
+  await writeFile(join(root, 'works', legacyWork.workId, 'design', 'world.md'), '# 导入世界\n\n有井台。\n')
+  const report = await b.importBible(root, legacyWork.workId)
+  check('import writes the world artifact and it is readable',
+    report.imported.length === 1 && s.readBibleEntry(root, legacyWork.workId, 'world').content.includes('有井台'),
+    JSON.stringify(report.imported))
+  check('import reports the artifact revision',
+    report.imported[0].version === s.readBibleEntry(root, legacyWork.workId, 'world').version, JSON.stringify(report.imported[0]))
 } finally {
   await rm(root, { recursive: true, force: true })
 }

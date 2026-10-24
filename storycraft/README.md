@@ -78,7 +78,7 @@ DSH 里的长篇创作编排：三十二个动作把立项、章纲、正文、�
 bible/world       世界观：时代、地理、规则边界、已定事实
 bible/characters  人物档案：[{ name, role, want, fear, limit, voice }]
 bible/style       文风基准：人称、时态、句长节奏、禁用词与口头禅
-bible/plan        写作计划与章序规划
+outline/plan.md   全书计划：主线、卷划分、结局方向
 bible/intent      作者意图与当前焦点
 summaries         章节摘要（摘要 artifact `summary:<n>` 的虚拟路径；rawText 上限 400 字；bodyRevision 绑定正文版本）
 materials         作者素材（txt/md；用途 setting/character/scene/style/reference；FTS5 索引；元数据表格 + .storycraft/materials 副本）

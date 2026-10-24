@@ -31,7 +31,7 @@ try {
   const work = '潮汐记事'
   const initial = await b.readBible(root, work)
   check('init creates five truth entries', initial.files.length === 5, initial.files.map(file => file.name).join(','))
-  check('truth paths are virtual', initial.files.every(file => file.path.startsWith(`works/${work}/bible/`)), initial.files[0].path)
+  check('truth paths are virtual', initial.files.every(file => file.path === `works/${work}/outline/plan.md` || file.path.startsWith(`works/${work}/bible/`)), initial.files[0].path)
   check('truth content is not a file on disk', await exists(join(root, 'works', work, 'bible', 'world.md')) === false)
 
   // Character-sheet validation, and no clobber on failure.
