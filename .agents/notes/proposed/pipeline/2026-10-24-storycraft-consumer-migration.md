@@ -75,6 +75,7 @@ A0 只负责字段合同、v6 registry、消费者映射与可测试的消费契
 - `story_read`/`artifactRef` 同样使用 registry revisionId。
 - 旧 `summaries` 不再写、不再读。
 - 测试：`summary-consumers.test.mjs`（结构化写入、bodyRevision stale、brief/settle/检索/export、revision 一致）。
+- 生产/消费细节、提交形状与旧数据边界见 [L-R10a S2 ChapterSummary 迁移](2026-10-24-storycraft-summary-migration.md)。
 
 **S3 hooks / facts**
 
