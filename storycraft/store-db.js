@@ -32,7 +32,7 @@ import {
   formOf, now, parseReview, planApprovalPolicy, stageOf, summaryAdmissible, trimSummary, unitOf, workIdOf,
 } from './domain.js'
 import { assertRevisionMode } from './revision.js'
-import { renderChapterMemo, writeChapterMemoOnDb } from './artifact-store.js'
+import { remapChapterArtifacts, renderChapterMemo, writeChapterMemoOnDb } from './artifact-store.js'
 
 /** How long an unused proposal is kept before the next proposal write prunes it. */
 export const PROPOSAL_TTL_MS = 30 * 24 * 60 * 60 * 1000
@@ -2253,25 +2253,6 @@ function chapterKeys(db) {
   return db.prepare('SELECT number FROM chapters ORDER BY number').all().map(row => row.number)
 }
 
-/** Refuse a chapter edit that would orphan a chapter-scoped artifact. */
-function assertChapterArtifactsEditable(db, numbers) {
-  const unique = [...new Set(numbers)].filter(number => Number.isInteger(number))
-  if (unique.length === 0) return
-  const placeholders = unique.map(() => '?').join(', ')
-  const row = db.prepare(`SELECT 1 FROM artifacts WHERE scope_chapter IN (${placeholders}) LIMIT 1`).get(...unique)
-  if (row !== undefined) {
-    throw new StoryError('chapter-edit-blocked',
-      '该章节还有 plan/summary/review 等 artifact：S1b 重映射前不能删除或移动')
-  }
-}
-
-/** Old numbers whose rank changes, plus the deleted number. */
-function affectedChapterNumbers(mapping, deleted) {
-  const affected = [...mapping.entries()].filter(([oldNumber, newNumber]) => oldNumber !== newNumber).map(([oldNumber]) => oldNumber)
-  if (deleted !== undefined) affected.push(deleted)
-  return affected
-}
-
 /**
  * Delete one chapter and renumber survivors by rank.
  * @param {string} root - workspace.
@@ -2290,7 +2271,6 @@ export async function deleteChapter(root, work, chapter, options = {}) {
     keys = chapterKeys(probe)
     if (!keys.includes(number)) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
     mapping = chapterRemap(keys, { type: 'delete', chapter: number })
-    assertChapterArtifactsEditable(probe, affectedChapterNumbers(mapping, number))
   } finally {
     probe.close()
   }
@@ -2304,6 +2284,7 @@ export async function deleteChapter(root, work, chapter, options = {}) {
       db.prepare("DELETE FROM search_docs WHERE (kind IN ('chapter', 'summary')) AND chapter = ?").run(number)
       db.prepare("DELETE FROM search_docs WHERE doc_id LIKE 'event:%' AND chapter = ?").run(number)
       applyChapterMapping(db, mapping)
+      remapChapterArtifacts(db, { mapping, deleted: [number], workId: work })
       rewriteChapterDocs(db, mapping)
       const survivors = chapterKeys(db)
       db.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
@@ -2335,6 +2316,7 @@ export async function deleteChapter(root, work, chapter, options = {}) {
 export async function moveChapter(root, work, from, to, options = {}) {
   const source = chapterNumber(from)
   const target = chapterNumber(to)
+  await backupWork(root, work)
   const db = openWork(root, work)
   try {
     const keys = chapterKeys(db)
@@ -2346,9 +2328,9 @@ export async function moveChapter(root, work, from, to, options = {}) {
       throw new StoryError('chapter-edit-target-invalid', '只能移动到相邻章')
     }
     const mapping = chapterRemap(keys, { type: 'move', from: source, to: target })
-    assertChapterArtifactsEditable(db, affectedChapterNumbers(mapping))
     return transaction(db, () => {
       applyChapterMapping(db, mapping)
+      remapChapterArtifacts(db, { mapping, workId: work })
       rewriteChapterDocs(db, mapping)
       touchMeta(db)
       if (typeof options.beforeCommit === 'function') options.beforeCommit(db)

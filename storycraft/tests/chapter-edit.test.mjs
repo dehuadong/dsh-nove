@@ -40,26 +40,6 @@ async function seed() {
 try {
   const work = await seed()
   const beforeMeta = openWork(root, work).prepare('SELECT updated_at FROM meta WHERE id = 1').get().updated_at
-  let blocked
-  try {
-    await s.deleteChapter(root, work, 2, { confirm: true })
-  } catch (error) {
-    blocked = error
-  }
-  check('delete with chapter artifacts is blocked', blocked?.code === 'chapter-edit-blocked', blocked?.code)
-  let moveBlocked
-  try {
-    await s.moveChapter(root, work, 1, 2)
-  } catch (error) {
-    moveBlocked = error
-  }
-  check('move with chapter artifacts is blocked', moveBlocked?.code === 'chapter-edit-blocked', moveBlocked?.code)
-  const cleanup = openWork(root, work)
-  try {
-    cleanup.exec('DELETE FROM artifacts')
-  } finally {
-    cleanup.close()
-  }
   const deleted = await s.deleteChapter(root, work, 2, { confirm: true })
   check('delete returns changed and survivors', deleted.changed === true && deleted.chapters.join(',') === '1,2,3', JSON.stringify(deleted))
   check('delete backs up the work', (await readdir(backupsDir(root))).some(name => name.startsWith(`${work}-`)))

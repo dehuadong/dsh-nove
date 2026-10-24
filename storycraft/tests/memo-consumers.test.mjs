@@ -163,8 +163,8 @@ try {
   const offWrite = await s.writeChapter(root, { work: off, chapter: 1, body: '正文。'.repeat(20), requirePlanApproval: true })
   check('planApproval off bypasses the gate', offWrite.revision === 1, JSON.stringify(offWrite))
 
-  await throws('chapter edit is blocked while a memo exists', 'chapter-edit-blocked',
-    () => s.deleteChapter(root, off, 1, { confirm: true }))
+  const deleted = await s.deleteChapter(root, off, 1, { confirm: true })
+  check('chapter delete removes the memo', deleted.changed === true && await s.readPlan(root, off, 1) === undefined, JSON.stringify(deleted))
 
   const broken = (await s.initWork(root, { title: '坏章纲' })).workId
   await s.writeOutline(root, { work: broken, mainline: '一条线' })

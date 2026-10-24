@@ -315,6 +315,103 @@ export function writeChapterMemo(root, input) {
   }
 }
 
+/**
+ * Move/delete chapter-scoped artifacts after a chapter renumber.
+ * Only the latest revision survives; affected approvals are cleared.
+ */
+export function remapChapterArtifacts(db, input) {
+  const mapping = input.mapping
+  const deleted = new Set(input.deleted ?? [])
+  const affected = new Set([
+    ...deleted,
+    ...[...mapping.entries()].filter(([oldNumber, newNumber]) => oldNumber !== newNumber).map(([oldNumber]) => oldNumber),
+  ])
+  if (affected.size === 0) return { moved: 0, deleted: 0 }
+  const numbers = [...affected]
+  const rows = db.prepare(`SELECT * FROM artifacts
+    WHERE scope_chapter IN (${numbers.map(() => '?').join(', ')}) ORDER BY rowid`).all(...numbers)
+  const latest = new Map()
+  for (const row of rows) latest.set(row.artifact_id, row)
+  const order = { plan: 0, summary: 1, review: 2 }
+  const ordered = [...latest.values()].sort((left, right) => (order[left.kind] ?? 9) - (order[right.kind] ?? 9))
+  const deletions = new Set()
+  const inserts = []
+  const planRevisions = new Map()
+  let deletedCount = 0
+
+  for (const row of ordered) {
+    const oldNumber = row.scope_chapter
+    const newNumber = mapping.get(oldNumber)
+    if (newNumber === undefined) {
+      deletions.add(row.artifact_id)
+      deletedCount += 1
+      continue
+    }
+    if (newNumber === oldNumber) continue
+    const content = deserialize(row)
+    let nextId = row.artifact_id
+    if (row.kind === 'plan' && row.artifact_id === `plan:${oldNumber}`) nextId = `plan:${newNumber}`
+    if (row.kind === 'summary' && row.artifact_id === `summary:${oldNumber}`) nextId = `summary:${newNumber}`
+    if (row.kind === 'review' && row.artifact_id.startsWith(`review:${oldNumber}:`)) {
+      nextId = `review:${newNumber}:${row.artifact_id.slice(`review:${oldNumber}:`.length)}`
+    }
+    if (row.kind === 'plan' || row.kind === 'summary') content.chapter = newNumber
+    if (row.kind === 'review' && Array.isArray(content.observations)) {
+      for (const observation of content.observations) {
+        if (observation?.target?.artifactId?.startsWith('plan:')) {
+          const oldPlan = Number(observation.target.artifactId.slice('plan:'.length))
+          const nextPlan = mapping.get(oldPlan)
+          if (nextPlan === undefined) {
+            delete observation.target
+          } else {
+            observation.target.artifactId = `plan:${nextPlan}`
+            observation.target.revisionId = planRevisions.get(`plan:${nextPlan}`) ?? observation.target.revisionId
+          }
+        }
+        for (const ref of Array.isArray(observation?.sourceRefs) ? observation.sourceRefs : []) {
+          if (typeof ref.sourceId === 'string' && ref.sourceId.startsWith('plan:')) {
+            const oldPlan = Number(ref.sourceId.slice('plan:'.length))
+            const nextPlan = mapping.get(oldPlan)
+            if (nextPlan === undefined) delete ref.sourceId
+            else ref.sourceId = `plan:${nextPlan}`
+          }
+        }
+      }
+    }
+    const revisionId = artifactRevision(content)
+    if (row.kind === 'plan') planRevisions.set(nextId, revisionId)
+    deletions.add(row.artifact_id)
+    inserts.push({ row, nextId, revisionId, content, scope: newNumber })
+  }
+
+  if (deletions.size > 0) {
+    db.prepare(`DELETE FROM artifacts WHERE artifact_id IN (${[...deletions].map(() => '?').join(', ')})`)
+      .run(...deletions)
+  }
+  for (const item of inserts) {
+    const existing = db.prepare('SELECT content_type, content FROM artifacts WHERE artifact_id = ? AND revision_id = ?')
+      .get(item.nextId, item.revisionId)
+    if (existing !== undefined) {
+      const nextText = serialize(item.content).text
+      if (existing.content_type !== serialize(item.content).contentType || existing.content !== nextText) {
+        throw new StoryError('chapter-remap-conflict', `重映射目标已存在不同内容：${item.nextId}@${item.revisionId}`)
+      }
+      continue
+    }
+    const { contentType, text } = serialize(item.content)
+    db.prepare(`INSERT INTO artifacts
+      (artifact_id, revision_id, kind, scope_chapter, content_type, content, provenance, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(item.nextId, item.revisionId, item.row.kind, item.scope,
+        contentType, text, item.row.provenance, item.row.created_at)
+  }
+  for (const [oldNumber, newNumber] of mapping) {
+    if (oldNumber === newNumber) continue
+    db.prepare('UPDATE chapters SET plan_approved_at = NULL, plan_revision = NULL WHERE number = ?').run(newNumber)
+  }
+  return { moved: inserts.length, deleted: deletedCount }
+}
+
 /** Read one chapter memo, latest or an explicit revision. */
 export function readChapterMemo(root, input) {
   const chapter = chapterNumber(input.chapter)
