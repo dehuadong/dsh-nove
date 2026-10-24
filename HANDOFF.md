@@ -1,7 +1,7 @@
 # 交接文档：A0 tickets 已交付，L-R10a 消费者迁移规划未通过（2026-10-24）
 
 > 更新时间：2026-10-24
-> 仓库：`dehuadong/dsh-nove`，分支 `main`，HEAD `6674772`。
+> 仓库：`dehuadong/dsh-nove`，分支 `main`，HEAD `9c5f0d6`。
 > 本轮范围：A0 #45 的实现 tickets #46–#49 已交付；L-R10a #51、S1 #53、observation #52 已立规划，Plan Review 未通过；#45 仍 in-progress。
 
 ## 1. 当前结论
@@ -46,7 +46,7 @@
 - `readPlan`/brief/context/readChapter(view:'plan')/export/observation 引文都从 memo 渲染；`story_read(plan:n)` 返回 memo JSON，当前/旧 revision 可读。
 - 批准绑定 memo revision，正文首版/重写/修订不清空；`planApprovalState`/`assertPlanApproved` 统一闸门；`blocked` 与 `missing` 分离。
 - 删除/移动在 deleted ∪ old≠new 中存在 `scope_chapter` artifact 时 `chapter-edit-blocked`，且在 backup 前检查。
-- commit `09b7907`、`125f9ae`；`node storycraft/scripts/ci.mjs --no-e2e` → 44 个单测文件通过；E2E 未跑（Playwright 环境阻塞）。
+- commit `09b7907`、`125f9ae`、`9c5f0d6`；`node storycraft/scripts/ci.mjs --no-e2e` → 44 个单测文件通过；E2E 未跑（Playwright 环境阻塞）。
 - 已知取舍：直接 store 调用允许省略 body（测试 fixture），`story_plan` action 用 `requireBody` 强制；`#56` 仍待做章节重映射。
 
 ### S1a-demo #53 规划状态（历史）
