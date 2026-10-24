@@ -19,14 +19,21 @@ updated: 2026-10-24
 
 ## 对拍参考
 
-- `inkos-master` 是 TypeScript 项目：`tsconfig.json` 的 `rootDir: src`、`outDir: dist`、`module: Node16`、`strict`、`declaration`；`packages/core/src/*.ts`；`package.json` 的 `build: pnpm -r build`。
-- 采纳：TS 源码 → dist JS → 运行/安装；测试与构建分离。
-- 不采纳：其 monorepo 包结构与 tsdown/vitest 全套；故事工坊按依赖层迁移，构建仍用 `tsc`。
-- Client 参考的 browser bundle 由各包自己构建；我们 T4 单独用 esbuild，不与 Host tsc 混。
+- `inkos-master` 是 TypeScript 项目：`tsconfig.json` 的 `rootDir: src`、`outDir: dist`；`packages/core/src/*.ts`；`package.json` 的 `build: pnpm -r build`。
+- 只参考其**能力实现方式**：开发写 TS、构建出 JS、运行/安装用 JS 产物。
+- 不采纳其目录结构、monorepo、tsdown/vitest 或包划分；故事工坊是单个 DSH 插件包，结构由 DSH 的加载契约决定。
+- Client 的 browser bundle 也按 DSH 的 `__ModuleLoader__` 单文件入口处理，不照搬参考工程的 browser 构建。
 
 ## 提案
 
-### 1. 布局与入口
+### 1. DSH 约束下的结构
+
+结构不是照搬 `inkos-master`，而是由 DSH 决定：
+
+- 单个插件包，没有 monorepo；Cordis 按包名加载 Host 入口；
+- DSH Client 通过 `__ModuleLoader__` 加载单文件 `client.js`，不能用 tsc 直接产出多模块；
+- 当前 package 的 `exports` 和 `dsh.bundle.patch` 已固定入口，迁移期间要保持可加载；
+- 因此采用 `src/*.ts` → `dist/*.js`，迁移期根 JS 仍作为未迁移模块与稳定入口；全部迁完后把 `exports` 指向 `dist/`，再移除根 JS。
 
 采用 `src/*.ts` → `dist/*.js`：
 
