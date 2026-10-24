@@ -59,11 +59,12 @@ updated: 2026-10-24
 
 | 层 | 模块 | 说明 |
 | --- | --- | --- |
-| L0 | `domain`、`chapter-edit`、`search-text`、`critique`、`materials`、`current`、`epub` | 只依赖 Node/domain；先建立类型与测试基线 |
-| L1 | `db`、`artifact-contract`、`search-index`、`style`、`revision`、`state-projection` | 数据/规则叶子 |
-| L2 | `store-db`、`artifact-store`、`storage`、`retrieval`、`volumes` | 中心存储与查询；`store-db` 单独一批 |
-| L3 | `bible`、`facts`、`landing`、`context`、`role-input`、`submission`、`delegate`、`state-check`、`state-settle` | 角色/状态消费 |
-| L4 | `tools`、`index`、`client` | DSH 接缝与浏览器入口；`tools/index` 依赖 L3，`client` 单独 esbuild |
+| L0 | `scope` + build/prepack/CI | 已完成；作为后续层的构建基线 |
+| L1 | `domain`、`chapter-edit`、`search-text`、`critique`、`materials`、`current`、`epub` | 只依赖 Node/domain；先建立类型与测试基线 |
+| L2 | `db`、`artifact-contract`、`search-index`、`style`、`revision`、`state-projection` | 数据/规则叶子 |
+| L3 | `store-db`、`artifact-store`、`storage`、`retrieval`、`volumes` | 中心存储与查询；`store-db` 单独一批 |
+| L4 | `bible`、`facts`、`landing`、`context`、`role-input`、`submission`、`delegate`、`state-check`、`state-settle`、`tools`、`index` | 角色/状态消费与 DSH 接缝 |
+| L5 | `client` | 浏览器入口；单独用 esbuild 打成单文件 |
 
 每层完成后：`ci --no-e2e`、pack-check、tarball 安装 smoke 全过；下一层才开始。
 
