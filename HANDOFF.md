@@ -1,7 +1,7 @@
 # 交接文档：A0 tickets 已交付，L-R10a 消费者迁移规划未通过（2026-10-24）
 
 > 更新时间：2026-10-24
-> 仓库：`dehuadong/dsh-nove`，分支 `main`，HEAD `0b28be2`。
+> 仓库：`dehuadong/dsh-nove`，分支 `main`，HEAD `06f563b`。
 > 本轮范围：A0 #45 的实现 tickets #46–#49 已交付；L-R10a #51、S1 #53、observation #52 已立规划，Plan Review 未通过；#45 仍 in-progress。
 
 ## 1. 当前结论
@@ -40,22 +40,22 @@
 
 因此 **#46–#49 已关闭，#45 仍 in-progress；#51/#52/#53 均为 planning，不能进入实现。**
 
-### S1a #53 规划状态
+### S1a-demo #53 规划状态
 
-#53 已缩为 S1a（当前 memo 基础消费链），三轴仍未通过，6 个 blocker（见 #53 comment）：
+#53 已缩为 S1a-demo（memo 当前/旧 revision 只读消费，不改章节号重映射），三轴仍未通过，6 个 blocker（见 #53 comment）：
 
-1. `chapter_plans` 有 `REFERENCES chapters(number)`；移除映射循环会触发 FK 回滚，需清空表或保留维护写入；
-2. `reviseChapter` 未接 plan approval/policy，store 侧闸门与 review 前置顺序未定义；
-3. `nextStep` 的 `missing:['plan-approval']` 与 action 可执行性冲突，需 blocked 语义；
-4. observation target 清理与 #52 双 owner，且 review artifact 不可原地改；
-5. 旧 revision 支持在 Note 与 #53 body 不一致，S1b 无 owner；
-6. 约 30 个测试 fixture 调 `writePlan` 不带 body/threadRefs，AC 未列。
+1. 章节编辑阻断必须覆盖整个 mapping（删无 memo 的章也会重编号有 memo 的幸存章），且在 backup 前检查；
+2. `nextStep.missing` 现有语义是普通缺输入，不能同时表达审批阻断；需要新增 `blocked` 或只对 `plan-approval` 特判，`NEXT_OUTPUT` 也要声明；
+3. 批准闸门入口不唯一：`writeChapter` 仅首版/可选 requirePlanApproval，`reviseChapter` 校验在事务外；需 store 内按 `meta.plan_approval` 统一；
+4. 模型侧技能/README 仍写“章纲五项/不要加字段”，未列更新；
+5. 实际约 72–76 处 `writePlan`、28 个测试文件；chapter-edit/store-chapter/storage/export/bible/state-check/tools 都要改；
+6. 合同 §8 的 memo 计划检索未接，`verifyObservationSources` 触及 #52，面板阻断提示未定义。
 
 ## 3. 下一步
 
-1. 先裁决 S1a 的 6 个 blocker，或进一步缩到“只写读当前 memo、不改章节编辑”的演示切片。
+1. 先裁决 `nextStep.blocked` 形状、章节编辑阻断范围与 store 级批准入口；或进一步缩到“只读 memo、不接批准/章节编辑”的纯消费演示。
 2. 不要直接实现 #51/#53；它们仍是 planning。
-3. S1a 通过后再按同一方法规划 S2 summary、S3 state/foundation；真实链路 #50 在 L 完成后一次性执行，blocked by #51/#44/#52。
+3. S1a-demo 通过后再按同一方法规划 S2 summary、S3 state/foundation；真实链路 #50 在 L 完成后一次性执行，blocked by #51/#44/#52。
 4. E2E 环境阻塞解除后补跑；不能以真实链路替代 E2E。
 
 ## 4. 关键合同/决策
