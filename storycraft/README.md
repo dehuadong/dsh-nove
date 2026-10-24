@@ -261,7 +261,7 @@ node scripts/pack-check.mjs
 
 ## TypeScript 接入
 
-当前已迁移到 TS：L0 `scope`、L1 叶子层、L2 数据层，以及 L3 `store-db`、`artifact-store`、`storage`、`retrieval`、`volumes`。`store-db` 暂以 `@ts-nocheck` 保留动态 SQL 行边界，行类型另立工作项。
+当前已迁移到 TS：L0 `scope`、L1 叶子层、L2 数据层，以及 L3 `store-db`、`artifact-store`、`storage`、`retrieval`、`volumes`。`store-db` 暂以 `@ts-nocheck` 保留动态 SQL 行边界；`src/store-rows.ts` 已建表行类型（P0），去 nocheck 见 #71。
 
 - 源文件：`src/*.ts`；`dist/` 由构建生成，不提交；
 - 安装依赖：`npm install`（`typescript` + `@types/node` 是 devDependencies，不进安装包）；

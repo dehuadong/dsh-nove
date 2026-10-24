@@ -15,6 +15,8 @@ import {
   closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, rmSync, statSync, unlinkSync, utimesSync, writeFileSync, writeSync,
 } from 'node:fs'
 import { join } from 'node:path'
+import type { Database } from './db.js'
+import type { ChapterRow, ChapterVersionRow, MetaRow, WorkRow } from './store-rows.js'
 import {
   backupTo, checkpoint, createWorkDatabase, exportsDir, integrityCheck, WORK_SCHEMA_VERSION,
   materialsDir, moveDatabaseFiles, openCatalog, openDatabase, openWork, removeDatabaseFiles, touchMeta, transaction,
@@ -54,41 +56,41 @@ const exportLocks = new Map()
 // ---------------------------------------------------------------------------
 
 /** Virtual path of one work root, as actions and routes report it. */
-export function virtualWorkPath(workId) {
+export function virtualWorkPath(workId: string): string {
   return `works/${workId}`
 }
 
 /** Virtual path of one artifact inside a work. */
-export function virtualPath(workId, relative) {
+export function virtualPath(workId: string, relative: string): string {
   return `${virtualWorkPath(workId)}/${String(relative).replaceAll('\\', '/')}`
 }
 
 /** One catalog row, or undefined. */
-function catalogRow(db, workId) {
-  return db.prepare('SELECT * FROM works WHERE work_id = ?').get(String(workId))
+function catalogRow(db: Database, workId: unknown): WorkRow | undefined {
+  return db.prepare('SELECT * FROM works WHERE work_id = ?').get(String(workId)) as WorkRow | undefined
 }
 
 /** The catalog row of an active work, or `work-not-found`. */
-function activeWork(db, workId) {
+function activeWork(db: Database, workId: unknown): WorkRow {
   const row = catalogRow(db, workId)
   if (row === undefined || row.trashed_at !== null) throw new StoryError('work-not-found', `没有作品：${String(workId)}`)
   return row
 }
 
 /** Read `meta`, the single row of one work database. */
-function metaOf(db) {
-  const row = db.prepare('SELECT * FROM meta WHERE id = 1').get()
+function metaOf(db: Database): MetaRow {
+  const row = db.prepare('SELECT * FROM meta WHERE id = 1').get() as MetaRow | undefined
   if (row === undefined) throw new StoryError('db-corrupt', '作品库缺少 meta 行')
   return row
 }
 
 /** Whether one chapter exists. */
-function chapterRow(db, number) {
-  return db.prepare('SELECT * FROM chapters WHERE number = ?').get(number)
+function chapterRow(db: Database, number: number): ChapterRow | undefined {
+  return db.prepare('SELECT * FROM chapters WHERE number = ?').get(number) as ChapterRow | undefined
 }
 
 /** Insert a planned chapter row when absent. */
-function ensureChapter(db, number) {
+function ensureChapter(db: Database, number: number): ChapterRow | undefined {
   const existing = chapterRow(db, number)
   if (existing !== undefined) return existing
   db.prepare('INSERT INTO chapters (number, updated_at) VALUES (?, ?)').run(number, now())
@@ -106,7 +108,9 @@ function planGateSatisfied(db, entry) {
 }
 
 /** Non-throwing approval state for read paths and next-step derivation. */
-export function planApprovalState(db, chapter) {
+export interface PlanApprovalState { required: boolean, approved: boolean, blocked: boolean, hasMemo: boolean }
+
+export function planApprovalState(db: Database, chapter: unknown): PlanApprovalState {
   const number = chapterNumber(chapter)
   const entry = db.prepare('SELECT * FROM chapters WHERE number = ?').get(number)
   if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
@@ -120,7 +124,7 @@ export function planApprovalState(db, chapter) {
 }
 
 /** Throwing approval gate for write/revise paths. */
-export function assertPlanApproved(db, chapter) {
+export function assertPlanApproved(db: Database, chapter: unknown): void {
   const state = planApprovalState(db, chapter)
   if (!state.hasMemo) throw new StoryError('plan-not-found', `第 ${chapterNumber(chapter)} 章还没有章纲`)
   if (state.blocked) throw new StoryError('plan-not-approved', `第 ${chapterNumber(chapter)} 章章纲还没经作者确认：请在面板「章纲」里点「确认章纲」`)
@@ -132,14 +136,14 @@ export function assertPlanApproved(db, chapter) {
  * @param {number} number - chapter number.
  * @returns {object|undefined} summary content, or undefined when absent.
  */
-function latestSummaryContent(db, number) {
+function latestSummaryContent(db: Database, number: number): any {
   const row = db.prepare('SELECT content FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
     .get(`summary:${number}`)
   return row === undefined ? undefined : parseSummaryContent(row.content, `summary:${number}`)
 }
 
 /** Parse one stored summary JSON; a malformed row is reported by id. */
-function parseSummaryContent(text, artifactId) {
+function parseSummaryContent(text: string, artifactId: string): any {
   try {
     const content = JSON.parse(text)
     return content !== null && typeof content === 'object' ? content : undefined
@@ -166,7 +170,7 @@ function summaryStateOfContent(content, currentRevision) {
  * @param {number} number - chapter number.
  * @returns {{state: 'current'|'stale'|'missing', text: string|undefined, revision: number|null, currentRevision: number}} state.
  */
-export function summaryStateOf(db, number) {
+export function summaryStateOf(db: Database, number: number): { state: 'current' | 'stale' | 'missing', text: string | undefined, revision: number | null, currentRevision: number } {
   const entry = db.prepare('SELECT current_revision FROM chapters WHERE number = ?').get(number)
   return summaryStateOfContent(latestSummaryContent(db, number), entry?.current_revision ?? 0)
 }
@@ -180,7 +184,7 @@ function latestSummaryRows(db) {
 }
 
 /** Summary state for every chapter of one work, keyed by chapter number. */
-function summaryStateMap(db) {
+function summaryStateMap(db: Database): Map<number, any> {
   const contentByChapter = new Map()
   for (const row of latestSummaryRows(db)) {
     const chapter = Number(row.artifact_id.slice('summary:'.length))
@@ -236,7 +240,7 @@ function openObservations(review) {
 }
 
 /** The current body row of one chapter. */
-function currentVersion(db, chapter) {
+function currentVersion(db: Database, chapter: ChapterRow): ChapterVersionRow | undefined {
   return db.prepare('SELECT * FROM chapter_versions WHERE number = ? AND revision = ?')
     .get(chapter.number, chapter.current_revision)
 }
@@ -274,14 +278,14 @@ function openProblemCountByChapter(db) {
 }
 
 /** Serialize every event row as JSONL for export and `story_read(state)`. */
-function eventsText(db) {
+function eventsText(db: Database): string {
   return db.prepare('SELECT * FROM events ORDER BY seq').all()
     .map(row => JSON.stringify({ seq: row.seq, at: row.at, chapter: row.chapter, kind: row.kind, ...JSON.parse(row.payload) }))
     .join('\n')
 }
 
 /** Flatten every event row into the shape the v2 projection consumes. */
-function eventsOf(db) {
+function eventsOf(db: Database): any[] {
   return db.prepare('SELECT seq, chapter, kind, payload FROM events ORDER BY seq')
     .all().map(row => ({ seq: row.seq, chapter: row.chapter, kind: row.kind, ...JSON.parse(row.payload) }))
 }
