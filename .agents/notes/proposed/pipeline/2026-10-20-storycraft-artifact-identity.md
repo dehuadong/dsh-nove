@@ -74,7 +74,7 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
 | 备份 | `backup:<workId>:<timestamp>` | 生成时间戳 | `backup` |
 | 素材 | `material:<id>` | 内容哈希（前 12 位） | `material` |
 
-- plan / summary / bible / outline / volume 是原地 upsert，**不能用固定 `r1`**，用当前内容哈希；本项不保留这些对象的历史，旧 revisionId 在 `story_read` 返回 `revision-not-found`，不伪造历史；
+- plan / summary / bible / outline / volume 用当前内容哈希，**不能用固定 `r1`**；按[产物合同 v2](2026-10-23-storycraft-artifact-contract-v2.md) 的“静态 artifact 保留历史 revision”**部分替代**本项原来的“upsert 不保留历史”：旧 revision 可读，不伪造；章节重编号/删除的 identity 例外见合同 v2 §2。
 - 素材（`material:<id>`）是检索文档身份，不由 `story_read` 解析；`story_materials` 只返回元数据，正文不进入模型；
 - review 的 ID 包含被审正文版本和轮次；审稿条目勾选会改变内容哈希，旧哈希不可再读；
 - chapter 的 revision 用现有真实版本号；
@@ -106,7 +106,7 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
 - 新增只读 `story_read(work, artifactId, revisionId?)`：
   - 宿主校验 artifact 属于该作品、revision 存在；
   - 返回内容、artifactId、revisionId、kind；
-  - 只解析当前存在的 revision；upsert 对象的历史版本不保留，旧 revisionId 返回 `revision-not-found`；
+  - 解析当前存在的 revision；静态 artifact 按合同 v2 保留历史 revision，旧 revisionId 可读；章节重编号/删除的 identity 例外与 export/backup 覆盖式语义除外；
   - export/backup 不是 prose artifact，`story_read` 不读取它们，只由作者 UI 路由取用；
   - 不返回文件路径；
   - 超长内容按行分页（startLine/lineCount），与参考目标的 read 行为对齐。
