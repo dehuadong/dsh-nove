@@ -1,7 +1,7 @@
 /** Immutable artifact registry: contract validation plus SQLite persistence. */
 
 import { StoryError, chapterNumber, contentVersion, now } from './domain.js'
-import { ARTIFACT_IDENTITY, validateArtifactRecord, validateChapterMeta } from './artifact-contract.js'
+import { ARTIFACT_IDENTITY, validateArtifactRecord, validateChapterMemo, validateChapterMeta } from './artifact-contract.js'
 import { openWork, touchMeta, transaction } from './db.js'
 
 function serialize(content) {
@@ -318,7 +318,17 @@ export function writeChapterMemo(root, input) {
 /** Read one chapter memo, latest or an explicit revision. */
 export function readChapterMemo(root, input) {
   const chapter = chapterNumber(input.chapter)
-  return readTyped(root, input, { artifactId: `plan:${chapter}`, kind: 'plan' })
+  let result
+  try {
+    result = readTyped(root, input, { artifactId: `plan:${chapter}`, kind: 'plan' })
+    validateChapterMemo(result.artifact.content)
+  } catch (error) {
+    if (error instanceof SyntaxError) throw new StoryError('artifact-invalid', `plan:${chapter} 的 memo JSON 无法解析`)
+    if (error?.code === 'artifact-invalid') throw error
+    if (error?.code === undefined) throw new StoryError('artifact-invalid', `plan:${chapter} 的 memo 内容不符合 ChapterMemo 合同`)
+    throw error
+  }
+  return result
 }
 
 /** Write one structured chapter summary as `summary:<n>`. */
@@ -367,7 +377,14 @@ function verifyObservationSources(root, work, chapter, bodyRevision, observation
     const memoRow = db.prepare(`SELECT content_type, content FROM artifacts
       WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1`).get(`plan:${chapter}`)
     const bodyText = compactText(body)
-    const memo = memoRow?.content_type === 'json' ? JSON.parse(memoRow.content) : undefined
+    let memo
+    if (memoRow?.content_type === 'json') {
+      try {
+        memo = JSON.parse(memoRow.content)
+      } catch {
+        throw new StoryError('artifact-invalid', `plan:${chapter} 的 memo JSON 无法解析`)
+      }
+    }
     const planText = memo === undefined ? '' : compactText(renderChapterMemo(memo))
     for (const [index, observation] of observations.entries()) {
       for (const [refIndex, ref] of (Array.isArray(observation?.sourceRefs) ? observation.sourceRefs : []).entries()) {

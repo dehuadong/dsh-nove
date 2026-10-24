@@ -47,6 +47,16 @@ try {
   const waiting = await s.nextStep(root, work)
   check('unapproved plan is a blocked write step',
     waiting.action === 'story_write' && waiting.blocked?.includes('plan-approval'), JSON.stringify(waiting))
+  const pendingDb = openWork(root, work)
+  try {
+    const pending = s.planApprovalState(pendingDb, 1)
+    check('planApprovalState reports blocked before approval',
+      pending.hasMemo === true && pending.blocked === true && pending.approved === false, JSON.stringify(pending))
+    await throws('assertPlanApproved rejects an unapproved memo', 'plan-not-approved',
+      () => s.assertPlanApproved(pendingDb, 1))
+  } finally {
+    pendingDb.close()
+  }
 
   await throws('action boundary requires body', 'plan-incomplete',
     () => s.writePlan(root, {
@@ -109,6 +119,12 @@ try {
   const exportedPlan = await readFile(join(exportPath.directory, 'outline', 'ch-0001.plan.md'), 'utf8')
   check('export includes the latest memo plan', exportedPlan.includes('## 章纲正文') && exportedPlan.includes('旧稿'), exportedPlan)
 
+  const noOutline = (await s.initWork(root, { title: '无全书计划' })).workId
+  const noOutlineNext = await s.nextStep(root, noOutline)
+  check('absent outline is a missing input, not blocked',
+    noOutlineNext.action === 'story_outline' && noOutlineNext.missing?.includes('outline')
+      && !(noOutlineNext.blocked ?? []).includes('outline-approval'), JSON.stringify(noOutlineNext))
+
   const outlinePending = (await s.initWork(root, { title: '全书计划待确认' })).workId
   await s.writeOutline(root, { work: outlinePending, mainline: '一条线' })
   const outlineNext = await s.nextStep(root, outlinePending)
@@ -118,8 +134,24 @@ try {
   const noPlan = (await s.initWork(root, { title: '无章纲' })).workId
   await s.writeOutline(root, { work: noPlan, mainline: '一条线' })
   await s.approveOutline(root, { work: noPlan })
+  await s.writePlan(root, { work: noPlan, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't', body: 'b', threadRefs: [] })
+  const noPlanDb = openWork(root, noPlan)
+  try {
+    noPlanDb.prepare("DELETE FROM artifacts WHERE artifact_id = 'plan:1'").run()
+  } finally {
+    noPlanDb.close()
+  }
   const missingPlanRead = await s.readPlan(root, noPlan, 1)
   check('missing memo reads as undefined', missingPlanRead === undefined)
+  const noMemoDb = openWork(root, noPlan)
+  try {
+    const noMemo = s.planApprovalState(noMemoDb, 1)
+    check('planApprovalState exposes a missing memo', noMemo.hasMemo === false && noMemo.blocked === false, JSON.stringify(noMemo))
+    await throws('assertPlanApproved rejects a missing memo', 'plan-not-found',
+      () => s.assertPlanApproved(noMemoDb, 1))
+  } finally {
+    noMemoDb.close()
+  }
   await throws('write without a memo is plan-not-found', 'plan-not-found',
     () => s.writeChapter(root, { work: noPlan, chapter: 1, body: '正文。'.repeat(20), requirePlanApproval: true }))
 
