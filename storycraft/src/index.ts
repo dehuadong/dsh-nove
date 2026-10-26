@@ -13,6 +13,7 @@
 
 import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, resolve } from 'node:path'
+import { deriveWorkbench } from './workbench.js'
 import { approveChapterPlan, approveFoundation, approveOutline, createBackup, deleteBackup, deleteChapter, deleteMaterial, ensureReconciled, exportWorkAtomic, importMaterial, moveChapter, listMaterials, listTrash, listWorks, nextStep, purgeTrash, readFoundationState, readManifest, restoreBackup, listBackups, readChapter, readReview, readWork, renameMaterial, restoreWork, setMaterialPurpose, status as readStatus, StoryError } from './storage.js'
 import { critique } from './critique.js'
 import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent } from './current.js'
@@ -220,6 +221,14 @@ function workOf(query: URLSearchParams): string {
   const id = query.get('id') ?? ''
   if (id === '') throw new StoryError('invalid-work', '缺少参数 id（作品 id）')
   return id
+}
+
+/** The stage step plus the panel's single next action. */
+async function workbenchOf(ctx: DshContext, query: URLSearchParams) {
+  const root = await rootOf(ctx, query)
+  const work = workOf(query)
+  const [next, manifest] = await Promise.all([nextStep(root, work), readManifest(root, work)])
+  return { next, workbench: deriveWorkbench({ next, manifest }) }
 }
 
 /** The chapter number a read names. */
@@ -518,7 +527,7 @@ export function apply(ctx: DshContext): void {
       kind: 'exact',
       path: `${BASE}/next`,
       handler: (req, res) => readRoute(req, res, async (query) => ({
-        next: await nextStep(await rootOf(ctx, query), workOf(query)),
+        ...(await workbenchOf(ctx, query)),
       })),
     }),
     ctx.webServer.register({

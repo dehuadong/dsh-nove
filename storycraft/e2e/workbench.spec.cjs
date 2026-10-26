@@ -6,77 +6,24 @@
 const fs = require('node:fs')
 const { join } = require('node:path')
 const { test, expect } = require('@playwright/test')
+const { openWorkbench } = require('./helpers.cjs')
 
 const runtimePath = process.env.STORYCRAFT_E2E_RUNTIME
 const runtime = runtimePath && fs.existsSync(runtimePath) ? JSON.parse(fs.readFileSync(runtimePath, 'utf8')) : {}
 const url = runtime.url
 const facts = runtime.facts ?? {}
 
-async function openWorkbench(page) {
-  page.on('pageerror', error => console.log('PAGEERROR', error.message))
-  await page.goto(url, { waitUntil: 'domcontentloaded' })
-  const onboarding = page.getByRole('dialog', { name: 'Get started' })
-  if (await onboarding.count() > 0) {
-    const close = onboarding.getByRole('button', { name: 'Close' })
-    if (await close.count() > 0) await close.first().evaluate(node => node.click())
-  }
-
-  // The workbench lives in the right sidebar: open a session, expand the column,
-  // then pick its card on the guide page.
-  const heading = page.getByRole('heading', { name: '故事工坊' })
-  const clickThrough = async (locator) => {
-    if (await locator.count() === 0) return false
-    await locator.first().evaluate(node => node.click())
-    return true
-  }
-
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const notice = page.getByRole('button', { name: 'Continue' })
-    if (await notice.count() > 0) await clickThrough(notice)
-
-    const workspace = page.getByRole('treeitem').first()
-    if (await workspace.count() > 0) await clickThrough(workspace)
-    await page.waitForTimeout(600)
-
-    const expand = page.getByRole('button', { name: /打开右侧边栏|Open right sidebar/ })
-    if (await expand.count() > 0) await clickThrough(expand)
-    await page.waitForTimeout(600)
-
-    const card = page.getByRole('button', { name: /故事工坊/ })
-    if (await card.count() > 0) await clickThrough(card)
-
-    try {
-      await heading.waitFor({ state: 'visible', timeout: 5_000 })
-      return
-    } catch {
-      await page.waitForTimeout(600)
-    }
-  }
-  // A preview notice can appear late and take the page out of the a11y tree;
-  // dismiss it between attempts instead of asserting straight away.
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const lateNotice = page.getByRole('button', { name: 'Continue' })
-    if (await lateNotice.count() > 0) await clickThrough(lateNotice)
-    try {
-      await heading.waitFor({ state: 'visible', timeout: 3_000 })
-      return
-    } catch {
-      await page.waitForTimeout(500)
-    }
-  }
-  await expect(heading).toBeVisible({ timeout: 10_000 })
-}
 
 test.describe('故事工坊工作台', () => {
   test.skip(!url, 'STORYCRAFT_E2E_URL 未设置：请用 node storycraft/e2e/run.mjs 运行')
 
   test('侧栏入口打开工作台', async ({ page }) => {
-    await openWorkbench(page)
+    await openWorkbench(page, url)
     await expect(page.getByText('作品编排：看作品与章节')).toBeVisible()
   })
 
   test('页面读到 fixture 作品的读数', async ({ page }) => {
-    await openWorkbench(page)
+    await openWorkbench(page, url)
     // The tab body must receive the composer writer; without it the tab could
     // only open a panel-local draft.
     await expect(page.locator('[data-storycraft-input="yes"]')).toHaveCount(1, { timeout: 15_000 })
@@ -118,7 +65,7 @@ test.describe('故事工坊工作台', () => {
   })
 
   test('已摘要章节显示有摘要徽标', async ({ page }) => {
-    await openWorkbench(page)
+    await openWorkbench(page, url)
     await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())
     const first = page.locator('button.sc-chapter').filter({ hasText: '第 1 章' })
     await expect(first).toBeVisible({ timeout: 15_000 })
@@ -133,7 +80,7 @@ test.describe('故事工坊工作台', () => {
     store.writeChapter(runtime.fixtureWorkspace, {
       work: facts.workId, chapter: 1, title: '灰旗', body: '灰旗在风里翻了一夜。火在渠里烧着。'.repeat(45), rewrite: true,
     })
-    await openWorkbench(page)
+    await openWorkbench(page, url)
     await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())
     const first = page.locator('button.sc-chapter').filter({ hasText: '第 1 章' })
     await expect(first).toBeVisible({ timeout: 15_000 })
@@ -145,7 +92,7 @@ test.describe('故事工坊工作台', () => {
   })
 
   test('素材面板可以导入、重命名、去重和删除', async ({ page }) => {
-    await openWorkbench(page)
+    await openWorkbench(page, url)
     await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())
     await page.getByRole('tab', { name: '素材', exact: true }).evaluate(node => node.click())
     await expect(page.getByText('素材库：0 份')).toBeVisible({ timeout: 15_000 })
@@ -206,7 +153,7 @@ test.describe('故事工坊工作台', () => {
   })
 
   test('作品 header 可以直接导出', async ({ page }) => {
-    await openWorkbench(page)
+    await openWorkbench(page, url)
     await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())
     const composer = page.getByRole('textbox', { name: /Describe what/ })
     expect(await composer.count()).toBeGreaterThan(0)
@@ -279,7 +226,7 @@ test.describe('故事工坊工作台', () => {
   })
 
   test('全书计划可以从面板确认', async ({ page }) => {
-    await openWorkbench(page)
+    await openWorkbench(page, url)
     await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())
     const approve = page.getByRole('button', { name: '确认全书计划', exact: true })
     await expect(approve).toBeVisible({ timeout: 15_000 })
@@ -289,7 +236,7 @@ test.describe('故事工坊工作台', () => {
   })
 
   test('章纲可以从面板确认', async ({ page }) => {
-    await openWorkbench(page)
+    await openWorkbench(page, url)
     await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())
     const second = page.locator('button.sc-chapter').filter({ hasText: '第 2 章' })
     await expect(second).toBeVisible({ timeout: 15_000 })
@@ -303,7 +250,7 @@ test.describe('故事工坊工作台', () => {
   })
 
   test('非长篇会话里下发指令只得到说明', async ({ page }) => {
-    await openWorkbench(page)
+    await openWorkbench(page, url)
     await expect(page.getByText(/当前会话是 standard 模式|当前会话不是/)).toBeVisible({ timeout: 15_000 })
     await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())
     const nextChapter = page.getByRole('button', { name: /写第 \d+ 章（写到修订）/ })
@@ -319,7 +266,7 @@ test.describe('故事工坊工作台', () => {
   test('新建作品后列表自动刷新', async ({ page }) => {
     const store = await import('../dist/storage.js')
     const title = `刷新探针${Date.now()}`
-    await openWorkbench(page)
+    await openWorkbench(page, url)
     store.initWork(runtime.fixtureWorkspace, { title })
     await expect(page.getByRole('button', { name: new RegExp(title) })).toBeVisible({ timeout: 15_000 })
   })
@@ -333,7 +280,7 @@ test.describe('故事工坊工作台', () => {
       store.approveChapterPlan(runtime.fixtureWorkspace, { work, chapter: number })
       store.writeChapter(runtime.fixtureWorkspace, { work, chapter: number, title: name, body: `${name}正文。`.repeat(20) })
     }
-    await openWorkbench(page)
+    await openWorkbench(page, url)
     await page.getByRole('button', { name: new RegExp(title) }).evaluate(node => node.click())
     await page.getByRole('button', { name: /第 2 章 乙章/ }).evaluate(node => node.click())
     await page.locator('.sc-chapter-actions').getByRole('button', { name: '前移', exact: true }).evaluate(node => node.click())
@@ -351,7 +298,7 @@ test.describe('故事工坊工作台', () => {
       store.approveChapterPlan(runtime.fixtureWorkspace, { work, chapter: number })
       store.writeChapter(runtime.fixtureWorkspace, { work, chapter: number, title: name, body: `${name}正文。`.repeat(20) })
     }
-    await openWorkbench(page)
+    await openWorkbench(page, url)
     await page.getByRole('button', { name: new RegExp(title) }).evaluate(node => node.click())
     const composer = page.getByRole('textbox', { name: /Describe what/ })
     const before = await composer.evaluate(node => String(node.value ?? node.textContent ?? ''))
@@ -366,7 +313,7 @@ test.describe('故事工坊工作台', () => {
 
   test('窄面板不横向溢出', async ({ page }) => {
     await page.setViewportSize({ width: 900, height: 900 })
-    await openWorkbench(page)
+    await openWorkbench(page, url)
     await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())
     await expect(page.locator('.sc-main-tab')).toHaveCount(6, { timeout: 15_000 })
     const widths = await page.locator('.sc-detail').evaluate(node => ({
@@ -394,7 +341,7 @@ test.describe('故事工坊工作台', () => {
       store.approveChapterPlan(runtime.fixtureWorkspace, { work, chapter: number })
       store.writeChapter(runtime.fixtureWorkspace, { work, chapter: number, title: `章${number}`, body: `第${number}章正文。`.repeat(10) })
     }
-    await openWorkbench(page)
+    await openWorkbench(page, url)
     await page.getByRole('button', { name: new RegExp(title) }).evaluate(node => node.click())
     await expect(page.getByText('第 1 / 2 页 · 共 25 章')).toBeVisible({ timeout: 15_000 })
     await expect(page.locator('.sc-chapter-no')).toHaveCount(20)
@@ -419,7 +366,7 @@ test.describe('故事工坊工作台', () => {
       const paragraph = `${`第${number}章文风测试。`.repeat(18)}`
       store.writeChapter(runtime.fixtureWorkspace, { work, chapter: number, body: `${paragraph}\n\n${paragraph}`, title: `风${number}` })
     }
-    await openWorkbench(page)
+    await openWorkbench(page, url)
     await page.getByRole('button', { name: new RegExp(title) }).evaluate(node => node.click())
     const composer = page.getByRole('textbox', { name: /Describe what/ })
     const before = await composer.evaluate(node => String(node.value ?? node.textContent ?? ''))
@@ -451,7 +398,7 @@ test.describe('故事工坊工作台', () => {
     const seedDb = openWork(runtime.fixtureWorkspace, work)
     seedDb.prepare("DELETE FROM artifacts WHERE artifact_id IN ('outline', 'bible:style')").run()
     seedDb.close()
-    await openWorkbench(page)
+    await openWorkbench(page, url)
     await page.getByRole('button', { name: new RegExp(title) }).evaluate(node => node.click())
     const composer = page.getByRole('textbox', { name: /Describe what/ })
     const before = await composer.evaluate(node => String(node.value ?? node.textContent ?? ''))
@@ -537,7 +484,7 @@ test.describe('故事工坊工作台', () => {
     page.on('request', request => {
       if (request.method() === 'POST' && request.url().includes('/api/dsh-storycraft/current')) pointerPosts += 1
     })
-    await openWorkbench(page)
+    await openWorkbench(page, url)
     await page.getByRole('button', { name: new RegExp(title) }).evaluate(node => node.click())
     await expect(page.getByRole('heading', { name: title })).toBeVisible()
     await page.waitForTimeout(500)

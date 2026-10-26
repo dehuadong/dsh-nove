@@ -22,6 +22,8 @@ check('summary button exposes the instruction as a tooltip',
   source.includes('title: INSTRUCTIONS.summarize'), 'client.ts summary button title')
 check('full-flow instruction forbids an automatic summary fallback',
   source.includes('摘要步骤若委派不可用或未提交，只报告并停手，不自动读正文、不重派'), 'client.ts flowFull instruction')
+check('the panel states that the three forms have separate pipelines',
+  source.includes('长篇 / 短篇 / 剧本各有独立流水线') && !source.includes('同一套动作'), 'client.ts panel copy')
 check('fold instruction uses automatic settlement with a manual fallback',
   source.includes('先调 story_settle 自动抽取并校验')
   && source.includes('返回 settled:false 时把 proposed 与 findings 报给我')

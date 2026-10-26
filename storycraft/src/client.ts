@@ -340,8 +340,23 @@ window.__ModuleLoader__.load({
       foundationStage?: string
     }
 
+    interface WorkbenchAction {
+      id: string
+      label: string
+      disabled?: { code: string, reason: string }
+    }
+
+    interface Workbench {
+      key: string
+      label: string
+      hint: string
+      primary: WorkbenchAction
+      secondary: WorkbenchAction[]
+    }
+
     interface NextPayload {
       next?: NextStep
+      workbench?: Workbench
     }
 
     interface CurrentPayload {
@@ -693,6 +708,12 @@ window.__ModuleLoader__.load({
 .sc-rename .sc-input{flex:1}
 .sc-trash-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 10px;font-size:12px;opacity:.8}
 .sc-btn-small{padding:2px 8px;font-size:12px}
+.sc-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.sc-state-card{border:1px solid var(--dsw-alias-border-base,#3333);border-radius:8px;padding:10px 12px;margin:8px 0;display:flex;flex-direction:column;gap:8px}
+.sc-state-head{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.sc-state-label{font-weight:600}
+.sc-state-hint{opacity:.7;font-size:12px}
+.sc-state-actions{display:flex;gap:8px;flex-wrap:wrap}
 .sc-detail-head{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px}
 .sc-detail-title{margin:0;font-size:18px;font-weight:600}
 .sc-detail-tagline{margin:2px 0 0;color:var(--dsw-alias-label-secondary)}
@@ -1202,18 +1223,6 @@ window.__ModuleLoader__.load({
       return '章'
     }
 
-    /** Short label of one pipeline action. */
-    const STEP_LABEL: Record<string, string> = {
-      story_plan: '章纲',
-      story_write: '正文',
-      story_review: '审稿',
-      story_revise: '修订',
-      story_settle: '结算',
-      story_state: '手动结算',
-      story_summarize: '摘要',
-      story_volume: '卷摘要',
-    }
-
     /** Human label of a pipeline stage. */
     function stageLabel(stage: string): string {
       const map: Record<string, string> = {
@@ -1297,8 +1306,7 @@ window.__ModuleLoader__.load({
         h('h2', { className: 'sc-detail-title' }, '还没有作品'),
         h('p', null, '先和模型把想法聊清楚：讨论阶段不写文件；方向定了它会给一份建项方案，你确认后才立项。'),
         h('ul', { className: 'sc-steps' },
-          h('li', null, '长篇 / 短篇 / 剧本共用同一套动作：立项（带形态与字数范围）、章纲、正文、审稿、修订、定稿、进度，以及真值、导入、摘要、写前上下文。'),
-          h('li', null, '短篇小说 / 短剧剧本：同一套动作，技能按作品形态选用；形态在建档时写进作品。'),
+          h('li', null, '长篇 / 短篇 / 剧本各有独立流水线：长篇走章纲 → 正文 → 审稿 → 修订 → 摘要 → 定稿；形态在建档时写进作品，面板按形态给出下一步。'),
         ),
         notice === undefined ? null : h('p', { className: `sc-notice sc-notice-${notice.kind}` }, notice.text),
         h('div', { className: 'sc-field' },
@@ -1364,6 +1372,7 @@ window.__ModuleLoader__.load({
         const failure = await face.send(text)
         onNotice(failure === undefined ? { kind: 'ok', text: '指令已投递给当前会话。' } : { kind: 'error', text: failure })
       }
+
 
       return h('div', null,
         h('div', { className: 'sc-detail-head' },
@@ -1594,6 +1603,7 @@ window.__ModuleLoader__.load({
       const [volumeForm, setVolumeForm] = useState<VolumeForm | undefined>(undefined)
       const [settingsForm, setSettingsForm] = useState<SettingsForm | undefined>(undefined)
       const [next, setNext] = useState<NextStep | undefined>(undefined)
+      const [workbench, setWorkbench] = useState<Workbench | undefined>(undefined)
       const [reviseMode, setReviseMode] = useState('patch')
       const [refreshError, setRefreshError] = useState<string | undefined>(undefined)
       const refreshInFlight = useRef(false)
@@ -1604,8 +1614,9 @@ window.__ModuleLoader__.load({
           setDetail({ status: 'ready', ...payload })
           const listed = await face.volumes(root, workId).catch(() => ({ volumes: [] }))
           setVolumes(listed.volumes ?? [])
-          const step = await face.next(root, workId).catch(() => ({ next: undefined }))
+          const step = await face.next(root, workId).catch(() => ({ next: undefined, workbench: undefined }))
           setNext(step.next)
+          setWorkbench(step.workbench)
           if (sessionId !== undefined) {
             void face.setCurrent(root, sessionId, workId).catch(() => {})
           }
@@ -1727,11 +1738,12 @@ window.__ModuleLoader__.load({
           const [payload, listed, step] = await Promise.all([
             face.work(root, workId),
             face.volumes(root, workId).catch(() => ({ volumes: [] })),
-            face.next(root, workId).catch(() => ({ next: undefined })),
+            face.next(root, workId).catch(() => ({ next: undefined, workbench: undefined })),
           ])
           setDetail({ status: 'ready', ...payload })
           setVolumes(listed.volumes ?? [])
           setNext(step.next)
+          setWorkbench(step.workbench)
           setRefreshError(undefined)
         } catch (error) {
           setRefreshError(error instanceof Error ? error.message : String(error))
@@ -2041,6 +2053,86 @@ window.__ModuleLoader__.load({
         onNotice(failure === undefined ? { kind: 'ok', text: '指令已投递给当前会话。' } : { kind: 'error', text: failure })
       }
 
+      const cardChapter = next === undefined ? nextNumber : next.chapter
+      const confirmFoundationNow = async () => {
+        if (sessionId === undefined) return
+        try {
+          await face.approveFoundation(root, sessionId, manifest.workId)
+          onNotice({ kind: 'ok', text: '基础设定已确认；下一步由作者决定何时继续会话。' })
+          void loadFoundation()
+          void load()
+        } catch (error) {
+          onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
+        }
+      }
+      const confirmOutlineNow = async () => {
+        if (sessionId === undefined) return
+        try {
+          await face.approveOutline(root, sessionId, manifest.workId)
+          const failure = await face.send('全书计划已确认。请调 story_next，按返回的下一步继续；不要再次询问确认，也不要跳过作者闸门。')
+          onNotice(failure === undefined
+            ? { kind: 'ok', text: '全书计划已确认，已通知会话继续。' }
+            : { kind: 'error', text: `全书计划已确认，但通知会话失败：${failure}` })
+          void load()
+        } catch (error) {
+          onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
+        }
+      }
+      const confirmPlanNow = async (chapter: number) => {
+        if (sessionId === undefined) return
+        try {
+          await face.approveChapterPlan(root, sessionId, manifest.workId, chapter)
+          const failure = await face.send(`第 ${chapter} 章章纲已确认。请调 story_next，按返回的下一步继续；不要再次询问确认。`)
+          onNotice(failure === undefined
+            ? { kind: 'ok', text: '章纲已确认，已通知会话继续。' }
+            : { kind: 'error', text: `章纲已确认，但通知会话失败：${failure}` })
+          void load()
+        } catch (error) {
+          onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
+        }
+      }
+      const runWorkbench = (id: string) => {
+        const chapter = cardChapter
+        switch (id) {
+          case 'confirm-foundation': void confirmFoundationNow(); return
+          case 'confirm-outline': void confirmOutlineNow(); return
+          case 'confirm-plan': void confirmPlanNow(chapter); return
+          case 'write-chapter': compose(INSTRUCTIONS.flowToRevision(workId, chapter)); return
+          case 'full-flow': compose(INSTRUCTIONS.flowFull(workId, chapter)); return
+          case 'export': void runExport(); return
+          case 'write-plan': compose(INSTRUCTIONS.step(workId, chapter, 'story_plan')); return
+          case 'rewrite-plan': compose(INSTRUCTIONS.step(workId, chapter, 'story_plan')); return
+          case 'next-plan': compose(INSTRUCTIONS.step(workId, chapter + 1, 'story_plan')); return
+          case 'rewrite-outline': compose(INSTRUCTIONS.step(workId, 1, 'story_outline')); return
+          case 'open-outline': switchTab('truth'); return
+          case 'write-outline': compose(INSTRUCTIONS.step(workId, chapter, 'story_outline')); return
+          case 'architect': compose(INSTRUCTIONS.step(workId, chapter, 'story_architect')); return
+          case 'review': compose(INSTRUCTIONS.review(workId, chapter)); return
+          case 'revise': compose(INSTRUCTIONS.revise(workId, chapter, reviseMode)); return
+          case 'summarize': compose(INSTRUCTIONS.step(workId, chapter, 'story_summarize')); return
+          case 'settle': compose(INSTRUCTIONS.step(workId, chapter, 'story_settle')); return
+          case 'volume-summary': compose(INSTRUCTIONS.step(workId, chapter, 'story_volume')); return
+          default: onNotice({ kind: 'error', text: `面板不认识这个动作：${id}` })
+        }
+      }
+      const workbenchButton = (item: WorkbenchAction, primary: boolean) => h('button', {
+        type: 'button',
+        className: primary ? 'sc-btn sc-btn-primary' : 'sc-btn',
+        'data-workbench': item.id,
+        ...(item.disabled === undefined
+          ? {}
+          : {
+            disabled: true,
+            title: item.disabled.reason,
+            'aria-label': `${item.label}（${item.disabled.reason}）`,
+            'aria-describedby': `wb-reason-${item.id}`,
+          }),
+        onClick: () => { runWorkbench(item.id) },
+      }, item.label)
+      const workbenchReason = (item: WorkbenchAction) => item.disabled === undefined
+        ? null
+        : h('span', { key: `reason-${item.id}`, id: `wb-reason-${item.id}`, className: 'sc-sr-only' }, item.disabled.reason)
+
       return h('div', null,
         refreshError !== undefined
           ? h('p', { className: 'sc-notice sc-notice-info' }, `刷新失败：${refreshError}`)
@@ -2062,20 +2154,6 @@ window.__ModuleLoader__.load({
             h('p', { className: 'sc-detail-tagline' }, `${manifest.form} · ${manifest.workId} · ${chapters.length} ${unitOf(manifest.form)} · 已写 ${chapters.filter(item => item.revision > 0).length} ${unitOf(manifest.form)}`),
           ),
           h('div', { className: 'sc-header-actions' },
-            h('button', {
-              type: 'button',
-              className: 'sc-btn sc-btn-primary',
-              disabled: manifest.outline?.approvedAt === undefined,
-              title: manifest.outline?.approvedAt === undefined ? '先确认全书计划' : '写下一章：章纲 → 取上下文 → 正文 → 质检 → 审稿 → 按清单修订，停在修订，之后可润色/去 AI 味再定稿',
-              onClick: () => compose(INSTRUCTIONS.flowToRevision(manifest.workId, next === undefined ? nextNumber : next.chapter)),
-            }, `写第 ${next === undefined ? nextNumber : next.chapter} ${unitOf(manifest.form)}（写到修订）`),
-            h('button', {
-              type: 'button',
-              className: 'sc-btn',
-              disabled: manifest.outline?.approvedAt === undefined,
-              title: manifest.outline?.approvedAt === undefined ? '先确认全书计划' : '写下一章并一次做完：章纲 → 正文 → 质检 → 审稿 → 修订/清稿 → 摘要 → 定稿',
-              onClick: () => compose(INSTRUCTIONS.flowFull(manifest.workId, next === undefined ? nextNumber : next.chapter)),
-            }, `写第 ${next === undefined ? nextNumber : next.chapter} ${unitOf(manifest.form)}（一次做完）`),
             h('button', {
               type: 'button',
               className: 'sc-btn',
@@ -2104,6 +2182,7 @@ window.__ModuleLoader__.load({
               onClick: () => { void loadFoundation() },
             }, foundation.status === 'loading' ? '读取基础设定…' : '基础设定'),
             foundation.status === 'ready' && foundation.foundation?.complete === true && foundation.foundation?.approvedAt === undefined
+              && workbench?.primary.id !== 'confirm-foundation'
               ? h('button', {
                 type: 'button',
                 className: 'sc-btn sc-btn-primary',
@@ -2119,25 +2198,6 @@ window.__ModuleLoader__.load({
                   }
                 },
               }, '确认基础设定')
-              : null,
-            manifest.outline?.writtenAt !== undefined && manifest.outline?.approvedAt === undefined
-              ? h('button', {
-                type: 'button',
-                className: 'sc-btn sc-btn-primary',
-                title: '确认全书计划后，才能写章纲',
-                onClick: async () => {
-                  try {
-                    await face.approveOutline(root, sessionId, manifest.workId)
-                    const failure = await face.send('全书计划已确认。请调 story_next，按返回的下一步继续；不要再次询问确认，也不要跳过作者闸门。')
-                    onNotice(failure === undefined
-                      ? { kind: 'ok', text: '全书计划已确认，已通知会话继续。' }
-                      : { kind: 'error', text: `全书计划已确认，但通知会话失败：${failure}` })
-                    void load()
-                  } catch (error) {
-                    onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
-                  }
-                },
-              }, '确认全书计划')
               : null,
             manifest.outline?.approvedAt !== undefined
               ? h('span', { className: 'sc-badge sc-badge-ok' }, '计划已确认')
@@ -2175,9 +2235,16 @@ window.__ModuleLoader__.load({
             h('button', { type: 'button', className: 'sc-btn', onClick: () => { void load() } }, '刷新'),
           ),
         ),
-        next === undefined
+        workbench === undefined
           ? null
-          : h('p', { className: 'sc-muted' }, `下一步：${STEP_LABEL[next.action] ?? next.action}（第 ${next.chapter} 章）— ${next.reason}`),
+          : h('div', { className: 'sc-state-card', 'data-state': workbench.key },
+            h('div', { className: 'sc-state-head' },
+              h('span', { className: 'sc-state-label' }, workbench.label),
+              h('span', { className: 'sc-state-hint' }, workbench.hint)),
+            h('div', { className: 'sc-state-actions' },
+              workbenchButton(workbench.primary, true),
+              ...workbench.secondary.map(item => workbenchButton(item, false)),
+              ...workbench.secondary.map(item => workbenchReason(item)))),
         settingsForm === undefined
           ? null
           : h('div', { className: 'sc-rename' },

@@ -139,6 +139,37 @@ async function buildFixture() {
     factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '丢了半袋粮' }] },
     newHooks: [{ text: '灰旗是谁挂的' }],
   })
+  // Read-only works, one per workbench state the panel spec walks through.
+  const plan = (w, chapter) => store.writePlan(fixtureWorkspace, {
+    work: w, chapter, perspective: '甲', goal: '目标' + chapter, obstacle: '断电', cost: '时间', turn: '找到出口',
+  })
+  const stateWork = async (title, form, build) => {
+    const created = await store.initWork(fixtureWorkspace, { title, form })
+    if (build !== undefined) await build(created.workId)
+  }
+  await stateWork('状态-基础设定', 'longform')
+  await stateWork('状态-无计划', 'short')
+  await stateWork('状态-计划待确认', 'short', async (w) => {
+    await store.writeOutline(fixtureWorkspace, { work: w, mainline: '一条主线' })
+  })
+  await stateWork('状态-章纲待确认', 'short', async (w) => {
+    await store.writeOutline(fixtureWorkspace, { work: w, mainline: '一条主线' })
+    await store.approveOutline(fixtureWorkspace, { work: w })
+    await plan(w, 1)
+  })
+  await stateWork('状态-写作中', 'short', async (w) => {
+    await store.writeOutline(fixtureWorkspace, { work: w, mainline: '一条主线' })
+    await store.approveOutline(fixtureWorkspace, { work: w })
+    await plan(w, 1)
+    await store.approveChapterPlan(fixtureWorkspace, { work: w, chapter: 1 })
+  })
+  await stateWork('状态-审稿中', 'short', async (w) => {
+    await store.writeOutline(fixtureWorkspace, { work: w, mainline: '一条主线' })
+    await store.approveOutline(fixtureWorkspace, { work: w })
+    await plan(w, 1)
+    await store.approveChapterPlan(fixtureWorkspace, { work: w, chapter: 1 })
+    await store.writeChapter(fixtureWorkspace, { work: w, chapter: 1, title: '一', body: '灰旗在风里翻了一夜。'.repeat(20) })
+  })
   // An unapproved book plan: the page must offer its confirmation button.
   await store.writeOutline(fixtureWorkspace, { work, mainline: '一条主线', volumes: '第一卷', ending: '开放' })
   const status = await store.status(fixtureWorkspace, work)
