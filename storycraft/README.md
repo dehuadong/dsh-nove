@@ -274,7 +274,8 @@ Host 与 Client 都已迁到 TS 的 L0–L5 层：`scope`、叶子层、数据�
 - 安装依赖：`npm install`（`typescript`、`esbuild`、`@types/node`、`@types/react` 都是 devDependencies，不进安装包）；
 - 编译：`npm run build` → `scripts/build.mjs`（先 tsc 再 esbuild）；`prepack` 自动 build；
 - Client 不是 ES module：`src/client.ts` 由 esbuild 单文件转译到 `dist/client.js`，保留 `window.__ModuleLoader__.load({ factory(require) })` 外壳，`require('react')` 原样交给宿主加载器；
-- 模块之间 import 写同层 `'./<module>.js'`，编译后解析到 `dist/`，没有第二份实现；
+- 模块之间 import 写同层 `'./<module>.js'`：说明符指的是**编译产物**，`tsc` 在 `NodeNext` 下把它解析回 `src/<module>.ts`，产物里保持 `.js` 供 Node 直接加载。源码里不写 `.ts` 后缀、也不省扩展名——两者都会让产物带上不存在的路径；
+- 编辑器对这些说明符报 "Cannot find module" 时，是编辑器没用 `storycraft/tsconfig.json` 或没按 `NodeNext` 解析，不是源码问题：确认工作区包含该 tsconfig 后重启 TS 服务即可。不要把它指到 `node_modules/typescript`——本包的 TypeScript 7 是原生编译器，不带 `tsserver`，编辑器应使用自带版本；
 - 技能目录固定在包根 `skills/`，`dist/skills.js` 以编译产物位置为基准上跳一级解析。
 
 开发 `link:` 时先 build；改 `src/*.ts` 后重新 build，不手改 `dist/`。
