@@ -51,9 +51,11 @@ try {
   })
   const db = openWork(root, '测试书')
   const workTables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all().map(row => row.name)
-  const expected = ['artifacts', 'bible', 'chapter_plans', 'chapter_versions', 'chapters', 'events', 'materials', 'meta',
-    'search_docs', 'search_fts', 'summaries', 'volumes']
+  const expected = ['artifacts', 'bible', 'chapter_versions', 'chapters', 'events', 'materials', 'meta',
+    'search_docs', 'search_fts', 'volumes']
   check('all work tables exist', expected.every(name => workTables.includes(name)), workTables.join(','))
+  check('retired plan/summary tables are not created',
+    !workTables.includes('chapter_plans') && !workTables.includes('summaries'), workTables.join(','))
   check('work schema version recorded', Number(db.prepare('PRAGMA user_version').get().user_version) === WORK_SCHEMA_VERSION)
   check('work database has no work id column', db.prepare("SELECT count(*) AS n FROM pragma_table_info('chapters') WHERE name = 'work_id'").get().n === 0)
 

@@ -55,7 +55,8 @@ try {
 
   const db = openWork(root, work)
   try {
-    check('summaries table is not written', db.prepare('SELECT count(*) AS n FROM summaries').get().n === 0)
+    check('summaries table is retired', db.prepare(`SELECT count(*) AS n FROM sqlite_master
+      WHERE type = 'table' AND name = 'summaries'`).get().n === 0)
   } finally {
     db.close()
   }
@@ -178,7 +179,8 @@ try {
 
   const lateDb = openWork(root, work)
   try {
-    check('summary writes never touch the retired table', lateDb.prepare('SELECT count(*) AS n FROM summaries').get().n === 0)
+    check('summary writes never touch a retired table', lateDb.prepare(`SELECT count(*) AS n FROM sqlite_master
+      WHERE type = 'table' AND name = 'summaries'`).get().n === 0)
   } finally {
     lateDb.close()
   }

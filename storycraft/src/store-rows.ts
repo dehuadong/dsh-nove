@@ -75,19 +75,6 @@ export interface ChapterVersionRow {
   created_at: string
 }
 
-export interface ChapterPlanRow {
-  number: number
-  text: string
-  written_at: string
-}
-
-export interface SummaryRow {
-  number: number
-  text: string
-  revision: number | null
-  written_at: string
-}
-
 export interface EventRow {
   seq: number
   at: string

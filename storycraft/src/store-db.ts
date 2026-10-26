@@ -2823,7 +2823,7 @@ function rewriteChapterDocs(db: any, mapping: any) {
 function applyChapterMapping(db: any, mapping: any) {
   if (mapping.size === 0) return
   db.exec('PRAGMA defer_foreign_keys = ON')
-  for (const table of ['chapters', 'chapter_versions', 'chapter_plans', 'summaries']) {
+  for (const table of ['chapters', 'chapter_versions']) {
     for (const [oldNumber, newNumber] of mapping) {
       db.prepare(`UPDATE ${table} SET number = ? WHERE number = ?`).run(-newNumber, oldNumber)
     }

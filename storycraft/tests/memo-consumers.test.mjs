@@ -36,7 +36,8 @@ try {
   check('story plan writes a plan artifact', plan.artifact.artifactId === 'plan:1' && plan.artifact.kind === 'plan', JSON.stringify(plan))
   const db = openWork(root, work)
   try {
-    check('chapter_plans is no longer written', db.prepare('SELECT count(*) AS n FROM chapter_plans').get().n === 0)
+    check('chapter_plans is retired', db.prepare(`SELECT count(*) AS n FROM sqlite_master
+      WHERE type = 'table' AND name = 'chapter_plans'`).get().n === 0)
   } finally {
     db.close()
   }

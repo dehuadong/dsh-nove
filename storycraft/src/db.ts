@@ -156,21 +156,6 @@ CREATE TABLE IF NOT EXISTS chapter_versions (
   FOREIGN KEY (number) REFERENCES chapters(number) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS chapter_plans (
-  number INTEGER PRIMARY KEY,
-  text TEXT NOT NULL,
-  written_at TEXT NOT NULL,
-  FOREIGN KEY (number) REFERENCES chapters(number) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS summaries (
-  number INTEGER PRIMARY KEY,
-  text TEXT NOT NULL,
-  revision INTEGER,
-  written_at TEXT NOT NULL,
-  FOREIGN KEY (number) REFERENCES chapters(number) ON DELETE CASCADE
-);
-
 CREATE TABLE IF NOT EXISTS events (
   seq INTEGER PRIMARY KEY,
   at TEXT NOT NULL,
