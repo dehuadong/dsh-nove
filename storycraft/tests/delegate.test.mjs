@@ -6,6 +6,7 @@ import { delegateRole } from '../dist/delegate.js'
 import { checkWordRange } from '../dist/landing.js'
 import { submitPayload } from '../dist/submission.js'
 import * as s from '../dist/storage.js'
+import { readArtifact } from '../dist/artifact-store.js'
 import { writeBible } from '../dist/bible.js'
 import { reviewFixture } from './review-fixture.mjs'
 
@@ -132,6 +133,10 @@ try {
   check('planner prompt names the plan-craft skill', plannerService.specs[0].request.prompt[0].text.includes('storycraft-plan-craft'))
   const storedPlan = s.readPlan(root, plannerWork, 1)
   check('planner plan lands under the bound work/chapter', typeof storedPlan === 'string' && storedPlan.includes('查清旧案') && planner.artifact?.artifactId === 'plan:1', String(storedPlan))
+  const plannerTrace = readArtifact(root, { work: plannerWork, artifactId: 'trace:1:planner' })
+  check('the planner dispatch records its context trace',
+    plannerTrace.artifact.kind === 'trace' && plannerTrace.artifact.content.chapter === 1
+    && plannerTrace.artifact.content.budget.unit === 'tokens', JSON.stringify(plannerTrace.artifact.content).slice(0, 200))
   await rejects('planner refuses to overwrite an existing plan', 'plan-exists',
     () => delegateRole(root, { work: plannerWork, chapter: 1, role: 'planner' }, { service: fakeService([]), agent, signal }))
 

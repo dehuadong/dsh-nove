@@ -2,13 +2,13 @@
 title: 故事工坊：角色输入契约（单一模式版）
 status: implemented
 created: 2026-10-19
-updated: 2026-10-21
+updated: 2026-10-26
 verification: 实跑 story_context 四角色与第 7 章 story_write(rewrite)；14 套断言与 5 条页面 spec 全过；2026-10-20 未登记人名/地名/尺寸 warning 测试通过；2026-10-21 摘要角色 section 集合断言通过
 ---
 
 # Agent Note：故事工坊：角色输入契约（单一模式版）
 
-> 2026-10-21 部分扩展：`story_context` 的 writer/planner/reviewer/reviser 增加可选 `retrieval` 段（在 `recent` 之后），`trace.retrieval` 固定为 `{enabled, query, candidateCount, hits, error?}`；裁剪顺序改为 `retrieval → recent → state → characters → style`，检索段只整段丢弃、不做字符压缩。检索规则由 [基于作品库 FTS5 的上下文检索](2026-10-21-storycraft-retrieval-fts.md) 承接。
+> 2026-10-21 部分扩展：`story_context` 的 writer/planner/reviewer/reviser 增加可选 `retrieval` 段（在 `recent` 之后），`trace.retrieval` 按产物合同固定为 `{engine, query, selectionMode, candidates, semanticSelectedIds}`（检索失败进 `trace.notes`）；裁剪顺序改为 `retrieval → recent → state → characters → volumeMap → style`，检索段只整段丢弃、不做字符压缩。检索规则由 [基于作品库 FTS5 的上下文检索](2026-10-21-storycraft-retrieval-fts.md) 承接。
 
 ## 问题
 

@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path'
 import * as tools from '../dist/tools.js'
 import * as s from '../dist/storage.js'
 import { openWork } from '../dist/db.js'
+import { writeContextTrace } from '../dist/artifact-store.js'
 import { readProposal } from '../dist/proposals.js'
 import { clearCurrent, setCurrent } from '../dist/current.js'
 import { checkDraft } from '../dist/landing.js'
@@ -264,9 +265,12 @@ try {
   check('story_context returns writer sections', context.ok === true
     && ['authority', 'task', 'constraints', 'state', 'style'].every(name => context.sections.some(item => item.name === name)),
   JSON.stringify(context).slice(0, 300))
-  check('story_context returns a trace', context.ok === true && context.trace.budget > 0, JSON.stringify(context.trace))
-  check('story_context always carries the retrieval trace',
-    context.ok === true && context.trace.retrieval?.enabled === false && Array.isArray(context.trace.retrieval.hits),
+  check('story_context returns a trace', context.ok === true && context.trace.budget.limit > 0, JSON.stringify(context.trace))
+  const budgeted = await byName.get('story_context').execute({ work, chapter: 1, role: 'writer', budget: 1234 }, exec)
+  check('story_context accepts a token budget', budgeted.ok === true && budgeted.trace.budget.limit === 1234,
+    JSON.stringify(budgeted.trace?.budget))
+  check('story_context omits retrieval below three written chapters',
+    context.ok === true && context.trace.retrieval === undefined,
     JSON.stringify(context.trace.retrieval))
   check('whitelist leaves the action as a summary', context.ok === true
     && typeof context.whitelist.counts.names === 'number' && Array.isArray(context.whitelist.sample.names), JSON.stringify(context.whitelist))
@@ -373,8 +377,9 @@ try {
   const brief = await byName.get('story_brief').execute({ work, chapter: 1 }, exec)
   check('story_brief returns thirteen sections', brief.ok === true && brief.sections.length === 13, JSON.stringify(brief.sections?.map(section => section.name)))
   check('story_brief reports budget', brief.ok === true && brief.budget.limit > 0)
-  check('story_brief declares retrieval', brief.ok === true && brief.retrieval.enabled === false
-    && byName.get('story_brief').output.schema.properties.retrieval !== undefined, JSON.stringify(brief.retrieval))
+  check('story_brief carries the trace', brief.ok === true && brief.trace !== undefined
+    && brief.trace.budget.unit === 'tokens' && byName.get('story_brief').output.schema.properties.trace !== undefined,
+    JSON.stringify(brief.trace))
   const briefSectionProps = Object.keys(byName.get('story_brief').output.schema.properties.sections.items.properties ?? {})
   check('story_brief sections use only declared fields',
     brief.ok === true && brief.sections.every(section => Object.keys(section).every(key => briefSectionProps.includes(key))),
@@ -396,9 +401,9 @@ try {
     ['hasSummary', 'summaryRevision', 'summaryStale'].every(key => statusChapterProps.includes(key)),
     statusChapterProps.join(','))
   const traceRetrievalProps = byName.get('story_context').output.schema.properties.trace.properties.retrieval.properties
-  check('story_context trace declares retrieval hits',
-    ['enabled', 'query', 'candidateCount', 'hits'].every(key => Object.hasOwn(traceRetrievalProps, key))
-    && traceRetrievalProps.hits.items.required.includes('sourceIds'), Object.keys(traceRetrievalProps).join(','))
+  check('story_context trace declares the contract retrieval shape',
+    ['engine', 'query', 'selectionMode', 'candidates', 'semanticSelectedIds'].every(key => Object.hasOwn(traceRetrievalProps, key))
+    && traceRetrievalProps.candidates.items.required.includes('source'), Object.keys(traceRetrievalProps).join(','))
 
   // Delegated subagents share this composition and see the same tools; the
   // runtime keeps them from landing anything.
@@ -534,6 +539,30 @@ try {
     readPlan.content)
   const staleRead = await byName.get('story_read').execute({ work, artifactId: 'plan:2', revisionId: 'stale' }, exec)
   check('story_read rejects a stale revision', staleRead.ok === false && staleRead.error.code === 'revision-not-found', JSON.stringify(staleRead))
+
+  // R12: a dispatch trace is readable by id, but only for the current chapter.
+  const traceFixture = {
+    chapter: 2,
+    plannerInputs: [],
+    composerInputs: ['outline'],
+    selectedSources: ['outline'],
+    contextTiers: { protectedSources: ['outline'], compressibleSources: [] },
+    tokenBudget: { protectedTokens: 10, compressibleTokens: 0, totalSelectedTokens: 10 },
+    notes: ['fixture'],
+    trimmed: [],
+    dropped: [],
+    budget: { limit: 8000, used: 10, unit: 'tokens' },
+    sections: [{ name: 'task', protection: 'protected', sourceIds: ['outline'], chars: 5, tokens: 5 }],
+    missing: [],
+    overflow: false,
+  }
+  writeContextTrace(root, { work, chapter: 2, role: 'writer', trace: traceFixture })
+  const readTrace = await byName.get('story_read').execute({ work, artifactId: 'trace:2:writer' }, exec)
+  check('story_read reads the current chapter trace', readTrace.ok === true
+    && readTrace.artifact.kind === 'trace' && JSON.parse(readTrace.content).budget.limit === 8000, JSON.stringify(readTrace).slice(0, 200))
+  const readOldTrace = await byName.get('story_read').execute({ work, artifactId: 'trace:1:writer' }, exec)
+  check('story_read refuses another chapter trace', readOldTrace.ok === false && readOldTrace.error.code === 'artifact-not-readable',
+    JSON.stringify(readOldTrace))
   const bibleFiles = await byName.get('story_bible').execute({ work }, exec)
   check('story_bible returns file ids, not paths', bibleFiles.ok === true
     && bibleFiles.files.every(file => file.path === undefined && typeof file.artifactId === 'string' && typeof file.file === 'string'), JSON.stringify(bibleFiles))

@@ -13,19 +13,30 @@
 import { deriveWhitelist, readCards, summariseWhitelist } from './facts.js'
 import { readFoundationDocuments, renderFoundationContent } from './artifact-store.js'
 import {
-  StoryError, chapterNumber, chapterStem, formOf, planApprovalPolicy, unitOf,
+  StoryError, chapterNumber, chapterStem, formOf, planApprovalPolicy, sourceIdOf, unitOf,
 } from './domain.js'
 import {
   readBibleMap, readChapter as readChapterRow, readFoldedState, readManifest, readPlan,
   readVolumes, readSummaryState, searchMemory, virtualPath,
 } from './store-db.js'
 import { buildQuery, select } from './retrieval.js'
+import { accountOf } from './accounting.js'
 
-/** Default budget for one role context, in characters. */
+/** Default budget for one role context, in estimated tokens. */
 export const DEFAULT_CONTEXT_BUDGET = 8000
 
+/** Per-section caps for compressible sections, in estimated tokens. */
+const SECTION_CAPS: Record<string, number> = {
+  state: 600,
+  recent: 1000,
+  retrieval: 800,
+  style: 400,
+  characters: 600,
+  volumeMap: 800,
+}
+
 /** Section order used when trimming: earlier compressible sections go first. */
-const TRIM_ORDER = ['retrieval', 'recent', 'state', 'characters', 'style']
+const TRIM_ORDER = ['retrieval', 'recent', 'state', 'characters', 'volumeMap', 'style']
 
 /** Roles one context can be assembled for. */
 type Role = 'writer' | 'planner' | 'reviewer' | 'reviser' | 'summarizer'
@@ -135,43 +146,51 @@ interface TracedSection extends ContextSection {
   trimmed: boolean
 }
 
-/** One retrieval hit kept in the trace. */
-interface RetrievalTraceHit {
+/** One retrieval candidate as the contract reports it. */
+interface TraceRetrievalCandidate {
   id: string
   kind: string
-  sourceIds: string[]
+  source: string
   score: number
-  sent: boolean
 }
 
-/** Retrieval trace; disabled when no query was built. */
-interface RetrievalTrace {
-  enabled: boolean
+/** Retrieval record in the artifact contract's trace shape. */
+interface TraceRetrieval {
+  engine: 'sqlite-fts5-bm25'
   query: string
-  candidateCount: number
-  hits: RetrievalTraceHit[]
-  error?: string
+  selectionMode: 'complete'
+  candidates: TraceRetrievalCandidate[]
+  semanticSelectedIds: string[]
 }
 
 /** One section as the trace reports it. */
 interface TraceSection {
   name: string
   protection: SectionProtection
-  source: string
+  sourceIds: string[]
   chars: number
+  tokens: number
   dropped?: true
   trimmed?: true
+  reason?: string
 }
 
-/** What the assembly sent, shortened and dropped. */
+/** What the assembly sent, shortened and dropped, in the contract's trace shape. */
 interface ContextTrace {
-  budget: number
-  sections: TraceSection[]
+  chapter?: number
+  plannerInputs: string[]
+  composerInputs: string[]
+  selectedSources: string[]
+  contextTiers: { protectedSources: string[], compressibleSources: string[] }
+  tokenBudget: { protectedTokens: number, compressibleTokens: number, totalSelectedTokens: number }
+  retrieval?: TraceRetrieval
+  notes: string[]
   trimmed: string[]
   dropped: string[]
+  budget: { limit: number, used: number, unit: 'tokens' }
+  sections: TraceSection[]
   missing: Array<{ name: string, reason: string }>
   overflow: boolean
-  retrieval?: RetrievalTrace
 }
 
 /** The assembled context package. */
@@ -414,7 +433,8 @@ export async function assembleRoleContext(
     ? buildQuery({ taskText, chapterPlan, openHooks, instruction })
     : ''
   let retrieval: ContextSection | undefined
-  let retrievalTrace: RetrievalTrace = { enabled: false, query: '', candidateCount: 0, hits: [] }
+  let retrievalCandidates: TraceRetrievalCandidate[] | undefined
+  let retrievalNote: string | undefined
   if (query.trim() !== '') {
     try {
       const candidates = retrieve(root, work, query, number === undefined ? {} : { beforeChapter: number })
@@ -423,17 +443,14 @@ export async function assembleRoleContext(
         retrieval = section('retrieval', '相关往事', picked.text, 'compressible',
           `${virtualPath(work, 'summaries/')} + ${virtualPath(work, 'state/events.jsonl')} + ${virtualPath(work, 'volumes')} + ${virtualPath(work, 'materials/')}`)
       }
-      retrievalTrace = { enabled: true, query, candidateCount: candidates.length, hits: picked.hits }
+      retrievalCandidates = picked.hits.map(hit => ({
+        id: hit.id, kind: hit.kind, source: hit.sourceIds[0] ?? '', score: hit.score,
+      }))
     } catch (error) {
       // A thrown store error is a dynamic boundary: only its stable `code` is read.
       const code = (error as { code?: unknown } | null | undefined)?.code
-      retrievalTrace = {
-        enabled: true,
-        query,
-        candidateCount: 0,
-        hits: [],
-        error: typeof code === 'string' ? code : 'retrieval-failed',
-      }
+      retrievalCandidates = []
+      retrievalNote = `检索失败：${typeof code === 'string' ? code : 'retrieval-failed'}`
     }
   }
 
@@ -489,49 +506,104 @@ export async function assembleRoleContext(
   if (role === 'writer' || role === 'planner') sections.push(style)
   if (standard !== undefined) sections.push(standard)
 
-  // Budget: compress or drop compressible sections; protected stay.
+  // Budget: cap the compressible sections, then trim by the fixed order.
+  // Protected sections are never compressed or dropped; they only raise overflow.
   const requestedBudget = input.budget
-  const budget = requestedBudget !== undefined && Number.isInteger(requestedBudget) && requestedBudget > 0
+  const limit = requestedBudget !== undefined && Number.isInteger(requestedBudget) && requestedBudget > 0
     ? requestedBudget
     : DEFAULT_CONTEXT_BUDGET
-  const trace: ContextTrace = { budget, sections: [], trimmed: [], dropped: [], missing: [], overflow: false }
+  const notes: string[] = ['tokens 为估算值（cjk 1:1，其它 4:1）']
+  if (retrievalNote !== undefined) notes.push(retrievalNote)
+  const missing: Array<{ name: string, reason: string }> = []
   const segments: TracedSection[] = sections.map(item => ({ ...item, trimmed: false }))
   for (const item of segments) {
-    if (item.content === '') trace.missing.push({ name: item.name, reason: '没有可用内容' })
+    if (item.content === '') missing.push({ name: item.name, reason: '没有可用内容' })
   }
-  let total = segments.reduce((sum, item) => sum + item.content.length, 0)
+  const trimmed: string[] = []
+  const dropped: string[] = []
+  const tokensOf = (item: ContextSection): number => accountOf(item.content).tokens
+  const totalTokens = (): number => segments.reduce((sum, item) => sum + tokensOf(item), 0)
+  const charsFor = (tokens: number, content: string): number => {
+    const account = accountOf(content)
+    return account.tokens === 0 ? 0 : Math.floor(tokens * account.chars / account.tokens)
+  }
+  const compress = (item: TracedSection, allowedChars: number): void => {
+    item.content = `${item.content.slice(0, Math.floor(allowedChars * 0.7))}\n…（已压缩）…\n${item.content.slice(-Math.floor(allowedChars * 0.25))}`
+    item.trimmed = true
+    if (!trimmed.includes(item.name)) trimmed.push(item.name)
+  }
+  const drop = (item: TracedSection): void => {
+    item.content = ''
+    // A section is either compressed or dropped, never both.
+    const at = trimmed.indexOf(item.name)
+    if (at >= 0) trimmed.splice(at, 1)
+    if (!dropped.includes(item.name)) dropped.push(item.name)
+  }
+
+  for (const item of segments) {
+    const cap = SECTION_CAPS[item.name]
+    if (cap === undefined || item.protection !== 'compressible' || item.content === '') continue
+    let allowed = charsFor(cap, item.content)
+    while (tokensOf(item) > cap && allowed >= 80) {
+      compress(item, allowed)
+      allowed = Math.floor(allowed * 0.9)
+    }
+    if (tokensOf(item) > cap) drop(item)
+  }
   for (const name of TRIM_ORDER) {
-    if (total <= budget) break
+    if (totalTokens() <= limit) break
     const target = segments.find(item => item.name === name)
     if (target === undefined || target.protection !== 'compressible' || target.content === '') continue
-    const allowed = budget - (total - target.content.length)
-    if (name === 'retrieval') {
-      target.content = ''
-      trace.dropped.push(name)
-    } else if (allowed >= 80) {
-      target.content = `${target.content.slice(0, Math.floor(allowed * 0.7))}\n…（已压缩）…\n${target.content.slice(-Math.floor(allowed * 0.25))}`
-      target.trimmed = true
-      trace.trimmed.push(name)
-    } else {
-      target.content = ''
-      trace.dropped.push(name)
-    }
-    total = segments.reduce((sum, item) => sum + item.content.length, 0)
+    const allowed = charsFor(Math.max(0, limit - (totalTokens() - tokensOf(target))), target.content)
+    if (allowed >= 80) compress(target, allowed)
+    else drop(target)
+    if (tokensOf(target) > 0 && totalTokens() > limit) drop(target)
   }
-  if (total > budget) trace.overflow = true
-  if (trace.dropped.includes('retrieval')) {
-    retrievalTrace = { ...retrievalTrace, hits: retrievalTrace.hits.map(hit => ({ ...hit, sent: false })) }
-  }
-  trace.retrieval = retrievalTrace
-  for (const item of segments) {
-    trace.sections.push({
+  const overflow = totalTokens() > limit
+  if (overflow) notes.push('protected 段超出总预算：未压缩，仅标记 overflow')
+
+  const sourceIdsOf = (source: string): string[] => source.split(' + ').map(part => part.trim()).filter(part => part !== '').map(part => sourceIdOf(work, part))
+  const sent = segments.filter(item => item.content !== '')
+  const protectedSegments = sent.filter(item => item.protection === 'protected')
+  const compressibleSegments = sent.filter(item => item.protection === 'compressible')
+  const trace: ContextTrace = {
+    ...(number === undefined ? {} : { chapter: number }),
+    plannerInputs: role === 'planner' ? sent.flatMap(item => sourceIdsOf(item.source)) : [],
+    composerInputs: role === 'writer' ? sent.flatMap(item => sourceIdsOf(item.source)) : [],
+    selectedSources: sent.flatMap(item => sourceIdsOf(item.source)),
+    contextTiers: {
+      protectedSources: protectedSegments.flatMap(item => sourceIdsOf(item.source)),
+      compressibleSources: compressibleSegments.flatMap(item => sourceIdsOf(item.source)),
+    },
+    tokenBudget: {
+      protectedTokens: protectedSegments.reduce((sum, item) => sum + tokensOf(item), 0),
+      compressibleTokens: compressibleSegments.reduce((sum, item) => sum + tokensOf(item), 0),
+      totalSelectedTokens: totalTokens(),
+    },
+    ...(retrievalCandidates === undefined ? {} : {
+      retrieval: {
+        engine: 'sqlite-fts5-bm25',
+        query,
+        selectionMode: 'complete',
+        candidates: retrievalCandidates,
+        semanticSelectedIds: [],
+      } satisfies TraceRetrieval,
+    }),
+    notes,
+    trimmed,
+    dropped,
+    budget: { limit, used: totalTokens(), unit: 'tokens' },
+    sections: segments.map(item => ({
       name: item.name,
       protection: item.protection,
-      source: item.source,
+      sourceIds: sourceIdsOf(item.source),
       chars: item.content.length,
-      ...(trace.dropped.includes(item.name) ? { dropped: true } : {}),
-      ...(item.trimmed === true ? { trimmed: true } : {}),
-    })
+      tokens: tokensOf(item),
+      ...(dropped.includes(item.name) ? { dropped: true as const, reason: 'budget' } : {}),
+      ...(item.trimmed === true && !dropped.includes(item.name) ? { trimmed: true as const } : {}),
+    })),
+    missing,
+    overflow,
   }
   const text = segments
     .filter(item => item.content !== '')

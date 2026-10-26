@@ -91,6 +91,9 @@ try {
   const trimmed = await b.assembleBrief(root, work, 2)
   check('budget trims sections', trimmed.dropped.some(item => item.name === 'style') || trimmed.dropped.some(item => item.name === 'wordPolicy'), JSON.stringify(trimmed.dropped))
   check('budget reports usage', trimmed.budget.used <= trimmed.budget.limit || trimmed.budget.overBudget === true, JSON.stringify(trimmed.budget))
+  const invalidBudget = await b.assembleBrief(root, work, 1, { budget: 0 })
+  check('an invalid brief budget falls back to the default',
+    invalidBudget.budget.limit === 2600 && invalidBudget.budget.unit === 'tokens', JSON.stringify(invalidBudget.budget))
 
   // B4: material is a supplement for a work with at least three written chapters.
   const b4 = (await s.initWork(root, { title: '素材装配' })).workId
@@ -155,7 +158,7 @@ try {
   check('brief retrieval section has ids and no path', retrievalSection?.sourceIds?.length === 3
     && retrievalSection.sourceIds.every(id => id.startsWith('material:'))
     && retrievalSection.source === undefined && !retrievalSection.content.includes('.storycraft'), JSON.stringify(retrievalSection))
-  check('brief retrieval stays bounded', withMaterial.retrieval.chars <= 1200 && withMaterial.budget.used <= 8192,
+  check('brief retrieval stays bounded', withMaterial.retrieval.chars <= 1200 && withMaterial.budget.used <= 2600,
     JSON.stringify({ chars: withMaterial.retrieval.chars, budget: withMaterial.budget }))
   check('brief retrieval sends exactly three of five eligible materials', withMaterial.retrieval.hits.filter(hit => hit.sent).length === 3,
     JSON.stringify(withMaterial.retrieval.hits))

@@ -36,7 +36,7 @@ export function putArtifactOnDb(db: any, input: any, options: any = {}) {
   if (chapter !== undefined) {
     const row = db.prepare('SELECT stage FROM chapters WHERE number = ?').get(chapter)
     if (row === undefined) throw new StoryError('chapter-not-found', `没有第 ${chapter} 章：不能写章节 artifact`)
-    if (row.stage === 'settled' && !(options.allowSettled === true && envelope.kind === 'summary')) {
+    if (row.stage === 'settled' && !(options.allowSettled === true && (envelope.kind === 'summary' || envelope.kind === 'trace'))) {
       throw new StoryError('chapter-settled', `第 ${chapter} 章已定稿：先 reopen 再写章节 artifact`)
     }
   }
@@ -77,6 +77,44 @@ export function putArtifact(root: any, input: any, options: any = {}) {
     return transaction(db, () => putArtifactOnDb(db, envelope, options))
   } finally {
     db.close()
+  }
+}
+
+/**
+ * Record one context/brief assembly as a `trace:<chapter>:<role>` revision.
+ *
+ * Re-assembling identical content is an idempotent success: the revision hash
+ * already exists, so nothing new is written and the existing identity returns.
+ * @param root - workspace directory.
+ * @param input - work, chapter, role and the trace content.
+ * @returns stored artifact identity.
+ */
+export function writeContextTrace(root: any, input: {
+  work: string
+  chapter: number
+  role: string
+  trace: object
+}): { artifactId: string, revisionId: string } {
+  const artifactId = `trace:${input.chapter}:${input.role}`
+  const content = { ...input.trace, chapter: input.chapter }
+  const revisionId = artifactRevision(content)
+  try {
+    const stored = putArtifact(root, {
+      workId: input.work,
+      artifactId,
+      kind: 'trace',
+      scope: { chapter: input.chapter },
+      revisionId,
+      content,
+      provenance: 'generated',
+      createdAt: now(),
+    }, { allowSettled: true })
+    return { artifactId: stored.artifact.artifactId, revisionId: stored.artifact.revisionId }
+  } catch (error) {
+    // A repeat assembly with the same content is not an error: the revision exists.
+    const code = (error as { code?: unknown } | null | undefined)?.code
+    if (code === 'artifact-revision-exists') return { artifactId, revisionId }
+    throw error
   }
 }
 
@@ -408,7 +446,7 @@ export function remapChapterArtifacts(db: any, input: any) {
     WHERE scope_chapter IN (${numbers.map(() => '?').join(', ')}) ORDER BY rowid`).all(...numbers)
   const latest = new Map()
   for (const row of rows) latest.set(row.artifact_id, row)
-  const order = { plan: 0, summary: 1, review: 2 }
+  const order = { plan: 0, summary: 1, review: 2, trace: 3 }
   const ordered = [...latest.values()].sort((left, right) => ((order as Record<string, number>)[left.kind] ?? 9) - ((order as Record<string, number>)[right.kind] ?? 9))
   const deletions = new Set()
   const inserts = []
@@ -433,7 +471,10 @@ export function remapChapterArtifacts(db: any, input: any) {
     if (row.kind === 'review' && row.artifact_id.startsWith(`review:${oldNumber}:`)) {
       nextId = `review:${newNumber}:${row.artifact_id.slice(`review:${oldNumber}:`.length)}`
     }
-    if (row.kind === 'plan' || row.kind === 'summary') content.chapter = newNumber
+    if (row.kind === 'trace' && row.artifact_id.startsWith(`trace:${oldNumber}:`)) {
+      nextId = `trace:${newNumber}:${row.artifact_id.slice(`trace:${oldNumber}:`.length)}`
+    }
+    if (row.kind === 'plan' || row.kind === 'summary' || row.kind === 'trace') content.chapter = newNumber
     if (row.kind === 'review' && Array.isArray(content.observations)) {
       for (const observation of content.observations) {
         if (observation?.target?.artifactId?.startsWith('plan:')) {

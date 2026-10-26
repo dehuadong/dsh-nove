@@ -441,7 +441,8 @@ export function validateContextPackage(value: ArtifactRecord): ArtifactRecord {
 export function validateChapterTrace(value: ArtifactRecord): ArtifactRecord {
   const input = object(value, 'trace')
   keys(input, ['chapter', 'plannerInputs', 'composerInputs', 'selectedSources', 'contextTiers',
-    'tokenBudget', 'compression', 'retrieval', 'notes', 'sections', 'trimmed', 'dropped', 'budget'], 'trace')
+    'tokenBudget', 'compression', 'retrieval', 'notes', 'sections', 'trimmed', 'dropped', 'budget',
+    'missing', 'overflow'], 'trace')
   integer(input.chapter, 'trace.chapter', 1)
   strings(input.plannerInputs, 'trace.plannerInputs')
   strings(input.composerInputs, 'trace.composerInputs')
@@ -473,13 +474,27 @@ export function validateChapterTrace(value: ArtifactRecord): ArtifactRecord {
   strings(input.notes, 'trace.notes')
   if (input.sections !== undefined) {
     list(input.sections, 'trace.sections', (section, label) => {
-      keys(section, ['name', 'protection', 'sourceIds'], label)
+      keys(section, ['name', 'protection', 'sourceIds', 'chars', 'tokens', 'dropped', 'trimmed', 'reason'], label)
       text(section.name, `${label}.name`)
       oneOf(section.protection, ['protected', 'compressible'], `${label}.protection`)
       strings(section.sourceIds, `${label}.sourceIds`)
+      if (section.chars !== undefined) integer(section.chars, `${label}.chars`)
+      if (section.tokens !== undefined) integer(section.tokens, `${label}.tokens`)
+      if (section.dropped !== undefined) oneOf(section.dropped, [true], `${label}.dropped`)
+      if (section.trimmed !== undefined) oneOf(section.trimmed, [true], `${label}.trimmed`)
+      if (section.reason !== undefined) text(section.reason, `${label}.reason`)
       return section
     })
   }
+  if (input.missing !== undefined) {
+    list(input.missing, 'trace.missing', (entry, label) => {
+      keys(entry, ['name', 'reason'], label)
+      text(entry.name, `${label}.name`)
+      text(entry.reason, `${label}.reason`)
+      return entry
+    })
+  }
+  if (input.overflow !== undefined) oneOf(input.overflow, [true, false], 'trace.overflow')
   if (input.trimmed === undefined) invalid('trace.trimmed 缺失')
   strings(input.trimmed, 'trace.trimmed')
   if (input.dropped === undefined) invalid('trace.dropped 缺失')
@@ -599,6 +614,7 @@ export const ARTIFACT_CONTENT_VALIDATORS = {
   role_index: validateRolesIndex,
   role_card: validateRoleCard,
   review: validateReviewObservations,
+  trace: validateChapterTrace,
   short_story: validateShortStory,
   script: validateScript,
 }
@@ -613,6 +629,7 @@ export const ARTIFACT_IDENTITY = {
   plan: { pattern: /^plan:([1-9]\d*)$/u, chapterScoped: true },
   summary: { pattern: /^summary:([1-9]\d*)$/u, chapterScoped: true },
   review: { pattern: /^review:([1-9]\d*):r([1-9]\d*):([1-9]\d*)$/u, chapterScoped: true },
+  trace: { pattern: /^trace:([1-9]\d*):(writer|planner|reviewer|reviser|summarizer)$/u, chapterScoped: true },
   short_story: { pattern: /^short:[^\s:]+$/u },
   script: { pattern: /^script:[^\s:]+$/u },
 }
@@ -648,7 +665,7 @@ export function validateArtifactRecord(value: ArtifactRecord): ArtifactRecord {
   const chapter = assertArtifactIdentity(envelope.kind, envelope.artifactId, envelope.scope)
   const validator = (ARTIFACT_CONTENT_VALIDATORS as Record<string, any>)[envelope.kind]
   const content = validator === undefined ? envelope.content : validator(envelope.content)
-  if ((envelope.kind === 'plan' || envelope.kind === 'summary') && content.chapter !== chapter) {
+  if ((envelope.kind === 'plan' || envelope.kind === 'summary' || envelope.kind === 'trace') && content.chapter !== chapter) {
     invalid(`${envelope.kind} 的 content.chapter 必须等于 ${chapter}`)
   }
   if (envelope.kind === 'role_card' && content.slug !== envelope.artifactId.slice('role:'.length)) {

@@ -25,7 +25,7 @@ import {
   reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter, setSessionCurrent,
   status as readStatus, updateSettings, workIdOf, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
 } from './storage.js'
-import { readChapterMemo, readChapterSummary, readTextArtifact } from './artifact-store.js'
+import { readArtifact, readChapterMemo, readChapterSummary, readTextArtifact } from './artifact-store.js'
 import {
   assembleBrief as assembleBriefFor, readBible as readBibleEntries,
   writeBible as writeBibleEntry, writeSummary as writeSummaryEntry,
@@ -198,16 +198,16 @@ function failureOf(error: unknown): FailureEnvelope {
   return { ok: false, error: { code: 'internal', message } }
 }
 
-const RETRIEVAL_TRACE: SchemaNode = {
+/** Contract shape of a retrieval record inside a trace. */
+const TRACE_RETRIEVAL: SchemaNode = {
   type: 'object',
   additionalProperties: false,
-  description: 'FTS retrieval trace for one role context or brief.',
+  description: 'FTS retrieval record: the query and the candidates that were selected.',
   properties: {
-    enabled: { type: 'boolean' },
+    engine: { type: 'string', enum: ['sqlite-fts5-bm25'] },
     query: { type: 'string' },
-    candidateCount: { type: 'integer' },
-    error: { type: 'string' },
-    hits: {
+    selectionMode: { type: 'string', enum: ['semantic', 'complete'] },
+    candidates: {
       type: 'array',
       items: {
         type: 'object',
@@ -215,23 +215,96 @@ const RETRIEVAL_TRACE: SchemaNode = {
         properties: {
           id: { type: 'string' },
           kind: { type: 'string' },
-          sourceIds: { type: 'array', items: { type: 'string' } },
+          source: { type: 'string' },
           score: { type: 'number' },
-          sent: { type: 'boolean' },
         },
-        required: ['id', 'kind', 'sourceIds', 'score', 'sent'],
+        required: ['id', 'kind', 'source', 'score'],
       },
     },
+    semanticSelectedIds: { type: 'array', items: { type: 'string' } },
   },
-  required: ['enabled', 'query', 'candidateCount', 'hits'],
+  required: ['engine', 'query', 'selectionMode', 'candidates', 'semanticSelectedIds'],
 }
 
-const BRIEF_RETRIEVAL_TRACE: SchemaNode = {
-  ...RETRIEVAL_TRACE,
+/** One section as the trace reports it. */
+const TRACE_SECTION: SchemaNode = {
+  type: 'object',
+  additionalProperties: false,
   properties: {
-    ...RETRIEVAL_TRACE.properties,
+    name: { type: 'string' },
+    protection: { type: 'string', enum: ['protected', 'compressible'] },
+    sourceIds: { type: 'array', items: { type: 'string' } },
     chars: { type: 'integer' },
+    tokens: { type: 'integer' },
+    dropped: { type: 'boolean' },
+    trimmed: { type: 'boolean' },
+    reason: { type: 'string' },
   },
+  required: ['name', 'protection', 'sourceIds', 'chars', 'tokens'],
+}
+
+/** The trace every context or brief receipt carries. */
+const TRACE_OUTPUT: SchemaNode = {
+  type: 'object',
+  additionalProperties: false,
+  description: 'Token accounting and trimming record for one assembly.',
+  properties: {
+    chapter: { type: 'integer' },
+    plannerInputs: { type: 'array', items: { type: 'string' } },
+    composerInputs: { type: 'array', items: { type: 'string' } },
+    selectedSources: { type: 'array', items: { type: 'string' } },
+    contextTiers: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        protectedSources: { type: 'array', items: { type: 'string' } },
+        compressibleSources: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['protectedSources', 'compressibleSources'],
+    },
+    tokenBudget: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        protectedTokens: { type: 'integer' },
+        compressibleTokens: { type: 'integer' },
+        totalSelectedTokens: { type: 'integer' },
+      },
+      required: ['protectedTokens', 'compressibleTokens', 'totalSelectedTokens'],
+    },
+    retrieval: TRACE_RETRIEVAL,
+    notes: { type: 'array', items: { type: 'string' } },
+    trimmed: { type: 'array', items: { type: 'string' } },
+    dropped: { type: 'array', items: { type: 'string' } },
+    budget: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        limit: { type: 'integer' },
+        used: { type: 'integer' },
+        unit: { type: 'string', enum: ['tokens'] },
+      },
+      required: ['limit', 'used', 'unit'],
+    },
+    sections: { type: 'array', items: TRACE_SECTION },
+    missing: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: { name: { type: 'string' }, reason: { type: 'string' } },
+        required: ['name', 'reason'],
+      },
+    },
+    overflow: { type: 'boolean' },
+    review: {
+      type: 'object',
+      additionalProperties: false,
+      properties: { round: { type: 'integer' }, revision: { type: 'integer' } },
+      required: ['round', 'revision'],
+    },
+  },
+  required: ['selectedSources', 'contextTiers', 'tokenBudget', 'notes', 'trimmed', 'dropped', 'budget', 'sections', 'missing', 'overflow'],
 }
 
 /** Output properties shared by every action. */
@@ -280,52 +353,8 @@ const OUTPUT_PROPERTIES: SchemaNode = {
   resolved: { type: 'array', description: 'Review item ids marked as addressed.', items: { type: 'string' } },
   warnings: { type: 'array', description: 'Consistency warnings that did not block the write.', items: { type: 'string' } },
   role: { type: 'string' },
-  retrieval: BRIEF_RETRIEVAL_TRACE,
   planApproval: { type: 'string', enum: ['required', 'off'] },
-  trace: {
-    type: 'object',
-    additionalProperties: false,
-    description: 'Budget and trimming record for one dispatch.',
-    properties: {
-      budget: { type: 'integer' },
-      trimmed: { type: 'array', items: { type: 'string' } },
-      dropped: { type: 'array', items: { type: 'string' } },
-      missing: {
-        type: 'array',
-        items: {
-          type: 'object',
-          additionalProperties: false,
-          properties: { name: { type: 'string' }, reason: { type: 'string' } },
-          required: ['name', 'reason'],
-        },
-      },
-      overflow: { type: 'boolean' },
-      sections: {
-        type: 'array',
-        items: {
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            name: { type: 'string' },
-            protection: { type: 'string' },
-            sourceIds: { type: 'array', items: { type: 'string' } },
-            chars: { type: 'integer' },
-            dropped: { type: 'boolean' },
-            trimmed: { type: 'boolean' },
-          },
-          required: ['name', 'protection'],
-        },
-      },
-      review: {
-        type: 'object',
-        additionalProperties: false,
-        properties: { round: { type: 'integer' }, revision: { type: 'integer' } },
-        required: ['round', 'revision'],
-      },
-      retrieval: RETRIEVAL_TRACE,
-    },
-    required: ['budget'],
-  },
+  trace: TRACE_OUTPUT,
   whitelist: {
     type: 'object',
     additionalProperties: false,
@@ -789,15 +818,20 @@ async function sanitizeOutput(value: unknown, root: string, workId: string): Pro
       continue
     }
     if (key === 'path' && typeof item === 'string' && /^(?:works|\.storycraft)\//u.test(item)) continue
-    if (key === 'source' && typeof item === 'string') {
+    if (key === 'source' && item === '') continue
+    if (key === 'source' && typeof item === 'string' && /^(?:works|\.storycraft)\//u.test(item)) {
       output.sourceIds = await sourceIdsOf(root, workId, item)
       continue
     }
     if (key === 'sections' && Array.isArray(item)) {
       output.sections = await Promise.all(item.map(async section => {
         const clean = await sanitizeOutput(section, root, workId)
-        if (clean !== null && typeof clean === 'object' && typeof section.source === 'string') {
-          clean.sourceIds = await sourceIdsOf(root, workId, section.source)
+        if (clean !== null && typeof clean === 'object') {
+          // Every section exposes source ids; a virtual path is resolved, an
+          // already-identified source passes through, and an absent one is empty.
+          clean.sourceIds = typeof section.source === 'string' && /^(?:works|\.storycraft)\//u.test(section.source)
+            ? await sourceIdsOf(root, workId, section.source)
+            : (Array.isArray(section.sourceIds) ? section.sourceIds : [])
         }
         return clean
       }))
@@ -1208,6 +1242,65 @@ const CONTEXT_OUTPUT: DshToolOutput = {
   render: OUTPUT.render,
 }
 
+/** Output of `story_brief`: the sections plus the same trace shape context uses. */
+const BRIEF_OUTPUT: DshToolOutput = {
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      ok: OUTPUT_PROPERTIES.ok,
+      workId: OUTPUT_PROPERTIES.workId,
+      chapter: { type: 'integer' },
+      sections: {
+        type: 'array',
+        description: 'Brief sections in assembly order; absent sections carry empty content.',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            name: { type: 'string' },
+            title: { type: 'string' },
+            source: { type: 'string' },
+            sourceIds: { type: 'array', items: { type: 'string' } },
+            content: { type: 'string' },
+            bytes: { type: 'integer' },
+            tokens: { type: 'integer' },
+            absent: { type: 'boolean' },
+            draft: { type: 'boolean' },
+            fallback: { type: 'boolean' },
+          },
+          required: ['name', 'title', 'content', 'bytes', 'tokens'],
+        },
+      },
+      budget: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          limit: { type: 'integer' },
+          used: { type: 'integer' },
+          unit: { type: 'string', enum: ['tokens'] },
+          overBudget: { type: 'boolean' },
+        },
+        required: ['limit', 'used', 'unit', 'overBudget'],
+      },
+      missing: { type: 'array', items: { type: 'string' } },
+      dropped: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: { name: { type: 'string' }, tokens: { type: 'integer' }, reason: { type: 'string' } },
+          required: ['name', 'tokens', 'reason'],
+        },
+      },
+      trace: OUTPUT_PROPERTIES.trace,
+      error: OUTPUT_PROPERTIES.error,
+    },
+    required: ['ok'],
+  },
+  render: OUTPUT.render,
+}
+
 /**
  * One action definition.
  * @param spec - name, description, parameters, execute.
@@ -1442,6 +1535,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
             description: '派给谁：写手、规划、审稿或修订。',
           },
           instruction: { type: 'string', description: '作者本轮要求，会并入任务段。' },
+          budget: { type: 'integer', description: '可选：本次装配的 token 预算（估算值），缺省用角色默认。' },
           mode: {
             type: 'string',
             enum: ['patch', 'polish', 'rewrite', 'deslop'],
@@ -1468,7 +1562,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
             .map(item => ({
               name: item.name,
               title: item.title,
-              source: item.source ?? '',
+              sourceIds: context.trace.sections.find(entry => entry.name === item.name)?.sourceIds ?? [],
               content: item.content,
               protection: item.protection,
             })),
@@ -1768,7 +1862,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
 
     action({
       name: 'story_read',
-      description: '只读：按 artifactId 读取已登记的作品内容（chapter/plan/review/summary/state/bible/outline/volume）。宿主校验作品与当前章作用域；不返回文件路径。',
+      description: '只读：按 artifactId 读取已登记的作品内容（chapter/plan/review/summary/state/bible/outline/volume/trace）。宿主校验作品与当前章作用域；不返回文件路径。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -1791,12 +1885,21 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
         let content = ''
         let ref = { workId, artifactId: id, revisionId: String(args.revisionId ?? 'current'), kind }
         const chapterNumber = Number(parts[0])
-        if (kind === 'chapter' || kind === 'review') {
+        if (kind === 'chapter' || kind === 'review' || kind === 'trace') {
           if (!Number.isInteger(chapterNumber) || chapterNumber !== latest) {
             throw new StoryError('artifact-not-readable', `只能读当前章 ${latest}；旧章请用 story_brief 的摘要`)
           }
         }
-        if (kind === 'outline') {
+        if (kind === 'trace') {
+          if (parts.length !== 2) throw new StoryError('artifact-not-readable', 'trace 的 artifactId 形如 trace:1:writer')
+          const read = readArtifact(root, {
+            work: workId,
+            artifactId: id,
+            ...(args.revisionId === undefined ? {} : { revisionId: String(args.revisionId) }),
+          })
+          content = JSON.stringify(read.artifact.content, null, 2)
+          ref = { ...ref, artifactId: id, revisionId: read.artifact.revisionId as string, kind: 'trace' }
+        } else if (kind === 'outline') {
           const read = readTextArtifact(root, {
             work: workId,
             artifactId: 'outline',
@@ -1917,14 +2020,18 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
         properties: {
           work: { type: 'string', description: '作品 id。' },
           chapter: { type: 'integer', description: '要写的章号。' },
+          budget: { type: 'integer', description: '可选：本次装配的 token 预算（估算值），缺省用简报默认。' },
         },
         required: ['work', 'chapter'],
       },
+      output: BRIEF_OUTPUT,
       async execute(args, exec) {
         const root = workspaceOf(exec)
         assertCurrentChapter(readManifest(root, args.work), Number(args.chapter))
-        const brief = await assembleBriefFor(root, args.work, args.chapter)
-        return { ok: true, workId: args.work, sections: brief.sections, budget: brief.budget, missing: brief.missing, dropped: brief.dropped, retrieval: brief.retrieval }
+        const brief = await assembleBriefFor(root, args.work, args.chapter, {
+          ...(typeof args.budget === 'number' ? { budget: args.budget } : {}),
+        })
+        return { ok: true, workId: args.work, chapter: Number(args.chapter), sections: brief.sections, budget: brief.budget, missing: brief.missing, dropped: brief.dropped, trace: brief.trace }
       },
     }),
 

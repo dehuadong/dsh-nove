@@ -7,7 +7,8 @@
  * always assemble the same brief byte for byte.
  */
 
-import { StoryError, chapterNumber, chapterStem, contentVersion } from './domain.js'
+import { StoryError, chapterNumber, chapterStem, contentVersion, sourceIdOf } from './domain.js'
+import { accountOf } from './accounting.js'
 import { buildQuery, select } from './retrieval.js'
 import { mergeBlock, styleBlock, styleProfile, type StyleMetrics } from './style.js'
 import {
@@ -45,8 +46,8 @@ export function assertEditableBible(name: string): string {
 /** Names in the order the brief presents them (highest priority first). */
 export const BRIEF_SECTION_ORDER: string[] = ['intent', 'storyFrame', 'bookRules', 'plan', 'currentFocus', 'characters', 'hooks', 'volumeMap', 'volumeSummary', 'recentSummaries', 'previous', 'style', 'wordPolicy', 'retrieval']
 
-/** Byte budget of one assembled brief. */
-export const BRIEF_BUDGET_BYTES = 8192
+/** Token budget of one assembled brief (estimated tokens, see `accounting.ts`). */
+export const BRIEF_BUDGET_TOKENS = 2600
 
 /** Bytes of the previous chapter's tail used when no summary exists yet. */
 const PREV_TAIL_BYTES = 800
@@ -334,6 +335,7 @@ interface BriefSection {
   sourceIds?: string[]
   content: string
   bytes: number
+  tokens: number
   absent: boolean
   draft?: boolean
   fallback?: boolean
@@ -367,18 +369,55 @@ interface BriefRetrieval {
   error?: string
 }
 
-/** Byte accounting of one brief. */
+/** Token accounting of one brief. */
 interface BriefBudget {
   limit: number
   used: number
+  unit: 'tokens'
   overBudget: boolean
 }
 
 /** One section the budget removed. */
 interface DroppedSection {
   name: string
-  bytes: number
+  tokens: number
   reason: 'budget'
+}
+
+/** One section as the brief trace reports it, in the artifact contract's shape. */
+interface BriefTraceSection {
+  name: string
+  protection: 'protected' | 'compressible'
+  sourceIds: string[]
+  chars: number
+  tokens: number
+  dropped?: true
+  trimmed?: true
+  reason?: string
+}
+
+/** The brief's trace, the same shape `story_context` returns (never persisted). */
+interface BriefTrace {
+  chapter: number
+  plannerInputs: string[]
+  composerInputs: string[]
+  selectedSources: string[]
+  contextTiers: { protectedSources: string[], compressibleSources: string[] }
+  tokenBudget: { protectedTokens: number, compressibleTokens: number, totalSelectedTokens: number }
+  retrieval?: {
+    engine: 'sqlite-fts5-bm25'
+    query: string
+    selectionMode: 'complete'
+    candidates: Array<{ id: string, kind: string, source: string, score: number }>
+    semanticSelectedIds: string[]
+  }
+  notes: string[]
+  trimmed: string[]
+  dropped: string[]
+  budget: { limit: number, used: number, unit: 'tokens' }
+  sections: BriefTraceSection[]
+  missing: Array<{ name: string, reason: string }>
+  overflow: boolean
 }
 
 /** The assembled pre-write brief. */
@@ -388,6 +427,7 @@ interface Brief {
   missing: string[]
   dropped: DroppedSection[]
   retrieval: BriefRetrieval
+  trace: BriefTrace
 }
 
 /** Manifest fields this module reads; the manifest itself comes from the store. */
@@ -419,7 +459,7 @@ interface BriefDependencies {
  * @returns brief.
  */
 /** Render one foundation artifact content: Markdown string or its readable `markdown` field. */
-export async function assembleBrief(root: string, workId: unknown, chapter: number | string, dependencies: BriefDependencies = {}): Promise<Brief> {
+export async function assembleBrief(root: string, workId: unknown, chapter: number | string, options: BriefDependencies & { budget?: number } = {}): Promise<Brief> {
   const number = chapterNumber(chapter)
   const manifest: BriefManifest = readManifest(root, workId)
   const entry = manifest.chapters.find(item => item.number === number)
@@ -482,7 +522,7 @@ export async function assembleBrief(root: string, workId: unknown, chapter: numb
       virtualPath(work, 'manifest')),
   ]
 
-  const retrieve = typeof dependencies.searchMemory === 'function' ? dependencies.searchMemory : searchMemory
+  const retrieve = typeof options.searchMemory === 'function' ? options.searchMemory : searchMemory
   const written = manifest.chapters.filter(item => Number(item.currentRevision) > 0).length
   const query = written >= 3 ? buildQuery({ chapterPlan: planText, openHooks: hooks.slice(0, 8) }) : ''
   let retrieval: BriefRetrieval = { enabled: false, query: '', candidateCount: 0, chars: 0, hits: [] }
@@ -519,25 +559,85 @@ export async function assembleBrief(root: string, workId: unknown, chapter: numb
     }
   }
 
-  const budget: BriefBudget = { limit: BRIEF_BUDGET_BYTES, used: 0, overBudget: false }
+  const requestedBudget = options.budget
+  const limit = requestedBudget !== undefined && Number.isInteger(requestedBudget) && requestedBudget > 0
+    ? requestedBudget
+    : BRIEF_BUDGET_TOKENS
+  const budget: BriefBudget = { limit, used: 0, unit: 'tokens', overBudget: false }
   const dropped: DroppedSection[] = []
   const kept: BriefSection[] = [...sections]
   const protectedNames = new Set(['storyFrame', 'bookRules'])
-  const total = (): number => kept.reduce((sum, item) => sum + item.bytes, 0)
-  while (total() > BRIEF_BUDGET_BYTES && kept.length > 1) {
+  const total = (): number => kept.reduce((sum, item) => sum + item.tokens, 0)
+  while (total() > limit && kept.length > 1) {
     let index = kept.length - 1
     while (index > 0 && protectedNames.has(kept[index].name)) index -= 1
     if (index <= 0) break
     const [removed] = kept.splice(index, 1)
-    dropped.unshift({ name: removed.name, bytes: removed.bytes, reason: 'budget' })
+    dropped.unshift({ name: removed.name, tokens: removed.tokens, reason: 'budget' })
   }
   budget.used = total()
-  budget.overBudget = budget.used > BRIEF_BUDGET_BYTES
+  budget.overBudget = budget.used > limit
   if (dropped.some(item => item.name === 'retrieval')) {
     retrieval = { ...retrieval, hits: retrieval.hits.map(hit => ({ ...hit, sent: false })) }
   }
-  const rendered: BriefSection[] = kept.map(item => (item.absent ? { ...item, content: '', bytes: 0 } : item))
-  return { sections: rendered, budget, missing, dropped, retrieval }
+  const rendered: BriefSection[] = kept.map(item => (item.absent ? { ...item, content: '', bytes: 0, tokens: 0 } : item))
+
+  const sourceIdsOf = (item: BriefSection): string[] => (item.sourceIds ?? (item.source === undefined ? [] : [item.source]))
+    .flatMap(entry => entry.split(' + '))
+    .map(entry => entry.trim())
+    .filter(entry => entry !== '')
+    .map(entry => sourceIdOf(work, entry))
+  const sentSections = rendered.filter(item => item.content !== '')
+  const protectedSections = sentSections.filter(item => protectedNames.has(item.name))
+  const compressibleSections = sentSections.filter(item => !protectedNames.has(item.name))
+  const trace: BriefTrace = {
+    chapter: number,
+    plannerInputs: [],
+    composerInputs: [],
+    selectedSources: sentSections.flatMap(sourceIdsOf),
+    contextTiers: {
+      protectedSources: protectedSections.flatMap(sourceIdsOf),
+      compressibleSources: compressibleSections.flatMap(sourceIdsOf),
+    },
+    tokenBudget: {
+      protectedTokens: protectedSections.reduce((sum, item) => sum + item.tokens, 0),
+      compressibleTokens: compressibleSections.reduce((sum, item) => sum + item.tokens, 0),
+      totalSelectedTokens: sentSections.reduce((sum, item) => sum + item.tokens, 0),
+    },
+    ...(retrieval.enabled ? {
+      retrieval: {
+        engine: 'sqlite-fts5-bm25' as const,
+        query: retrieval.query,
+        selectionMode: 'complete' as const,
+        candidates: retrieval.hits.map(hit => ({
+          id: hit.id, kind: hit.kind, source: hit.sourceIds[0] ?? '', score: hit.score,
+        })),
+        semanticSelectedIds: [],
+      },
+    } : {}),
+    notes: [
+      'tokens 为估算值（cjk 1:1，其它 4:1）',
+      ...(retrieval.error === undefined ? [] : [`检索失败：${retrieval.error}`]),
+    ],
+    trimmed: [],
+    dropped: dropped.map(item => item.name),
+    budget: { limit, used: budget.used, unit: 'tokens' },
+    sections: sections.map(item => {
+      const droppedHere = dropped.some(entry => entry.name === item.name)
+      const chars = item.absent || droppedHere ? 0 : item.content.length
+      return {
+        name: item.name,
+        protection: protectedNames.has(item.name) ? 'protected' as const : 'compressible' as const,
+        sourceIds: sourceIdsOf(item),
+        chars,
+        tokens: droppedHere ? 0 : item.tokens,
+        ...(droppedHere ? { dropped: true as const, reason: 'budget' } : {}),
+      }
+    }),
+    missing: sections.filter(item => item.absent).map(item => ({ name: item.name, reason: '没有可用内容' })),
+    overflow: budget.overBudget,
+  }
+  return { sections: rendered, budget, missing, dropped, retrieval, trace }
 }
 
 /**
@@ -554,6 +654,7 @@ function section(name: string, title: string, content: unknown, source?: string,
     ...(Array.isArray(options.sourceIds) ? { sourceIds: options.sourceIds } : {}),
     content: text,
     bytes: byteLength(text),
+    tokens: accountOf(text).tokens,
     absent,
     ...(isDraft(text) && !absent ? { draft: true } : {}),
     ...(options.fallback === true ? { fallback: true } : {}),

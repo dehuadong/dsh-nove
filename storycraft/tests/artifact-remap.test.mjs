@@ -1,10 +1,11 @@
-// S1b: chapter delete/move remaps plan/summary artifacts and clears approval.
+// S1b: chapter delete/move remaps plan/summary/trace artifacts and clears approval.
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../dist/storage.js'
 import {
-  readChapterMemo, readChapterObservations, readChapterSummary, writeChapterObservations, writeChapterSummary,
+  readArtifact, readChapterMemo, readChapterObservations, readChapterSummary, writeChapterObservations,
+  writeChapterSummary, writeContextTrace,
 } from '../dist/artifact-store.js'
 import { openWork } from '../dist/db.js'
 
@@ -63,12 +64,49 @@ try {
     }],
   })
 
+  const traceOf = (chapter, marker) => ({
+    chapter,
+    plannerInputs: [],
+    composerInputs: ['outline'],
+    selectedSources: ['outline'],
+    contextTiers: { protectedSources: ['outline'], compressibleSources: [] },
+    tokenBudget: { protectedTokens: 10, compressibleTokens: 0, totalSelectedTokens: 10 },
+    notes: [marker],
+    trimmed: [],
+    dropped: [],
+    budget: { limit: 8000, used: 10, unit: 'tokens' },
+    sections: [{ name: 'task', protection: 'protected', sourceIds: ['outline'], chars: 5, tokens: 5 }],
+    missing: [],
+    overflow: false,
+  })
+  const firstTrace = writeContextTrace(root, { work, chapter: 1, role: 'writer', trace: traceOf(1, 'first') })
+  const repeatTrace = writeContextTrace(root, { work, chapter: 1, role: 'writer', trace: traceOf(1, 'first') })
+  check('a trace is stored per chapter and role', firstTrace.artifactId === 'trace:1:writer', JSON.stringify(firstTrace))
+  check('an identical assembly is idempotent', repeatTrace.revisionId === firstTrace.revisionId,
+    JSON.stringify([firstTrace, repeatTrace]))
+  check('the stored trace carries its chapter',
+    readArtifact(root, { work, artifactId: 'trace:1:writer' }).artifact.content.chapter === 1)
+  const changedTrace = writeContextTrace(root, { work, chapter: 1, role: 'writer', trace: traceOf(1, 'changed') })
+  check('a changed assembly adds a revision', changedTrace.revisionId !== firstTrace.revisionId, JSON.stringify(changedTrace))
+  check('both revisions stay readable',
+    readArtifact(root, { work, artifactId: 'trace:1:writer', revisionId: firstTrace.revisionId }).artifact.content.notes[0] === 'first'
+    && readArtifact(root, { work, artifactId: 'trace:1:writer' }).artifact.content.notes[0] === 'changed')
+
   await s.moveChapter(root, work, 1, 2)
   const movedOne = readChapterMemo(root, { work, chapter: 1 })
   const movedTwo = readChapterMemo(root, { work, chapter: 2 })
   check('move swaps plan content', movedOne.artifact.content.goal === 'g2' && movedTwo.artifact.content.goal === 'g1',
     JSON.stringify([movedOne.artifact.content, movedTwo.artifact.content]))
   check('move remaps plan scope', movedOne.artifact.scope.chapter === 1 && movedTwo.artifact.scope.chapter === 2)
+  check('move renumbers the trace id and its chapter', (() => {
+    try {
+      readArtifact(root, { work, artifactId: 'trace:1:writer' })
+      return false
+    } catch (error) {
+      return error?.code === 'artifact-not-found'
+        && readArtifact(root, { work, artifactId: 'trace:2:writer' }).artifact.content.chapter === 2
+    }
+  })())
   const movedDb = openWork(root, work)
   try {
     check('move clears approvals', movedDb.prepare('SELECT plan_approved_at FROM chapters WHERE number IN (1, 2)')
@@ -105,6 +143,14 @@ try {
     }
   })())
   check('delete keeps survivor summaries', readChapterSummary(root, { work, chapter: 2 }).artifact.content.chapter === 2)
+  check('delete removes the deleted chapter trace', (() => {
+    try {
+      readArtifact(root, { work, artifactId: 'trace:2:writer' })
+      return false
+    } catch (error) {
+      return error?.code === 'artifact-not-found'
+    }
+  })())
   const deleteDb = openWork(root, work)
   try {
     check('delete clears approvals on survivors', deleteDb.prepare('SELECT plan_approved_at, plan_revision FROM chapters')

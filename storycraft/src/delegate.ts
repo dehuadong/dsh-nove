@@ -16,7 +16,7 @@ import {
   writeReview, writeSummary, writePlan,
   type Form,
 } from './storage.js'
-import { readFoundationDocuments } from './artifact-store.js'
+import { readFoundationDocuments, writeContextTrace } from './artifact-store.js'
 import { loadRoleInput } from './role-input.js'
 import { checkDraft } from './landing.js'
 import { closeSubmission, consumeSubmission, openSubmission } from './submission.js'
@@ -635,6 +635,15 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
     ...(typeof input.instruction === 'string' ? { instruction: input.instruction } : {}),
     ...(role === 'reviser' ? { mode } : {}),
   })
+  // Record what this dispatch sends. The planner's plan does not exist yet, so
+  // its trace is written after landing; a failed write never blocks dispatch.
+  if (role !== 'planner') {
+    try {
+      writeContextTrace(root, { work, chapter, role, trace: loaded.context.trace })
+    } catch {
+      // Diagnostics only: the child still gets its context.
+    }
+  }
   const opened = openSubmission({
     role,
     workId: work,
@@ -681,6 +690,12 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
       const written = writePlan(root, {
         work, chapter, perspective, goal, obstacle, cost, turn, body, threadRefs, requireBody: true, requireAbsent: true,
       })
+      // The plan created the chapter row, so the planner trace can land now.
+      try {
+        writeContextTrace(root, { work, chapter, role, trace: loaded.context.trace })
+      } catch {
+        // Diagnostics only: the plan already landed.
+      }
       return fitReceipt({
         ok: true,
         workId: work,

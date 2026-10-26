@@ -119,6 +119,21 @@ export function chapterStem(number: number | string): string {
 }
 
 /**
+ * Turn a section's virtual source into an id the model may see.
+ *
+ * Receipts and traces never expose `works/<work>/` paths, so the work prefix and
+ * a trailing slash are stripped here.
+ * @param workId - work identity.
+ * @param source - a section source, possibly a ` + `-joined expression.
+ * @returns the first split part without the work prefix.
+ */
+export function sourceIdOf(workId: string, source: string): string {
+  const prefix = `works/${workId}/`
+  const trimmed = source.startsWith(prefix) ? source.slice(prefix.length) : source
+  return trimmed.replace(/\/+$/u, '')
+}
+
+/**
  * Parse a chapter number.
  */
 export function chapterNumber(value: unknown): number {

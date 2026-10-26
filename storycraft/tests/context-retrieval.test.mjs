@@ -52,43 +52,45 @@ try {
   check('retrieval follows recent', names.indexOf('retrieval') === names.indexOf('recent') + 1, names.join(','))
   check('retrieval section is present', out.text.includes('相关往事') && out.text.includes('〔summary:1〕'), out.text.slice(-600))
   check('retrieval trace is enabled with candidates',
-    out.trace.retrieval?.enabled === true && out.trace.retrieval.candidateCount > 0 && out.trace.retrieval.hits.length > 0,
+    out.trace.retrieval !== undefined && out.trace.retrieval.candidates.length > 0,
     JSON.stringify(out.trace.retrieval))
-  check('retrieval hits use artifact ids', out.trace.retrieval.hits.every(hit => hit.sourceIds?.length > 0 && !hit.sourceIds.some(id => id.includes('/'))),
-    JSON.stringify(out.trace.retrieval.hits))
-  check('stale chapter 2 summary is not retrieved', !out.trace.retrieval.hits.some(hit => hit.id === 'summary:2'), JSON.stringify(out.trace.retrieval.hits))
+  check('retrieval hits use artifact ids', out.trace.retrieval.candidates.every(hit => hit.source !== '' && !hit.source.includes('/')),
+    JSON.stringify(out.trace.retrieval.candidates))
+  check('stale chapter 2 summary is not retrieved', !out.trace.retrieval.candidates.some(hit => hit.id === 'summary:2'), JSON.stringify(out.trace.retrieval.candidates))
   check('material is retrieved with a bounded snippet',
-    out.trace.retrieval.hits.some(hit => hit.kind === 'material' && hit.sent === true
-      && hit.sourceIds[0]?.startsWith('material:')), JSON.stringify(out.trace.retrieval.hits))
+    out.trace.retrieval.candidates.some(hit => hit.kind === 'material'
+      && hit.source.startsWith('material:')), JSON.stringify(out.trace.retrieval.candidates))
   check('retrieval text carries the material title', out.text.includes('旧井参考'), out.text.slice(-800))
   check('recent still carries current summaries', out.text.includes('第 4 章：第4章摘要。'))
   const deduped = await assembleRoleContext({
     root, work, chapter: 5, role: 'writer', task: '写第 5 章正文。', instruction: '第4章摘要',
   })
   check('summaries already sent by recent are deduped',
-    !deduped.trace.retrieval.hits.some(hit => hit.id === 'summary:4'), JSON.stringify(deduped.trace.retrieval.hits))
+    !deduped.trace.retrieval.candidates.some(hit => hit.id === 'summary:4'), JSON.stringify(deduped.trace.retrieval.candidates))
   const failed = await assembleRoleContext(
     { root, work, chapter: 5, role: 'writer', task: '写第 5 章正文。', instruction: '写旧井' },
     { searchMemory: () => { const error = new Error('busy'); error.code = 'work-busy'; throw error } },
   )
-  check('retrieval failure is fail-open with a trace code',
-    failed.trace.retrieval.error === 'work-busy' && failed.trace.retrieval.hits.length === 0
-    && !failed.text.includes('相关往事') && failed.text.includes('本章任务'), JSON.stringify(failed.trace.retrieval))
+  check('retrieval failure is fail-open with a trace note',
+    failed.trace.retrieval !== undefined && failed.trace.retrieval.candidates.length === 0
+    && failed.trace.notes.some(note => note.includes('work-busy'))
+    && !failed.text.includes('相关往事') && failed.text.includes('本章任务'), JSON.stringify(failed.trace))
 
   const tight = await assembleRoleContext({
     root, work, chapter: 5, role: 'writer', task: '写第 5 章正文。', instruction: '写旧井', budget: 150,
   })
   check('retrieval is the first compressible dropped', tight.trace.dropped[0] === 'retrieval', tight.trace.dropped.join(','))
-  check('dropped retrieval marks all hits unsent', tight.trace.retrieval.hits.every(hit => hit.sent === false), JSON.stringify(tight.trace.retrieval))
+  check('dropped retrieval is recorded on its section',
+    tight.trace.sections.find(item => item.name === 'retrieval')?.dropped === true, JSON.stringify(tight.trace.sections))
   check('dropped retrieval is absent from text', !tight.text.includes('相关往事'))
 
   const planner = await assembleRoleContext({ root, work, role: 'planner', scope: 'work', task: '出全书计划 旧井' })
-  check('work-scope planner retrieves without a target', planner.trace.retrieval?.enabled === true, JSON.stringify(planner.trace.retrieval))
+  check('work-scope planner retrieves without a target', planner.trace.retrieval !== undefined, JSON.stringify(planner.trace.retrieval))
   check('work-scope planner can retrieve material',
-    planner.trace.retrieval.hits.some(hit => hit.kind === 'material'), JSON.stringify(planner.trace.retrieval.hits))
+    planner.trace.retrieval.candidates.some(hit => hit.kind === 'material'), JSON.stringify(planner.trace.retrieval.candidates))
   const early = await assembleRoleContext({ root, work, chapter: 1, role: 'planner', task: '找旧井' })
-  check('material is available at beforeChapter=1', early.trace.retrieval.hits.some(hit => hit.kind === 'material'),
-    JSON.stringify(early.trace.retrieval.hits))
+  check('material is available at beforeChapter=1', early.trace.retrieval.candidates.some(hit => hit.kind === 'material'),
+    JSON.stringify(early.trace.retrieval.candidates))
 
   const emptyWork = (await s.initWork(root, { title: '无命中检索', wordRange: { min: 100, max: 200 } })).workId
   await s.writeOutline(root, { work: emptyWork, mainline: '无命中' })
@@ -104,8 +106,8 @@ try {
   await s.approveChapterPlan(root, { work: emptyWork, chapter: 4 })
   const empty = await assembleRoleContext({ root, work: emptyWork, role: 'planner', scope: 'work', task: 'zzzz' })
   check('zero-hit retrieval keeps an enabled empty trace',
-    empty.trace.retrieval?.enabled === true && empty.trace.retrieval.candidateCount === 0
-    && empty.trace.retrieval.hits.length === 0 && !empty.text.includes('相关往事'), JSON.stringify(empty.trace.retrieval))
+    empty.trace.retrieval !== undefined && empty.trace.retrieval.candidates.length === 0
+    && empty.trace.retrieval.candidates.length === 0 && !empty.text.includes('相关往事'), JSON.stringify(empty.trace.retrieval))
 } finally {
   await rm(root, { recursive: true, force: true })
 }

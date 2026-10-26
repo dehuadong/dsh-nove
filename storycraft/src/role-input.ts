@@ -26,6 +26,8 @@ interface RoleInput {
   instruction?: string
   /** revision mode. */
   mode?: string
+  /** optional token budget for this assembly. */
+  budget?: number
 }
 
 /** One chapter entry from the manifest. */
@@ -133,6 +135,7 @@ export async function loadRoleInput(root: string, input: RoleInput): Promise<Loa
     instruction,
     ...(role === 'reviser' ? { mode } : {}),
     ...(body === '' ? {} : { body }),
+    ...(input.budget === undefined ? {} : { budget: input.budget }),
     ...(review === undefined ? {} : { review }),
   })
   return { manifest, entry, body, latest, review, context }

@@ -59,7 +59,7 @@ try {
   check('whitelist summary counts numbers', typeof out.whitelist.counts.numbers === 'number', JSON.stringify(out.whitelist))
   check('recent uses summaries', out.text.includes('第一章摘要'), out.text.slice(0, 300))
   check('retrieval is disabled below three written chapters',
-    out.trace.retrieval?.enabled === false && out.trace.retrieval.hits.length === 0, JSON.stringify(out.trace.retrieval))
+    out.trace.retrieval === undefined, JSON.stringify(out.trace.retrieval))
   check('trace sources are virtual work paths', out.trace.sections.every(item => item.source === undefined || !item.source.startsWith('outline/')), JSON.stringify(out.trace.sections.map(item => item.source)))
 
   // A tight budget drops compressible sections before protected ones.
@@ -67,7 +67,46 @@ try {
   const dropped = tight.trace.dropped
   check('recent is dropped first', dropped[0] === 'recent', dropped.join(','))
   check('protected sections survive the budget', tight.text.includes('权威顺序') && tight.text.includes('本章任务'))
-  check('trace records the budget', tight.trace.budget === 150)
+  check('trace records the budget', tight.trace.budget.limit === 150 && tight.trace.budget.unit === 'tokens')
+
+  // The trace's numbers are the ones the budget and receipt report.
+  const sectionTokens = out.trace.sections.reduce((sum, item) => sum + item.tokens, 0)
+  check('the trace sums its sections', out.trace.tokenBudget.totalSelectedTokens === sectionTokens
+    && out.trace.budget.used === sectionTokens, JSON.stringify(out.trace.tokenBudget))
+  check('the trace says the tokens are estimated', out.trace.notes.some(note => note.includes('估算')), JSON.stringify(out.trace.notes))
+  check('the trace splits protected and compressible tokens',
+    out.trace.tokenBudget.protectedTokens > 0 && out.trace.tokenBudget.compressibleTokens >= 0
+    && out.trace.tokenBudget.protectedTokens + out.trace.tokenBudget.compressibleTokens === sectionTokens)
+
+  // A compressible section over its cap is compressed, never dropped.
+  await b.writeBible(root, work, 'style', `# 文风\n${'短句，少形容。'.repeat(140)}`)
+  const capped = await assembleRoleContext({ root, work, chapter: 2, role: 'writer', task: '写第 2 章正文。' })
+  const styleSection = capped.trace.sections.find(item => item.name === 'style')
+  check('a section over its cap is compressed',
+    styleSection?.trimmed === true && styleSection.tokens <= 400, JSON.stringify(styleSection))
+
+  // Protected content over the total budget is flagged, never trimmed.
+  const overflowing = await assembleRoleContext({ root, work, chapter: 2, role: 'writer', task: '写第 2 章正文。', instruction: '写'.repeat(9000) })
+  check('protected overflow is flagged and kept',
+    overflowing.trace.overflow === true && overflowing.text.includes('权威顺序')
+    && overflowing.trace.notes.some(note => note.includes('overflow')), JSON.stringify(overflowing.trace.notes))
+  const exact = await assembleRoleContext({
+    root, work, chapter: 2, role: 'writer', task: '写第 2 章正文。', budget: capped.trace.budget.used,
+  })
+  check('a budget exactly used up does not overflow', exact.trace.overflow === false, JSON.stringify(exact.trace.budget))
+  check('trimmed and dropped never overlap', !exact.trace.trimmed.some(name => exact.trace.dropped.includes(name)),
+    JSON.stringify({ trimmed: exact.trace.trimmed, dropped: exact.trace.dropped }))
+  const plain = await assembleRoleContext({ root, work, chapter: 2, role: 'writer', task: '写第 2 章正文。' })
+  const protectedOnly = await assembleRoleContext({
+    root, work, chapter: 2, role: 'writer', task: '写第 2 章正文。', budget: plain.trace.tokenBudget.protectedTokens - 1,
+  })
+  check('protected content alone can trigger overflow', protectedOnly.trace.overflow === true,
+    JSON.stringify(protectedOnly.trace.tokenBudget))
+  const invalidBudget = await assembleRoleContext({
+    root, work, chapter: 2, role: 'writer', task: '写第 2 章正文。', budget: -5,
+  })
+  check('an invalid budget falls back to the role default', invalidBudget.trace.budget.limit === 8000,
+    JSON.stringify(invalidBudget.trace.budget))
 
   // A planner sees the book plan, the volume map and the character cards.
   const planner = await assembleRoleContext({ root, work, chapter: 2, role: 'planner', task: '为第 2 章出章纲' })

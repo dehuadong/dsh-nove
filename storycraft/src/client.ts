@@ -284,6 +284,7 @@ window.__ModuleLoader__.load({
       source?: string
       content: string
       bytes: number
+      tokens: number
       absent: boolean
       draft?: boolean
       /** Not emitted by the Host today; kept for the optional note badge. */
@@ -292,9 +293,9 @@ window.__ModuleLoader__.load({
 
     interface BriefPayload {
       sections: BriefSection[]
-      budget: { limit: number, used: number, overBudget: boolean }
+      budget: { limit: number, used: number, unit?: string, overBudget: boolean }
       missing?: string[]
-      dropped?: Array<{ name: string, bytes: number, reason: string }>
+      dropped?: Array<{ name: string, tokens: number, reason: string }>
     }
 
     interface Material {
@@ -2599,13 +2600,13 @@ window.__ModuleLoader__.load({
           brief.status === 'ready'
             ? h('div', { style: { marginTop: 10 } },
               h('p', { className: 'sc-item-body' },
-                `第 ${brief.chapter} 章 · 已用 ${brief.budget.used} / ${brief.budget.limit} 字节`
+                `第 ${brief.chapter} 章 · 已用 ${brief.budget.used} / ${brief.budget.limit} token（估算）`
                 + `${brief.budget.overBudget ? ' · 超预算' : ''}`
                 + `${(brief.dropped ?? []).length > 0 ? ` · 裁掉 ${brief.dropped!.map(item => item.name).join('、')}` : ''}`),
               ...brief.sections.map(item => h('div', { className: 'sc-item', key: item.name },
                 h('div', { className: 'sc-item-head' },
                   h('span', { className: 'sc-item-name' }, item.title),
-                  h('span', { className: 'sc-badge' }, `${item.bytes} B`),
+                  h('span', { className: 'sc-badge' }, `${item.tokens} tok`),
                   h('span', { className: 'sc-item-id' }, item.source),
                   item.absent ? h('span', { className: 'sc-badge' }, '缺失') : null,
                   item.draft ? h('span', { className: 'sc-badge sc-badge-warn' }, '草稿') : null,
