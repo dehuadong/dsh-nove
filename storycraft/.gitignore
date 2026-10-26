@@ -4,3 +4,6 @@ test-results/
 playwright-report/
 
 node_modules/
+
+# 验收证据
+.tmp-acceptance/
