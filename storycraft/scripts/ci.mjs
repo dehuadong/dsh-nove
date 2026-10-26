@@ -25,10 +25,14 @@ function run(command, args, cwd) {
   return result.status ?? 1
 }
 
-const buildCode = run(process.execPath, [path.join('scripts', 'build-ts.mjs')], storycraftDir)
+const buildCode = run(process.execPath, [path.join('scripts', 'build.mjs')], storycraftDir)
+const typecheckClient = run(process.execPath, [
+  path.join('node_modules', 'typescript', 'bin', 'tsc'), '-p', 'tsconfig.client.json',
+], storycraftDir)
 const packCode = run(process.execPath, [path.join('scripts', 'pack-check.mjs')], storycraftDir)
 let failed = 0
 if (buildCode !== 0) failed += 1
+if (typecheckClient !== 0) failed += 1
 if (packCode !== 0) failed += 1
 
 const tests = readdirSync(path.join(storycraftDir, 'tests'))

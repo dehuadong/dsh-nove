@@ -33,7 +33,7 @@ updated: 2026-10-24
 - 单个插件包，没有 monorepo；Cordis 按包名加载 Host 入口；
 - DSH Client 通过 `__ModuleLoader__` 加载单文件 `client.js`，不能用 tsc 直接产出多模块；
 - 当前 package 的 `exports` 和 `dsh.bundle.patch` 已固定入口，迁移期间要保持可加载；
-- 因此采用 `src/*.ts` → `dist/*.js`，迁移期根 JS 仍作为未迁移模块与稳定入口；入口模块（`index`、`tools`、`skills`）迁到 TS 的当层改写 `exports` 目标，全部迁完后移除根 JS。
+- 因此采用 `src/*.ts` → `dist/*.js`；入口模块（`index`、`tools`、`skills`、`client`）迁到 TS 的当层改写 `exports` 目标，迁完后包根不再有 JS。
 
 采用 `src/*.ts` → `dist/*.js`：
 
@@ -42,7 +42,7 @@ updated: 2026-10-24
 - 迁移一个模块时，所有消费者把 `./<module>.js` 改为 `./dist/<module>.js`（JS/TS 都可 import dist）；
 - TS 模块之间 import `./<module>.js`：源内解析到 `src/<module>.ts`，编译后解析到 `dist/<module>.js`；
 - 不建根级 shim/转发文件；一个模块只有一个实现；
-- `npm run build` 用本地 `typescript`，`prepack` 自动构建。
+- `npm run build` 用本地 `typescript`（Host）与本地 `esbuild`（Client），`prepack` 自动构建。
 
 不在本计划：把 `dist` 提交、`allowJs` 混编、根入口 `index.js` 直接改名。
 
@@ -65,24 +65,24 @@ updated: 2026-10-24
 | L3 | `store-db`、`artifact-store`、`storage`、`retrieval`、`volumes` | 中心存储与查询；`store-db` 单独一批 |
 | L4 | `bible`、`facts`、`landing`、`consistency`、`context`、`role-input`、`submission`、`proposals`、`state-check`、`state-settle`、`state-events`、`delegate`、`tools`、`index` | 角色/状态消费与 DSH 接缝；`consistency`/`proposals` 是 `landing`/`tools` 的编译边界，`state-events` 运行时无消费者，删除另见 #72 |
 | L4b | `skills` | 技能 provider 入口；迁到 `dist/` 后包内 `skills/` 目录基准上跳一级，`exports` 的 `./skills` 当层改指 dist |
-| L5 | `client` | 浏览器入口；单独用 esbuild 打成单文件 |
+| L5 | `client` | 浏览器入口；esbuild 单文件转译，`exports` 的 `./client` 指 `dist/client.js`，包根不再有 JS |
 
 每层完成后：`ci --no-e2e`、pack-check、tarball 安装 smoke 全过；下一层才开始。
 
 ### 4. 测试与 CI
 
 - 迁移模块的测试 import `../dist/<module>.js`；
-- 未迁移模块保持 `../<module>.js`；
 - `ci.mjs` 先 build，再跑测试/pack；
-- 每层新增类型/行为断言，不减少现有 50 个单元文件；
-- E2E 在 T4 前保持现有路径。面板 harness 也读编译产物：fixture 与 spec 用 `../dist/<module>.js`，并且要把 `files` 清单里的 `*.js` glob 展开，否则临时 profile 缺 `client.js`、工作台不挂载。只跑 `ci --no-e2e` 时这两处不会暴露。
+- 每层新增类型/行为断言，不减少已有单元文件（当前 51 个）；
+- 面板 harness 也读编译产物：fixture 与 spec 用 `../dist/<module>.js`；`files` 不再含 `*.js` glob，`dist/` 整体复制进临时 profile。只跑 `ci --no-e2e` 时这条链路不会暴露。
 
-### 5. Client（T4）
+### 5. Client（L5）
 
 - `client.js` 不是 ESM，是 `__ModuleLoader__` 单文件；不能直接 `tsc`；
-- 先用 esbuild 把 `src/client.ts`（或分模块 + 单入口）打成单文件，保留 `window.__ModuleLoader__.load` 外壳；
-- 单独工作项，不与 Host 迁移同批；
-- 验收：浏览器加载、面板 E2E、无运行时差异。
+- 采用 esbuild **只转译不打包**：`src/client.ts` 是单文件脚本，esbuild 擦除类型后写到 `dist/client.js`，`window.__ModuleLoader__.load({ factory(require) })` 外壳与 `require('react')` 原样保留。打包（`--bundle`）会把宿主提供的 `require` 当成待解析依赖，反而破坏加载契约；
+- 类型检查走独立的 `tsconfig.client.json`（DOM lib、`noEmit`），不进 Host 的 `tsconfig.json`；React 类型来自 `@types/react` devDependency，加载器与注入面声明在 `types/client.d.ts`；
+- 构建是 `scripts/build.mjs`：先 Host `tsc`，再 Client esbuild；`prepack` 与 `ci.mjs` 都走它，`ci.mjs` 另跑一次 Client 类型检查；
+- 验收：浏览器加载、面板 E2E、无运行时差异（同一 esbuild 参数编译 HEAD 的源码作为参照，产物 token 流一致）。
 
 ### 6. 分支与交付
 

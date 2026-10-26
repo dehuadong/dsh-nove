@@ -213,7 +213,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 storycraft/
   package.json                 # bundle 清单：dsh.bundle.patch + dsh.client
   cordis.patch.yml             # 入口行 + 一条预设声明（故事工坊，技能行 mode: all）
-  src/                         # Host 半边（TypeScript）：
+  src/                         # 源码（TypeScript）：
     index.ts                   #   只读路由 + 作者确认/素材管理/面板导出
     tools.ts                   #   动作（注册在预设作用域）
     delegate.ts                #   宿主侧角色委派：预检、子代理、输出校验、落库、回执
@@ -228,10 +228,11 @@ storycraft/
     bible.ts                   #   真值、摘要与写前上下文
     proposals.ts               #   提案：讨论与立项之间的桥
     skills.ts                  #   按模式提供技能目录
+    client.ts                  #   浏览器半边：侧栏入口 + 工作台（esbuild 编译成单文件）
     …                          #   其余数据层与存储层模块
   types/dsh.d.ts               # 本包实际使用的 DSH ctx/exec 面
-  dist/                        # tsc 产物，不提交；prepack 构建
-  client.js                    # 浏览器半边：侧栏入口 + 工作台（仍是 JavaScript）
+  types/client.d.ts            # 浏览器加载器与 React 注入面
+  dist/                        # 构建产物，不提交；prepack 构建
   skills/<mode>/<skill>/…      # 技能正文与脚本
   icon.svg
 ```
@@ -245,11 +246,12 @@ storycraft/
   ```
 
 - 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑 19 条页面 spec（工作台 17 + 预设 2）——侧栏入口、页面读数、作者确认、摘要徽标、素材导入/重命名/删除、面板导出、章节倒序分页/前移后移、文风样例、真值抽屉、备份恢复、指令门禁、预设声明与刷新。不调用模型，零额度；需要本机装有 Playwright（可用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装它的目录）。
+- `node storycraft/scripts/ci.mjs` 依次跑：`scripts/build.mjs`（Host tsc + Client esbuild）、Client 类型检查（`tsconfig.client.json`，`--noEmit`）、pack-check、全部单元文件、页面 spec。
 - 端到端验收、评审与证据记录在 issue `dehuadong/dsh-nove#18`。
 
 ## 安装与打包
 
-开发时 profile 用 `link:` 指向本目录，改 `client.js` 刷新即生效；这是调试路径，不是安装包路径。
+开发时 profile 用 `link:` 指向本目录，改 `src/client.ts` 后重新 build 再刷新窗口即生效；这是调试路径，不是安装包路径。
 
 发布/验收用 tarball：
 
@@ -259,27 +261,27 @@ npm pack
 node scripts/pack-check.mjs
 ```
 
-`npm pack` 的清单由 `package.json` 的 `files` 拥有，`pack-check.mjs` 检查实际 tarball：所有根运行时 `.js`、`skills/`、`cordis.patch.yml`、`icon.svg`、`README.md` 必须在；`tests/`、`e2e/`、根 `scripts/`、报告与临时目录必须不在。`skills/*/scripts/*.mjs` 属于技能资源，会随 `skills/` 打包。`node storycraft/scripts/ci.mjs --no-e2e` 会先跑这项检查。
+`npm pack` 的清单由 `package.json` 的 `files` 拥有，`pack-check.mjs` 检查实际 tarball：`dist/` 的四个入口与其余编译产物、`skills/`、`cordis.patch.yml`、`icon.svg`、`README.md` 必须在；`tests/`、`e2e/`、根 `scripts/`、报告与临时目录必须不在。`skills/*/scripts/*.mjs` 属于技能资源，会随 `skills/` 打包。`node storycraft/scripts/ci.mjs --no-e2e` 会先跑这项检查。
 
 安装时用 `npm pack` 产出的 tarball（DSH 的 bundle 安装入口），不要直接把仓库目录当安装包。回滚时重新安装上一个 tarball；开发环境切回 `link:`。
 
 ## TypeScript 接入
 
-Host 代码已迁到 TS 的 L0–L4 层：`scope`、叶子层、数据层、存储层，以及消费与 DSH 接缝（`bible`、`facts`、`landing`、`consistency`、`context`、`role-input`、`submission`、`proposals`、`state-check`、`state-settle`、`state-events`、`delegate`、`tools`、`index`）与技能入口 `skills`。`src/store-rows.ts` 定义 SQLite 表行类型，`types/dsh.d.ts` 声明本包实际使用的 DSH `ctx`/`exec` 面。
+Host 与 Client 都已迁到 TS 的 L0–L5 层：`scope`、叶子层、数据层、存储层、消费与 DSH 接缝（`bible`、`facts`、`landing`、`consistency`、`context`、`role-input`、`submission`、`proposals`、`state-check`、`state-settle`、`state-events`、`delegate`、`tools`、`index`）、技能入口 `skills`，以及浏览器入口 `client`。`src/store-rows.ts` 定义 SQLite 表行类型，`types/dsh.d.ts` 与本包的 `types/client.d.ts` 声明实际使用的宿主面。
 
-- 源文件：`src/*.ts`，全部经 `strict` 编译；`dist/` 由构建生成，不提交；
-- 包入口：`exports` 的 `.` 指向 `dist/index.js`、`./tools` 指向 `dist/tools.js`、`./skills` 指向 `dist/skills.js`；
-- 安装依赖：`npm install`（`typescript` + `@types/node` 是 devDependencies，不进安装包）；
-- 编译：`npm run build` → `dist/*.js`；`prepack` 自动 build；
-- 模块之间 import 写同层 `'./<module>.js'`，编译后解析到 `dist/`；根 JS 消费者写 `'./dist/<module>.js'`，没有第二份实现；
-- 技能目录固定在包根 `skills/`，`dist/skills.js` 以编译产物位置为基准上跳一级解析；
-- `client.js` 仍是 JavaScript；Client 单独走 esbuild（L5），不在 Host 迁移内。
+- 源文件：`src/*.ts`；Host 走 `tsc`（`tsconfig.json`），Client 走 esbuild（`tsconfig.client.json` 只做类型检查）；`dist/` 由构建生成，不提交；
+- 包入口：`exports` 的 `.`、`./tools`、`./skills`、`./client` 全部指向 `dist/`；
+- 安装依赖：`npm install`（`typescript`、`esbuild`、`@types/node`、`@types/react` 都是 devDependencies，不进安装包）；
+- 编译：`npm run build` → `scripts/build.mjs`（先 tsc 再 esbuild）；`prepack` 自动 build；
+- Client 不是 ES module：`src/client.ts` 由 esbuild 单文件转译到 `dist/client.js`，保留 `window.__ModuleLoader__.load({ factory(require) })` 外壳，`require('react')` 原样交给宿主加载器；
+- 模块之间 import 写同层 `'./<module>.js'`，编译后解析到 `dist/`，没有第二份实现；
+- 技能目录固定在包根 `skills/`，`dist/skills.js` 以编译产物位置为基准上跳一级解析。
 
 开发 `link:` 时先 build；改 `src/*.ts` 后重新 build，不手改 `dist/`。
 
 ## 改动与生效
 
-包以 `link:` 装入 profile，改 `client.js` 后刷新窗口即可；改 `cordis.patch.yml` 或 Host 半边（`src/*.ts`）需要重启应用，或让 `plugin_manager` 把 bundle 关→开重载补丁。停用用 `set_bundle enabled:false`，卸载用 `remove_bundle`。
+包以 `link:` 装入 profile，改 `src/client.ts` 并重新 `npm run build` 后刷新窗口即可；改 `cordis.patch.yml` 或 Host 半边需要重启应用，或让 `plugin_manager` 把 bundle 关→开重载补丁。停用用 `set_bundle enabled:false`，卸载用 `remove_bundle`。
 
 ## 阶段上下文
 

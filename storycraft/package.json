@@ -11,13 +11,12 @@
   "icon": "./icon.svg",
   "exports": {
     ".": "./dist/index.js",
-    "./client": "./client.js",
+    "./client": "./dist/client.js",
     "./skills": "./dist/skills.js",
     "./tools": "./dist/tools.js",
     "./package.json": "./package.json"
   },
   "files": [
-    "*.js",
     "dist",
     "cordis.patch.yml",
     "icon.svg",
@@ -38,11 +37,13 @@
     }
   },
   "scripts": {
-    "build": "node scripts/build-ts.mjs",
-    "prepack": "node scripts/build-ts.mjs"
+    "build": "node scripts/build.mjs",
+    "prepack": "node scripts/build.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
+    "@types/react": "^18.3.31",
+    "esbuild": "^0.28.2",
     "typescript": "^7.0.2"
   }
 }

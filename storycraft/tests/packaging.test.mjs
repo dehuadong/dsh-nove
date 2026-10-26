@@ -36,11 +36,13 @@ const unresolvable = Object.entries(manifest.exports)
   .filter(([, target]) => !exists(join(projectRoot, target)))
 check('every export target exists', unresolvable.length === 0, unresolvable.map(([key]) => key).join(','))
 
-// The three Host entries are compiled; the Client entry stays on root JavaScript.
-for (const key of ['.', './tools', './skills']) {
+// Every entry is built: the Host ones through tsc, the Client through esbuild.
+for (const key of ['.', './tools', './skills', './client']) {
   check(`export ${key} points at the build`, String(manifest.exports[key]).startsWith('./dist/'), manifest.exports[key])
 }
-check('export ./client points at root JavaScript', manifest.exports['./client'] === './client.js', manifest.exports['./client'])
+check('the Client bundle is shipped', exists(join(projectRoot, 'dist', 'client.js')))
+check('the manifest no longer ships root JavaScript',
+  !(manifest.files ?? []).some(entry => entry.includes('*.js')), JSON.stringify(manifest.files))
 
 // A moved module must not keep a root-level twin.
 const duplicated = srcNames.filter(name => rootJs.includes(`${name}.js`))

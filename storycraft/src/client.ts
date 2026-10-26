@@ -1,9 +1,638 @@
+import type * as ReactTypes from 'react'
+
 window.__ModuleLoader__.load({
   id: 'dsh-storycraft',
-  factory(require) {
-    const React = require('react')
+  factory(require: (name: string) => unknown) {
+    const React = require('react') as typeof ReactTypes
     const h = React.createElement
     const { useCallback, useEffect, useRef, useState } = React
+
+    // ---------------------------------------------------------------------
+    // Types this bundle hands around. All of it is erased at build time: the
+    // published file stays one plain script holding the loader's require('react').
+    // ---------------------------------------------------------------------
+
+    /** The subset of the Host browser plugin context this bundle calls. */
+    interface ClientContext {
+      /** Dynamic boundary: the Host service registry is untyped by design. */
+      get(name: string): any
+      effect(execute: () => void | (() => void), label?: string): unknown
+      /** Dynamic boundary: the injected service scope is owned by the Host. */
+      inject(services: string[], callback: (scope: any) => void | (() => void)): () => void
+      slots: ClientSlots
+      sidebarRightTabs: { register(tab: ClientTabRegistration): () => void }
+      sidebarRight: { openTab(kind: string, value?: unknown): void }
+      layout: ClientLayout
+    }
+
+    /** Slot members this bundle calls. */
+    interface ClientSlots {
+      inject(name: string, callback: () => () => void): () => void
+      register(target: { name: string, key: string }, component: ReactTypes.FunctionComponent<never>): () => void
+    }
+
+    /** Layout members this bundle calls. */
+    interface ClientLayout {
+      openRightbar?(pinned: boolean, reveal: boolean): void
+      selectPanel?(panel: string): void
+    }
+
+    /** One right-sidebar tab registration. */
+    interface ClientTabRegistration {
+      id: string
+      kind: string
+      multiple: boolean
+      keepMounted: boolean
+      priority: string
+      title: () => string
+      guide: Array<{ id: string, order: number, title: () => string, description: () => string }>
+    }
+
+    /** The session summary the page reads its workspace from. */
+    interface ClientSessionSummary {
+      id?: string
+      cwd?: string
+      retainedBy?: { mainView?: number }
+      projectionValues?: { agentPreset?: string }
+    }
+
+    interface ClientSessionSnapshot {
+      byId?: Record<string, ClientSessionSummary>
+    }
+
+    /** The Host session Remote the page pushes instructions through. */
+    interface PromptController {
+      prompt(request: {
+        requestId: string
+        sessionId: string
+        mode: 'queue'
+        content: Array<{ type: 'text', text: string }>
+      }): Promise<PromptResult>
+    }
+
+    interface PromptResult {
+      ok?: boolean
+      error?: { message?: string }
+    }
+
+    /** Late-bound Host services the face may use. */
+    interface Bindings {
+      prompt: PromptController | undefined
+    }
+
+    /** The workspace a page render is about. */
+    interface FaceContext {
+      root: string | undefined
+      sessionId: string | undefined
+      preset: string | undefined
+    }
+
+    /** One work row of the list route. */
+    interface WorkSummary {
+      workId: string
+      title: string
+      form: string
+      chapters: number | null
+      writtenChapters: number | null
+      latestChapter: number | null
+      openProblems: number | null
+      updatedAt: string
+      degraded?: boolean
+      schemaVersion?: number
+      openError?: { code: string, message: string, retryable: boolean }
+    }
+
+    interface WorksPayload {
+      root?: string
+      works: WorkSummary[]
+    }
+
+    interface TrashItem {
+      workId: string
+      title: string
+      trashedAt?: string
+      path: string
+    }
+
+    interface TrashPayload {
+      items: TrashItem[]
+    }
+
+    interface WordRange {
+      min: number
+      max: number
+    }
+
+    /** The outline timestamps the write buttons are gated on. */
+    interface WorkOutline {
+      writtenAt?: string
+      approvedAt?: string
+      revision?: string
+    }
+
+    interface WorkManifest {
+      version: number
+      workId: string
+      planApproval: string
+      outline?: WorkOutline
+      title: string
+      form: string
+      tags?: string[]
+      createdAt?: string
+      updatedAt?: string
+      /** The detail route omits it today; the settings form falls back. */
+      wordRange?: WordRange
+    }
+
+    /** One chapter row of the work detail route. */
+    interface ChapterSummary {
+      number: number
+      id: string
+      title: string
+      status: string
+      revision: number
+      words: number
+      stage: string
+      hasPlan: boolean
+      planApproved: boolean
+      planRevision?: number
+      hasSummary: boolean
+      summaryRevision: number | null
+      summaryStale: boolean
+      reviewRound: number
+      openProblems: number
+      updatedAt: string
+    }
+
+    interface StateFact {
+      subject: string
+      predicate: string
+      object: string
+      validUntilChapter: number | null
+    }
+
+    interface StateHook {
+      hookId: string
+      status: string
+      text: string
+      startChapter: number
+    }
+
+    interface WorkState {
+      facts: StateFact[]
+      hooks: StateHook[]
+      events: number
+    }
+
+    interface WorkDetailPayload {
+      manifest: WorkManifest
+      chapters: ChapterSummary[]
+      state: WorkState
+    }
+
+    interface ChapterPayload {
+      view: string
+      path: string
+      content: string
+      revision: number
+    }
+
+    /** One review observation as the panel renders it. */
+    interface ReviewItem {
+      id: string
+      done: boolean
+      assessment: string
+      severity?: string
+      evidence?: string[]
+      location: string
+      problem: string
+      suggestion: string
+    }
+
+    interface ReviewPayload {
+      path?: string
+      round: number
+      revision: number
+      rounds?: number
+      observations?: unknown[]
+      items: ReviewItem[]
+    }
+
+    /** Deterministic prose metrics of one chapter body. */
+    interface CritiqueMetrics {
+      words: number
+      chars: number
+      sentences: { count: number, averageLength: number, longest: number }
+      repeated: Array<{ text: string, count: number }>
+      aiPhrases: { count: number, hits: Array<{ phrase: string, count: number }> }
+      dialogueRatio: number
+      wordRange?: WordRange
+      withinRange?: boolean
+      shortBy?: number
+      longBy?: number
+    }
+
+    interface Volume {
+      id: number
+      title: string
+      from: number
+      to: number
+      summary: string
+    }
+
+    interface VolumePayload {
+      volumes: Volume[]
+    }
+
+    interface BibleFile {
+      name: string
+      path: string
+      version: string
+      content: string
+      draft: boolean
+    }
+
+    interface BiblePayload {
+      files: BibleFile[]
+      missing: string[]
+      editable: string[]
+    }
+
+    interface FoundationState {
+      stages?: { frame?: boolean, rules?: boolean, roles?: boolean, cards?: boolean }
+      complete: boolean
+      nextStage?: string
+      approvedAt?: string
+    }
+
+    interface FoundationDocument {
+      name: string
+      revisionId: string
+      content: string
+    }
+
+    interface FoundationPayload {
+      workId: string
+      foundation: FoundationState
+      documents: FoundationDocument[]
+    }
+
+    /** One section of the assembled pre-write brief. */
+    interface BriefSection {
+      name: string
+      title: string
+      source?: string
+      content: string
+      bytes: number
+      absent: boolean
+      draft?: boolean
+      /** Not emitted by the Host today; kept for the optional note badge. */
+      note?: string
+    }
+
+    interface BriefPayload {
+      sections: BriefSection[]
+      budget: { limit: number, used: number, overBudget: boolean }
+      missing?: string[]
+      dropped?: Array<{ name: string, bytes: number, reason: string }>
+    }
+
+    interface Material {
+      id: string
+      title: string
+      format: string
+      purpose: string
+      bytes: number
+      createdAt: string
+      hashPrefix?: string
+    }
+
+    interface MaterialPayload {
+      materials: Material[]
+    }
+
+    interface BackupFile {
+      backupId: string
+      file: string
+      bytes: number
+      createdAt: string
+    }
+
+    interface BackupPayload {
+      backups: BackupFile[]
+    }
+
+    interface ExportsPayload {
+      exportId?: string
+      directory?: string
+      exists: boolean
+    }
+
+    /** One step of the stage machine shown above the tabs. */
+    interface NextStep {
+      chapter: number
+      stage: string
+      action: string
+      reason: string
+      missing?: string[]
+      blocked?: string[]
+      foundationStage?: string
+    }
+
+    interface NextPayload {
+      next?: NextStep
+    }
+
+    interface CurrentPayload {
+      current?: string
+    }
+
+    /** Receipt of the chapter delete/move routes. */
+    interface ChapterMutationPayload {
+      changed: boolean
+      chapters: number[]
+      staleVolumes: string[]
+      deleted?: number
+      backup?: boolean
+    }
+
+    /** Result of the deterministic style extraction. */
+    interface StyleExtraction {
+      metrics?: { sentences: number, avgSentence: number }
+      sampleCount: number
+      sampleChars: number
+      chapters: number[]
+      version: string
+    }
+
+    interface RosterPayload {
+      available?: boolean
+      presets?: Array<{
+        id?: string
+        name?: string | null
+        description?: string | null
+        isDefault?: boolean
+        broken?: string | null
+      }>
+    }
+
+    /** The business face the page renders from. */
+    interface Face {
+      context(): FaceContext
+      listWorks(root: string | undefined): Promise<WorksPayload>
+      listTrash(root: string | undefined): Promise<TrashPayload>
+      restoreTrash(root: string | undefined, workId: string): Promise<{ workId: string }>
+      purgeTrash(root: string | undefined, workId: string): Promise<{ workId: string }>
+      createBackup(root: string | undefined, sessionId: string, workId: string, keep: number): Promise<{ pruned?: number }>
+      restoreBackup(root: string | undefined, sessionId: string, workId: string, backupId: string): Promise<unknown>
+      deleteBackup(root: string | undefined, sessionId: string, workId: string, backupId: string): Promise<unknown>
+      volumes(root: string | undefined, id: string): Promise<VolumePayload>
+      critique(root: string | undefined, id: string, chapter: number): Promise<{ metrics: CritiqueMetrics }>
+      next(root: string | undefined, id: string): Promise<NextPayload>
+      getCurrent(root: string | undefined, sessionId: string): Promise<CurrentPayload>
+      setCurrent(root: string | undefined, sessionId: string, workId: string): Promise<CurrentPayload>
+      work(root: string | undefined, id: string): Promise<WorkDetailPayload>
+      chapter(
+        root: string | undefined,
+        id: string,
+        chapter: number,
+        view: string,
+        revision: number | undefined,
+      ): Promise<ChapterPayload>
+      approveChapterPlan(
+        root: string | undefined,
+        sessionId: string | undefined,
+        workId: string,
+        chapter: number,
+      ): Promise<unknown>
+      approveOutline(root: string | undefined, sessionId: string | undefined, workId: string): Promise<unknown>
+      foundation(root: string | undefined, id: string): Promise<FoundationPayload>
+      approveFoundation(root: string | undefined, sessionId: string | undefined, workId: string): Promise<unknown>
+      review(root: string | undefined, id: string, chapter: number): Promise<ReviewPayload>
+      bible(root: string | undefined, id: string): Promise<BiblePayload>
+      writeBible(
+        root: string | undefined,
+        sessionId: string,
+        workId: string,
+        file: string,
+        content: string,
+        expectedVersion: string | undefined,
+      ): Promise<{ name: string, path: string, version: string }>
+      brief(root: string | undefined, id: string, chapter: number): Promise<BriefPayload>
+      materials(root: string | undefined, workId: string, purpose: string | undefined): Promise<MaterialPayload>
+      importMaterial(
+        root: string | undefined,
+        sessionId: string,
+        workId: string,
+        name: string,
+        contentBase64: string,
+        title: string | undefined,
+        purpose: string,
+      ): Promise<unknown>
+      renameMaterial(
+        root: string | undefined,
+        sessionId: string,
+        workId: string,
+        id: string,
+        title: string,
+      ): Promise<unknown>
+      setMaterialPurpose(
+        root: string | undefined,
+        sessionId: string,
+        workId: string,
+        id: string,
+        purpose: string,
+      ): Promise<unknown>
+      deleteMaterial(root: string | undefined, sessionId: string, workId: string, id: string): Promise<unknown>
+      extractStyle(root: string | undefined, sessionId: string, workId: string): Promise<StyleExtraction>
+      deleteChapter(
+        root: string | undefined,
+        sessionId: string,
+        workId: string,
+        chapter: number,
+      ): Promise<ChapterMutationPayload>
+      moveChapter(
+        root: string | undefined,
+        sessionId: string,
+        workId: string,
+        from: number,
+        to: number,
+      ): Promise<ChapterMutationPayload>
+      exportWork(
+        root: string | undefined,
+        sessionId: string,
+        workId: string,
+      ): Promise<{ directory: string, files: number }>
+      exports(root: string | undefined, id: string): Promise<ExportsPayload>
+      backups(root: string | undefined, id: string): Promise<BackupPayload>
+      /** Open the right-sidebar tab by kind; false when the sidebar is absent. */
+      openSidebarTab(kind: string): boolean
+      /** Send the main panel back to the conversation. */
+      showConversation(): void
+      send(text: string): Promise<string | undefined>
+    }
+
+    /** The fixed instruction templates the workbench sends. */
+    interface Instructions {
+      flowToRevision(workId: string, chapter: number): string
+      flowFull(workId: string, chapter: number): string
+      step(workId: string, chapter: number, action: string): string
+      nextChapter(workId: string, chapter: number): string
+      review(workId: string, chapter: number): string
+      revise(workId: string, chapter: number, mode: string): string
+      planApproved(workId: string, chapter: number): string
+      outlineApproved(workId: string): string
+      settings(workId: string, range: WordRange | null, planApproval: string | undefined): string
+      volume(workId: string, volume: VolumeForm): string
+      restore(name: string): string
+      rename(workId: string, title: string): string
+      remove(workId: string): string
+      reopen(workId: string, chapter: number): string
+      summarize(workId: string, chapter: number): string
+      fold(workId: string, chapter: number): string
+      newIdea(form: string, idea: string): string
+      confirm(proposalId: string): string
+    }
+
+    interface WorkForm {
+      id: string
+      label: string
+    }
+
+    interface VolumeForm {
+      id?: number
+      title: string
+      from: number
+      to: number
+      summary: string
+    }
+
+    interface SettingsForm {
+      min: number
+      max: number
+      planApproval?: string
+    }
+
+    interface MaterialEditing {
+      id: string
+      title: string
+    }
+
+    interface BibleEditor {
+      name: string
+      content: string
+      original: string
+      version?: string
+      saving: boolean
+      error?: string
+    }
+
+    interface ChapterGroup {
+      key: string
+      title: string
+      volume?: Volume
+      chapters: ChapterSummary[]
+    }
+
+    /** A transient banner under the header. */
+    interface Notice {
+      kind: string
+      text: string
+    }
+
+    type DetailState =
+      | { status: 'loading' }
+      | { status: 'error', error: string }
+      | ({ status: 'ready' } & WorkDetailPayload)
+
+    type ContentState =
+      | { status: 'loading' }
+      | { status: 'error', error: string }
+      | { status: 'ready', content: string, path: string, revision: number }
+
+    type ReviewState =
+      | { status: 'loading' }
+      | { status: 'error', error: string }
+      | { status: 'ready', items: ReviewItem[], round: number, revision: number }
+
+    type BibleState =
+      | { status: 'idle' }
+      | { status: 'loading' }
+      | { status: 'error', error: string }
+      | { status: 'ready', files: BibleFile[], missing: string[], editable: string[] }
+
+    type FoundationLoadState =
+      | { status: 'idle' }
+      | { status: 'loading' }
+      | { status: 'error', error: string }
+      | { status: 'ready', foundation: FoundationState, documents: FoundationDocument[] }
+
+    type BriefLoadState =
+      | { status: 'idle' }
+      | { status: 'loading', chapter: number }
+      | { status: 'error', chapter: number, error: string }
+      | ({ status: 'ready', chapter: number } & BriefPayload)
+
+    type PresetHealth =
+      | { state: 'unknown' }
+      | { state: 'ok' }
+      | { state: 'missing' }
+      | { state: 'broken', reason: string }
+
+    interface ProjectListProps {
+      works: WorkSummary[]
+      form: WorkForm | undefined
+      onOpen(workId: string): void
+      onCreate(idea: string): void
+    }
+
+    interface EmptyStateProps {
+      face: Face
+      notice: Notice | undefined
+      root: string | undefined
+      form: string
+      onCreated(failure: string | undefined): void
+      canSend: boolean
+    }
+
+    interface ChapterPanelProps {
+      face: Face
+      root: string | undefined
+      workId: string
+      sessionId: string | undefined
+      chapter: ChapterSummary
+      unit: string
+      onNotice(notice: Notice): void
+      onApproved(): void
+      canSend: boolean
+      compose(text: string): void
+      hideActions: boolean
+    }
+
+    interface WorkDetailProps {
+      face: Face
+      root: string | undefined
+      workId: string
+      sessionId: string | undefined
+      onBack(): void
+      onNotice(notice: Notice): void
+      notice: Notice | undefined
+      canSend: boolean
+      compose(text: string): void
+      /** Reserved for the sidebar composer; the page composes its own text today. */
+      prefill?: (text: string) => void
+    }
+
+    interface StorycraftPageProps {
+      storycraft: Face | undefined
+      compact?: boolean
+      prefill?: (text: string) => void
+    }
+
+    interface StorycraftSideTabProps {
+      storycraft?: Face
+      inputActions?: { setDraft?: (text: string) => void }
+    }
 
     /** Read-only routes this bundle serves. */
     const ROUTE = {
@@ -32,11 +661,11 @@ window.__ModuleLoader__.load({
       backups: '/api/dsh-storycraft/backups',
     }
 
-    const MATERIAL_PURPOSE_LABELS = {
+    const MATERIAL_PURPOSE_LABELS: Record<string, string> = {
       setting: '设定', character: '人物', scene: '场景', style: '文风', reference: '参考',
     }
 
-    const BIBLE_LABELS = { world: '世界观', characters: '人物档案', style: '文风基准', plan: '全书计划', intent: '作者意图' }
+    const BIBLE_LABELS: Record<string, string> = { world: '世界观', characters: '人物档案', style: '文风基准', plan: '全书计划', intent: '作者意图' }
     const CHAPTER_PAGE_SIZE = 20
 
     /** How long one Host answer may take before the page stops waiting. */
@@ -156,7 +785,8 @@ window.__ModuleLoader__.load({
      * @param name - exact service name.
      * @returns the service, or undefined.
      */
-    function probe(ctx, name) {
+    // Dynamic boundary: the returned Host service shape is not declared here.
+    function probe(ctx: ClientContext, name: string): any {
       try {
         const value = ctx.get(name)
         return value === null || value === undefined ? undefined : value
@@ -166,8 +796,8 @@ window.__ModuleLoader__.load({
     }
 
     /** Race one promise against the read deadline. */
-    function withinDeadline(promise, label) {
-      return new Promise((resolve, reject) => {
+    function withinDeadline<T>(promise: Promise<T>, label: string): Promise<T> {
+      return new Promise<T>((resolve, reject) => {
         const timer = setTimeout(() => {
           reject(new Error(`${label}没有在 ${READ_TIMEOUT_MS / 1000} 秒内返回`))
         }, READ_TIMEOUT_MS)
@@ -183,7 +813,8 @@ window.__ModuleLoader__.load({
      * @param path - path with query string.
      * @returns parsed JSON, or a thrown error carrying the server message.
      */
-    async function fetchOwnRoute(path, options = {}) {
+    // Dynamic boundary: each route's JSON payload is narrowed by its caller.
+    async function fetchOwnRoute(path: string, options: { cache?: RequestCache } = {}): Promise<any> {
       const response = await fetch(path, {
         method: 'GET',
         credentials: 'same-origin',
@@ -200,8 +831,8 @@ window.__ModuleLoader__.load({
     }
 
     /** The workspace the page is about: the shown Session's cwd. */
-    function currentContext(ctx) {
-      const snapshot = (() => {
+    function currentContext(ctx: ClientContext): FaceContext {
+      const snapshot: ClientSessionSnapshot | undefined = (() => {
         try {
           return probe(ctx, 'sessions')?.list?.getSnapshot?.()
         } catch {
@@ -222,7 +853,7 @@ window.__ModuleLoader__.load({
     }
 
     /** Fixed instruction templates the workbench sends to the current Session. */
-    const INSTRUCTIONS = {
+    const INSTRUCTIONS: Instructions = {
       flowToRevision(workId, chapter) {
         return `写作品 ${workId} 第 ${chapter} 章：先调 story_next；有 delegate.role 时按角色调 story_delegate（writer 写正文、reviewer 审稿、reviser 修订），没有 delegate 时才按 action 走手动路径。`
           + '做到修订为止停下：把修订结果、剩余未处理条目与字数变化报给我，等我决定是否润色或去 AI 味，再定稿。汇报不粘贴正文。'
@@ -231,7 +862,7 @@ window.__ModuleLoader__.load({
         return `写作品 ${workId} 第 ${chapter} 章并一路做完：先调 story_next；有 delegate.role 时按角色调 story_delegate，没有 delegate 时才按 action 手动做（章纲 → 正文 → 质检 → 审稿 → 修订/清稿 → 摘要 → 定稿）。摘要步骤若委派不可用或未提交，只报告并停手，不自动读正文、不重派。每步结果简短汇报，不粘贴正文，结尾给出本章摘要与下一步。`
       },
       step(workId, chapter, action) {
-        const label = {
+        const label = ({
           story_plan: '写本章章纲',
           story_write: '写本章正文',
           story_review: '审本章',
@@ -240,8 +871,8 @@ window.__ModuleLoader__.load({
           story_state: '手动定稿：写入本章事实',
           story_summarize: '写本章摘要',
           story_volume: '补本卷摘要',
-        }[action] ?? action
-        const delegated = { story_write: 'writer', story_review: 'reviewer', story_revise: 'reviser' }[action]
+        } as Record<string, string>)[action] ?? action
+        const delegated = ({ story_write: 'writer', story_review: 'reviewer', story_revise: 'reviser' } as Record<string, string | undefined>)[action]
         const path = delegated === undefined
           ? `调 ${action}`
           : `先调 story_next，有 delegate.role 时调 story_delegate(role: ${delegated})，没有 delegate 时才调 ${action}`
@@ -254,7 +885,7 @@ window.__ModuleLoader__.load({
         return `对作品 ${workId} 第 ${chapter} 章做审稿：先调 story_next，有 delegate.role reviewer 时用 story_delegate；否则用 story_review。只找问题，不改正文，把问题清单落盘。`
       },
       revise(workId, chapter, mode) {
-        const label = { patch: '局部修补', polish: '润色', rewrite: '重写', deslop: '去 AI 味' }[mode] ?? '局部修补'
+        const label = ({ patch: '局部修补', polish: '润色', rewrite: '重写', deslop: '去 AI 味' } as Record<string, string>)[mode] ?? '局部修补'
         if (mode === 'patch') {
           return `按作品 ${workId} 第 ${chapter} 章最新的审稿清单里未处理的条目修订正文：先调 story_next，有 delegate.role reviser 时用 story_delegate(mode: patch)；否则用 story_revise(mode: patch)，落盘并标记处理过的条目。汇报不粘贴正文。`
         }
@@ -303,7 +934,7 @@ window.__ModuleLoader__.load({
           + '自动链路不可用时才直接用 story_state。'
       },
       newIdea(form, idea) {
-        const formLabel = { longform: '长篇', short: '短篇', script: '剧本' }[form] ?? '长篇'
+        const formLabel = ({ longform: '长篇', short: '短篇', script: '剧本' } as Record<string, string>)[form] ?? '长篇'
         const text = String(idea ?? '').trim()
         return text === ''
           ? `我想写一部${formLabel}，还没想好具体写什么，先聊聊。`
@@ -315,15 +946,16 @@ window.__ModuleLoader__.load({
     }
 
     /** Build the business face the page renders from. */
-    function createFace(ctx, bindings) {
-      const route = (path, query, options = {}) => {
+    function createFace(ctx: ClientContext, bindings: Bindings): Face {
+      const route = (path: string, query: Record<string, unknown>, options: { cache?: RequestCache } = {}) => {
         const params = new URLSearchParams()
         for (const [key, value] of Object.entries(query)) {
           if (value !== undefined && value !== null) params.set(key, String(value))
         }
         return fetchOwnRoute(`${path}?${params.toString()}`, options)
       }
-      const post = async (path, body) => {
+      // Dynamic boundary: the Host answers each POST with its own JSON payload.
+      const post = async (path: string, body: Record<string, unknown>): Promise<any> => {
         const response = await fetch(path, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -409,7 +1041,7 @@ window.__ModuleLoader__.load({
             const shown = context.preset === undefined ? '没有记录预设' : `当前是 ${context.preset}`
             return `当前会话不是「故事工坊」模式（${shown}）：新建会话时选择「故事工坊」，再回来下发指令。`
           }
-          const prompt = bindings.prompt ?? probe(ctx, 'remote.session') ?? probe(ctx, 'remote')?.session
+          const prompt: PromptController | undefined = bindings.prompt ?? probe(ctx, 'remote.session') ?? probe(ctx, 'remote')?.session
           if (prompt === undefined || typeof prompt.prompt !== 'function') {
             return '会话消息接口不可用：这个页面拿不到会话控制器，无法下发指令。'
           }
@@ -434,13 +1066,13 @@ window.__ModuleLoader__.load({
      * @param text - markdown source.
      * @returns React nodes.
      */
-    function renderMarkdown(text) {
+    function renderMarkdown(text: string): ReactTypes.ReactNode[] {
       const lines = String(text ?? '').split(/\r?\n/)
-      const blocks = []
-      let paragraph = []
-      let list = []
+      const blocks: ReactTypes.ReactNode[] = []
+      let paragraph: string[] = []
+      let list: string[] = []
       let ordered = false
-      let code = null
+      let code: string[] | null = null
       let key = 0
       const flushParagraph = () => {
         if (paragraph.length === 0) return
@@ -520,15 +1152,15 @@ window.__ModuleLoader__.load({
      * @param preset - session preset id.
      * @returns {boolean} true when the session is a studio session.
      */
-    function isStudio(preset) {
+    function isStudio(preset: string | undefined): boolean {
       return typeof preset === 'string' && preset.startsWith('storycraft')
     }
 
     /** Poll while the page is visible, plus immediate refresh on focus/reveal. */
-    function useVisiblePolling(intervalMs, refresh) {
+    function useVisiblePolling(intervalMs: number, refresh: () => Promise<void>): void {
       useEffect(() => {
         let cancelled = false
-        let timer
+        let timer: ReturnType<typeof setTimeout> | undefined
         const schedule = () => {
           if (cancelled) return
           timer = setTimeout(async () => {
@@ -552,7 +1184,7 @@ window.__ModuleLoader__.load({
     }
 
     /** The forms a project may have, in the order the rail shows them. */
-    const FORMS = [
+    const FORMS: WorkForm[] = [
       { id: 'longform', label: '长篇' },
       { id: 'short', label: '短篇' },
       { id: 'script', label: '剧本' },
@@ -563,14 +1195,14 @@ window.__ModuleLoader__.load({
      * @param form - work form.
      * @returns {string} 章 / 篇 / 集.
      */
-    function unitOf(form) {
+    function unitOf(form: string): string {
       if (form === 'script') return '集'
       if (form === 'short') return '篇'
       return '章'
     }
 
     /** Short label of one pipeline action. */
-    const STEP_LABEL = {
+    const STEP_LABEL: Record<string, string> = {
       story_plan: '章纲',
       story_write: '正文',
       story_review: '审稿',
@@ -582,8 +1214,8 @@ window.__ModuleLoader__.load({
     }
 
     /** Human label of a pipeline stage. */
-    function stageLabel(stage) {
-      const map = {
+    function stageLabel(stage: string): string {
+      const map: Record<string, string> = {
         planned: '已规划',
         written: '已写',
         reviewed: '已审',
@@ -594,8 +1226,8 @@ window.__ModuleLoader__.load({
     }
 
     /** Badge for a chapter state. */
-    function statusBadge(status) {
-      const map = {
+    function statusBadge(status: string): string {
+      const map: Record<string, string> = {
         planned: '已规划',
         written: '已写',
         reviewed: '已审',
@@ -609,7 +1241,7 @@ window.__ModuleLoader__.load({
      * @param {object} props - works of this form, the form itself, open/create handlers.
      * @returns {object} the view.
      */
-    function ProjectList({ works, form, onOpen, onCreate }) {
+    function ProjectList({ works, form, onOpen, onCreate }: ProjectListProps) {
       const [idea, setIdea] = useState('')
       return h('div', { className: 'sc-projects' },
         h('h2', { className: 'sc-detail-title' }, `${form?.label ?? '作品'}`),
@@ -641,7 +1273,7 @@ window.__ModuleLoader__.load({
             placeholder: `想写一部什么样的${form?.label ?? ''}？一句想法就够，也可以留空先聊`,
             value: idea,
             'aria-label': '作品想法',
-            onChange: event => setIdea(event.target.value),
+            onChange: (event: ReactTypes.ChangeEvent<HTMLTextAreaElement>) => setIdea(event.target.value),
           }),
           h('button', {
             type: 'button',
@@ -653,7 +1285,7 @@ window.__ModuleLoader__.load({
     }
 
     /** Empty state: no work yet, with the one instruction that creates one. */
-    function EmptyState({ face, notice, root, form, onCreated, canSend }) {
+    function EmptyState({ face, notice, root, form, onCreated, canSend }: EmptyStateProps) {
       const [idea, setIdea] = useState('')
       const submit = async () => {
         const failure = await face.send(INSTRUCTIONS.newIdea(form, idea))
@@ -675,7 +1307,7 @@ window.__ModuleLoader__.load({
             placeholder: '想写一部什么样的作品？一句想法就够，也可以留空先聊',
             value: idea,
             'aria-label': '作品想法',
-            onChange: event => setIdea(event.target.value),
+            onChange: (event: ReactTypes.ChangeEvent<HTMLTextAreaElement>) => setIdea(event.target.value),
           }),
           h('button', {
             type: 'button',
@@ -692,15 +1324,17 @@ window.__ModuleLoader__.load({
 
     /** One chapter reader with plan/body tabs, review list and state. */
     /** Inline editor: shows the canned instruction, lets the author add specifics. */
-    function ChapterPanel({ face, root, workId, sessionId, chapter, unit, onNotice, onApproved, canSend, compose, hideActions }) {
+    function ChapterPanel({
+      face, root, workId, sessionId, chapter, unit, onNotice, onApproved, canSend, compose, hideActions,
+    }: ChapterPanelProps) {
       const [view, setView] = useState('body')
-      const [metrics, setMetrics] = useState(undefined)
+      const [metrics, setMetrics] = useState<CritiqueMetrics | undefined>(undefined)
       const [reviseMode, setReviseMode] = useState('patch')
       const [revision, setRevision] = useState(0)
 
       useEffect(() => { setRevision(0) }, [chapter.number])
-      const [content, setContent] = useState({ status: 'loading' })
-      const [review, setReview] = useState({ status: 'loading' })
+      const [content, setContent] = useState<ContentState>({ status: 'loading' })
+      const [review, setReview] = useState<ReviewState>({ status: 'loading' })
 
       const load = useCallback(async () => {
         setContent({ status: 'loading' })
@@ -725,7 +1359,7 @@ window.__ModuleLoader__.load({
         return () => { cancelled = true }
       }, [face, root, workId, chapter.number, chapter.reviewRound])
 
-      const send = async (text) => {
+      const send = async (text: string) => {
         const failure = await face.send(text)
         onNotice(failure === undefined ? { kind: 'ok', text: '指令已投递给当前会话。' } : { kind: 'error', text: failure })
       }
@@ -753,7 +1387,7 @@ window.__ModuleLoader__.load({
                 className: 'sc-input sc-narrow',
                 'aria-label': '修订模式',
                 value: reviseMode,
-                onChange: event => setReviseMode(event.target.value),
+                onChange: (event: ReactTypes.ChangeEvent<HTMLSelectElement>) => setReviseMode(event.target.value),
               },
                 h('option', { value: 'patch' }, '局部修补'),
                 h('option', { value: 'polish' }, '润色'),
@@ -828,7 +1462,7 @@ window.__ModuleLoader__.load({
                 ? h('span', { className: 'sc-badge' }, '字数未设定')
                 : h('span', { className: metrics.withinRange ? 'sc-badge sc-badge-ok' : 'sc-badge sc-badge-warn' },
                   metrics.withinRange
-                    ? `在 ${metrics.wordRange.min}–${metrics.wordRange.max} 内`
+                    ? `在 ${metrics.wordRange!.min}–${metrics.wordRange!.max} 内`
                     : (metrics.shortBy !== undefined ? `少 ${metrics.shortBy} 字` : `多 ${metrics.longBy} 字`)),
               h('span', { className: 'sc-badge' }, `平均句长 ${metrics.sentences.averageLength}`),
               h('span', { className: 'sc-badge' }, `重复句 ${metrics.repeated.length}`),
@@ -918,19 +1552,21 @@ window.__ModuleLoader__.load({
     }
 
     /** Work detail: header actions, chapter list, selected chapter, state. */
-    function WorkDetail({ face, root, workId, sessionId, onBack, onNotice, notice, canSend, compose }) {
-      const [detail, setDetail] = useState({ status: 'loading' })
-      const [selected, setSelected] = useState(undefined)
+    function WorkDetail({
+      face, root, workId, sessionId, onBack, onNotice, notice, canSend, compose,
+    }: WorkDetailProps) {
+      const [detail, setDetail] = useState<DetailState>({ status: 'loading' })
+      const [selected, setSelected] = useState<number | undefined>(undefined)
       const [stateOpen, setStateOpen] = useState(false)
-      const [bible, setBible] = useState({ status: 'idle' })
-      const [foundation, setFoundation] = useState({ status: 'idle' })
-      const [bibleEditor, setBibleEditor] = useState(undefined)
-      const bibleTextareaRef = useRef(undefined)
-      const bibleTriggerRef = useRef(undefined)
+      const [bible, setBible] = useState<BibleState>({ status: 'idle' })
+      const [foundation, setFoundation] = useState<FoundationLoadState>({ status: 'idle' })
+      const [bibleEditor, setBibleEditor] = useState<BibleEditor | undefined>(undefined)
+      const bibleTextareaRef = useRef<HTMLTextAreaElement | null | undefined>(undefined)
+      const bibleTriggerRef = useRef<HTMLElement | null | undefined>(undefined)
       const [tab, setTab] = useState('chapters')
       const [chapterPage, setChapterPage] = useState(1)
-      const [exportInfo, setExportInfo] = useState(undefined)
-      const [backupList, setBackupList] = useState([])
+      const [exportInfo, setExportInfo] = useState<ExportsPayload | undefined>(undefined)
+      const [backupList, setBackupList] = useState<BackupFile[]>([])
       const [backupKeep, setBackupKeep] = useState(() => {
         try {
           const saved = Number(localStorage.getItem('storycraft.backup.keep'))
@@ -939,26 +1575,26 @@ window.__ModuleLoader__.load({
           return 10
         }
       })
-      const [brief, setBrief] = useState({ status: 'idle' })
-      const [materials, setMaterials] = useState([])
+      const [brief, setBrief] = useState<BriefLoadState>({ status: 'idle' })
+      const [materials, setMaterials] = useState<Material[]>([])
       const [exporting, setExporting] = useState(false)
       const [materialBusy, setMaterialBusy] = useState(false)
-      const [materialError, setMaterialError] = useState(undefined)
-      const [materialEditing, setMaterialEditing] = useState(undefined)
+      const [materialError, setMaterialError] = useState<string | undefined>(undefined)
+      const [materialEditing, setMaterialEditing] = useState<MaterialEditing | undefined>(undefined)
       const [chapterBusy, setChapterBusy] = useState(false)
       const [styleBusy, setStyleBusy] = useState(false)
       const [materialPurpose, setMaterialPurpose] = useState('reference')
       const [materialFilter, setMaterialFilter] = useState('all')
       const [briefChapter, setBriefChapter] = useState(1)
-      const materialFileRef = useRef(null)
-      const materialTitleInputRef = useRef(null)
-      const [renaming, setRenaming] = useState(undefined)
-      const [volumes, setVolumes] = useState([])
-      const [volumeForm, setVolumeForm] = useState(undefined)
-      const [settingsForm, setSettingsForm] = useState(undefined)
-      const [next, setNext] = useState(undefined)
+      const materialFileRef = useRef<HTMLInputElement>(null)
+      const materialTitleInputRef = useRef<HTMLInputElement>(null)
+      const [renaming, setRenaming] = useState<string | undefined>(undefined)
+      const [volumes, setVolumes] = useState<Volume[]>([])
+      const [volumeForm, setVolumeForm] = useState<VolumeForm | undefined>(undefined)
+      const [settingsForm, setSettingsForm] = useState<SettingsForm | undefined>(undefined)
+      const [next, setNext] = useState<NextStep | undefined>(undefined)
       const [reviseMode, setReviseMode] = useState('patch')
-      const [refreshError, setRefreshError] = useState(undefined)
+      const [refreshError, setRefreshError] = useState<string | undefined>(undefined)
       const refreshInFlight = useRef(false)
 
       const load = useCallback(async () => {
@@ -978,7 +1614,7 @@ window.__ModuleLoader__.load({
         }
       }, [face, root, workId])
 
-      const moveChapter = async (item, delta) => {
+      const moveChapter = async (item: ChapterSummary, delta: number) => {
         if (sessionId === undefined || detail.status !== 'ready' || chapterBusy) return
         const ordered = [...detail.chapters].sort((left, right) => left.number - right.number)
         const index = ordered.findIndex(chapter => chapter.number === item.number)
@@ -1000,7 +1636,7 @@ window.__ModuleLoader__.load({
         }
       }
 
-      const removeChapter = async (item) => {
+      const removeChapter = async (item: ChapterSummary) => {
         if (sessionId === undefined || chapterBusy) return
         if (typeof window !== 'undefined' && !window.confirm(`删除第 ${item.number} 章？这会删除其正文、章纲、摘要和审稿；删除前会自动备份。`)) return
         setChapterBusy(true)
@@ -1054,7 +1690,7 @@ window.__ModuleLoader__.load({
         }
       }
 
-      const restoreBackupItem = async (item) => {
+      const restoreBackupItem = async (item: BackupFile) => {
         if (sessionId === undefined) return
         if (!window.confirm('恢复会用这个备份覆盖当前作品库；恢复前会自动备份当前版本。继续？')) return
         try {
@@ -1071,7 +1707,7 @@ window.__ModuleLoader__.load({
         }
       }
 
-      const deleteBackupItem = async (item) => {
+      const deleteBackupItem = async (item: BackupFile) => {
         if (sessionId === undefined) return
         if (!window.confirm('删除这个备份文件？此操作不可撤销。')) return
         try {
@@ -1135,16 +1771,16 @@ window.__ModuleLoader__.load({
         }
       }
 
-      const editableTemplates = {
+      const editableTemplates: Record<string, string> = {
         world: '# 世界观\n\n',
         style: '# 文风基准\n\n',
         intent: '# 作者意图\n\n',
         characters: '[]',
       }
 
-      const openBibleEditor = (file) => {
+      const openBibleEditor = (file: BibleFile) => {
         if (bibleEditor !== undefined) return
-        bibleTriggerRef.current = typeof document === 'undefined' ? undefined : document.activeElement
+        bibleTriggerRef.current = typeof document === 'undefined' ? undefined : document.activeElement as HTMLElement | null
         setBibleEditor({
           name: file.name,
           content: file.content,
@@ -1155,9 +1791,9 @@ window.__ModuleLoader__.load({
         })
       }
 
-      const openMissingBible = (name) => {
+      const openMissingBible = (name: string) => {
         if (bibleEditor !== undefined || !editableTemplates[name]) return
-        bibleTriggerRef.current = typeof document === 'undefined' ? undefined : document.activeElement
+        bibleTriggerRef.current = typeof document === 'undefined' ? undefined : document.activeElement as HTMLElement | null
         setBibleEditor({
           name,
           content: editableTemplates[name],
@@ -1193,7 +1829,7 @@ window.__ModuleLoader__.load({
         }
       }
 
-      const bibleLabel = name => BIBLE_LABELS[name] ?? name
+      const bibleLabel = (name: string) => BIBLE_LABELS[name] ?? name
       const isBibleDirty = () => bibleEditor !== undefined
         && (bibleTextareaRef.current?.value ?? bibleEditor.content) !== bibleEditor.original
 
@@ -1210,7 +1846,7 @@ window.__ModuleLoader__.load({
       useEffect(() => {
         if (bibleEditor === undefined) return undefined
         const timer = setTimeout(() => bibleTextareaRef.current?.focus(), 0)
-        const onKey = event => {
+        const onKey = (event: KeyboardEvent) => {
           if (event.key === 'Escape') {
             event.preventDefault()
             requestCloseBible()
@@ -1218,13 +1854,13 @@ window.__ModuleLoader__.load({
           }
           if (event.key !== 'Tab') return
           const drawer = document.querySelector('.sc-drawer')
-          const focusables = drawer === null ? [] : [...drawer.querySelectorAll('button:not(:disabled), textarea:not(:disabled)')]
+          const focusables = drawer === null ? [] : [...drawer.querySelectorAll<HTMLElement>('button:not(:disabled), textarea:not(:disabled)')]
           if (focusables.length === 0) return
           const first = focusables[0]
           const last = focusables.at(-1)
           if (event.shiftKey && document.activeElement === first) {
             event.preventDefault()
-            last.focus()
+            last!.focus()
           } else if (!event.shiftKey && document.activeElement === last) {
             event.preventDefault()
             first.focus()
@@ -1237,7 +1873,7 @@ window.__ModuleLoader__.load({
         }
       }, [bibleEditor])
 
-      const switchTab = next => {
+      const switchTab = (next: string): boolean => {
         if (next === tab) return false
         if (isBibleDirty()) {
           onNotice({ kind: 'error', text: '真值还有未保存内容：先保存或取消' })
@@ -1269,7 +1905,7 @@ window.__ModuleLoader__.load({
         void refreshBackups()
       }, [tab, face, root, workId])
 
-      const loadBrief = async (chapter) => {
+      const loadBrief = async (chapter: number) => {
         setBrief({ status: 'loading', chapter })
         try {
           const payload = await face.brief(root, workId, chapter)
@@ -1291,7 +1927,7 @@ window.__ModuleLoader__.load({
 
       useEffect(() => { void loadMaterials() }, [loadMaterials])
 
-      const importMaterialFile = async (event) => {
+      const importMaterialFile = async (event: ReactTypes.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0]
         event.target.value = ''
         if (file === undefined || sessionId === undefined) return
@@ -1312,7 +1948,7 @@ window.__ModuleLoader__.load({
         }
       }
 
-      const changeMaterialPurpose = async (material, purpose) => {
+      const changeMaterialPurpose = async (material: Material, purpose: string) => {
         if (sessionId === undefined) return
         setMaterialBusy(true)
         setMaterialError(undefined)
@@ -1342,7 +1978,7 @@ window.__ModuleLoader__.load({
         }
       }
 
-      const removeMaterial = async (material) => {
+      const removeMaterial = async (material: Material) => {
         if (sessionId === undefined) return
         if (!window.confirm(`删除素材「${material.title}」？作品库与检索会移除，磁盘副本保留。`)) return
         setMaterialBusy(true)
@@ -1399,7 +2035,7 @@ window.__ModuleLoader__.load({
         .sort((left, right) => Math.max(...right.chapters.map(chapter => chapter.number)) - Math.max(...left.chapters.map(chapter => chapter.number)))
       const nextNumber = chapters.length === 0 ? 1 : chapters[chapters.length - 1].number + 1
 
-      const send = async (text) => {
+      const send = async (text: string) => {
         const failure = await face.send(text)
         onNotice(failure === undefined ? { kind: 'ok', text: '指令已投递给当前会话。' } : { kind: 'error', text: failure })
       }
@@ -1550,7 +2186,7 @@ window.__ModuleLoader__.load({
               type: 'number',
               value: settingsForm.min,
               'aria-label': '最少字数',
-              onChange: event => setSettingsForm(form => ({ ...form, min: Number(event.target.value) })),
+              onChange: event => setSettingsForm(form => ({ ...form, min: Number(event.target.value) } as SettingsForm)),
             }),
             h('span', { className: 'sc-muted' }, '到'),
             h('input', {
@@ -1558,14 +2194,14 @@ window.__ModuleLoader__.load({
               type: 'number',
               value: settingsForm.max,
               'aria-label': '最多字数',
-              onChange: event => setSettingsForm(form => ({ ...form, max: Number(event.target.value) })),
+              onChange: event => setSettingsForm(form => ({ ...form, max: Number(event.target.value) } as SettingsForm)),
             }),
             h('span', { className: 'sc-muted' }, '章纲确认'),
             h('select', {
               className: 'sc-input sc-narrow',
               'aria-label': '章纲确认策略',
               value: settingsForm.planApproval ?? 'required',
-              onChange: event => setSettingsForm(form => ({ ...form, planApproval: event.target.value })),
+              onChange: (event: ReactTypes.ChangeEvent<HTMLSelectElement>) => setSettingsForm(form => ({ ...form, planApproval: event.target.value } as SettingsForm)),
             },
             h('option', { value: 'required' }, '每章必须确认'),
             h('option', { value: 'off' }, '不需要确认'),
@@ -1596,7 +2232,7 @@ window.__ModuleLoader__.load({
               placeholder: '卷标题，例如：第一折：塌方',
               value: volumeForm.title,
               'aria-label': '卷标题',
-              onChange: event => setVolumeForm(form => ({ ...form, title: event.target.value })),
+              onChange: event => setVolumeForm(form => ({ ...form, title: event.target.value } as VolumeForm)),
             }),
             h('div', { className: 'sc-actions' },
               h('input', {
@@ -1604,7 +2240,7 @@ window.__ModuleLoader__.load({
                 type: 'number',
                 value: volumeForm.from,
                 'aria-label': '起始章',
-                onChange: event => setVolumeForm(form => ({ ...form, from: Number(event.target.value) })),
+                onChange: event => setVolumeForm(form => ({ ...form, from: Number(event.target.value) } as VolumeForm)),
               }),
               h('span', { className: 'sc-muted' }, '到'),
               h('input', {
@@ -1612,7 +2248,7 @@ window.__ModuleLoader__.load({
                 type: 'number',
                 value: volumeForm.to,
                 'aria-label': '结束章',
-                onChange: event => setVolumeForm(form => ({ ...form, to: Number(event.target.value) })),
+                onChange: event => setVolumeForm(form => ({ ...form, to: Number(event.target.value) } as VolumeForm)),
               }),
             ),
             h('textarea', {
@@ -1621,7 +2257,7 @@ window.__ModuleLoader__.load({
               placeholder: '可选：本卷摘要',
               value: volumeForm.summary,
               'aria-label': '卷摘要',
-              onChange: event => setVolumeForm(form => ({ ...form, summary: event.target.value })),
+              onChange: (event: ReactTypes.ChangeEvent<HTMLTextAreaElement>) => setVolumeForm(form => ({ ...form, summary: event.target.value } as VolumeForm)),
             }),
             h('div', { className: 'sc-actions' },
               h('button', {
@@ -1714,11 +2350,11 @@ window.__ModuleLoader__.load({
                         type: 'button',
                         className: 'sc-btn sc-btn-small',
                         onClick: () => setVolumeForm({
-                          id: group.volume.id,
-                          title: group.volume.title,
-                          from: group.volume.from,
-                          to: group.volume.to,
-                          summary: group.volume.summary ?? '',
+                          id: group.volume!.id,
+                          title: group.volume!.title,
+                          from: group.volume!.from,
+                          to: group.volume!.to,
+                          summary: group.volume!.summary ?? '',
                         }),
                       }, '编辑卷'),
                   ),
@@ -1772,7 +2408,7 @@ window.__ModuleLoader__.load({
                             className: 'sc-input sc-narrow',
                             'aria-label': `第 ${item.number} 章修订模式`,
                             value: reviseMode,
-                            onChange: event => setReviseMode(event.target.value),
+                            onChange: (event: ReactTypes.ChangeEvent<HTMLSelectElement>) => setReviseMode(event.target.value),
                           },
                             h('option', { value: 'patch' }, '局部修补'),
                             h('option', { value: 'polish' }, '润色'),
@@ -1950,7 +2586,7 @@ window.__ModuleLoader__.load({
               className: 'sc-input',
               'aria-label': '写前上下文目标章',
               value: briefChapter,
-              onChange: event => setBriefChapter(Number(event.target.value)),
+              onChange: (event: ReactTypes.ChangeEvent<HTMLSelectElement>) => setBriefChapter(Number(event.target.value)),
             }, ...chapters.map(item => h('option', { key: item.number, value: item.number }, `第 ${item.number} 章`))),
             h('button', {
               type: 'button',
@@ -1965,7 +2601,7 @@ window.__ModuleLoader__.load({
               h('p', { className: 'sc-item-body' },
                 `第 ${brief.chapter} 章 · 已用 ${brief.budget.used} / ${brief.budget.limit} 字节`
                 + `${brief.budget.overBudget ? ' · 超预算' : ''}`
-                + `${(brief.dropped ?? []).length > 0 ? ` · 裁掉 ${brief.dropped.map(item => item.name).join('、')}` : ''}`),
+                + `${(brief.dropped ?? []).length > 0 ? ` · 裁掉 ${brief.dropped!.map(item => item.name).join('、')}` : ''}`),
               ...brief.sections.map(item => h('div', { className: 'sc-item', key: item.name },
                 h('div', { className: 'sc-item-head' },
                   h('span', { className: 'sc-item-name' }, item.title),
@@ -2000,7 +2636,7 @@ window.__ModuleLoader__.load({
               'aria-label': '导入素材用途',
               value: materialPurpose,
               disabled: materialBusy,
-              onChange: event => setMaterialPurpose(event.target.value),
+              onChange: (event: ReactTypes.ChangeEvent<HTMLSelectElement>) => setMaterialPurpose(event.target.value),
             }, ...Object.entries(MATERIAL_PURPOSE_LABELS).map(([value, label]) => h('option', { value }, label))),
             h('input', {
               type: 'file',
@@ -2015,7 +2651,7 @@ window.__ModuleLoader__.load({
               className: 'sc-input',
               'aria-label': '按用途筛选素材',
               value: materialFilter,
-              onChange: event => setMaterialFilter(event.target.value),
+              onChange: (event: ReactTypes.ChangeEvent<HTMLSelectElement>) => setMaterialFilter(event.target.value),
             }, h('option', { value: 'all' }, '全部用途'),
             ...Object.entries(MATERIAL_PURPOSE_LABELS).map(([value, label]) => h('option', { value }, label))),
           ),
@@ -2033,7 +2669,7 @@ window.__ModuleLoader__.load({
                   'aria-label': `素材「${material.title}」的用途`,
                   value: material.purpose ?? 'reference',
                   disabled: materialBusy,
-                  onChange: event => { void changeMaterialPurpose(material, event.target.value) },
+                  onChange: (event: ReactTypes.ChangeEvent<HTMLSelectElement>) => { void changeMaterialPurpose(material, event.target.value) },
                 }, ...Object.entries(MATERIAL_PURPOSE_LABELS).map(([value, label]) => h('option', { value }, label))),
                 h('span', { className: 'sc-badge' }, `${material.bytes} B`),
                 h('span', { className: 'sc-item-id' }, `${material.id} · ${String(material.createdAt ?? '').replace('T', ' ').slice(0, 16)}`),
@@ -2079,7 +2715,7 @@ window.__ModuleLoader__.load({
             ? h('div', { style: { marginTop: 10 } },
               h('h3', { className: 'sc-section-title' }, '人物事实'),
               (() => {
-                const groups = new Map()
+                const groups = new Map<string, string[]>()
                 for (const fact of detail.state.facts) {
                   if (fact.validUntilChapter !== null) continue
                   const list = groups.get(fact.subject) ?? []
@@ -2155,7 +2791,7 @@ window.__ModuleLoader__.load({
               className: 'sc-input sc-narrow',
               'aria-label': '备份保留策略',
               value: backupKeep,
-              onChange: event => {
+              onChange: (event: ReactTypes.ChangeEvent<HTMLSelectElement>) => {
                 const keep = Number(event.target.value)
                 setBackupKeep(keep)
                 try { localStorage.setItem('storycraft.backup.keep', String(keep)) } catch {}
@@ -2192,7 +2828,7 @@ window.__ModuleLoader__.load({
               role: 'dialog',
               'aria-modal': 'true',
               'aria-labelledby': 'sc-drawer-title',
-              onClick: event => event.stopPropagation(),
+              onClick: (event: ReactTypes.MouseEvent<HTMLElement>) => event.stopPropagation(),
             },
               h('div', { className: 'sc-drawer-head' },
                 h('h3', { id: 'sc-drawer-title', className: 'sc-section-title' }, `编辑${bibleLabel(bibleEditor.name)}`),
@@ -2201,7 +2837,7 @@ window.__ModuleLoader__.load({
               h('textarea', {
                 className: 'sc-input sc-drawer-input',
                 'aria-label': `编辑真值 ${bibleEditor.name}`,
-                ref: node => { bibleTextareaRef.current = node },
+                ref: (node: HTMLTextAreaElement | null): void => { bibleTextareaRef.current = node },
                 defaultValue: bibleEditor.content,
                 disabled: bibleEditor.saving,
               }),
@@ -2233,10 +2869,10 @@ window.__ModuleLoader__.load({
 
 
     /** The face the tab body uses; set once when the plugin applies. */
-    let pluginFace
+    let pluginFace: Face | undefined
 
     /** Right-sidebar tab body: the workbench in a narrow column. */
-    function StorycraftSideTab(props) {
+    function StorycraftSideTab(props: StorycraftSideTabProps) {
       // A hidden marker states whether the composer writer arrived; the specs
       // assert it instead of guessing from behavior.
       return h(React.Fragment, null,
@@ -2248,7 +2884,7 @@ window.__ModuleLoader__.load({
           storycraft: props.storycraft ?? pluginFace,
           compact: true,
           prefill: typeof props.inputActions?.setDraft === 'function'
-            ? (text) => { props.inputActions.setDraft(text) }
+            ? (text: string) => { props.inputActions!.setDraft!(text) }
             : undefined,
         }),
       )
@@ -2265,8 +2901,8 @@ window.__ModuleLoader__.load({
      * @param {object[]} volumes - volumes of the work.
      * @returns {Array<{key: string, title: string, volume?: object, chapters: object[]}>} groups.
      */
-    function chapterGroups(chapters, volumes) {
-      const groups = volumes
+    function chapterGroups(chapters: ChapterSummary[], volumes: Volume[]): ChapterGroup[] {
+      const groups: ChapterGroup[] = volumes
         .slice()
         .sort((left, right) => left.from - right.from)
         .map(volume => ({
@@ -2282,25 +2918,25 @@ window.__ModuleLoader__.load({
     }
 
     /** The workbench page. */
-    function StorycraftPage(props) {
+    function StorycraftPage(props: StorycraftPageProps) {
       const face = props.storycraft
       const [status, setStatus] = useState('loading')
-      const [error, setError] = useState(null)
-      const [root, setRoot] = useState(undefined)
-      const [sessionId, setSessionId] = useState(undefined)
-      const [sessionPreset, setSessionPreset] = useState(undefined)
-      const [presetHealth, setPresetHealth] = useState({ state: 'unknown' })
-      const [works, setWorks] = useState([])
-      const [trash, setTrash] = useState([])
+      const [error, setError] = useState<string | null>(null)
+      const [root, setRoot] = useState<string | undefined>(undefined)
+      const [sessionId, setSessionId] = useState<string | undefined>(undefined)
+      const [sessionPreset, setSessionPreset] = useState<string | undefined>(undefined)
+      const [presetHealth, setPresetHealth] = useState<PresetHealth>({ state: 'unknown' })
+      const [works, setWorks] = useState<WorkSummary[]>([])
+      const [trash, setTrash] = useState<TrashItem[]>([])
       const [homeView, setHomeView] = useState('works')
       const [typeFilter, setTypeFilter] = useState('longform')
-      const [currentId, setCurrentId] = useState(undefined)
-      const [trashNote, setTrashNote] = useState(undefined)
-      const [selected, setSelected] = useState(undefined)
-      const [notice, setNotice] = useState(undefined)
-      const [refreshError, setRefreshError] = useState(undefined)
+      const [currentId, setCurrentId] = useState<string | undefined>(undefined)
+      const [trashNote, setTrashNote] = useState<string | undefined>(undefined)
+      const [selected, setSelected] = useState<string | undefined>(undefined)
+      const [notice, setNotice] = useState<Notice | undefined>(undefined)
+      const [refreshError, setRefreshError] = useState<string | undefined>(undefined)
       const refreshInFlight = useRef(false)
-      const compose = useCallback((text) => {
+      const compose = useCallback((text: string) => {
         // Writing the real composer bypasses the workbench's own gate, so the
         // gate runs first: only a long-form session may receive an action.
         if (!isStudio(sessionPreset)) {
@@ -2371,7 +3007,7 @@ window.__ModuleLoader__.load({
         if (context.root === undefined) return
         refreshInFlight.current = true
         try {
-          let pointer
+          let pointer: CurrentPayload | null | undefined
           if (context.sessionId !== undefined) {
             try {
               pointer = await face.getCurrent(context.root, context.sessionId)
@@ -2398,7 +3034,7 @@ window.__ModuleLoader__.load({
       useEffect(() => {
         let cancelled = false
         fetchOwnRoute('/api/dsh-storycraft/roster').then(
-          (body) => {
+          (body: RosterPayload) => {
             if (cancelled) return
             const row = (body.presets ?? []).find(item => item.id === 'storycraft')
             if (row === undefined) setPresetHealth({ state: 'missing' })
@@ -2418,9 +3054,9 @@ window.__ModuleLoader__.load({
 
       const worksList = works
 
-      const restoreTrashed = async (item) => {
+      const restoreTrashed = async (item: TrashItem) => {
         try {
-          await face.restoreTrash(root, item.workId)
+          await face!.restoreTrash(root, item.workId)
           setNotice({ kind: 'ok', text: `已恢复：${item.title}` })
           await load()
         } catch (error) {
@@ -2428,10 +3064,10 @@ window.__ModuleLoader__.load({
         }
       }
 
-      const purgeTrashed = async (item) => {
+      const purgeTrashed = async (item: TrashItem) => {
         if (!window.confirm(`彻底删除「${item.title}」？数据库文件会删除，不能恢复。`)) return
         try {
-          await face.purgeTrash(root, item.workId)
+          await face!.purgeTrash(root, item.workId)
           setNotice({ kind: 'ok', text: `已彻底删除：${item.title}` })
           await load()
         } catch (error) {
@@ -2506,7 +3142,7 @@ window.__ModuleLoader__.load({
                     setSelected(workId)
                     setNotice(undefined)
                     if (sessionId !== undefined) {
-                      void face.setCurrent(root, sessionId, workId).catch(() => {})
+                      void face!.setCurrent(root, sessionId, workId).catch(() => {})
                     }
                   },
                   onCreate: idea => compose(INSTRUCTIONS.newIdea(typeFilter, idea)),
@@ -2529,7 +3165,7 @@ window.__ModuleLoader__.load({
               : null,
             status === 'ready' && worksList.length === 0
               ? h(EmptyState, {
-                face,
+                face: face!,
                 notice,
                 root,
                 form: typeFilter,
@@ -2539,7 +3175,7 @@ window.__ModuleLoader__.load({
               : null,
             status === 'ready' && worksList.length > 0 && selected !== undefined
               ? h(WorkDetail, {
-                face,
+                face: face!,
                 root,
                 workId: selected,
                 sessionId,
@@ -2567,7 +3203,7 @@ window.__ModuleLoader__.load({
        * it just cannot push instructions.
        * @param {object} ctx - the browser plugin context.
        */
-      apply(ctx) {
+      apply(ctx: ClientContext) {
         const bindings = { prompt: undefined }
         const face = createFace(ctx, bindings)
         pluginFace = face
@@ -2592,7 +3228,7 @@ window.__ModuleLoader__.load({
           name: 'sidebar.right.pane.tab.title',
           key: tabId,
         }, StorycraftTabTitle))
-        let disposeBindings
+        let disposeBindings: (() => void) | undefined
         try {
           disposeBindings = ctx.inject(['remote.session'], (scope) => {
             bindings.prompt = scope.remote?.session
