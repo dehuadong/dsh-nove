@@ -1,9 +1,10 @@
 /**
  * Pure v2 state contract: hook/fact ops, their transitions, and projections.
  *
- * This module never reads or writes a work database, so the store can import
- * it without a cycle; `state-events.js` owns the store-facing append wrappers.
- * Events are the source; every projection is derived from them.
+ * This module never reads or writes a work database, so the store can import it
+ * without a cycle; events are written by the store's settlement path, which
+ * projects each op here first. Events are the source; every projection is
+ * derived from them.
  */
 
 import { createHash } from 'node:crypto'

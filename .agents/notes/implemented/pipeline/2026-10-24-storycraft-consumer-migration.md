@@ -2,7 +2,7 @@
 title: 故事工坊：L-R10a 生产者/消费者迁移
 status: implemented
 created: 2026-10-24
-updated: 2026-10-24
+updated: 2026-10-26
 verification: L 生产者/消费者迁移已落地，真实单章链路见 #50；证据见 #51。
 ---
 
@@ -80,7 +80,7 @@ A0 只负责字段合同、v6 registry、消费者映射与可测试的消费契
 
 **S3 hooks / facts**
 
-- settler 提交 `{hookOps, factOps}`；`story_state` 手动动作也写 v2 事件；`state-events.js` 是唯一投影。
+- settler 提交 `{hookOps, factOps}`；`story_state` 手动动作也写 v2 事件；`state-projection.ts` 是唯一投影。
 - **一个共享 settle writer**：抽取/改造 `settleChapterState` 的核心为 `settleState`，同时服务自动 `story_settle` 与手动 `story_state`；它负责状态门禁、写 hook/fact 事件、写 `settle` 标记、设置 `stage='settled'`。`foldState` 不再承担 stage，删除或仅供旧测试；`appendStateEvent` 只负责底层事件。
 - `state-check`/`state-settle` 的 prompt、schema、校验改为 v2；旧 `state-validation.js` 的 `normalizeStateDelta`/`foldState` 不再被动作导入。
 - 迁移状态读取消费者：`readWork`/`status`/`foldedOf`/`foldEvents` 改读 v2 投影（面板不能显示零实体/零伏笔）；`facts.js`、`bible.js`、`context.js` 的 `readEventsText`/`readFoldedState` 同样改读 v2。

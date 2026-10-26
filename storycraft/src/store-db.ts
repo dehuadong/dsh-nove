@@ -2035,8 +2035,8 @@ function assertStateGate(db: any, number: any, options = {}) {
 
 /**
  * Append one raw v2 state event (hook/fact op). The event is the source;
- * projections are rebuilt by `state-events.js`, which also owns op validation.
- * This is the low-level writer behind `appendHookOp`/`appendFactOp`.
+ * projections are rebuilt from the log by `applyFactOp`/`applyHookOp` in
+ * `state-projection.js`, which also owns op validation.
  * @param {string} root - workspace directory.
  * @param {{work: string, chapter: number, kind: string, payload: object}} input - event.
  * @returns {{seq: number}} appended event sequence.

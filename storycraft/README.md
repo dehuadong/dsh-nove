@@ -217,7 +217,6 @@ storycraft/
     index.ts                   #   只读路由 + 作者确认/素材管理/面板导出
     tools.ts                   #   动作（注册在预设作用域）
     delegate.ts                #   宿主侧角色委派：预检、子代理、输出校验、落库、回执
-    state-events.ts            #   v2 状态事件读写
     state-check.ts             #   story_state_check：只读语义对账、findings 与引文校验
     state-settle.ts            #   story_settle：settler 抽取、一次反馈重算、fold 或未解决回执
     facts.ts                   #   白名单唯一派生入口：只读已落库资料，正文与任务不参与
@@ -267,7 +266,7 @@ node scripts/pack-check.mjs
 
 ## TypeScript 接入
 
-Host 与 Client 都已迁到 TS 的 L0–L5 层：`scope`、叶子层、数据层、存储层、消费与 DSH 接缝（`bible`、`facts`、`landing`、`consistency`、`context`、`role-input`、`submission`、`proposals`、`state-check`、`state-settle`、`state-events`、`delegate`、`tools`、`index`）、技能入口 `skills`，以及浏览器入口 `client`。`src/store-rows.ts` 定义 SQLite 表行类型，`types/dsh.d.ts` 与本包的 `types/client.d.ts` 声明实际使用的宿主面。
+Host 与 Client 都已迁到 TS 的 L0–L5 层：`scope`、叶子层、数据层、存储层、消费与 DSH 接缝（`bible`、`facts`、`landing`、`consistency`、`context`、`role-input`、`submission`、`proposals`、`state-check`、`state-settle`、`delegate`、`tools`、`index`）、技能入口 `skills`，以及浏览器入口 `client`。`src/store-rows.ts` 定义 SQLite 表行类型，`types/dsh.d.ts` 与本包的 `types/client.d.ts` 声明实际使用的宿主面。
 
 - 源文件：`src/*.ts`；Host 走 `tsc`（`tsconfig.json`），Client 走 esbuild（`tsconfig.client.json` 只做类型检查）；`dist/` 由构建生成，不提交；
 - 包入口：`exports` 的 `.`、`./tools`、`./skills`、`./client` 全部指向 `dist/`；

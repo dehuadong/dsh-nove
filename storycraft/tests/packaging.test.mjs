@@ -30,6 +30,14 @@ const rootJs = readdirSync(projectRoot).filter(name => name.endsWith('.js'))
 const missingBuilt = srcNames.filter(name => !exists(join(projectRoot, 'dist', `${name}.js`)))
 check('every source module is built', missingBuilt.length === 0, missingBuilt.join(','))
 
+// And nothing in dist outlives its source: a deleted module must stop shipping.
+const distDir = join(projectRoot, 'dist')
+const builtNames = exists(distDir)
+  ? readdirSync(distDir).filter(name => name.endsWith('.js')).map(name => name.slice(0, -3))
+  : []
+const orphaned = builtNames.filter(name => !srcNames.includes(name))
+check('no built file outlives its source', orphaned.length === 0, orphaned.join(','))
+
 // Entry points must resolve to files that exist in this checkout.
 const unresolvable = Object.entries(manifest.exports)
   .filter(([key]) => key !== './package.json')

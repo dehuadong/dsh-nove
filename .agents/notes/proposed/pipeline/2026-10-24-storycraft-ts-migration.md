@@ -2,7 +2,7 @@
 title: 故事工坊：TypeScript 迁移计划（分阶段）
 status: proposed
 created: 2026-10-24
-updated: 2026-10-24
+updated: 2026-10-26
 ---
 
 # Agent Note：故事工坊：TypeScript 迁移计划（分阶段）
@@ -63,7 +63,7 @@ updated: 2026-10-24
 | L1 | `domain`、`chapter-edit`、`search-text`、`critique`、`materials`、`current`、`epub` | 只依赖 Node/domain；先建立类型与测试基线 |
 | L2 | `db`、`artifact-contract`、`search-index`、`style`、`revision`、`state-projection` | 数据/规则叶子 |
 | L3 | `store-db`、`artifact-store`、`storage`、`retrieval`、`volumes` | 中心存储与查询；`store-db` 单独一批 |
-| L4 | `bible`、`facts`、`landing`、`consistency`、`context`、`role-input`、`submission`、`proposals`、`state-check`、`state-settle`、`state-events`、`delegate`、`tools`、`index` | 角色/状态消费与 DSH 接缝；`consistency`/`proposals` 是 `landing`/`tools` 的编译边界，`state-events` 运行时无消费者，删除另见 #72 |
+| L4 | `bible`、`facts`、`landing`、`consistency`、`context`、`role-input`、`submission`、`proposals`、`state-check`、`state-settle`、`delegate`、`tools`、`index` | 角色/状态消费与 DSH 接缝；`consistency`/`proposals` 是 `landing`/`tools` 的编译边界 |
 | L4b | `skills` | 技能 provider 入口；迁到 `dist/` 后包内 `skills/` 目录基准上跳一级，`exports` 的 `./skills` 当层改指 dist |
 | L5 | `client` | 浏览器入口；esbuild 单文件转译，`exports` 的 `./client` 指 `dist/client.js`，包根不再有 JS |
 

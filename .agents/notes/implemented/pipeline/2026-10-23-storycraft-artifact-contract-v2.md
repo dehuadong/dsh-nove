@@ -2,7 +2,7 @@
 title: 故事工坊：产物合同 v2（数据模型与初始化）
 status: implemented
 created: 2026-10-23
-updated: 2026-10-24
+updated: 2026-10-26
 verification: 产物合同 v2 与 registry 已落地，消费者/初始化测试与 CI 通过；证据见 #45–#49。
 ---
 
@@ -293,7 +293,7 @@ verification: 产物合同 v2 与 registry 已落地，消费者/初始化测试
 - hooks/facts 是 `state` 投影，不各自占 artifact kind：hook 用 `hookId` 寻址，fact 用 `subject/predicate/object` + 有效期寻址；`ChapterMemo.threadRefs` 引用 `hookId`。
 - `fact` 的当前状态由 `fact.upsert`/`expire` 投影；`validFrom/validUntil/source` 由投影生成。
 - 新库不接收旧 text-hook/string-fact 事件；测试作品重建，不做兼容解析。
-- **运行边界**：v2 事件操作与投影由 `state-events.js` 拥有；settler 与手动 `story_state` 的提交面由 [L-R10a S3 hooks/facts 迁移](2026-10-24-storycraft-state-migration.md) 拥有（`newHooks` 的新伏笔由宿主铸造 `hookId`），旧 text-hook/string-fact 不进入运行。
+- **运行边界**：v2 事件操作与投影由 `state-projection.ts` 拥有；settler 与手动 `story_state` 的提交面由 [L-R10a S3 hooks/facts 迁移](2026-10-24-storycraft-state-migration.md) 拥有（`newHooks` 的新伏笔由宿主铸造 `hookId`），旧 text-hook/string-fact 不进入运行。
 
 ### 6. 上下文
 

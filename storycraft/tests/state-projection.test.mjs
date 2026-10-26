@@ -1,12 +1,13 @@
-/** v2 hook/fact events: source events, projections, and the legacy boundary. */
+/** v2 hook/fact ops: projections, transitions, and the settlement write path. */
 
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { appendFactOp, appendHookOp, applyFactOp, applyHookOp, projectFacts, projectHooks } from '../dist/state-events.js'
+import { applyFactOp, applyHookOp, projectFacts, projectHooks } from '../dist/state-projection.js'
 import { initWork, readFoldedState } from '../dist/storage.js'
-import { openWork } from '../dist/db.js'
-import { readEvents, writePlan } from '../dist/store-db.js'
+import {
+  approveChapterPlan, readEvents, settleState, writeChapter, writePlan, writeReview, writeSummary,
+} from '../dist/store-db.js'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -109,40 +110,48 @@ rejects('fact upsert needs a subject', 'state-op-invalid',
 check('legacy text-hook events do not enter the v2 projection',
   projectHooks([{ kind: 'hook', text: '旧伏笔', state: 'opened' }]).length === 0)
 
-const root = await mkdtemp(join(tmpdir(), 'storycraft-state-events-'))
+const root = await mkdtemp(join(tmpdir(), 'storycraft-state-projection-'))
 try {
   const { workId: work } = initWork(root, { title: '状态事件' })
   writePlan(root, {
     work, chapter: 1, perspective: '甲', goal: '拿到账本',
     obstacle: '掌柜刁难', cost: '欠人情', turn: '账本是假的',
   })
-  const upserted = appendHookOp(root, { work, op: 'upsert', hook: baseHook })
-  check('hook upsert appends an event', upserted.seq === 1 && upserted.event.kind === 'hook')
-  appendHookOp(root, { work, op: 'progress', hookId: 'h_1', chapter: 1 })
-  appendFactOp(root, {
-    work, op: 'upsert', fact: { subject: '甲', predicate: '持有', object: '账本' }, chapter: 1, source: '正文 r1',
+  // Settlement is gated on the chapter having a body, a clean review and a
+  // current summary, so the fixture walks the same path a session does.
+  approveChapterPlan(root, { work, chapter: 1 })
+  writeChapter(root, { work, chapter: 1, title: '账本', body: '灰旗在风里翻了一夜。'.repeat(60) })
+  writeReview(root, { work, chapter: 1, observations: [] })
+  writeSummary(root, { work, chapter: 1, text: '甲拿到了账本，灰旗还挂着。' })
+
+  // The settlement path is the store's one state-event writer: it projects each
+  // op, refuses the whole batch when one is invalid, then writes the events.
+  const beforeRejected = readEvents(root, work).length
+  rejects('a rejected fact op writes no event', 'fact-not-found',
+    () => settleState(root, { work, chapter: 1, factOps: { expire: [{ subject: '乙', predicate: '持有' }] } }))
+  check('the rejected op left the event log untouched', readEvents(root, work).length === beforeRejected)
+
+  const settled = settleState(root, {
+    work, chapter: 1,
+    factOps: { upsert: [{ subject: '甲', predicate: '持有', object: '账本', source: '正文 r1' }] },
+    newHooks: [{ text: baseHook.text }],
   })
+  check('settlement records one fact and one new hook',
+    settled.counts.facts === 1 && settled.counts.newHooks === 1, JSON.stringify(settled.counts))
   const stored = readEvents(root, work)
   check('events persist in sequence order',
-    stored.map(event => event.op ?? event.kind).join(',') === 'upsert,progress,upsert', JSON.stringify(stored))
+    stored.map(event => event.op ?? event.kind).join(',') === 'upsert,upsert,settle', JSON.stringify(stored))
   check('projection rebuilds from stored events',
-    projectHooks(stored)[0].status === 'progressing'
+    projectHooks(stored).length === 1 && projectHooks(stored)[0].status === 'open'
     && projectFacts(stored)[0].validFromChapter === 1, JSON.stringify(projectFacts(stored)))
   check('readFoldedState projects the v2 events', readFoldedState(root, work).hooks.length === 1,
     JSON.stringify(readFoldedState(root, work)))
 
-  appendHookOp(root, { work, op: 'resolve', hookId: 'h_1', chapter: 1 })
-  const beforeRejected = readEvents(root, work).length
-  rejects('a rejected transition writes no event', 'hook-transition-invalid',
-    () => appendHookOp(root, { work, op: 'progress', hookId: 'h_1', chapter: 3 }))
-  check('the rejected transition left the event log untouched', readEvents(root, work).length === beforeRejected)
-
-  const db = openWork(root, work)
-  db.prepare("UPDATE chapters SET stage = 'settled' WHERE number = 1").run()
-  db.close()
+  // A settled chapter refuses further state events until it is reopened.
   rejects('state ops refuse a settled chapter', 'chapter-settled',
-    () => appendFactOp(root, {
-      work, op: 'upsert', fact: { subject: '甲', predicate: '持有', object: '账本' }, chapter: 1, source: '正文 r1',
+    () => settleState(root, {
+      work, chapter: 1,
+      factOps: { upsert: [{ subject: '甲', predicate: '持有', object: '账本' }] },
     }))
 } finally {
   await rm(root, { recursive: true, force: true })

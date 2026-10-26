@@ -2,7 +2,7 @@
 title: 故事工坊：L-R10a S3 hooks/facts 迁移
 status: implemented
 created: 2026-10-24
-updated: 2026-10-24
+updated: 2026-10-26
 verification: hooks/facts v2 事件与 settle writer 已落地，CI 通过；证据见 #58。
 ---
 
@@ -10,7 +10,7 @@ verification: hooks/facts v2 事件与 settle writer 已落地，CI 通过；证
 
 ## 问题
 
-v2 hook/fact 事件与投影已由 #47 落地（[`storycraft/src/state-events.ts`](../../../../storycraft/src/state-events.ts)）：`fact.upsert`/`fact.expire`、hook 的 `upsert`/`progress`/`mention`/`defer`/`resolve`/`supersede` 与转移表都在，`projectState` 能重建投影。
+v2 hook/fact 事件与投影已由 #47 落地（`state-projection.ts` 拥有 op 校验与投影，`store-db.ts` 的 `settleState` 写入事件）：`fact.upsert`/`fact.expire`、hook 的 `upsert`/`progress`/`mention`/`defer`/`resolve`/`supersede` 与转移表都在，`projectState` 能重建投影。
 
 但**没有任何生产者调用它**：settle 仍由 `foldState` 写旧 text-hook/string-fact（`entities`/`hooks` 形状），面板、brief、context、facts 白名单与检索都读旧 `foldEvents`。合同与运行分叉，同一份“当前状态”有两条互不相认的链路。
 
@@ -32,7 +32,7 @@ S3 把生产者与消费者整体切到 v2 事件，旧格式退出运行。
 
 - 切片排序与 owner 由 [`2026-10-24-storycraft-consumer-migration.md`](2026-10-24-storycraft-consumer-migration.md) 拥有；本 Note 承接其中 S3。
 - 事件形状、转移表、`hookId` 由宿主生成、fact 有效期与投影字段由 [`2026-10-23-storycraft-artifact-contract-v2.md`](2026-10-23-storycraft-artifact-contract-v2.md) §5 拥有；本 Note 只补“新建伏笔的提交面”（`newHooks`）与运行化路径。
-- `state-events.js`（#47）拥有 op 校验与投影；本 Note 不改它的语义，只接生产者与消费者。
+- `state-projection.ts`（#47）拥有 op 校验与投影；本 Note 不改它的语义，只接生产者与消费者。
 - [`2026-10-23-storycraft-settler-auto-projection.md`](../../implemented/pipeline/2026-10-23-storycraft-settler-auto-projection.md) 的闸门顺序（审稿→修订→摘要→settle）不变。
 - [`2026-10-23-storycraft-longform-method-references.md`](../../implemented/pipeline/2026-10-23-storycraft-longform-method-references.md) 的“hook 三态、text 身份”在 L 交付时被合同 v2 §5 替代；S3 交付时同步该记录。
 - observation/reviews 生命周期归 #52；本 Note 不改审稿链。
@@ -60,14 +60,14 @@ settler 与手动 `story_state` 使用同一形状：
 - `hookId` 由宿主铸造：`h-<sha1(text) 的前 8 位>`；同一 text 已存在时不新建，按 `mention` 记账。
 - 限额：`factOps.upsert` ≤20、`factOps.expire` ≤20、`hookOps` ≤30、`newHooks` ≤8，各字符串字段 ≤240 字；手动与委派两个入口共用同一组限制。
 - 空 payload（无任何 op 且无 `newHooks`）：委派提交面接受 `{}`（settler 可以报告“本章无可记录变化”），手动 `story_state` 返回 `empty-state`；`settleState` 的 `allowEmpty` 只给自动结算路径用。
-- 每个 op 走 `state-events.js` 的 `applyHookOp`/`applyFactOp`：非法转移、未知 hookId、无可失效 fact 分别返回 `hook-transition-invalid`、`hook-not-found`、`fact-not-found`，**不写任何事件**。
+- 每个 op 走 `state-projection.ts` 的 `applyHookOp`/`applyFactOp`：非法转移、未知 hookId、无可失效 fact 分别返回 `hook-transition-invalid`、`hook-not-found`、`fact-not-found`，**不写任何事件**。
 - 旧形状（`entities`/`hooks`）不再出现在调用面：手动 `story_state` 由工具 schema 拒绝，委派提交返回 `submit-invalid`；不做翻译。
 
 ### 2. 单一 settle writer
 
 - store 新增 `settleState(root, input)`：`assertStateGate`（审稿、摘要）→ 校验 ops → 按顺序追加 v2 事件（同一事务内同步检索文档）→ 追加 `settle` 标记 → 设 `stage='settled'` → 返回 `{counts:{facts, hooks, newHooks}, hooks, facts, seq}`；`counts` 按**实际写入的事件**统计，被 `allowReapply` 吞掉的 no-op 不计入。
 - 自动 settle（`state-settle.js`）与手动 `story_state` 都调用它；`foldState` 删除，不再保留第二条 settle 路径。
-- 模块边界：纯 op 校验与投影移到 store 可导入的模块（`state-projection.js`），`state-events.js` 保留面向 store 的 append 包装，避免 store 与 state-events 互相导入。
+- 模块边界：纯 op 校验与投影在 store 可导入的模块（`state-projection.ts`），事件写入由 `store-db.ts` 的 `settleState` 完成，避免 store 与投影模块互相导入。
 - `settle` 标记不是 v2 op 事件，仍按现有 `kind='settle'` 写入；`appendStateEvent` 的 hook/fact 限制不变。
 - 重新 settle：reopen 不撤回既有状态事件；`settleState` 对“本章上次 settle 已被 reopen 作废”的路径传 `allowReapply`，同状态 hook op 与重复 fact upsert 视为幂等 no-op，其余非法转移仍然失败。
 - 委派 settler 的落盘改调 `settleState`；提交校验换成 v2 形状，回执仍给计数与 `submissionAttempts`；`state-check`/`state-settle` 的 prompt 与 schema 同步改为 v2 ops，重试 `feedback` 说明不变。
