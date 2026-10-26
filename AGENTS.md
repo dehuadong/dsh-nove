@@ -40,7 +40,7 @@
 
 讨论后推进、直接收到阶段请求或恢复工程工作时，读取并按 `docs/agents/GATES.md` 的 Steps、授权与返回规则执行；具体工作方法由对应技能负责。
 
-提示用户输入下一步门禁指令（以 `docs/agents/GATES.md` 为准）：
+任务汇报之后，提示用户输入下一步门禁指令（以 `docs/agents/GATES.md` 为准）：
 
 
 - 收到 `批准，使用技能 planning 执行规划 {工作项}` 时加载 `planning`，完成规划及必要评审后回到 Discuss。
