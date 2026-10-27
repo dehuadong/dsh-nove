@@ -1567,6 +1567,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
           work: { type: 'string', description: '作品 id。' },
           kind: { type: 'string', enum: ['foundation', 'outline', 'plan'], description: '确认哪一项。' },
           chapter: { type: 'integer', description: 'kind=plan 时必填：第几章。' },
+          reason: { type: 'string', description: '可选：作者原话片段，作为批准审计记录。' },
         },
         required: ['work', 'kind'],
       },
@@ -1589,16 +1590,16 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
         const workId = String(args.work)
         const kind = String(args.kind)
         if (kind === 'foundation') {
-          approveFoundation(root, { work: workId, source: 'conversation' })
+          approveFoundation(root, { work: workId, source: 'conversation', ...(typeof args.reason === 'string' ? { reason: args.reason } : {}) })
           return { ok: true, workId, kind, source: 'conversation' }
         }
         if (kind === 'outline') {
-          approveOutline(root, { work: workId, source: 'conversation' })
+          approveOutline(root, { work: workId, source: 'conversation', ...(typeof args.reason === 'string' ? { reason: args.reason } : {}) })
           return { ok: true, workId, kind, source: 'conversation' }
         }
         if (kind === 'plan') {
           if (args.chapter === undefined) throw new StoryError('chapter-required', '记录章纲确认需要 chapter')
-          approveChapterPlan(root, { work: workId, chapter: args.chapter, source: 'conversation' })
+          approveChapterPlan(root, { work: workId, chapter: args.chapter, source: 'conversation', ...(typeof args.reason === 'string' ? { reason: args.reason } : {}) })
           return { ok: true, workId, kind, source: 'conversation' }
         }
         throw new StoryError('invalid-kind', `未知的确认类型：${kind}`)

@@ -19,7 +19,7 @@ const root = await mkdtemp(join(tmpdir(), 'storycraft-approval-source-'))
 try {
   const { workId: work } = s.initWork(root, { title: '批准来源' })
   s.writeOutline(root, { work, mainline: '一条主线' })
-  s.approveOutline(root, { work, source: 'conversation' })
+  s.approveOutline(root, { work, source: 'conversation', reason: '就按这个来' })
 
   const outlineNext = await s.nextStep(root, work)
   check('a conversation approval advances the gate',
@@ -31,6 +31,8 @@ try {
     const row = db.prepare('SELECT outline_approved_source, outline_approved_revision FROM meta WHERE id = 1').get()
     check('the outline records where the approval came from', row.outline_approved_source === 'conversation', JSON.stringify(row))
     check('the outline still binds the revision', typeof row.outline_approved_revision === 'string' && row.outline_approved_revision !== '')
+    const reasonRow = db.prepare('SELECT outline_approved_reason FROM meta WHERE id = 1').get()
+    check('the author words are kept with the approval', reasonRow.outline_approved_reason === '就按这个来', JSON.stringify(reasonRow))
   } finally {
     db.close()
   }

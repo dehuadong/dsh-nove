@@ -430,6 +430,12 @@ function methodFor(step: any, form: string): { skill: string; reference?: string
  * point is carried by the settle receipt itself.
  */
 /** Normalise the approval source; an unknown value is a caller error. */
+/** The author's words, bounded; empty stays null. */
+function approvalReasonOf(input: any): string | null {
+  const reason = typeof input?.reason === 'string' ? input.reason.trim() : ''
+  return reason === '' ? null : reason.slice(0, 200)
+}
+
 function approvalSourceOf(input: any): 'panel' | 'conversation' {
   const source = input?.source
   if (source === undefined) return 'panel'
@@ -618,6 +624,7 @@ export function readManifest(root: string, work: unknown): any {
             writtenAt: meta.outline_written_at,
             ...(outlineApprovedAt(db) === undefined ? {} : { approvedAt: outlineApprovedAt(db) }),
     ...(meta.outline_approved_source === null ? {} : { approvedSource: meta.outline_approved_source }),
+    ...(meta.outline_approved_reason === null ? {} : { approvedReason: meta.outline_approved_reason }),
           },
         }),
         foundation: foundationStateOf(db),
@@ -635,6 +642,7 @@ export function readManifest(root: string, work: unknown): any {
               && memoRevision !== undefined && chapter.plan_revision === memoRevision,
             ...(chapter.plan_approved_at === null ? {} : { planApprovedAt: chapter.plan_approved_at }),
     ...(chapter.plan_approved_source === null ? {} : { planApprovedSource: chapter.plan_approved_source }),
+    ...(chapter.plan_approved_reason === null ? {} : { planApprovedReason: chapter.plan_approved_reason }),
             ...(chapter.plan_revision == null ? {} : { planRevision: chapter.plan_revision }),
             provenance: chapter.provenance ?? 'generated',
             ...(chapter.last_revise_mode === null ? {} : { lastReviseMode: chapter.last_revise_mode }),
@@ -1088,6 +1096,7 @@ function foundationStateOf(db: any) {
     ...(nextStage === undefined ? {} : { nextStage }),
     ...(foundationApprovedAt(db) === undefined ? {} : { approvedAt: foundationApprovedAt(db) }),
     ...(metaOf(db).foundation_approved_source === null ? {} : { approvedSource: metaOf(db).foundation_approved_source }),
+    ...(metaOf(db).foundation_approved_reason === null ? {} : { approvedReason: metaOf(db).foundation_approved_reason }),
   }
 }
 
@@ -1265,7 +1274,7 @@ export function approveFoundation(root: any, input: any) {
       if (state.complete !== true) throw new StoryError('foundation-incomplete', 'foundation 还没生成完整：先跑完四个 stage')
       const at = now()
       const source = approvalSourceOf(input)
-      db.prepare('UPDATE meta SET foundation_approved_at = ?, foundation_approved_revision = ?, foundation_approved_source = ?, updated_at = ? WHERE id = 1').run(at, foundationRevisionOf(db), source, at)
+      db.prepare('UPDATE meta SET foundation_approved_at = ?, foundation_approved_revision = ?, foundation_approved_source = ?, foundation_approved_reason = ?, updated_at = ? WHERE id = 1').run(at, foundationRevisionOf(db), source, approvalReasonOf(input), at)
       return { workId: String(input.work), approvedAt: at, foundation: foundationStateOf(db) }
     })
   } finally {
@@ -1544,7 +1553,7 @@ export function approveOutline(root: any, input: any) {
       const at = now()
       const revision = outlineRevisionOf(db)
       const source = approvalSourceOf(input)
-      db.prepare('UPDATE meta SET outline_approved_at = ?, outline_approved_revision = ?, outline_approved_source = ?, updated_at = ? WHERE id = 1').run(at, revision ?? null, source, at)
+      db.prepare('UPDATE meta SET outline_approved_at = ?, outline_approved_revision = ?, outline_approved_source = ?, outline_approved_reason = ?, updated_at = ? WHERE id = 1').run(at, revision ?? null, source, approvalReasonOf(input), at)
       return { workId, outline: { writtenAt: meta.outline_written_at, approvedAt: at } }
     })
   } finally {
@@ -1831,8 +1840,8 @@ export function approveChapterPlan(root: any, input: any) {
       const at = now()
       const planRevision = memo.revision_id
       const source = approvalSourceOf(input)
-      db.prepare('UPDATE chapters SET plan_approved_at = ?, plan_revision = ?, plan_approved_source = ?, updated_at = ? WHERE number = ?')
-        .run(at, planRevision, source, at, number)
+      db.prepare('UPDATE chapters SET plan_approved_at = ?, plan_revision = ?, plan_approved_source = ?, plan_approved_reason = ?, updated_at = ? WHERE number = ?')
+        .run(at, planRevision, source, approvalReasonOf(input), at, number)
       touchMeta(db, at)
       return {
         workId,
