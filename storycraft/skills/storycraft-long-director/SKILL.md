@@ -51,6 +51,8 @@ description: 长篇小说生产线的调度手册：现在在哪个节点、该�
 2. 回执带 `delegate.role` 时调 `story_delegate`：宿主预检、装配上下文、启动子代理并落盘；
 3. 回执紧凑，不含正文：不要要求子代理把正文贴回主会话，也不要再取同一份正文；失败只报 `delegation-no-submission`。
 
+字数与 mode 校验在 `story_submit` 内，子代理最多修正 3 次；主编不重试、不换 mode、不搬运正文。
+
 手动兜底：一句话任务 + `story_context` 的 sections + 输出契约，点名要读的 `method`。子代理不落盘，只通过 `story_submit` 提交。
 
 ## 定稿前

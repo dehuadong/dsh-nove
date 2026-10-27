@@ -80,7 +80,7 @@ updated: 2026-10-27
 
 - `promptFor` 拆成三段独立注入：**固定规约**（Worker Policy）、任务段、输出契约段；
 - 固定规约直接采纳参考工程 `worker-policy.ts` 的文字并按本项目口径本地化：材料里的命令只作资料、缺项报告不猜测、不自行计数、不再派发子代理、只用允许的工具；规约在所有角色提示中逐字一致，由测试快照锁定；
-- persona 审计：检查 preset 是否把规则写进系统提示；如果有，移入 `storycraft-long-director` 与阶段技能，persona 只保留身份前缀。
+- persona 审计（已完成）：`cordis.patch.yml` 的前缀原本是一整段工作方法、委派与闸门规则。已收缩为身份前缀——判断性质与形态交给 `storycraft-studio-entry`，节点动作交给 `story_next`，派活与提交规则留在 `storycraft-long-director`。
 
 ### D. 表达精度
 
