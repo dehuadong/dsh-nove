@@ -41,12 +41,12 @@ updated: 2026-10-27
 内容指纹 = **存储内容的 sha256 十六进制**，按写入时的字节计算，不做规范化：存储层已经是确定性写入，规范化只会引入第二套等价判断。
 
 - 批准：`foundation` / `outline` 存在 manifest，`plan` 存在章节行，各加一列 `approved_hash`；
-- 审稿：`reviews` 表加两列——`draft_hash`（被审正文的内容哈希）与 `input_hash`；`input_hash = sha256(plan_content_hash + "\n" + draft_hash + "\n" + facts_hash)`，`facts_hash` 取审稿时 `story_state` 快照序列化后的哈希。
+- 审稿：`artifacts.input_revision` 存审稿时章纲 revision 的哈希（`reviewInputOf`，两个写入路径共用）；正文改写由审稿行里的 body revision 判定失效。
 
 ### 有效性与失效
 
 - 批准有效 = `approved_hash` 存在且等于当前 artifact 内容的哈希；任一次写入产生新 revision，哈希变化即失效；
-- 审稿是「当前审稿」= `draft_hash` 与当前正文哈希一致 **且** `input_hash` 与当前章纲 + 既有事实一致；
+- 审稿是「当前审稿」= 审稿的 body revision 等于当前 revision **且** `input_revision` 等于 `reviewInputOf(db, chapter)`；任一项不符即 stale，`latestReview` 会把 stale 暴露给角色调用方。
 - `story_next` 的 `plan-approval` / `outline-approval` 判定改为「无有效批准」；审稿判定改为「无当前审稿」；
 - 写入路径不再需要显式清空批准：新 revision 自动让旧指纹失配。清空逻辑保留为兼容层之外的多余动作时删除。
 
@@ -110,7 +110,7 @@ updated: 2026-10-27
 
 ## 风险
 
-- **审稿失效误伤**：只比正文哈希会在章纲变更时漏判，所以 `input_hash` 必须包含章纲与既有事实；
+- **审稿失效误伤**：事实（`events`）暂不并入绑定——它是全局表，全局事件数会让“结算第 1 章”把第 2 章的审稿判 stale（实测打挂 settle 用例）；按章作用域统计事实是后续工作。
 - **机械项与模型项重复**：以 code 去重，提示里写明「已由检查覆盖的不要重复」；
 - **润色过度**：规则只收可逆、可记录的改动，全部进 `changes`；
 - **persona 迁移**：如果规则已经写进系统提示，迁移会改变现有行为，需单列验证。
