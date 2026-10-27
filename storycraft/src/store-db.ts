@@ -1144,7 +1144,7 @@ export function writeFoundationStage(root: any, input: any) {
         return { artifactId: envelope.artifactId, revisionId: envelope.revisionId, kind: envelope.kind }
       })
       if (anyWritten) {
-        db.prepare('UPDATE meta SET foundation_approved_at = NULL, foundation_approved_revision = NULL, updated_at = ? WHERE id = 1').run(at)
+        // Same rule as the outline: the fingerprint invalidates an old approval.
       }
       return { workId, stage, artifacts, foundation: foundationStateOf(db) }
     })
@@ -1405,7 +1405,9 @@ export function writeOutline(root: any, input: any) {
       if (written.created) {
         syncSearchDoc(db, 'outline', 'outline', 'outline/plan', 0, written.content)
       }
-      db.prepare('UPDATE meta SET outline_written_at = ?, outline_approved_at = NULL, outline_approved_revision = NULL, updated_at = ? WHERE id = 1').run(at, at)
+      // The fingerprint decides validity: writing a new revision makes the old
+    // confirmation fail the revision check without clearing it here.
+    db.prepare('UPDATE meta SET outline_written_at = ?, updated_at = ? WHERE id = 1').run(at, at)
       return { workId, outline: { writtenAt: at, revision: written.revisionId } }
     })
   } finally {
