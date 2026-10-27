@@ -5,8 +5,10 @@
  * cannot see, and every rule change is recorded so a receipt can explain it.
  */
 
+import { OPENERS } from './phrases.ts'
+
 /** Openers that mark machine-written prose; removed only at a sentence start. */
-export const BANNED_OPENERS = ['综上所述', '值得注意的是', '不可否认', '不难看出'] as const
+export const BANNED_OPENERS = OPENERS
 
 /** One recorded change; `kind` groups changes for the receipt. */
 export interface PolishChange {
