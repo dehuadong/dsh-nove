@@ -128,6 +128,21 @@ skills/
 - 每个 `SKILL.md` 末尾有按节点的加载条件；
 - 真实链路中，写手/审稿/修订三次派发的上下文里只出现对应节点的方法与参考（`trace` 可核）。
 
+### 规范符合性（按项目技能编写规范）
+
+规范：`skills/<skill-name>/` 扁平 kebab-case；`SKILL.md` 必填，`scripts/`、`references/`、`examples/` 可选；front matter 只有 `name`（与目录一致）与 `description`（做什么 + 何时触发 + 读/写边界）；主文件只留决策流程，细节进 `references/`；一个技能一个目标，读写模式显式分流；写操作先出计划并取得确认；改完跑 `node scripts/validate.mjs`。
+
+| 要求 | 现状 | 违反数 |
+| --- | --- | --- |
+| 扁平目录 | 8 个类别子目录（longform/plan/review/revise/screenplay/shared/shortform/write） | 15 / 15 |
+| front matter 仅 name + description | 15 个都多一个 `whenToUse`；description 缺触发与读写边界 | 15 / 15 |
+| 主文件只含决策流程 | `studio-orchestration` 9.9KB、`longform-chapter` 8KB、`review` 4.5KB，后两者 refs=0 | 3 |
+| 一个技能一个目标 | `write-craft` 覆盖三形态；`plan-craft` 两形态 × 两方向 | 2 |
+| 写侧先出计划并取得确认 | 写/修订技能未声明 | 写侧全部 |
+| `validate.mjs` | 无技能校验器（仅有 Note 的 `decisions/check.mjs`） | 缺失 |
+
+修复：扁平化、front matter 规范化、主文件拆到 references、拆多目标技能、写侧加确认、新增 `storycraft/scripts/validate-skills.mjs` 并接进 `ci.mjs`。
+
 ## 三个批准记录在哪里
 
 基础设定 / 全书计划 / 章纲的「批准」是判断点的结果，不是闸门：
