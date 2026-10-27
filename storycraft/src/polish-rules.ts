@@ -1,8 +1,8 @@
 /**
  * Deterministic polish rules: no model, no judgement, every change recorded.
  *
- * The reference implementation keeps this layer mechanical (`polish/src/rules.ts`
- * in dsh-webnovel-writer); the reviser only handles what these rules cannot see.
+ * This layer stays mechanical on purpose: the reviser only handles what the rules
+ * cannot see, and every rule change is recorded so a receipt can explain it.
  */
 
 /** Openers that mark machine-written prose; removed only at a sentence start. */
@@ -32,10 +32,10 @@ export function applyPolishRules(text: string): PolishResult {
   let next = text
 
   for (const opener of BANNED_OPENERS) {
-    const pattern = new RegExp(`(^|[。！？\\n])\\s*${opener}[，,]?`, 'gu')
-    next = next.replace(pattern, (match, lead: string) => {
-      changes.push({ kind: 'opener', from: match.trim(), to: lead })
-      return lead
+    const pattern = new RegExp(`(^|[。！？\\n])([ \\t]*)${opener}[，,]?`, 'gu')
+    next = next.replace(pattern, (match, lead: string, indent: string) => {
+      changes.push({ kind: 'opener', from: match.trim(), to: lead + indent })
+      return lead + indent
     })
   }
 

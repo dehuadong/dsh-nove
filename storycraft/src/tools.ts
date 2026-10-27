@@ -2305,9 +2305,10 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
                   code: { type: 'string', enum: ['word-range', 'repeated-sentence', 'ai-phrase', 'person-consistency', 'dialogue-ratio'] },
                   severity: { type: 'string', enum: ['blocking', 'major', 'minor'] },
                   detail: { type: 'string' },
+                  refs: { type: 'array', items: { type: 'string' } },
                   quote: { type: 'string' },
                 },
-                required: ['code', 'severity', 'detail'],
+                required: ['code', 'severity', 'detail', 'refs'],
               },
             },
           },
@@ -2320,7 +2321,15 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
         const manifest = await readManifest(root, args.work)
         const current = await readChapter(root, { work: args.work, chapter: args.chapter })
         const metrics = critique(current.content, manifest.wordRange)
-        return { ok: true, workId: args.work, metrics, findings: findingsOf(String(current.content ?? ''), metrics) }
+        let perspective = ''
+        try {
+          const stored = readArtifact(root, { work: args.work, artifactId: `plan:${args.chapter}` })
+          const memo = stored.artifact.content as { perspective?: unknown } | undefined
+          perspective = typeof memo?.perspective === 'string' ? memo.perspective : ''
+        } catch {
+          perspective = ''
+        }
+        return { ok: true, workId: args.work, metrics, findings: findingsOf(String(current.content ?? ''), metrics, perspective) }
       },
     }),
 

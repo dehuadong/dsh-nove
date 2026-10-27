@@ -58,11 +58,11 @@ updated: 2026-10-27
 
 ### 检查库
 
-新增 `src/checks.ts`：注册式检查，输入 `{ text, plan, wordRange, form }`，输出 `Finding[]`。
+检查注册在 `critique.ts` 的 `findingsOf`：输入正文、metrics 与可选视角，输出 `Finding[]`。不另建 `checks.ts`——同一件事两套实现会漂移。
 
 首批检查项：`word-range`（字数区间）、`repeated-sentence`（重复句）、`ai-phrase`（套话命中）、`person-consistency`（人称/视角与章纲一致）、`dialogue-ratio`（对话占比区间）。
 
-- `story_critique` 改为调用检查库并返回 findings；
+- `story_critique` 返回 `metrics` 与 `findings`（含视角一致性，视角取自章纲 memo）；
 - 审稿材料 = 检查库 findings **+** 正文；审稿提示要求模型只补充机械检查覆盖不到的问题，并按 code 去重；
 - 检查项只判可复现的事实，不做审美判断。
 
@@ -72,9 +72,9 @@ updated: 2026-10-27
 
 首批规则：开场套话（采纳参考工程 `polish/src/rules.ts` 的列表并按中文语境本地化）、省略号与重复标点、连续空白合并。
 
-- `story_revise` 的 `deslop` 模式先跑规则；
-- `changes` 为空 → 不派修订，直接返回「无需去腔调」，记录空改动；
-- 非空 → 把规则后的正文与 `changes` 一起交给修订者，修订者只处理规则覆盖不到的腔调。
+- `deslop` 在派发前先跑规则：
+- `changes` 为空 → 以 `polish-noop` 结束并给出 `next`，不花一次模型调用；
+- 非空 → 以规则后的正文作为修订起点派发，模型只处理规则覆盖不到的腔调（改动清单暂不单独注入，由正文差异体现）。
 
 ### C. 注入精度
 

@@ -62,8 +62,7 @@ const MAX_WARNING_CHARS = 120
  * Fixed execution rules for every delegated child.
  *
  * Delivered as its own section so a task phrased differently cannot change the
- * rules, and so the same text appears verbatim in every role prompt. Wording
- * follows the reference worker policy, localised to this project.
+ * rules, and so the same text appears verbatim in every role prompt.
  */
 export const WORKER_POLICY = [
   '【子代理执行规约】',

@@ -61,6 +61,8 @@ export interface Finding {
   readonly code: FindingCode
   readonly severity: FindingSeverity
   readonly detail: string
+  /** Exact excerpts this finding points at; empty when it points at the whole chapter. */
+  readonly refs: string[]
   readonly quote?: string
 }
 
@@ -69,26 +71,30 @@ export interface Finding {
  *
  * Stable codes let the review prompt skip what the machine already reported.
  */
+function finding(code: FindingCode, severity: FindingSeverity, detail: string, quote?: string): Finding {
+  return { code, severity, detail, refs: quote === undefined ? [] : [quote], ...(quote === undefined ? {} : { quote }) }
+}
+
 export function findingsOf(text: string, metrics: CritiqueMetrics, perspective?: string): Finding[] {
   const findings: Finding[] = []
   if (metrics.withinRange === false && (metrics.shortBy ?? 0) > 0) {
-    findings.push({ code: 'word-range', severity: 'major', detail: `${metrics.words} 字，比下限少 ${metrics.shortBy} 字` })
+    findings.push(finding('word-range', 'major', `${metrics.words} 字，比下限少 ${metrics.shortBy} 字`))
   }
   if (metrics.withinRange === false && (metrics.longBy ?? 0) > 0) {
-    findings.push({ code: 'word-range', severity: 'major', detail: `${metrics.words} 字，比上限多 ${metrics.longBy} 字` })
+    findings.push(finding('word-range', 'major', `${metrics.words} 字，比上限多 ${metrics.longBy} 字`))
   }
   for (const entry of metrics.repeated) {
-    findings.push({ code: 'repeated-sentence', severity: 'minor', detail: `同一句出现 ${entry.count} 次`, quote: entry.text })
+    findings.push(finding('repeated-sentence', 'minor', `同一句出现 ${entry.count} 次`, entry.text))
   }
   for (const hit of metrics.aiPhrases.hits) {
-    findings.push({ code: 'ai-phrase', severity: 'minor', detail: `套话命中 ${hit.count} 次`, quote: hit.phrase })
+    findings.push(finding('ai-phrase', 'minor', `套话命中 ${hit.count} 次`, hit.phrase))
   }
   const person = perspective?.trim() ?? ''
   if (person !== '' && !text.includes(person)) {
-    findings.push({ code: 'person-consistency', severity: 'major', detail: `章纲视角人物「${person}」在正文里没有出现` })
+    findings.push(finding('person-consistency', 'major', `章纲视角人物「${person}」在正文里没有出现`))
   }
   if (metrics.words > 0 && (metrics.dialogueRatio < 0.05 || metrics.dialogueRatio > 0.7)) {
-    findings.push({ code: 'dialogue-ratio', severity: 'minor', detail: `对话占比 ${Math.round(metrics.dialogueRatio * 100)}%` })
+    findings.push(finding('dialogue-ratio', 'minor', `对话占比 ${Math.round(metrics.dialogueRatio * 100)}%`))
   }
   return findings
 }

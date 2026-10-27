@@ -44,7 +44,7 @@ export const STORE_DIR = '.storycraft'
 export const CATALOG_SCHEMA_VERSION = 1
 
 /** Schema version of one work database. */
-export const WORK_SCHEMA_VERSION = 8
+export const WORK_SCHEMA_VERSION = 9
 
 /** Final material table with purpose, used by new databases. */
 const MATERIALS_SCHEMA_V4 = `
@@ -341,6 +341,7 @@ export function openCatalog(root: string, options: { create?: boolean, busyTimeo
 /** Columns the current shape needs; a file without them predates the A0 schema. */
 const WORK_SCHEMA_REQUIRED_COLUMNS = Object.freeze({
   chapters: ['plan_revision', 'provenance'],
+  meta: ['outline_approved_revision', 'foundation_approved_revision'],
 })
 
 /** Reject a stale work file instead of letting a raw SQLite error surface later. */

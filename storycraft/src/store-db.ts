@@ -1428,7 +1428,7 @@ export function approveOutline(root: any, input: any) {
       if (meta.outline_written_at === null) throw new StoryError('outline-required', '还没有全书计划：先 story_outline')
       const at = now()
       const revision = outlineRevisionOf(db)
-      db.prepare('UPDATE meta SET outline_approved_at = ?, outline_approved_revision = ?, updated_at = ? WHERE id = 1').run(at, revision ?? '', at)
+      db.prepare('UPDATE meta SET outline_approved_at = ?, outline_approved_revision = ?, updated_at = ? WHERE id = 1').run(at, revision ?? null, at)
       return { workId, outline: { writtenAt: meta.outline_written_at, approvedAt: at } }
     })
   } finally {

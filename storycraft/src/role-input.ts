@@ -112,6 +112,9 @@ export async function loadRoleInput(root: string, input: RoleInput): Promise<Loa
       if (polished.changes.length === 0) {
         throw new StoryError('polish-noop', `第 ${number} 章没有可机械处理的腔调词`, '跳过修订，直接进入下一步（摘要或定稿）')
       }
+      // The reviser starts from the rule-polished text, so the model only works
+      // on what the rules could not express.
+      body = polished.text
     }
     if (role !== 'summarizer') {
       latest = latestReview(root, manifest, entry)
