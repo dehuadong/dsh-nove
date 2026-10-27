@@ -188,6 +188,13 @@ try {
     capped.key === 'revising' && capped.label.includes('上限')
     && capped.hint.includes('请作者裁决') && capped.primary.id === 'accept', JSON.stringify(capped))
 
+  const cappedNext = await s.nextStep(root, cappedWork)
+  check('the cap carries version, words and the open count to the author',
+    cappedNext.ask?.present?.[0]?.kind === 'text'
+    && cappedNext.ask.present[0].items[0].includes('r')
+    && cappedNext.ask.present[0].items[1].includes('字')
+    && cappedNext.ask.question.includes('接受当前版本'), JSON.stringify(cappedNext.ask))
+
   const accepted = s.acceptChapter(root, { work: cappedWork, chapter: 1 })
   const afterAccept = await state(cappedWork)
   check('accepting the current revision moves on to the summary',

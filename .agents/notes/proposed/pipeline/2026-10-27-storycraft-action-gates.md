@@ -181,6 +181,8 @@ skills/
 
 修复：扁平化、front matter 规范化、主文件拆到 references、拆多目标技能、写侧加确认、新增 `storycraft/scripts/validate-skills.mjs` 并接进 `ci.mjs`。
 
+**本仓库的校验约定**（`validate-skills.mjs` 实际强制，不只写在规范里）：目录一级扁平且 kebab-case；front matter 只有 `name` 与 `description`，`name` 等于目录名；`description` 必须含「触发：…」与一句读写边界（只读 / 只出方法 / 只给判断 / 写事件 / 不直接改文件）；主文件 ≤ 6100 字节；`references/` 里每个文件都必须在 SKILL.md 里被点名，否则视为无人加载的孤儿；`catalog.json` 列出的每个技能必须存在，每个技能必须至少属于一个模式。
+
 ## 三个批准记录在哪里
 
 基础设定 / 全书计划 / 章纲的「批准」是判断点的结果，不是闸门：
