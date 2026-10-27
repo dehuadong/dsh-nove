@@ -19,6 +19,19 @@ const skillsRoot = join(root, 'skills')
 const MAX_MAIN_BYTES = 6100
 const MAX_DESCRIPTION = 400
 
+/**
+ * Skill names mentioned in text that have no directory.
+ * @param text - any document that may name a skill.
+ * @param known - names of the skills on disk.
+ */
+export function findDanglingSkills(text, known) {
+  const missing = []
+  for (const match of String(text).matchAll(/storycraft-[a-z0-9-]+/gu)) {
+    if (!known.has(match[0])) missing.push(match[0])
+  }
+  return [...new Set(missing)]
+}
+
 const failures = []
 const fail = (message) => failures.push(message)
 
@@ -118,23 +131,28 @@ if (catalog !== undefined) {
   }
 }
 
-// Every storycraft-* name mentioned in a skill must exist as a skill directory.
+// Every storycraft-* name mentioned by a skill must exist as a skill directory.
 {
   const known = new Set(skillDirs.map(entry => entry.name))
   for (const entry of skillDirs) {
-    let text = ''
-    try {
-      text = readFileSync(join(skillsRoot, entry.name, 'SKILL.md'), 'utf8')
-    } catch {
-      continue
-    }
-    for (const match of text.matchAll(/storycraft-[a-z0-9-]+/gu)) {
-      const name = match[0]
-      if (!known.has(name)) fail(`skills/${entry.name}: mentions missing skill ${name}`)
+    const base = join(skillsRoot, entry.name)
+    const files = []
+    try { files.push(join(base, 'SKILL.md')) } catch { /* reported above */ }
+    let refs = []
+    try { refs = readdirSync(join(base, 'references')).map(name => join(base, 'references', name)) } catch { refs = [] }
+    for (const file of [...files, ...refs]) {
+      let text = ''
+      try {
+        text = readFileSync(file, 'utf8')
+      } catch {
+        continue
+      }
+      for (const name of findDanglingSkills(text, known)) {
+        fail(`skills/${entry.name}: mentions missing skill ${name} in ${file.split(/[\\/]/u).pop()}`)
+      }
     }
   }
 }
-
 if (failures.length > 0) {
   console.error('[skills] FAILED')
   for (const failure of failures) console.error(`  - ${failure}`)
