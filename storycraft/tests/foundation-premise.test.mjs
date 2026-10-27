@@ -43,6 +43,7 @@ try {
     mismatch = error?.code ?? String(error)
   }
   check('a frame unrelated to the proposal is refused', mismatch === 'foundation-mismatch', mismatch)
+  check('a refused frame lands no artifact', s.readFoundationState(root, work).stages.frame === false, JSON.stringify(s.readFoundationState(root, work).stages))
 
   let landed = ''
   try {

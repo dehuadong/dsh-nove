@@ -17,6 +17,7 @@ import {
   type Form,
 } from './storage.ts'
 import { readFoundationDocuments, writeContextTrace } from './artifact-store.ts'
+import { acceptedProposalOf } from './store-db.ts'
 import { critique, findingsOf } from './critique.ts'
 import { loadRoleInput } from './role-input.ts'
 import { checkDraft } from './landing.ts'
@@ -549,6 +550,7 @@ interface FoundationDocuments {
 
 /** One foundation-stage prompt request. */
 interface ArchitectPromptRequest {
+  proposal?: { premise: string, characters: string }
   work: string
   stage: FoundationStage
   instruction: string
@@ -559,7 +561,7 @@ interface ArchitectPromptRequest {
 }
 
 /** Build the architect child prompt for one foundation stage. */
-function architectPrompt({ work, stage, instruction, delegationId, manifest, foundation }: ArchitectPromptRequest): string {
+function architectPrompt({ work, stage, instruction, delegationId, manifest, foundation, proposal }: ArchitectPromptRequest): string {
   const labels = { frame: '故事框架与卷图', rules: '作品规则', roles: '角色索引', cards: '角色卡' }
   const shapes = {
     frame: 'payload 格式：{"storyFrame":"# 故事框架…（含 ## 前提/## 核心冲突/## 主角动机/## 约束/## 因果解决）","volumeMap":"## 第一卷\\n- 卷目标：…\\n- 起止章：…\\n- 关键节拍：…\\n- 卷末承诺：…","currentFocus":"# 当前焦点\\n…"}。',
@@ -574,6 +576,7 @@ function architectPrompt({ work, stage, instruction, delegationId, manifest, fou
   return [
     `你是《${manifest.title}》（${manifest.workId}）的架构师子代理，负责基础设定：${labels[stage]}。`,
     '开工前先调用 skill 工具加载 `storycraft-architect`，严格按它的契约与 longform foundation-design 参考执行。',
+    ...(proposal === undefined ? [] : ['', '## 作者已确认的提案', `前提：${proposal.premise}`, `人物：${proposal.characters}`, '只依据本任务的提案与已确认材料工作；不得延续其它会话或其它作品的内容。']),
     '',
     '## 本次任务',
     instruction.trim() === '' ? `生成${labels[stage]}。` : instruction.trim(),
@@ -612,6 +615,7 @@ async function delegateArchitect(root: string, input: ArchitectInput, host: Dele
   const prompt = architectPrompt({
     work, stage, instruction: typeof input.instruction === 'string' ? input.instruction : '',
     delegationId: opened.delegationId, manifest,
+    proposal: acceptedProposalOf(root, work),
     foundation: {
       storyFrame: documents.storyFrame === undefined ? undefined : documents.storyFrame.content,
       volumeMap: documents.volumeMap === undefined ? undefined : documents.volumeMap.content,

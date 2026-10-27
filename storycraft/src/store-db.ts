@@ -1076,41 +1076,48 @@ export function readFoundationState(root: any, work: any) {
  * words or characters was generated from something else, so it must not land.
  * @returns deduplicated tokens; empty when the work has no accepted proposal.
  */
-function proposalTokensOf(root: any, workId: string): string[] {
+/** The accepted proposal of one work, when the catalog has it. */
+export function acceptedProposalOf(root: any, workId: string): { premise: string, characters: string } | undefined {
   let catalog: ReturnType<typeof openCatalog>
   try {
     catalog = openCatalog(root, { create: false })
   } catch {
-    // Fail closed: without the proposal the guard cannot judge, so it refuses.
     throw new StoryError('foundation-mismatch', '读不到提案，无法校验基础设定', '先确认作品库可读，再重试')
   }
-  if (catalog === undefined) return []
+  if (catalog === undefined) {
+    throw new StoryError('foundation-mismatch', '读不到提案，无法校验基础设定', '先确认作品库可读，再重试')
+  }
   try {
     const row = catalog.prepare('SELECT premise, characters FROM proposals WHERE used_work_id = ? ORDER BY created_at DESC LIMIT 1').get(workId)
-    if (row === undefined) return []
-    const tokens: string[] = []
-    for (const part of String(row.premise ?? '').split(/[，。；、：！？\s“”"（）()]+/u)) {
-      const chars = [...part]
-      if (chars.length >= 2) tokens.push(part)
-      // Three-character windows catch a frame that names the premise with other wording.
-      for (let index = 0; index + 3 <= chars.length; index += 1) tokens.push(chars.slice(index, index + 3).join(''))
-    }
-    try {
-      const list = JSON.parse(String(row.characters ?? '[]'))
-      if (Array.isArray(list)) {
-        for (const item of list) {
-          const name = typeof item === 'string' ? item : item?.name
-          if (typeof name === 'string' && [...name].length >= 2) tokens.push(name)
-        }
-      }
-    } catch {
-      // characters are optional
-    }
-    return [...new Set(tokens)]
+    if (row === undefined) return undefined
+    return { premise: String(row.premise ?? ''), characters: String(row.characters ?? '[]') }
   } finally {
     catalog.close()
   }
 }
+function proposalTokensOf(root: any, workId: string): string[] {
+  const proposal = acceptedProposalOf(root, workId)
+  if (proposal === undefined) return []
+  const tokens: string[] = []
+  for (const part of proposal.premise.split(/[，。；、：！？\s“”"（）()]+/u)) {
+    const chars = [...part]
+    if (chars.length >= 2) tokens.push(part)
+    for (let index = 0; index + 3 <= chars.length; index += 1) tokens.push(chars.slice(index, index + 3).join(''))
+  }
+  try {
+    const list = JSON.parse(proposal.characters === '' ? '[]' : proposal.characters)
+    if (Array.isArray(list)) {
+      for (const item of list) {
+        const name = typeof item === 'string' ? item : item?.name
+        if (typeof name === 'string' && [...name].length >= 2) tokens.push(name)
+      }
+    }
+  } catch {
+    // characters are optional
+  }
+  return [...new Set(tokens)]
+}
+
 export function writeFoundationStage(root: any, input: any) {
   const workId = String(input.work)
   const stage = String(input.stage)
