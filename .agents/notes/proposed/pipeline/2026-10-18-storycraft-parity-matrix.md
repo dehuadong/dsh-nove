@@ -171,9 +171,9 @@ A0 = 产物合同 v2；P0 先于 R10b，P1/P2 可独立，R12 保持原排期。
 - 参考 2.0.0 无 `.git`，无法核验 commit；以源码与 `package.json` 版本为准，研究文档里的 commit pin 不能作为证据。
 
 
-## 参考工程深层机制（2026-10-27 复核）
+## 参考工程深层机制：dsh-webnovel-writer（2026-10-27 复核）
 
-上一轮只看技能目录，这一轮读代码，参考工程的“理念”在五处机制里，而不在技能数量上：
+本节参考对象是 **`E:\workspace\dsh-webnovel-writer`**（不是 `inkos-master`；本表其余各节仍以 inkos-master 为准，两份参考不混用）。上一轮只看技能目录，这一轮读 `packages/bundle`、`packages/core`、`packages/polish`、`packages/review` 的源码；该工程的“理念”在下面五处机制里，而不在技能数量上：
 
 | 机制 | 参考证据 | 我们的现状 | 结论 |
 | --- | --- | --- | --- |
