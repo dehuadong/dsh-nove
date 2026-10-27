@@ -44,7 +44,7 @@ updated: 2026-10-26
 - 不建根级 shim/转发文件；一个模块只有一个实现；
 - `npm run build` 用本地 `typescript`（Host）与本地 `esbuild`（Client），`prepack` 自动构建。
 
-> **部分替代（2026-10-26）**：本节关于“`dist/*.js` 逐文件产物、源内写 `./<module>.js`、测试 import dist”的三条约定，由 [2026-10-26-storycraft-bundled-build.md](2026-10-26-storycraft-bundled-build.md) 替代：源码 specifier 改为 `.ts`，Host 产物改为 `lib/` 入口打包，测试改为 import 源码。本节的类型来源、分批迁移顺序与 Client 单文件约束继续有效。
+> **部分替代（2026-10-26）**：本节关于“`dist/*.js` 逐文件产物、源内写 `./<module>.js`、测试 import dist”的三条约定，由 [2026-10-26-storycraft-bundled-build.md](../../implemented/pipeline/2026-10-26-storycraft-bundled-build.md) 替代：源码 specifier 改为 `.ts`，Host 产物改为 `lib/` 入口打包，测试改为 import 源码。本节的类型来源、分批迁移顺序与 Client 单文件约束继续有效。
 
 不在本计划：把 `dist` 提交、`allowJs` 混编、根入口 `index.js` 直接改名。
 

@@ -26,7 +26,7 @@ updated: 2026-10-26
 
 ### 1. manifest
 
-`storycraft/package.json` 增加发布字段；产物位置与入口由 [2026-10-26-storycraft-bundled-build.md](2026-10-26-storycraft-bundled-build.md) 拥有，`exports`、`main`、`dsh`、`icon`、`description` 的**值**以该 Note 为准，本节只管发布字段：
+`storycraft/package.json` 增加发布字段；产物位置与入口由 [2026-10-26-storycraft-bundled-build.md](../../implemented/pipeline/2026-10-26-storycraft-bundled-build.md) 拥有，`exports`、`main`、`dsh`、`icon`、`description` 的**值**以该 Note 为准，本节只管发布字段：
 
 - 去掉 `private`；
 - `version: "0.1.0"`；
@@ -41,7 +41,7 @@ updated: 2026-10-26
 
 ### 2. 构建与安装脚本
 
-> **部分替代（2026-10-26）**：Host 的构建方式与产物位置改由 [2026-10-26-storycraft-bundled-build.md](2026-10-26-storycraft-bundled-build.md) 拥有（tsdown 出 `lib/` 入口，esbuild 转译 Client）。本节只保留“哪些脚本触发构建”与发布门禁。
+> **部分替代（2026-10-26）**：Host 的构建方式与产物位置改由 [2026-10-26-storycraft-bundled-build.md](../../implemented/pipeline/2026-10-26-storycraft-bundled-build.md) 拥有（tsdown 出 `lib/` 入口，esbuild 转译 Client）。本节只保留“哪些脚本触发构建”与发布门禁。
 
 沿用现有的 `scripts/build.mjs` 作为唯一构建入口，不引入第二套构建命令：
 
