@@ -117,7 +117,8 @@ export async function loadRoleInput(root: string, input: RoleInput): Promise<Loa
       body = polished.text
     }
     if (role !== 'summarizer') {
-      latest = latestReview(root, manifest, entry)
+      const stored = latestReview(root, manifest, entry)
+      latest = stored !== undefined && stored.stale === true ? undefined : stored
       const observations = latest?.observations ?? []
       const open: ReviewItem[] = observations
         .filter(observation => observation.assessment === 'issue')

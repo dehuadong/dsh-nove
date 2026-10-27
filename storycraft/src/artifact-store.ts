@@ -4,6 +4,7 @@ import { StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, chapterNumber, contentVe
 import { ARTIFACT_IDENTITY, validateArtifactRecord, validateChapterMemo, validateChapterMeta, validateChapterSummary } from './artifact-contract.ts'
 import { openWork, touchMeta, transaction } from './db.ts'
 import { syncSearchDoc } from './search-index.ts'
+import { reviewInputOf } from './review-binding.ts'
 
 function serialize(content: any) {
   if (typeof content === 'string') return { contentType: 'text', text: content }
@@ -800,8 +801,6 @@ export function writeChapterObservationsOnDb(db: any, root: any, input: any) {
   verifyObservationSources(root, input.work, chapter, bodyRevision, input.observations, db)
   const artifactId = `review:${chapter}:r${bodyRevision}:${round}`
   const content = { observations: input.observations }
-  const planRow = db.prepare('SELECT revision_id FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
-    .get(`plan:${chapter}`)
   putArtifactOnDb(db, {
     workId: String(input.work),
     artifactId,
@@ -811,7 +810,7 @@ export function writeChapterObservationsOnDb(db: any, root: any, input: any) {
     content,
     provenance: input.provenance ?? 'generated',
     createdAt: input.createdAt ?? now(),
-  }, { inputRevision: planRow === undefined ? undefined : String(planRow.revision_id) })
+  }, { inputRevision: reviewInputOf(db, chapter) })
   return { artifactId, revision: round, revisionId: artifactRevision(content) }
 }
 

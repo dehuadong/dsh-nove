@@ -93,6 +93,7 @@ import {
   artifactRevision, FOUNDATION_DOCUMENTS, putArtifactOnDb, remapChapterArtifacts, renderChapterMemo, renderFoundationContent,
   writeChapterMemoOnDb, writeChapterObservationsOnDb, writeChapterSummaryOnDb, writeTextArtifactOnDb, readTextArtifactOnDb,
 } from './artifact-store.ts'
+import { reviewInputOf } from './review-binding.ts'
 
 /** How long an unused proposal is kept before the next proposal write prunes it. */
 export const PROPOSAL_TTL_MS = 30 * 24 * 60 * 60 * 1000
@@ -276,12 +277,11 @@ function reviewRecords(db: any, number: any) {
     .map((row: any) => {
       const match = /^review:(\d+):r(\d+):(\d+)$/u.exec(String(row.artifact_id))
       const content = JSON.parse(String(row.content))
-      const currentPlan = artifactRevisionOf(db, `plan:${number}`)
       // A review written before the column existed carries no binding; it falls
       // back to the revision check instead of becoming permanently stale.
       const stale = row.input_revision === null || row.input_revision === undefined
         ? false
-        : row.input_revision !== (currentPlan ?? null)
+        : row.input_revision !== reviewInputOf(db, number)
       return {
         artifactId: row.artifact_id,
         revisionId: row.revision_id,
@@ -1959,6 +1959,7 @@ export function latestReview(root: any, work: any, chapter: any) {
     return {
       round: record.round,
       revision: record.revision,
+      stale: record.stale === true,
       path: virtualPath(workId, `reviews/${chapterStem(number)}.r${record.round}.md`),
       artifactId: record.artifactId,
       revisionId: record.revisionId,
