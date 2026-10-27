@@ -52,9 +52,9 @@ updated: 2026-10-27
 
 ### 3. 校验与安装 smoke
 
-- 扩展 `scripts/pack-check.mjs`：在现有断言（入口集合从 `exports` 派生、`lib/` 无未声明产物、禁止 `src`/tests/e2e/scripts）之外，断言 `private` 不存在、`engines.dsh` 存在、`license` 字段与 `LICENSE` 文件一致、`LICENSE` 在包内、`files` 里没有 `dist`。
-- 新增 `scripts/install-smoke.mjs`：临时 `DSH_HOME` 下用 `dsh --profile smoke --from-default-profile web` 建立独立 profile，再 `dsh plugin --profile smoke add <tgz>`；`dsh --profile smoke --dump-config` 断言出现 `# == see-storycraft` 层与 `see-storycraft` 行；随后按 `e2e/host.mjs` 的方式冷启动 web 实例（`ELECTRON_RUN_AS_NODE=1`、`web --port <空闲端口> --no-open`、解析 stdout 的 token URL）；用 `e2e/load.spec.cjs` 同一套断言检查页面无 `pageerror`、`GET /api/see-storycraft/works?root=…` 返回 200。桌面客户端路径沿用 `DSH_E2E_APP` 覆盖，不写死在脚本里。
-- `ci.mjs` 增加一次 tarball 安装 smoke；与现有 e2e 复制模式二选一运行，避免同时启动两个实例。
+- 扩展 `scripts/pack-check.mjs`：在现有断言（入口集合从 `exports` 派生、`lib/` 无未声明产物、禁止 `src`/tests/e2e/scripts）之外，断言 `private` 不存在、`engines.dsh` 存在、`license` 字段与 `LICENSE` 文件一致、`LICENSE` 在包内、`files` 里没有 `dist`。**断言逻辑抽成纯函数**（输入 `package.json`、tarball 清单与 `lib/` 文件列表，返回失败列表），负例由 `tests/` 里的单测喂伪造清单来证明，不修改工作区。
+- 新增 `scripts/install-smoke.mjs`：自己 `npm pack` 出一个 tgz 到临时目录（并断言只产出一个包），在临时 `DSH_HOME` 下用 `dsh --profile smoke --from-default-profile web` 建立独立 profile，再 `dsh plugin --profile smoke add <tgz>`；`dsh --profile smoke --dump-config` 断言出现 `# == see-storycraft` 层与 `see-storycraft` 行；随后按 `e2e/host.mjs` 的方式冷启动 web 实例（`ELECTRON_RUN_AS_NODE=1`、`web --port <空闲端口> --no-open`、解析 stdout 的 token URL）；写一份 `runtime.json` 后跑 `e2e/load.spec.cjs` 的同一套断言（页面无 `pageerror`、`GET /api/see-storycraft/works?root=…` 返回 200）。桌面客户端路径沿用 `DSH_E2E_APP` 覆盖，不写死在脚本里。
+- `ci.mjs` 二选一：默认跑 e2e 复制模式；加 `--smoke` 时改为跑 tarball 安装 smoke，两者互斥，避免同时启动两个实例。
 - 安装生效方式必须分开写：`link:` 开发是「build 后重新加载」（模块是 junction，改完即生效）；tarball 与 registry 安装**必须重启 DeepSeek Harness**，因为渲染进程跑的是启动时那份客户端 bundle，正式构建里没有「重新加载页面」菜单项（`dsh-seework` 实测，`Ctrl+R` 也未绑定）。
 
 ### 3.1 验证入口（分层）
@@ -110,12 +110,11 @@ updated: 2026-10-27
 
 ## 验收条件
 
-1. `npm pack` 产物通过扩展后的 pack-check：清单含 `lib/{index,client,skills,tools}.js`、`skills/**`、`cordis.patch.yml`、`icon.svg`、`README.md`、`LICENSE`，不含 `src`、`tests`、`e2e`、`scripts`；`private` 不存在、`engines.dsh` 存在、`license` 与 `LICENSE` 一致。
-2. tarball 在临时 `DSH_HOME` 的独立 profile 中安装成功，`--dump-config` 出现 `see-storycraft` 层，冷启动页面无 `pageerror` 且工作台路由返回 200。
-3. 发布后从 registry 安装 `see-storycraft@0.1.0` 成功并完成同样的挂载验收。
-4. 本机 link 开发回归：现有 e2e 复制模式仍通过。
-5. 把 `engines.dsh` 改成当前运行版本不满足的范围后，隔离 profile 的安装被宿主拒绝并给出原因。
-6. 安装生效说明分成两条并写进 README：`link:` 是 build 后重新加载；tarball/registry 是**重启 DeepSeek Harness**。发布验收必须用 tarball 装进干净 profile，不用 `link:`。
+本节只列该设计需要被证明成立的技术点；交付范围、产品验收与批准证据归工作项 `#75`。
+
+1. pack-check 的新断言不是空转：断言纯函数由单测喂伪造清单（缺 `engines.dsh`、`license` 与 `LICENSE` 不一致、`lib/` 多出未声明文件）时各返回失败，且不改动工作区。
+2. tarball 在临时 `DSH_HOME` 的独立 profile 中安装后，`--dump-config` 出现 `see-storycraft` 层，冷启动页面无 `pageerror` 且工作台路由返回 200。
+3. 把 `engines.dsh` 改成当前运行版本不满足的范围后，隔离 profile 的安装被宿主拒绝并给出原因。
 
 ## 风险
 
