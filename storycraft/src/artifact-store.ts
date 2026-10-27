@@ -36,7 +36,7 @@ export function putArtifactOnDb(db: any, input: any, options: any = {}) {
   const chapter = envelope.scope?.chapter
   // Diagnostics traces may be written before the chapter row exists (foundation
   // stages run at work level); they are not chapter artifacts for that reason.
-  if (chapter !== undefined && envelope.kind !== 'trace') {
+  if (chapter !== undefined && !(envelope.kind === 'trace' && envelope.artifactId === 'trace:1:architect')) {
     const row = db.prepare('SELECT stage FROM chapters WHERE number = ?').get(chapter)
     if (row === undefined) throw new StoryError('chapter-not-found', `没有第 ${chapter} 章：不能写章节 artifact`)
     if (row.stage === 'settled' && !(options.allowSettled === true && (envelope.kind === 'summary' || envelope.kind === 'trace'))) {
@@ -54,7 +54,7 @@ export function putArtifactOnDb(db: any, input: any, options: any = {}) {
       typeof options.inputRevision === 'string' ? options.inputRevision : null)
   // A new memo revision invalidates the author's earlier confirmation.
   if (envelope.kind === 'plan' && chapter !== undefined) {
-    db.prepare('UPDATE chapters SET plan_approved_at = NULL, plan_revision = NULL, updated_at = ? WHERE number = ?')
+    db.prepare('UPDATE chapters SET plan_approved_at = NULL, plan_revision = NULL, plan_approved_source = NULL, updated_at = ? WHERE number = ?')
       .run(now(), chapter)
   }
   if (options.search !== undefined) {

@@ -577,6 +577,7 @@ export function readManifest(root: string, work: unknown): any {
           outline: {
             writtenAt: meta.outline_written_at,
             ...(outlineApprovedAt(db) === undefined ? {} : { approvedAt: outlineApprovedAt(db) }),
+    ...(meta.outline_approved_source === null ? {} : { approvedSource: meta.outline_approved_source }),
           },
         }),
         foundation: foundationStateOf(db),
@@ -593,6 +594,7 @@ export function readManifest(root: string, work: unknown): any {
             planApproved: chapter.plan_approved_at !== null
               && memoRevision !== undefined && chapter.plan_revision === memoRevision,
             ...(chapter.plan_approved_at === null ? {} : { planApprovedAt: chapter.plan_approved_at }),
+    ...(chapter.plan_approved_source === null ? {} : { planApprovedSource: chapter.plan_approved_source }),
             ...(chapter.plan_revision == null ? {} : { planRevision: chapter.plan_revision }),
             provenance: chapter.provenance ?? 'generated',
             ...(chapter.last_revise_mode === null ? {} : { lastReviseMode: chapter.last_revise_mode }),
@@ -1078,7 +1080,8 @@ function proposalTokensOf(root: any, workId: string): string[] {
   try {
     catalog = openCatalog(root, { create: false })
   } catch {
-    return []
+    // Fail closed: without the proposal the guard cannot judge, so it refuses.
+    throw new StoryError('foundation-mismatch', '读不到提案，无法校验基础设定', '先确认作品库可读，再重试')
   }
   if (catalog === undefined) return []
   try {
@@ -1086,7 +1089,10 @@ function proposalTokensOf(root: any, workId: string): string[] {
     if (row === undefined) return []
     const tokens: string[] = []
     for (const part of String(row.premise ?? '').split(/[，。；、：！？\s“”"（）()]+/u)) {
-      if ([...part].length >= 2) tokens.push(part)
+      const chars = [...part]
+      if (chars.length >= 2) tokens.push(part)
+      // Three-character windows catch a frame that names the premise with other wording.
+      for (let index = 0; index + 3 <= chars.length; index += 1) tokens.push(chars.slice(index, index + 3).join(''))
     }
     try {
       const list = JSON.parse(String(row.characters ?? '[]'))
@@ -1252,7 +1258,7 @@ export function nextStep(root: any, work: any) {
             if (foundation.approvedAt === undefined) {
               return {
                 chapter, stage: 'planned', action: 'story_architect',
-                reason: '基础设定已生成，等作者在面板「基础设定」里确认，再写全书计划',
+                reason: '基础设定已生成，等作者确认（面板「基础设定」或会话里的 story_approve），再写全书计划',
                 blocked: ['foundation-approval'],
               }
             }
