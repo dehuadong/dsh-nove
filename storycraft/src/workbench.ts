@@ -111,6 +111,18 @@ export function deriveWorkbench(input: { next: WorkbenchNext, manifest: Workbenc
     }
   }
 
+  if (blocked.includes('revision-limit')) {
+    return {
+      key: 'revising',
+      label: '修订已达上限',
+      hint: `第 ${chapter} ${unit}已修订多轮，仍有未处理审稿：请作者裁决，接受当前版本或明确要求继续修订`,
+      primary: action('revise', `继续修订第 ${chapter} ${unit}`),
+      secondary: [action('summarize', `写第 ${chapter} ${unit}摘要`, {
+        code: 'open-items', reason: '审稿清单还有未处理条目',
+      })],
+    }
+  }
+
   switch (next.action) {
     case 'story_architect':
       return { key: 'foundation-needed', label: '基础设定', hint, primary: action('architect', '生成基础设定'), secondary: [] }

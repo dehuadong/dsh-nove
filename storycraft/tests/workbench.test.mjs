@@ -150,6 +150,33 @@ try {
     volume.key === 'volume-summary' && volume.primary.id === 'volume-summary'
     && volume.secondary.some(item => item.id === 'next-plan'), JSON.stringify(volume))
 
+  // Revision cap (#76): after three revise rounds the author decides.
+  const cappedWork = fresh({ form: 'short' })
+  s.writeOutline(root, { work: cappedWork, mainline: '一条主线' })
+  s.approveOutline(root, { work: cappedWork })
+  s.writePlan(root, {
+    work: cappedWork, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't', body: 'b', threadRefs: [],
+  })
+  s.approveChapterPlan(root, { work: cappedWork, chapter: 1 })
+  s.writeChapter(root, { work: cappedWork, chapter: 1, title: '一', body: '正文。'.repeat(40) })
+  let cappedBody = '正文。'.repeat(40)
+  for (let round = 0; round < 4; round += 1) {
+    s.writeReview(root, {
+      work: cappedWork, chapter: 1,
+      observations: [{
+        id: 'O1', summary: '慢', evidence: ['e'], category: 'quality', assessment: 'issue',
+        sourceRefs: [{ sourceId: `chapter:1:r${round + 1}`, quote: '正文。'.repeat(5) }],
+      }],
+    })
+    if (round === 3) break
+    cappedBody = `${cappedBody}改。`
+    s.reviseChapter(root, { work: cappedWork, chapter: 1, body: cappedBody, problemIds: ['O1'], mode: 'rewrite' })
+  }
+  const capped = await state(cappedWork)
+  check('revision rounds stop at the cap and ask the author',
+    capped.key === 'revising' && capped.label.includes('上限')
+    && capped.hint.includes('请作者裁决') && capped.primary.id === 'revise', JSON.stringify(capped))
+
   const seen = [foundation, outlineNeeded, outlinePending, planNeeded, planPending, writing, reviewing,
     revising, summarizing, settling, volume, foundationPending]
   check('a settled chapter returns to the plan state', nextPlan.key === 'plan-needed' && nextPlan.primary.id === 'write-plan', JSON.stringify(nextPlan))

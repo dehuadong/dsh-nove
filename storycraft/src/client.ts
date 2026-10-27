@@ -7,6 +7,15 @@ window.__ModuleLoader__.load({
     const h = React.createElement
     const { useCallback, useEffect, useRef, useState } = React
 
+    /**
+     * The message the panel sends after an author approval.
+     *
+     * It continues only to the next author gate: "不要再次询问确认" let the model
+     * run through every later gate (#76), so the wording names the stop instead.
+     */
+    const approvalMessage = (what: string): string =>
+      `${what}已确认。请调 story_next，按返回的下一步继续；遇到下一个作者闸门就停下等我确认，不要跳过。`
+
     // ---------------------------------------------------------------------
     // Types this bundle hands around. All of it is erased at build time: the
     // published file stays one plain script holding the loader's require('react').
@@ -1504,7 +1513,7 @@ window.__ModuleLoader__.load({
                 onClick: async () => {
                   try {
                     await face.approveChapterPlan(root, sessionId, workId, chapter.number)
-                    const failure = await face.send(`第 ${chapter.number} 章章纲已确认。请调 story_next，按返回的下一步继续；不要再次询问确认。`)
+                    const failure = await face.send(approvalMessage(`第 ${chapter.number} 章章纲`))
                     onNotice?.(failure === undefined
                       ? { kind: 'ok', text: '章纲已确认，已通知会话继续。' }
                       : { kind: 'error', text: `章纲已确认，但通知会话失败：${failure}` })
@@ -2058,7 +2067,10 @@ window.__ModuleLoader__.load({
         if (sessionId === undefined) return
         try {
           await face.approveFoundation(root, sessionId, manifest.workId)
-          onNotice({ kind: 'ok', text: '基础设定已确认；下一步由作者决定何时继续会话。' })
+          const failure = await face.send(approvalMessage('基础设定'))
+          onNotice(failure === undefined
+            ? { kind: 'ok', text: '基础设定已确认，已通知会话继续。' }
+            : { kind: 'error', text: `基础设定已确认，但通知会话失败：${failure}` })
           void loadFoundation()
           void load()
         } catch (error) {
@@ -2069,7 +2081,7 @@ window.__ModuleLoader__.load({
         if (sessionId === undefined) return
         try {
           await face.approveOutline(root, sessionId, manifest.workId)
-          const failure = await face.send('全书计划已确认。请调 story_next，按返回的下一步继续；不要再次询问确认，也不要跳过作者闸门。')
+          const failure = await face.send(approvalMessage('全书计划'))
           onNotice(failure === undefined
             ? { kind: 'ok', text: '全书计划已确认，已通知会话继续。' }
             : { kind: 'error', text: `全书计划已确认，但通知会话失败：${failure}` })
@@ -2082,7 +2094,7 @@ window.__ModuleLoader__.load({
         if (sessionId === undefined) return
         try {
           await face.approveChapterPlan(root, sessionId, manifest.workId, chapter)
-          const failure = await face.send(`第 ${chapter} 章章纲已确认。请调 story_next，按返回的下一步继续；不要再次询问确认。`)
+          const failure = await face.send(approvalMessage(`第 ${chapter} 章章纲`))
           onNotice(failure === undefined
             ? { kind: 'ok', text: '章纲已确认，已通知会话继续。' }
             : { kind: 'error', text: `章纲已确认，但通知会话失败：${failure}` })
@@ -2190,7 +2202,10 @@ window.__ModuleLoader__.load({
                 onClick: async () => {
                   try {
                     await face.approveFoundation(root, sessionId, manifest.workId)
-                    onNotice({ kind: 'ok', text: '基础设定已确认；下一步由作者决定何时继续会话。' })
+                    const failure = await face.send(approvalMessage('基础设定'))
+                    onNotice(failure === undefined
+                      ? { kind: 'ok', text: '基础设定已确认，已通知会话继续。' }
+                      : { kind: 'error', text: `基础设定已确认，但通知会话失败：${failure}` })
                     void loadFoundation()
                     void load()
                   } catch (error) {

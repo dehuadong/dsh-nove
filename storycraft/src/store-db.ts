@@ -17,6 +17,21 @@ import { join } from 'node:path'
 import type { Database } from './db.ts'
 import type { ArtifactRow, BibleRow, ChapterRow, ChapterVersionRow, EventRow, MaterialRow, MetaRow, VolumeRow, WorkRow } from './store-rows.ts'
 
+/**
+ * Revision rounds one chapter may consume before the author has to decide.
+ *
+ * A reviewer can always find five more observations, so "keep revising until
+ * clean" never converges on a real link (#50 acceptance: 5/5/2/5 over four
+ * rounds, 2840 words against a 3000 ceiling). The cap turns that loop into an
+ * author decision instead of a token sink.
+ */
+export const MAX_REVISION_ROUNDS = 3
+
+/** Revisions spent on this chapter so far (revision 1 is the first draft). */
+export function revisionRounds(currentRevision: number): number {
+  return Math.max(0, currentRevision - 1)
+}
+
 export interface WriteChapterInput {
   work: string
   chapter: number | string
@@ -1110,6 +1125,16 @@ export function nextStep(root: any, work: any) {
         ? { blocked: ['plan-approval'] } : {}
       const open = openObservations(candidate)
       if (open.length > 0) {
+        const rounds = revisionRounds(last.currentRevision)
+        if (rounds >= MAX_REVISION_ROUNDS) {
+          return {
+            chapter: last.number, stage, action: 'story_revise',
+            reason: `第 ${last.number} 章已修订 ${rounds} 轮（上限 ${MAX_REVISION_ROUNDS}），仍有 ${open.length} 条未处理审稿：请作者在面板裁决`,
+            missing: open.map((item: any) => item.id),
+            ...blocked,
+            blocked: ['revision-limit', ...((blocked as { blocked?: string[] }).blocked ?? [])],
+          }
+        }
         return {
           chapter: last.number, stage, action: 'story_revise',
           reason: `第 ${last.number} 章还有 ${open.length} 条未处理审稿`, missing: open.map((item: any) => item.id), ...blocked,
