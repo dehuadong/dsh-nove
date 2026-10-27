@@ -59,13 +59,13 @@ Host 现在是 36 个 `src/*.ts`，相对导入写 `./x.js`；构建用 tsc（`m
 
 - `main: "./lib/index.js"`；`exports` 的 `.`、`./client`、`./skills`、`./tools` 全部指向 `lib/`；
 - `prepack` 仍先构建；
-- 本文只要求 `files` 包含 `lib`、不含 `src`/tests/e2e/scripts；白名单最终取值与 `private`/`license`/`engines`/`repository` 归 [发布 Note](2026-10-26-storycraft-release-packaging.md)。
+- `engines.node` 归本文：最低 `>=22.18`，因为测试与 e2e fixture 直接运行 TS 源码、依赖类型擦除；其余发布字段（`private`/`version`/`license`/`repository`/`engines.dsh`）与 `files` 白名单的最终取值归 [发布 Note](2026-10-26-storycraft-release-packaging.md)，本文只要求 `files` 包含 `lib`、不含 `src`/tests/e2e/scripts。
 
 ### 4. 测试与 e2e
 
 - 54 个 `tests/*.test.mjs` 的 157 处 `../dist/<module>.js` 改为 `../src/<module>.ts`；runner 不变（自建 `check()`，不是 node:test，也不引入 vitest）；
-- `e2e/host.mjs` 的 fixture 同样改为 import `src/storage.ts`：打包后不再有一对一的 `lib/storage.js`，fixture 只能吃源码；Playwright spec 只读 `runtime.json`，不改；
-- 依赖 Node ≥22.18 的运行时类型擦除（本机 24.10、宿主 24.21 已实测静态与动态 import `.ts` 均可用）；`ci.mjs` 在测试前不再 build，顺序改为 typecheck → tests → build → pack-check → e2e。
+- `e2e/host.mjs` 的 fixture 与 `e2e/workbench.spec.cjs` 里给探针造数据的地方都改为 import `src/*.ts`：打包后不再有一对一的 `lib/storage.js`，规格只能吃源码；
+- 依赖 Node ≥22.18 的运行时类型擦除（本机 24.10、宿主 24.21 已实测静态与动态 import `.ts` 均可用）；版本下限由一个共享的 `scripts/node-version.mjs` 断言，`ci.mjs` 与 e2e harness 共用；`ci.mjs` 在测试前不再 build，顺序改为 typecheck → tests → build → pack-check → e2e。
 
 ### 5. 迁移顺序
 
@@ -106,8 +106,8 @@ Host 现在是 36 个 `src/*.ts`，相对导入写 `./x.js`；构建用 tsc（`m
 1. `src` 内不存在 `from './x.js'` 形式的相对导入；
 2. `tsc -p tsconfig.json` 与 `tsc -p tsconfig.client.json` 均通过（`noEmit`）；
 3. 54 个测试不 build 直接通过；`node storycraft/scripts/ci.mjs` 全绿（含 E2E）；
-4. `npm pack` 清单至少含 `lib/{index,client,skills,tools}.js` + `skills/**` + `cordis.patch.yml` + `icon.svg` + `README.md` + `LICENSE`；`lib/` 内只允许四个入口与打包器切块，不出现与 `src` 模块一对一的产物，也不含 `src`、tests、e2e、scripts；
-5. 临时 profile 安装后 `--dump-config` 出现 `dsh-storycraft` 层，页面无 `pageerror`，`GET /api/dsh-storycraft/works` 返回 200；
+4. `npm pack` 清单至少含 `lib/{index,client,skills,tools}.js` + `skills/**` + `cordis.patch.yml` + `icon.svg` + `README.md`；`lib/` 内只允许四个入口与这些入口 import 的切块，出现其他文件即失败；不含 `src`、tests、e2e、scripts。`LICENSE` 由 [发布 Note](2026-10-26-storycraft-release-packaging.md) 引入，不在本次验收内；
+5. 临时 profile 安装后 `--dump-config` 出现 `dsh-storycraft` 层；页面无 `pageerror` 且 `GET /api/dsh-storycraft/works` 返回 200，两条都由 e2e 断言（`e2e/load.spec.cjs`+`e2e/host.mjs`），不靠人工观察；
 6. Node 下限写进 `engines.node`，并在 CI 前置断言（擦除需要 ≥22.18）。
 
 ## 风险

@@ -26,18 +26,18 @@ updated: 2026-10-26
 
 ### 1. manifest
 
-`storycraft/package.json` 增加发布字段，`exports`、`dsh`、`icon`、`description` 保持不变：
+`storycraft/package.json` 增加发布字段；产物位置与入口由 [2026-10-26-storycraft-bundled-build.md](2026-10-26-storycraft-bundled-build.md) 拥有，`exports`、`main`、`dsh`、`icon`、`description` 的**值**以该 Note 为准，本节只管发布字段：
 
 - 去掉 `private`；
 - `version: "0.1.0"`；
-- `main: "./dist/index.js"`；
+- `main: "./lib/index.js"`（入口集合见 bundled-build 的入口映射表）；
 - `license: "MIT"`，新增 `storycraft/LICENSE`（MIT 全文）；
 - `repository: { "type": "git", "url": "git+https://github.com/dehuadong/dsh-nove.git", "directory": "storycraft" }`；
-- `engines: { "dsh": ">=0.2.1-rc.2 <0.3.0" }`；
+- `engines.dsh: ">=0.2.1-rc.2 <0.3.0"`（`engines.node` 由 bundled-build 拥有：`>=22.18`）；
 - `keywords` 补 DSH 插件检索词；
-- `files` 为 `dist`、`skills`、`cordis.patch.yml`、`icon.svg`、`README.md`、`LICENSE`。
+- `files` 为 `lib`、`skills`、`cordis.patch.yml`、`icon.svg`、`README.md`、`LICENSE`。
 
-`src` 不进包；`dist` 仍由构建生成、不提交。
+`src` 不进包；`lib` 仍由构建生成、不提交。
 
 ### 2. 构建与安装脚本
 
@@ -46,9 +46,9 @@ updated: 2026-10-26
 沿用现有的 `scripts/build.mjs` 作为唯一构建入口，不引入第二套构建命令：
 
 - `build`：现有 `scripts/build.mjs`；
-- `prepare`：与 build 相同，供 git 直装在安装后生成 `dist/`，本地 `npm install` 也会触发；
+- `prepare`：与 build 相同，供 git 直装在安装后生成 `lib/`，本地 `npm install` 也会触发；
 - `prepack`：与 build 相同，保证 `npm pack` 与 `npm publish` 的产物完整；
-- `prepublishOnly`：`node scripts/pack-check.mjs`，发布前再校验一次 tarball。
+- `prepublishOnly`：`npm run build && node scripts/pack-check.mjs`。`npm publish` 先跑 prepublishOnly、再跑 prepack，而 pack-check 用 `npm pack --dry-run --ignore-scripts` 读清单、自己不再构建，所以这里必须先 build，否则干净树上会检查到空的 `lib/`。
 
 ### 3. 校验与安装 smoke
 
