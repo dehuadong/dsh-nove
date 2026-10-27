@@ -625,6 +625,8 @@ async function delegateArchitect(root: string, input: ArchitectInput, host: Dele
   // The architect is the one role whose output can contradict the proposal, so
   // its assembled input is recorded like the other roles. The shape follows the
   // trace contract; extra facts go into notes, which the contract allows.
+  // tokenBudget/sections stay empty on purpose: this is a provenance marker, not
+  // a replay of the assembled context.
   try {
     const sources = [
       ...(documents.storyFrame === undefined ? [] : ['story_frame']),

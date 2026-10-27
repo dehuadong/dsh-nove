@@ -88,6 +88,10 @@ updated: 2026-10-27
 - **追溯落点**：`delegateArchitect` 写 `trace:1:architect`，内容与其他角色一致（装配的段落与来源）。
 - **批准来源**：批准事件增加来源字段——基础设定与全书计划存 `meta` 的 `approved_source`，章纲存章节行的 `plan_approved_source`；会话入口为 `story_approve`，面板写同一事件。
 
+## 已知限制：架构师 trace 只是标记
+
+`trace:1:architect` 记录**阶段、来源 artifact 版本、四阶段完成状态与作者指令**；它**不含**装配后的段落正文与 token 预算——合同要求的 `tokenBudget`/`sections` 字段以零值与空数组占位，仅表示“未统计”，不代表真实装配。要复盘子代理究竟读到什么，需要把装配段落本身写进 trace，属于后续工作。
+
 ## 验收条件
 
 - 面板：E2E 断言无生成类按钮；确认按钮仍写入批准事件；
