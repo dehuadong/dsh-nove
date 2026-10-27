@@ -3454,7 +3454,7 @@ function exportManifest(root: any, workId: any, catalogRowValue: any, db: any) {
     planApproval: meta.plan_approval,
     outline: meta.outline_written_at === null ? null : {
       writtenAt: meta.outline_written_at,
-      approvedAt: meta.outline_approved_at,
+      approvedAt: outlineApprovedAt(db) ?? null,
     },
     chapters: chapters.map((chapter: any) => {
       const summary = summaryStateFrom(summaryStates, chapter.number)
@@ -3465,7 +3465,7 @@ function exportManifest(root: any, workId: any, catalogRowValue: any, db: any) {
         stage: chapter.stage,
         currentRevision: chapter.current_revision,
         words: chapter.words,
-        planApprovedAt: chapter.plan_approved_at,
+        planApprovedAt: planApprovalState(db, chapter.number).approved ? chapter.plan_approved_at : null,
         planRevision: chapter.plan_revision,
         provenance: chapter.provenance,
         summaryRevision: summary.revision,

@@ -714,10 +714,11 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
     throw new StoryError(
       'not-next-action',
       `现在应做的是 ${step.action}（${step.reason ?? ''}）；${ROLE_META[role].label} 不在当前步骤上`,
+      '按 story_next 返回的动作继续，不要换角色',
     )
   }
   if (role === 'reviser' && Array.isArray(step.blocked) && step.blocked.includes('revision-limit')) {
-    throw new StoryError('revision-limit', step.reason ?? `第 ${chapter} 章已达修订上限`)
+    throw new StoryError('revision-limit', step.reason ?? `第 ${chapter} 章已达修订上限`, '用「接受当前版本」推进，或先停')
   }
   const loaded = await loadRoleInput(root, {
     work, chapter, role,

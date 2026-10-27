@@ -123,7 +123,7 @@ export async function loadRoleInput(root: string, input: RoleInput): Promise<Loa
         .filter(observation => observation.assessment === 'issue')
         .map(observation => ({ id: observation.id, problem: observation.summary }))
       if (role === 'reviser' && open.length === 0) {
-        throw new StoryError('review-required', `第 ${number} 章没有未处理的审稿条目：先 story_review，再修订`)
+        throw new StoryError('review-required', `第 ${number} 章没有未处理的审稿条目：先 story_review，再修订`, '先出审稿清单，或直接进入摘要')
       }
       review = {
         round: latest?.round,
