@@ -1,7 +1,10 @@
 {
   "modes": {
-    "shared": ["storycraft-studio-orchestration"],
+    "shared": [
+      "storycraft-studio-entry"
+    ],
     "longform": [
+      "storycraft-long-director",
       "storycraft-architect",
       "storycraft-long-foundation",
       "storycraft-long-plan",
@@ -9,9 +12,23 @@
       "storycraft-long-settle",
       "storycraft-longform-chapter"
     ],
-    "shortform": ["storycraft-short-story", "storycraft-short-outline", "storycraft-short-prose"],
-    "screenplay": ["storycraft-script-spec", "storycraft-script-scene", "storycraft-short-drama"],
-    "review": ["storycraft-review", "storycraft-state-check", "storycraft-state-settler"],
-    "revise": ["storycraft-revise-craft"]
+    "shortform": [
+      "storycraft-short-story",
+      "storycraft-short-outline",
+      "storycraft-short-prose"
+    ],
+    "screenplay": [
+      "storycraft-script-spec",
+      "storycraft-script-scene",
+      "storycraft-short-drama"
+    ],
+    "review": [
+      "storycraft-review",
+      "storycraft-state-check",
+      "storycraft-state-settler"
+    ],
+    "revise": [
+      "storycraft-revise-craft"
+    ]
   }
 }

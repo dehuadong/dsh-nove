@@ -48,9 +48,11 @@ for (const [skill, references] of Object.entries(STAGES)) {
 }
 
 // The work-mode skill routes with fields the host fills, not with its own table.
-const orchestration = await readFile(join(skills, 'storycraft-studio-orchestration', 'SKILL.md'), 'utf8')
+const orchestration = await readFile(join(skills, 'storycraft-long-director', 'SKILL.md'), 'utf8')
 check('orchestration defers material and method to story_next', orchestration.includes('story_next') && orchestration.includes('ask'))
-check('orchestration carries no stage to reference table', !orchestration.includes('| 节点 |'))
+check('the director routes to stage skills, never to reference files',
+  orchestration.includes('storycraft-long-plan') && orchestration.includes('storycraft-long-prose')
+  && !orchestration.includes('references/foundation-design.md'))
 
 // Role skills stay thin.
 const review = await readFile(join(skills, 'storycraft-review', 'SKILL.md'), 'utf8')

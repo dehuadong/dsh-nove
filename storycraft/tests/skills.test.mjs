@@ -26,8 +26,9 @@ function mount(mode) {
 
 const all = mount('all')
 const names = (await all.provider.list()).map(skill => skill.name)
-check('all serves every form, every role, the shared catalog, the shared methods and the state tools', names.length === 17, names.join(','))
-check('the orchestration skill is shared', names.includes('storycraft-studio-orchestration'))
+check('all serves every form, every role, the shared catalog, the shared methods and the state tools', names.length === 18, names.join(','))
+check('the studio entry skill is shared', names.includes('storycraft-studio-entry'))
+check('the long-form director is mounted', names.includes('storycraft-long-director'))
 check('long form skill present', names.includes('storycraft-longform-chapter'))
 check('long stage skills present', ['storycraft-long-foundation', 'storycraft-long-plan', 'storycraft-long-prose', 'storycraft-long-settle'].every(name => names.includes(name)))
 check('short stage skills present', names.includes('storycraft-short-outline') && names.includes('storycraft-short-prose'))
@@ -69,8 +70,9 @@ check('the review catalog holds review, state-check and state-settler skills',
 const one = mount('longform')
 const oneNames = (await one.provider.list()).map(skill => skill.name)
 check('one form serves its flow and stage skills',
-  oneNames.length === 6 && oneNames.includes('storycraft-architect') && oneNames.includes('storycraft-longform-chapter')
-  && oneNames.includes('storycraft-long-prose') && oneNames.includes('storycraft-long-plan'),
+  oneNames.length === 7 && oneNames.includes('storycraft-architect') && oneNames.includes('storycraft-longform-chapter')
+  && oneNames.includes('storycraft-long-prose') && oneNames.includes('storycraft-long-plan')
+  && oneNames.includes('storycraft-long-director'),
   oneNames.join(','))
 
 const short = mount('shortform')

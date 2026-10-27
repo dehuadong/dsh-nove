@@ -68,7 +68,7 @@ try {
   check('state-check skill declares its submission contract',
     skill.includes('storycraft-state-check') && skill.includes('story_submit')
     && skill.includes('fact-unsupported') && skill.includes('无对应段落'), skill.slice(0, 120))
-  const orchestration = await readFile(join(project, 'skills', 'storycraft-studio-orchestration', 'SKILL.md'), 'utf8')
+  const orchestration = await readFile(join(project, 'skills', 'storycraft-long-director', 'SKILL.md'), 'utf8')
   check('orchestration points at the check before settling', orchestration.includes('story_state_check'), orchestration.slice(0, 120))
 
   const { workId: work } = s.initWork(root, { title: '对账测试' })

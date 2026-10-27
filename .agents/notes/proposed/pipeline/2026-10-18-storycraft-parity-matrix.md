@@ -169,3 +169,19 @@ A0 = 产物合同 v2；P0 先于 R10b，P1/P2 可独立，R12 保持原排期。
 - 对拍从「凭印象」变成「按表」，切片范围可核对；
 - 表格会随阶段增长；暂缓项需要定期回看，否则会变成遗忘项；
 - 参考 2.0.0 无 `.git`，无法核验 commit；以源码与 `package.json` 版本为准，研究文档里的 commit pin 不能作为证据。
+
+
+## 参考工程深层机制（2026-10-27 复核）
+
+上一轮只看技能目录，这一轮读代码，参考工程的“理念”在五处机制里，而不在技能数量上：
+
+| 机制 | 参考证据 | 我们的现状 | 结论 |
+| --- | --- | --- | --- |
+| **闸门在代码里，且先解析目标再判分区** | `packages/bundle/src/gates.ts` 头注释：裸相对路径直接拒绝；书房可写、工作范围外 ask、书仓内走 `core gateFileAccess`；未确认细纲不得写稿（不变量 1/6） | 有 `NEXT_ACTION_GATES`、`plan-approval`、`revision-limit`；但没有文件级分区闸门（工作区外靠 shell-guard 拦命令） | 已对齐主干；文件分区闸门列为后续 |
+| **批准绑定内容指纹，不认清单声明** | `packages/bundle/src/approval-snapshot.ts`：`captureApprovalFiles` 对实际字节（含缺失）取 hash，“never manifest claims” | `approvedAt` 只是时间戳；改章纲会清空确认，但改基础设定/全书计划的内容指纹没有绑定 | **差距**：应记录批准时的内容指纹，内容变化即失效 |
+| **状态派生在 core，不在技能** | `packages/core/src/index.ts` 导出 `derive/states|scan|derive|design`、`gate`、`provenance`、`repo/transaction|lock|schema` | 我们的 stage/next 在 `store-db.ts`，方向一致 | 已对齐 |
+| **审核是确定性检查库** | `packages/review/src/{checks,finding,registry,run}.ts`：注册检查项，输入材料版本与篇幅核对，输出 finding | 我们有 `story_critique` 的指标与 LLM 审稿，但没有可注册的确定性检查项 | **差距**：把可机械化项（字数、重复、AI 腔、视角/人称）移到检查库 |
+| **润色是确定性规则，无 LLM** | `packages/polish/src/rules.ts`：`BANNED_OPENERS`、省略号、合并，逐条记录 `PolishChange` | `deslop` 在修订技能文本里，由模型执行 | **差距**：先跑规则、无可改则跳过，模型只处理规则之外的腔调 |
+| **调度只做路由，先校准状态** | `skills/novel-director/SKILL.md`：先调状态工具校准，再按路由表加载节点技能；`user-invocable: false`；明文「绝不亲自代写」 | 已拆成 `storycraft-studio-entry`（形态分流）+ `storycraft-long-director`（长篇路由与交接） | 已对齐 |
+
+结论：参考工程的“理念”是**判定与机械检查归代码，方法与判断归技能，调度只路由**。我们上一轮把技能按阶段拆开是对的；真正的欠账是前两条（指纹批准、确定性检查库）与润色规则。

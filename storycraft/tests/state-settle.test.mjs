@@ -366,7 +366,7 @@ try {
   check('state-settler skill declares its submission contract',
     skill.includes('storycraft-state-settler') && skill.includes('story_submit')
     && skill.includes('factOps') && skill.includes('hookOps'), skill.slice(0, 120))
-  const orchestration = await readFile(join(project, 'skills', 'storycraft-studio-orchestration', 'SKILL.md'), 'utf8')
+  const orchestration = await readFile(join(project, 'skills', 'storycraft-long-director', 'SKILL.md'), 'utf8')
   const longform = await readFile(join(project, 'skills', 'storycraft-longform-chapter', 'SKILL.md'), 'utf8')
   check('main-session skills route settlement to story_settle',
     orchestration.includes('story_settle') && longform.includes('story_settle'),
