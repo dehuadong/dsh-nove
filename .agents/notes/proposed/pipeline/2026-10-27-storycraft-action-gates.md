@@ -91,6 +91,43 @@ updated: 2026-10-27
 
 这张表的每一行都是**宿主按状态生成**的输入，不是技能里的说明。
 
+## 技能重组：按形态 × 节点
+
+### 问题（实测）
+
+- `storycraft-write-craft` 一份覆盖三种形态，任何形态都整份加载 → 误判、歧义、白占上下文；
+- `storycraft-plan-craft` 覆盖两种形态、两种方向（「出全书计划 / 划卷 / 种初始伏笔」与「写章纲 / 判断一章是否成立」），同一个毛病；
+- `storycraft-long-writing` 的四份 references 实际不会全加载，但技能正文没有说明“何时加载哪一份”；
+- `storycraft-studio-orchestration` 把工具用法（`story_current`）、动作规则（`story_plan`）与阶段判断混在一处，没有说明哪些属于技能、哪些属于阶段脚本。
+
+### 对拍证据
+
+- `inkos-master/packages/core/skills/inkos-long-writing/SKILL.md`：**按形态**一份 craft；正文末尾逐条写明加载条件——`references/foundation-design.md` 用于创建或重建基础设定，`reader-contract-and-progression.md` 用于规划、写作、审稿、修订章节，`state-projection.md` 用于观察已完成章节或结算真值。同目录 `planner-prompts.ts` / `writer-prompts.ts` / `settler-prompts.ts` 承担角色协议。
+- `dsh-webnovel-writer/packages/bundle/skills/`：**按节点**切分（`novel-design` / `novel-outline` / `novel-drafting` / `novel-review` / `novel-revision` / `novel-polish` / `novel-settle` / `novel-director` / `novel-export`），单形态。
+
+### 提案
+
+采纳两者并集：**形态做技能，节点做 reference，加载单元是（形态 × 节点）**。
+
+```
+skills/
+  long/    SKILL.md（craft） + references/{foundation, chapter-plan, prose, review, revise, settle}.md
+  short/   SKILL.md（craft） + references/{outline, batch-draft, review, revision-plan, package}.md
+  script/  SKILL.md（craft） + references/{spec, script, scene-set}.md
+```
+
+加载规则写进每个 `SKILL.md` 尾部（与 inkos 同构）：基础设定/全书计划 → `foundation`；章纲 → `chapter-plan`；正文 → `prose`；审稿 → `review`；修订 → `revise`；结算 → `settle`。**不在节点上的 reference 不加载。**
+
+角色契约（writer / reviewer / reviser / summarizer / planner）不再写成技能：由 `promptFor` 按（形态 × 节点）组装，与 inkos 的 `writer-prompts.ts` 同构。
+
+编排技能只留“怎么判断、怎么谈”的原则；工具用法进 tool description，阶段规则进 `story_next.ask`。
+
+### 验收
+
+- 检索技能目录，不存在覆盖两种以上形态的 craft 技能；
+- 每个 `SKILL.md` 末尾有按节点的加载条件；
+- 真实链路中，写手/审稿/修订三次派发的上下文里只出现对应节点的方法与参考（`trace` 可核）。
+
 ## 三个批准记录在哪里
 
 基础设定 / 全书计划 / 章纲的「批准」是判断点的结果，不是闸门：
