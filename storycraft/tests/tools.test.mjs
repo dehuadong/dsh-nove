@@ -166,6 +166,9 @@ try {
   check('the proposal records the work it became', used.usedWorkId === created.workId && typeof used.usedAt === 'string', JSON.stringify(used))
   const work = created.workId
   check('story_init wrote the work manifest', (await s.readWork(root, work)).manifest.title === '雨里的灯')
+  const earlyReview = await byName.get('story_review').execute({ work, chapter: 1, observations: [] }, exec)
+  check('an action out of order is refused by the stage machine',
+    earlyReview.ok === false && earlyReview.error.code === 'not-next-action', JSON.stringify(earlyReview))
   // From here the session is pointed at that work, as the panel would.
   setCurrent('test-session', work)
 

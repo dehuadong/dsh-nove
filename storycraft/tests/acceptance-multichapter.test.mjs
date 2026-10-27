@@ -291,8 +291,9 @@ try {
     check(`ch${chapter} writer landed r1`, written.ok === true && written.revision === 1, JSON.stringify(written).slice(0, 200))
   }
   const reviewAndRevise = async (chapter, body, revisedBody) => {
+    // The stage machine refuses the step before the store's own review check runs.
     await failedWithoutChange('story_revise', `ch${chapter} revise before review`,
-      { work, chapter, body: revisedBody, problemIds: ['O1'], mode: 'patch' }, 'review-required')
+      { work, chapter, body: revisedBody, problemIds: ['O1'], mode: 'patch' }, 'not-next-action')
     service.push({ structured: { items: [{ quote: body.slice(0, 20), problem: '太快', impact: '读者跟不上', severity: 'minor', fix: '补一拍', mode: 'patch' }] } })
     const reviewed = await call('story_delegate', { work, chapter, role: 'reviewer' })
     record(`ch${chapter} reviewer`, 'story_delegate(reviewer)', { work, chapter, role: 'reviewer' }, reviewed, {

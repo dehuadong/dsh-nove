@@ -11,7 +11,7 @@
 
 import { createHash } from 'node:crypto'
 import {
-  FORM_META, StoryError, chapterNumber, formOf, latestReview, readFoundationState,
+  FORM_META, StoryError, chapterNumber, formOf, latestReview, nextStep, readFoundationState,
   readManifest, readPlan, readSummaryState, reviseChapter, stageOf, summaryAdmissible, unitOf, writeChapter, writeFoundationStage,
   writeReview, writeSummary, writePlan,
   type Form,
@@ -20,6 +20,18 @@ import { readFoundationDocuments, writeContextTrace } from './artifact-store.ts'
 import { loadRoleInput } from './role-input.ts'
 import { checkDraft } from './landing.ts'
 import { closeSubmission, consumeSubmission, openSubmission } from './submission.ts'
+
+/**
+ * The action each role performs. The stage machine decides when it is allowed:
+ * a role dispatched out of turn is a protocol error, not a shortcut.
+ */
+const ROLE_ACTION: Record<string, string> = {
+  writer: 'story_write',
+  reviewer: 'story_review',
+  reviser: 'story_revise',
+  summarizer: 'story_summarize',
+  planner: 'story_plan',
+}
 
 /** One child run's budget; the timer is cleared before landing. */
 const DELEGATE_TIMEOUT_MS = 600000
@@ -630,6 +642,20 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
   assertChildAvailability(host?.service, host?.agent)
 
   const { manifest } = preflight(root, { work, chapter, role, mode })
+
+  // The gate: the stage machine owns the order. A role that is not the current
+  // next action is refused before any context is assembled or child started.
+  const step = await nextStep(root, work)
+  const expectedAction = ROLE_ACTION[role]
+  if (expectedAction !== undefined && step.action !== expectedAction) {
+    throw new StoryError(
+      'not-next-action',
+      `现在应做的是 ${step.action}（${step.reason ?? ''}）；${ROLE_META[role].label} 不在当前步骤上`,
+    )
+  }
+  if (role === 'reviser' && Array.isArray(step.blocked) && step.blocked.includes('revision-limit')) {
+    throw new StoryError('revision-limit', step.reason ?? `第 ${chapter} 章已达修订上限`)
+  }
   const loaded = await loadRoleInput(root, {
     work, chapter, role,
     ...(typeof input.instruction === 'string' ? { instruction: input.instruction } : {}),

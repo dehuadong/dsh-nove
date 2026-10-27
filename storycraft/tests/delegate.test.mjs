@@ -394,7 +394,8 @@ try {
   const { apply } = await import('../src/tools.ts')
   const registered = []
   const hostService = fakeService([completed({
-    output: [{ type: 'text', text: '<<<TITLE 第二章 TITLE>>>\n<<<CHAPTER 第二章正文。CHAPTER>>>' }],
+    structured: { items: [] },
+    output: [],
   })])
   apply({
     tools: {
@@ -406,13 +407,15 @@ try {
   })
   const delegateAction = registered.find(definition => definition.name === 'story_delegate')
   const { setCurrent } = await import('../src/current.ts')
+  // Chapter 4 already has a body and no review, so the reviewer is the step the
+  // stage machine allows here.
   setCurrent('action-parent', work)
   const actionResult = await delegateAction.execute(
-    { work, chapter: 2, role: 'writer' },
+    { work, chapter: 4, role: 'reviewer' },
     { name: 'story_delegate', agent: { id: 'action-parent', session: { header: { cwd: root, delegationDepth: 0 } } } },
   )
-  check('the action wires ctx.get(subagents)', actionResult.ok === true && actionResult.revision === 1, JSON.stringify(actionResult))
-  check('the action receipt has no body', !JSON.stringify(actionResult).includes('第二章正文'), JSON.stringify(actionResult))
+  check('the action wires ctx.get(subagents)', actionResult.ok === true, JSON.stringify(actionResult))
+  check('the action receipt has no body', !JSON.stringify(actionResult).includes('第四章正文'), JSON.stringify(actionResult))
 } finally {
   await rm(root, { recursive: true, force: true }).catch(() => {})
 }

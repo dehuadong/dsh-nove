@@ -1305,6 +1305,17 @@ const BRIEF_OUTPUT: DshToolOutput = {
 }
 
 /**
+ * The production loop. Write, review, and revise run only when the stage
+ * machine says they are next; summarizing and settling are terminal steps with
+ * their own preconditions (and a settled chapter may legitimately re-summarize).
+ */
+const NEXT_ACTION_GATES: Record<string, string> = {
+  story_write: 'story_write',
+  story_review: 'story_review',
+  story_revise: 'story_revise',
+}
+
+/**
  * One action definition.
  * @param spec - name, description, parameters, execute.
  * @returns a registry-ready ToolDefinition.
@@ -1319,6 +1330,28 @@ function action(spec: ActionSpec): ActionDefinition {
     async execute(args: ModelArgs, exec: DshToolExecution) {
       if (spec.mutates === true && delegationDepthOf(exec) > 0) {
         return failureOf(new StoryError('subagent-cannot-land', DELEGATED_DENIAL))
+      }
+      const expected = NEXT_ACTION_GATES[spec.name]
+      if (expected !== undefined && typeof args?.work === 'string') {
+        // A rewrite/reopen is an explicit author intent about an existing draft,
+        // not a step in the chain, so it skips the order check.
+        const explicitRewrite = spec.name === 'story_write' && (args.rewrite === true || args.reopen === true)
+        if (!explicitRewrite) {
+          try {
+            const step = await nextStepFor(workspaceOf(exec), args.work)
+            if (step.action !== expected) {
+              return failureOf(new StoryError(
+                'not-next-action',
+                `现在应做的是 ${step.action}（${step.reason ?? ''}）；${spec.name} 不在当前步骤上`,
+              ))
+            }
+            if (spec.name === 'story_revise' && Array.isArray(step.blocked) && step.blocked.includes('revision-limit')) {
+              return failureOf(new StoryError('revision-limit', step.reason ?? '已达修订上限，请作者裁决'))
+            }
+          } catch (error) {
+            return failureOf(error)
+          }
+        }
       }
       try {
         const result = await spec.execute(args ?? {}, exec)
