@@ -637,7 +637,7 @@ async function delegateArchitect(root: string, input: ArchitectInput, host: Dele
       throw new StoryError('delegation-failed', `子代理未正常完成（${String(result?.stopReason ?? 'unknown')}）`)
     }
     if (submission?.consumed !== true || submission.payload === undefined) {
-      throw new StoryError('delegation-no-submission', `子代理没有提交通过校验的 ${stage} 结果（尝试 ${attempts} 次）`)
+      throw new StoryError('delegation-no-submission', `子代理没有提交通过校验的 ${stage} 结果（尝试 ${attempts} 次）`, undefined, true)
     }
     assertActive(signal)
     const landed = writeFoundationStage(root, { work, stage, payload: submission.payload })

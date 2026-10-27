@@ -21,6 +21,10 @@ check('a coded failure carries next when the thrower supplied it',
 const bare = failureOf(new StoryError('empty-state', '没有可写入的变化'))
 check('next is absent when the thrower did not supply it', !('next' in bare.error), JSON.stringify(bare.error))
 
+const retryable = failureOf(new StoryError('delegation-no-submission', '没收到提交', undefined, true))
+check('a retryable failure says so', retryable.error.retryable === true, JSON.stringify(retryable.error))
+check('retryable is absent when not set', !('retryable' in coded.error), JSON.stringify(coded.error))
+
 const unknown = failureOf(new Error('boom'))
 check('an unknown error is internal and has no next',
   unknown.error.code === 'internal' && !('next' in unknown.error), JSON.stringify(unknown.error))

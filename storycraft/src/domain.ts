@@ -25,11 +25,14 @@ export class StoryError extends Error {
   code: string
   /** What the caller should do next; part of the failure receipt, not prose to parse. */
   next?: string
-  constructor(code: string, message: string, next?: string) {
+  /** Whether the same call may succeed after the described correction. */
+  retryable?: boolean
+  constructor(code: string, message: string, next?: string, retryable?: boolean) {
     super(message)
     this.name = 'StoryError'
     this.code = code
     if (next !== undefined) this.next = next
+    if (retryable !== undefined) this.retryable = retryable
   }
 }
 

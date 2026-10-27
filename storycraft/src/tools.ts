@@ -191,7 +191,12 @@ export function failureOf(error: unknown): FailureEnvelope {
     return {
       ok: false,
       ...(missing === undefined ? {} : { missing }),
-      error: { code: error.code, message: error.message, ...(error.next === undefined ? {} : { next: error.next }) },
+      error: {
+        code: error.code,
+        message: error.message,
+        ...(error.next === undefined ? {} : { next: error.next }),
+        ...(error.retryable === undefined ? {} : { retryable: error.retryable }),
+      },
     }
   }
   const message = error instanceof Error ? error.message : String(error)
