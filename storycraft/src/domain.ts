@@ -33,11 +33,16 @@ export class StoryError extends Error {
 /** Forms a work may declare; the form is data on the work, not a preset. */
 export const WORK_FORMS = ['longform', 'short', 'script'] as const
 
-/** Display label and form-specific writing skill for each form. */
+/**
+ * Display label, form contract skill and form craft skill for each form.
+ *
+ * `skill` is the form's own flow contract; `craft` is the shared method for that
+ * form. Neither covers more than one form.
+ */
 export const FORM_META = Object.freeze({
-  longform: { label: '长篇小说', skill: 'storycraft-write-craft' },
-  short: { label: '短篇小说', skill: 'storycraft-short-story' },
-  script: { label: '剧本', skill: 'storycraft-short-drama' },
+  longform: { label: '长篇小说', skill: 'storycraft-longform-chapter', craft: 'storycraft-long-writing' },
+  short: { label: '短篇小说', skill: 'storycraft-short-story', craft: 'storycraft-short-writing' },
+  script: { label: '剧本', skill: 'storycraft-short-drama', craft: 'storycraft-script-writing' },
 })
 
 /** Current time in ISO form. */

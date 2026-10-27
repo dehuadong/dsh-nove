@@ -1,16 +1,16 @@
 ---
 name: storycraft-longform-chapter
-description: 长篇小说单章流程与闸门：章纲到定稿的动作顺序、前置读取、卷处理与回退；方法正文读 storycraft-long-writing。只出方法与提交内容，不直接改文件。 触发：用户要求写长篇的下一章、续写、改章节，或需要确认单章流程与闸门时。
+description: 长篇小说单章流程与闸门：章纲到定稿的动作顺序、前置读取与回退；方法正文读 storycraft-long-writing，立项/卷/重开见 references。只出方法与提交内容，不直接改文件。 触发：用户要求写长篇的下一章、续写、改章节，或需要确认单章流程与闸门时。
 ---
 # 长篇单章流程
 
 形态：`story_init` 的 `form: "longform"`（省略即此值）。章节单位是「章」。
 
-一个章节只追求一件事：让读者在读完后有明确的“接下来会怎样”的期待，同时不破坏已经建立的人物与事实。
+一个章节只追求一件事：让读者在读完后有明确的「接下来会怎样」的期待，同时不破坏已经建立的人物与事实。
 
 ## 先读方法
 
-长篇方法正文在 `storycraft-long-writing`：写章纲读 `references/reader-contract-and-progression.md`，写正文读 `references/scene-dialogue-and-length-budget.md`，定稿读 `references/state-projection.md`。本技能只保留单章流程与闸门。
+长篇方法正文在 `storycraft-long-writing`：写章纲读 `references/reader-contract-and-progression.md`，写正文读 `references/scene-dialogue-and-length-budget.md`，定稿读 `references/state-projection.md`。本技能只保留单章流程与闸门；立项、卷、重开与设置见 `references/flow-details.md`。
 
 ## 开工前必须先读
 
@@ -18,24 +18,12 @@ description: 长篇小说单章流程与闸门：章纲到定稿的动作顺序�
 2. 章纲缺失、真值缺文件、目标章不存在时，`story_brief` 会明确报错——按错误里的提示补，不要编造。
 3. 需要更具体的设定时，用 `story_bible` 读五件真值（世界观、人物、文风、计划、意图），不要用文件工具去翻作品库；作品内容由动作返回 artifact ID 与内容。
 
-## 先讨论，后立项
-
-作者用自然语言提想法时，**先讨论**：前提、主要人物、核心冲突、想写的体验，优先复用作者已经说过的内容。讨论阶段不写任何文件，也不调用 `story_init`。
-
-讨论阶段**完全不碰作品库**（运行时守卫见 README「读取作用域」）：不要列目录、不要读任何作品的正文与真值。重名由 `story_propose` 在落盘时检查（同名会直接拒绝）；当前作品由 `story_current` 给出，讨论新作品时它可以是空的。也不要用 `story_status`、`story_brief`、`story_bible` 去了解别的作品——那同样是在读作品库。
-
-方向成熟后，用 `story_propose` 落一份建项方案（标题、形态、一句话前提、主要人物、冲突、约定），把方案讲给作者看，**等作者明确同意**后再 `story_init`（带 `proposal`）。立项完停下，等作者决定要不要写第一章。
-
-立项后还有一层：**全书计划**。用 `story_outline` 落盘，然后请作者在面板点「确认全书计划」，确认后再写章纲（模型不能代签）。
-
 ## 写作流程
 
 0. **先说清对象**：作品通常由面板进入时选定；新会话没有当前作品时，`story_init` 成功后会把新作品设为当前。立项时先确认会话没有当前作品；已有其他当前作品时请作者新建会话，否则 `story_init` 返回 `work-mismatch`。`story_current` 只读。动手前用一句话确认目标作品与章号（「对《书名》第 N 章…」）。
    - `story_current` 返回 `null` 时说明会话还没有进入任何作品：**不要自己找、不要列目录、不要切书**，请作者在面板里进入那部作品。
    - 模型不能任意切换当前作品；也不要用 `story_current` 去「看看有哪些作品」。
-
 0. **先问下一步**：调 `story_next`，它给出该做的动作、章号、原因、缺什么，以及可委派时的 `delegate.role`。顺序固定为：章纲 → 正文 → 审稿 → 修订/清稿 → 摘要 → 定稿 → 下一章章纲。写正文/审稿/修订优先按 `delegate.role` 调 `story_delegate`；没有 delegate 时才用手动动作。动作被拒时，错误消息里的「先做什么」就是下一步。
-
 1. **定章纲**：视角人物、本章目标、阻力、代价、结尾变化五项齐全，并写 `body`（章纲正文）与 `threadRefs`（伏笔数组，可为空）后用 `story_plan` 落盘。用户没给章纲时，先给章纲、用 `story_plan` 落草稿，再请用户在面板「章纲」里点「确认章纲」；确认前写正文会被 `plan-not-approved` 拒绝。
 2. **取上下文**：交给 `story_delegate` 时由宿主装配；自己写前预览用 `story_brief`，按返回的分段写，不要引用被裁掉的段。
 3. **写成稿**：二到四个场景，场景之间有时空或因果推进；有 `delegate.role: writer` 时用 `story_delegate` 落盘，否则用 `story_write`。首版 `ch-<四位序号>.md`，修订生成 `r2`、`r3` 新版本。
@@ -50,35 +38,9 @@ description: 长篇小说单章流程与闸门：章纲到定稿的动作顺序�
 7. **摘要**：修订完成或清稿审稿后，先调 `story_next`；有 `delegate.role: summarizer` 时用 `story_delegate`，子代理通过 `story_submit` 提交摘要（上限 400 字，只写事实与状态变化）。没有 delegate（当前版本已有摘要或阶段不满足）时不读正文，报告并停手；摘要针对旧版本时 `story_next` 仍会给 summarizer，重写后自动绑定当前正文版本。只有作者显式要求时才用 `story_summarize` 手动写。下一章的滚动窗口靠它。
 8. **定稿**：`story_next` 说可以定稿、且阶段是「已修订」或清稿审稿时，优先用 `story_settle` 自动抽取并校验；返回 `settled:false` 时把 proposed 与 findings 报给作者，按作者决定用 `story_state` 手动修正。`story_state` 只写变化，不重抄设定。
 
-## 卷
-
-一卷是若干章的连续区间，按故事线由作者确认，不固定章数：
-
-- 模型按情节给出建议（例如 40–50 章一卷），作者同意后用 `story_volume` 落盘（标题、起止章、可选卷摘要）；
-- 区间不得与其它卷重叠，章必须已存在；
-- 卷摘要会进下一卷各章的写前上下文；卷内最后一章定稿后，提醒作者补卷摘要。
-
-## 已定稿的章要改
-
-- 只补审稿或改稿、正文不动：先 `story_reopen`（只作废定稿、不改正文），再走 审稿 → 修订 → 定稿。
-- 要连正文一起重写：`story_write` 带 `reopen: true`，生成新版本，同样重走三步。
-
-## 设定与参数
-
-- 字数范围按作品设定：建档时用 `story_init` 的 `wordRange` 与作者商定；老作品用 `story_settings` 改或清空。未设定就不按字数判定。
-- 作品改名/删除/恢复：`story_rename`、`story_delete`（进回收站）、`story_restore`。
-
 ## 输出契约
 
 - 正文、章纲、审稿清单、摘要、状态、卷一律由动作落盘，不要用文件工具直接写作品库：动作负责版本、进度与事务，直写会让进度与库不一致。
 - 只读动作：`story_next`、`story_context`、`story_brief`、`story_bible`、`story_critique`、`story_status`、`story_volumes`、`story_read`。
 - 写正文/审稿/修订优先用 `story_delegate`；delegate 不可用或需要手动控制时，才用 `story_context(work, chapter, role)` + `subagent`。自己写前预览仍可用 `story_brief`。
-- 章节末尾不写“作者的话”，不写总结段落。
-
-## 脚本
-
-`scripts/chapter-status.mjs` 扫描作品目录，列出已有章节、每章字数与偏短章节。开工前跑一次，能立刻看出进度与缺口。
-
-```bash
-node <技能目录>/scripts/chapter-status.mjs <作品目录>
-```
+- 章节末尾不写「作者的话」，不写总结段落。

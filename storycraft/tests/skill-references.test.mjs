@@ -22,6 +22,8 @@ const methodDir = join(skills, 'storycraft-long-writing')
 const methodSkill = await readFile(join(methodDir, 'SKILL.md'), 'utf8')
 
 const REFERENCES = [
+  'chapter-plan-examples.md',
+  'chapter-plan.md',
   'foundation-design.md',
   'reader-contract-and-progression.md',
   'scene-dialogue-and-length-budget.md',
@@ -75,8 +77,6 @@ check('script method names its episode/scene reference',
   scriptMethod.includes('references/episode-scene-craft.md') && scriptCraft.startsWith('# '))
 
 const roleSkills = {
-  plan: join(skills, 'storycraft-plan-craft', 'SKILL.md'),
-  write: join(skills, 'storycraft-write-craft', 'SKILL.md'),
   review: join(skills, 'storycraft-review', 'SKILL.md'),
   orchestration: join(skills, 'storycraft-studio-orchestration', 'SKILL.md'),
   chapter: join(skills, 'storycraft-longform-chapter', 'SKILL.md'),
@@ -92,13 +92,11 @@ for (const [role, text] of Object.entries(roleText)) {
   check(`${role} skill carries no long-form method body`,
     !/^## (从章纲到场景|卷怎么划|人物与因果|节奏与收尾|写作纪律|自检清单)/mu.test(text))
 }
-check('planning loads the shared method and reads foundation + reader contract',
-  loadsMethod(roleText.plan)
-  && roleText.plan.includes('`references/foundation-design.md`')
-  && roleText.plan.includes('`references/reader-contract-and-progression.md`'))
-check('writing loads the shared method and reads the reader contract',
-  loadsMethod(roleText.write)
-  && roleText.write.includes('`references/reader-contract-and-progression.md`'))
+const longCraft = await readFile(join(skills, 'storycraft-long-writing', 'SKILL.md'), 'utf8')
+check('the long-form craft names its foundation, chapter-plan and reader-contract references',
+  longCraft.includes('`references/foundation-design.md`')
+  && longCraft.includes('`references/chapter-plan.md`')
+  && longCraft.includes('`references/reader-contract-and-progression.md`'))
 check('review loads the shared method and reads the reader contract + state projection',
   loadsMethod(roleText.review)
   && roleText.review.includes('`references/reader-contract-and-progression.md`')

@@ -126,12 +126,17 @@ try {
     revising.key === 'revising' && revising.primary.id === 'revise'
     && revising.secondary.find(item => item.id === 'summarize')?.disabled?.code === 'open-items', JSON.stringify(revising))
 
+  const revisingNext = await s.nextStep(root, chapterWork)
+  check('a review round carries its triage material to the author',
+    revisingNext.ask?.present?.[0]?.kind === 'observation'
+    && revisingNext.ask.question.includes('哪几条改'), JSON.stringify(revisingNext.ask))
+
   s.reviseChapter(root, { work: chapterWork, chapter: 1, body: '正文。'.repeat(42), problemIds: ['O1'], mode: 'rewrite' })
   s.writeReview(root, { work: chapterWork, chapter: 1, observations: [] })
   const summarizing = await state(chapterWork)
   check('a clean review asks for the summary',
     summarizing.key === 'summarizing' && summarizing.primary.id === 'summarize'
-    && summarizing.secondary.some(item => item.id === 'export'), JSON.stringify(summarizing))
+    && summarizing.secondary.length === 0, JSON.stringify(summarizing))
 
   s.writeSummary(root, { work: chapterWork, chapter: 1, text: '甲做了事。' })
   const settling = await state(chapterWork)

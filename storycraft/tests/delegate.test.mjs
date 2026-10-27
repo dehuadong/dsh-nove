@@ -130,7 +130,7 @@ try {
   const planner = await delegateRole(root, { work: plannerWork, chapter: 1, role: 'planner' }, { service: plannerService, agent, signal })
   check('planner delegates and lands an unapproved plan', planner.ok === true && planner.role === 'planner' && planner.planApproved === false && planner.stage === 'planned', JSON.stringify(planner))
   check('planner receipt carries no plan body', !('body' in planner) && !('threadRefs' in planner), JSON.stringify(planner))
-  check('planner prompt names the plan-craft skill', plannerService.specs[0].request.prompt[0].text.includes('storycraft-plan-craft'))
+  check('planner prompt loads the form craft whose node rules name the plan reference', plannerService.specs[0].request.prompt[0].text.includes('storycraft-long-writing'))
   const storedPlan = s.readPlan(root, plannerWork, 1)
   check('planner plan lands under the bound work/chapter', typeof storedPlan === 'string' && storedPlan.includes('查清旧案') && planner.artifact?.artifactId === 'plan:1', String(storedPlan))
   const plannerTrace = readArtifact(root, { work: plannerWork, artifactId: 'trace:1:planner' })
@@ -186,8 +186,9 @@ try {
   check('writer receipt reports submission attempts', writer.submissionAttempts === 1, JSON.stringify(writer))
   const writerPrompt = writerService.specs[0].request.prompt[0].text
   check('long-form writer prompt names form and unit', writerPrompt.split('\n')[0] === '你是长篇小说《委派测试》（委派测试）的写手子代理，负责第 1 章。', writerPrompt.split('\n')[0])
-  check('long-form writer prompt loads one generic craft skill',
-    writerPrompt.split('storycraft-write-craft').length - 1 === 1 && !writerPrompt.includes('storycraft-short-story') && !writerPrompt.includes('storycraft-short-drama'),
+  check('long-form writer prompt loads its craft and contract only',
+    writerPrompt.includes('storycraft-long-writing') && writerPrompt.includes('storycraft-longform-chapter')
+    && !writerPrompt.includes('storycraft-short-writing') && !writerPrompt.includes('storycraft-script-writing'),
     writerPrompt.split('\n')[1])
   check('writer body landed', s.readChapter(root, { work, chapter: 1 }).content.includes('甲推开门'))
 
@@ -200,7 +201,7 @@ try {
   await delegateRole(root, { work: short, chapter: 1, role: 'writer' }, { service: shortService, agent, signal })
   const shortPrompt = shortService.specs[0].request.prompt[0].text
   check('short writer prompt names form and unit', shortPrompt.startsWith('你是短篇小说《短篇委派》') && shortPrompt.includes('负责第 1 篇。'), shortPrompt.split('\n')[0])
-  check('short writer prompt loads generic and short skills', shortPrompt.includes('storycraft-write-craft') && shortPrompt.includes('storycraft-short-story'), shortPrompt.split('\n')[1])
+  check('short writer prompt loads its craft and contract', shortPrompt.includes('storycraft-short-writing') && shortPrompt.includes('storycraft-short-story'), shortPrompt.split('\n')[1])
 
   const script = s.initWork(root, { title: '剧本委派', form: 'script' }).workId
   await writeBible(root, script, 'characters', JSON.stringify([{ name: '甲', role: '主视角', want: 'w', fear: 'f', limit: 'l', voice: 'v' }]))
@@ -210,7 +211,7 @@ try {
   await delegateRole(root, { work: script, chapter: 1, role: 'writer' }, { service: scriptService, agent, signal })
   const scriptPrompt = scriptService.specs[0].request.prompt[0].text
   check('script writer prompt names form and unit', scriptPrompt.startsWith('你是剧本《剧本委派》') && scriptPrompt.includes('负责第 1 集。'), scriptPrompt.split('\n')[0])
-  check('script writer prompt loads generic and script skills', scriptPrompt.includes('storycraft-write-craft') && scriptPrompt.includes('storycraft-short-drama'), scriptPrompt.split('\n')[1])
+  check('script writer prompt loads its craft and contract', scriptPrompt.includes('storycraft-script-writing') && scriptPrompt.includes('storycraft-short-drama'), scriptPrompt.split('\n')[1])
 
   const shortReviewService = fakeService([completed({ structured: { items: [{ quote: '甲推开门，雨声进来了。', problem: '太快', impact: '读者跟不上', severity: 'minor', fix: '补一拍', mode: 'patch' }] } })])
   await delegateRole(root, { work: short, chapter: 1, role: 'reviewer' }, { service: shortReviewService, agent, signal })

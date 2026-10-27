@@ -60,7 +60,7 @@ for (const name of tests) {
   if (code !== 0) failed += 1
 }
 
-for (const script of ['scripts/build.mjs', 'scripts/pack-check.mjs']) {
+for (const script of ['scripts/validate-skills.mjs', 'scripts/build.mjs', 'scripts/pack-check.mjs']) {
   const code = run(process.execPath, [path.join(...script.split('/'))], storycraftDir)
   if (code !== 0) failed += 1
 }

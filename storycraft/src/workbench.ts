@@ -177,7 +177,8 @@ export function deriveWorkbench(input: { next: WorkbenchNext, manifest: Workbenc
         label: '待摘要',
         hint,
         primary: action('summarize', `写第 ${chapter} ${unit}摘要`),
-        secondary: [action('export', '导出')],
+        // Export is an author operation on the panel, not a step of the flow.
+        secondary: [],
       }
     case 'story_settle':
       return {

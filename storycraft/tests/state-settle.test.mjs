@@ -362,12 +362,12 @@ try {
     !prompt.includes('甲推开门，雨声进来了'), prompt.slice(0, 200))
   check('the settler prompt has no work path', !prompt.includes('works/') && !prompt.includes('.storycraft/'), prompt.slice(0, 200))
 
-  const skill = await readFile(join(project, 'skills', 'review', 'storycraft-state-settler', 'SKILL.md'), 'utf8')
+  const skill = await readFile(join(project, 'skills', 'storycraft-state-settler', 'SKILL.md'), 'utf8')
   check('state-settler skill declares its submission contract',
     skill.includes('storycraft-state-settler') && skill.includes('story_submit')
     && skill.includes('factOps') && skill.includes('hookOps'), skill.slice(0, 120))
-  const orchestration = await readFile(join(project, 'skills', 'shared', 'storycraft-studio-orchestration', 'SKILL.md'), 'utf8')
-  const longform = await readFile(join(project, 'skills', 'longform', 'storycraft-longform-chapter', 'SKILL.md'), 'utf8')
+  const orchestration = await readFile(join(project, 'skills', 'storycraft-studio-orchestration', 'SKILL.md'), 'utf8')
+  const longform = await readFile(join(project, 'skills', 'storycraft-longform-chapter', 'SKILL.md'), 'utf8')
   check('main-session skills route settlement to story_settle',
     orchestration.includes('story_settle') && longform.includes('story_settle'),
     `${orchestration.includes('story_settle')} / ${longform.includes('story_settle')}`)

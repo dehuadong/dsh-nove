@@ -26,7 +26,7 @@ function mount(mode) {
 
 const all = mount('all')
 const names = (await all.provider.list()).map(skill => skill.name)
-check('all serves every form, every role, the shared catalog, the shared methods and the state tools', names.length === 15, names.join(','))
+check('all serves every form, every role, the shared catalog, the shared methods and the state tools', names.length === 13, names.join(','))
 check('the orchestration skill is shared', names.includes('storycraft-studio-orchestration'))
 check('long form skill present', names.includes('storycraft-longform-chapter'))
 check('long form method present', names.includes('storycraft-longform-method'))
@@ -37,13 +37,15 @@ check('state check skill present', names.includes('storycraft-state-check'))
 check('state settler skill present', names.includes('storycraft-state-settler'))
 check('short form skill present', names.includes('storycraft-short-story'))
 check('script skill present', names.includes('storycraft-short-drama'))
-check('every role craft is reachable from the work mode',
-  ['storycraft-write-craft', 'storycraft-review', 'storycraft-revise-craft', 'storycraft-plan-craft', 'storycraft-architect'].every(name => names.includes(name)),
+check('every role and form craft is reachable from the work mode',
+  ['storycraft-long-writing', 'storycraft-short-writing', 'storycraft-script-writing',
+    'storycraft-review', 'storycraft-revise-craft', 'storycraft-architect'].every(name => names.includes(name)),
   names.join(','))
 check('no warning for all', all.warnings.length === 0, all.warnings.join('; '))
 const routed = [...Object.values(ROLE_META).map(meta => meta.skill), ...Object.values(FORM_META).map(meta => meta.skill)].filter(Boolean)
 check('every routed role/form skill is mounted', routed.every(name => names.includes(name)), routed.join(','))
-check('writerSkills dedupes longform and adds short/script skills', writerSkills('longform').length === 1 && writerSkills('short').length === 2 && writerSkills('script').length === 2)
+check('writerSkills loads the form craft and its contract',
+  writerSkills('longform').length === 2 && writerSkills('short').length === 2 && writerSkills('script').length === 2)
 check('plan approval defaults to required and honors off', planApprovalPolicy({}) === 'required' && planApprovalPolicy({ planApproval: 'off' }) === 'off')
 try {
   planApprovalPolicy(undefined)
@@ -52,17 +54,9 @@ try {
   check('plan approval requires a manifest', error instanceof TypeError, String(error))
 }
 
-const write = mount('write')
-const writeNames = (await write.provider.list()).map(skill => skill.name)
-check('the writing catalog holds the craft skill', writeNames.length === 1 && writeNames[0] === 'storycraft-write-craft', writeNames.join(','))
-
 const revise = mount('revise')
 const reviseNames = (await revise.provider.list()).map(skill => skill.name)
 check('the revise catalog holds the revise skill', reviseNames.length === 1 && reviseNames[0] === 'storycraft-revise-craft', reviseNames.join(','))
-
-const plan = mount('plan')
-const planNames = (await plan.provider.list()).map(skill => skill.name)
-check('the plan catalog holds the planning skill', planNames.length === 1 && planNames[0] === 'storycraft-plan-craft', planNames.join(','))
 
 const review = mount('review')
 const reviewNames = (await review.provider.list()).map(skill => skill.name)

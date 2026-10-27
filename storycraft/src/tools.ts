@@ -903,6 +903,27 @@ const NEXT_OUTPUT: DshToolOutput = {
         },
         required: ['role'],
       },
+      ask: {
+        type: 'object',
+        description: 'Material and the single question a judgement point puts to the author.',
+        additionalProperties: false,
+        properties: {
+          present: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                kind: { type: 'string' },
+                items: { type: 'array', items: { type: 'string' } },
+              },
+              required: ['kind', 'items'],
+            },
+          },
+          question: { type: 'string' },
+        },
+        required: ['present', 'question'],
+      },
     },
     required: ['ok'],
   },

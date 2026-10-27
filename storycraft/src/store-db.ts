@@ -297,6 +297,75 @@ function openObservations(review: any) {
   return (review?.observations ?? []).filter((observation: any) => observation.assessment === 'issue')
 }
 
+/** One block of material a judgement point presents to the author. */
+export interface AskMaterial {
+  kind: string
+  items: string[]
+}
+
+/** The material and the single question a judgement point asks. */
+export interface NextAsk {
+  present: AskMaterial[]
+  question: string
+}
+
+/** Observation lines the author needs to triage one review round. */
+function openObservationLines(review: any): string[] {
+  return openObservations(review)
+    .slice(0, 8)
+    .map((observation: any) => `${observation.id}｜${String(observation.severity ?? '')}｜${String(observation.summary ?? '')}`)
+}
+
+/**
+ * The judgement material attached to a step.
+ *
+ * The six points that need a substantive author decision get their material from
+ * here, so the orchestration skill carries no per-node table.
+ */
+function askFor(step: any, last: any, candidate: any): NextAsk | undefined {
+  const blocked: string[] = Array.isArray(step.blocked) ? step.blocked : []
+  const chapter = step.chapter
+  const currentRevision = last?.currentRevision ?? 0
+  const words = last?.words ?? 0
+  if (blocked.includes('plan-approval')) {
+    return {
+      present: [{ kind: 'plan', items: [`plan:${chapter}`, `第 ${chapter} 章章纲已落盘`] }],
+      question: '按这个章纲写正文，还是先改哪一项？',
+    }
+  }
+  if (blocked.includes('revision-limit')) {
+    return {
+      present: [{ kind: 'observation', items: openObservationLines(candidate) }],
+      question: '接受当前版本，还是继续修订这一章？',
+    }
+  }
+  if (step.action === 'story_review') {
+    return {
+      present: [{ kind: 'chapter', items: [`r${currentRevision}`, `${words} 字`] }],
+      question: '现在审稿，还是先自己看一遍？',
+    }
+  }
+  if (step.action === 'story_revise') {
+    return {
+      present: [{ kind: 'observation', items: openObservationLines(candidate) }],
+      question: '哪几条改、哪几条不改（并说明用 patch / polish / rewrite / deslop）？',
+    }
+  }
+  if (step.action === 'story_settle') {
+    return {
+      present: [{ kind: 'settle', items: [] }],
+      question: '结算失败时按 findings 修正重试，还是先停？',
+    }
+  }
+  if (step.action === 'story_plan' && currentRevision > 0) {
+    return {
+      present: [{ kind: 'next-chapter', items: [`第 ${chapter} 章`] }],
+      question: '现在开始下一章章纲，还是先停？',
+    }
+  }
+  return undefined
+}
+
 /** The current body row of one chapter. */
 function currentVersion(db: Database, chapter: ChapterRow): ChapterVersionRow | undefined {
   return db.prepare('SELECT * FROM chapter_versions WHERE number = ? AND revision = ?')
@@ -1155,12 +1224,14 @@ export function nextStep(root: any, work: any) {
       return { chapter: last.number, stage, action: 'story_settle', reason: isCleanReview(candidate) ? `第 ${last.number} 章清稿审稿无问题，自动结算` : `第 ${last.number} 章已修订，自动结算`, missing: [] }
     })()
     const delegate = delegateOf(step, last, candidate)
+    const ask = askFor(step, last, candidate)
     return {
       workId: manifest.workId,
       ...step,
       form: formOf(manifest),
       unit: unitOf(formOf(manifest)),
       ...(delegate === undefined ? {} : { delegate }),
+      ...(ask === undefined ? {} : { ask }),
     }
   } finally {
     db.close()
