@@ -1047,6 +1047,7 @@ function foundationStateOf(db: any) {
     complete,
     ...(nextStage === undefined ? {} : { nextStage }),
     ...(foundationApprovedAt(db) === undefined ? {} : { approvedAt: foundationApprovedAt(db) }),
+    ...(metaOf(db).foundation_approved_source === null ? {} : { approvedSource: metaOf(db).foundation_approved_source }),
   }
 }
 
