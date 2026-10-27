@@ -118,6 +118,18 @@ if (catalog !== undefined) {
   }
 }
 
+// Every storycraft-* name mentioned in a skill must exist as a skill directory.
+{
+  const known = new Set(skillDirs.map(entry => entry.name))
+  for (const entry of skillDirs) {
+    const text = readFileSync(join(skillsRoot, entry.name, 'SKILL.md'), 'utf8')
+    for (const match of text.matchAll(/storycraft-[a-z0-9-]+/gu)) {
+      const name = match[0]
+      if (!known.has(name)) fail(`skills/${entry.name}: mentions missing skill ${name}`)
+    }
+  }
+}
+
 if (failures.length > 0) {
   console.error('[skills] FAILED')
   for (const failure of failures) console.error(`  - ${failure}`)

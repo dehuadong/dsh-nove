@@ -434,6 +434,12 @@ function askFor(step: any, last: any, candidate: any, planMemo?: any): NextAsk |
   const chapter = step.chapter
   const currentRevision = last?.currentRevision ?? 0
   const words = last?.words ?? 0
+  if (blocked.includes('foundation-approval')) {
+    return {
+      present: [{ kind: 'text', items: ['故事框架', '作品规则', '角色索引', '角色卡'] }],
+      question: '确认基础设定吗？还是要改哪一阶段？',
+    }
+  }
   if (blocked.includes('plan-approval')) {
     const items = planMemo === undefined
       ? [`plan:${chapter}`]
