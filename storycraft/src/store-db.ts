@@ -1066,6 +1066,44 @@ export function readFoundationState(root: any, work: any) {
  * @param {{work: string, stage: string, payload: object}} input - stage payload.
  * @returns {{workId: string, stage: string, artifacts: object[], foundation: object}} receipt.
  */
+/**
+ * Tokens from the accepted proposal that a foundation should mention.
+ *
+ * The proposal is the author contract: a frame that names none of its premise
+ * words or characters was generated from something else, so it must not land.
+ * @returns deduplicated tokens; empty when the work has no accepted proposal.
+ */
+function proposalTokensOf(root: any, workId: string): string[] {
+  let catalog: ReturnType<typeof openCatalog>
+  try {
+    catalog = openCatalog(root, { create: false })
+  } catch {
+    return []
+  }
+  if (catalog === undefined) return []
+  try {
+    const row = catalog.prepare('SELECT premise, characters FROM proposals WHERE used_work_id = ? ORDER BY created_at DESC LIMIT 1').get(workId)
+    if (row === undefined) return []
+    const tokens: string[] = []
+    for (const part of String(row.premise ?? '').split(/[，。；、：！？\s“”"（）()]+/u)) {
+      if ([...part].length >= 2) tokens.push(part)
+    }
+    try {
+      const list = JSON.parse(String(row.characters ?? '[]'))
+      if (Array.isArray(list)) {
+        for (const item of list) {
+          const name = typeof item === 'string' ? item : item?.name
+          if (typeof name === 'string' && [...name].length >= 2) tokens.push(name)
+        }
+      }
+    } catch {
+      // characters are optional
+    }
+    return [...new Set(tokens)]
+  } finally {
+    catalog.close()
+  }
+}
 export function writeFoundationStage(root: any, input: any) {
   const workId = String(input.work)
   const stage = String(input.stage)
@@ -1097,6 +1135,11 @@ export function writeFoundationStage(root: any, input: any) {
       }
       let records
       if (stage === 'frame') {
+        const tokens = proposalTokensOf(root, workId)
+        const frameText = `${String(payload.storyFrame ?? '')}\n${String(payload.volumeMap ?? '')}\n${String(payload.currentFocus ?? '')}`
+        if (tokens.length > 0 && !tokens.some(token => frameText.includes(token))) {
+          throw new StoryError('foundation-mismatch', '基础设定与提案没有一处对得上：提案里的关键人物或前提没有出现在故事框架里', '按提案重写基础设定，或先说明为什么改方向')
+        }
         const focus = String(payload.currentFocus ?? '')
         if ([...focus].length > 600) throw new StoryError('artifact-invalid', 'current_focus 超过 600 字')
         records = [
