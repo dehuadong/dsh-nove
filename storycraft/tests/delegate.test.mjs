@@ -228,6 +228,8 @@ try {
   const shortReviewService = fakeService([completed({ structured: { items: [{ quote: '甲推开门，雨声进来了。', problem: '太快', impact: '读者跟不上', severity: 'minor', fix: '补一拍', mode: 'patch' }] } })])
   await delegateRole(root, { work: short, chapter: 1, role: 'reviewer' }, { service: shortReviewService, agent, signal })
   const shortReviewPrompt = shortReviewService.specs[0].request.prompt[0].text
+  check('the reviewer prompt carries the mechanical findings',
+    shortReviewPrompt.includes('机械检查已发现'), shortReviewPrompt.slice(-160))
   check('short reviewer prompt keeps form label and role skill only',
     shortReviewPrompt.startsWith('你是短篇小说《短篇委派》') && shortReviewPrompt.includes('storycraft-review') && !shortReviewPrompt.includes('storycraft-short-story'),
     shortReviewPrompt.split('\n').slice(0, 2).join(' / '))
