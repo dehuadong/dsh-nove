@@ -18,7 +18,7 @@ function check(name, condition, detail) {
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const skills = join(root, 'skills')
-const methodDir = join(skills, 'longform', 'storycraft-long-writing')
+const methodDir = join(skills, 'storycraft-long-writing')
 const methodSkill = await readFile(join(methodDir, 'SKILL.md'), 'utf8')
 
 const REFERENCES = [
@@ -60,29 +60,29 @@ const referenceFiles = (await readdir(join(methodDir, 'references'), { withFileT
 check('references directory has no orphan file', referenceFiles.join(',') === [...REFERENCES].sort().join(','),
   referenceFiles.join(','))
 
-const oldMethod = await readFile(join(skills, 'longform', 'storycraft-longform-method', 'SKILL.md'), 'utf8')
+const oldMethod = await readFile(join(skills, 'storycraft-longform-method', 'SKILL.md'), 'utf8')
 check('the old method name is a thin alias to the shared method',
   oldMethod.includes('storycraft-long-writing') && !oldMethod.includes('references/'))
 
-const shortMethod = await readFile(join(skills, 'shortform', 'storycraft-short-writing', 'SKILL.md'), 'utf8')
-const shortChecklist = await readFile(join(skills, 'shortform', 'storycraft-short-writing', 'references', 'production-checklist.md'), 'utf8')
+const shortMethod = await readFile(join(skills, 'storycraft-short-writing', 'SKILL.md'), 'utf8')
+const shortChecklist = await readFile(join(skills, 'storycraft-short-writing', 'references', 'production-checklist.md'), 'utf8')
 check('short method names its production checklist',
   shortMethod.includes('references/production-checklist.md') && shortChecklist.startsWith('# '))
 
-const scriptMethod = await readFile(join(skills, 'screenplay', 'storycraft-script-writing', 'SKILL.md'), 'utf8')
-const scriptCraft = await readFile(join(skills, 'screenplay', 'storycraft-script-writing', 'references', 'episode-scene-craft.md'), 'utf8')
+const scriptMethod = await readFile(join(skills, 'storycraft-script-writing', 'SKILL.md'), 'utf8')
+const scriptCraft = await readFile(join(skills, 'storycraft-script-writing', 'references', 'episode-scene-craft.md'), 'utf8')
 check('script method names its episode/scene reference',
   scriptMethod.includes('references/episode-scene-craft.md') && scriptCraft.startsWith('# '))
 
 const roleSkills = {
-  plan: join(skills, 'plan', 'storycraft-plan-craft', 'SKILL.md'),
-  write: join(skills, 'write', 'storycraft-write-craft', 'SKILL.md'),
-  review: join(skills, 'review', 'storycraft-review', 'SKILL.md'),
-  orchestration: join(skills, 'shared', 'storycraft-studio-orchestration', 'SKILL.md'),
-  chapter: join(skills, 'longform', 'storycraft-longform-chapter', 'SKILL.md'),
-  revise: join(skills, 'revise', 'storycraft-revise-craft', 'SKILL.md'),
-  stateCheck: join(skills, 'review', 'storycraft-state-check', 'SKILL.md'),
-  stateSettler: join(skills, 'review', 'storycraft-state-settler', 'SKILL.md'),
+  plan: join(skills, 'storycraft-plan-craft', 'SKILL.md'),
+  write: join(skills, 'storycraft-write-craft', 'SKILL.md'),
+  review: join(skills, 'storycraft-review', 'SKILL.md'),
+  orchestration: join(skills, 'storycraft-studio-orchestration', 'SKILL.md'),
+  chapter: join(skills, 'storycraft-longform-chapter', 'SKILL.md'),
+  revise: join(skills, 'storycraft-revise-craft', 'SKILL.md'),
+  stateCheck: join(skills, 'storycraft-state-check', 'SKILL.md'),
+  stateSettler: join(skills, 'storycraft-state-settler', 'SKILL.md'),
 }
 const roleText = {}
 for (const [role, file] of Object.entries(roleSkills)) roleText[role] = await readFile(file, 'utf8')
@@ -109,8 +109,8 @@ check('orchestration loads the shared method and reads state projection before s
 check('the single-chapter flow points to the shared method',
   roleText.chapter.includes('`storycraft-long-writing`'))
 
-const shortStory = await readFile(join(skills, 'shortform', 'storycraft-short-story', 'SKILL.md'), 'utf8')
-const shortDrama = await readFile(join(skills, 'screenplay', 'storycraft-short-drama', 'SKILL.md'), 'utf8')
+const shortStory = await readFile(join(skills, 'storycraft-short-story', 'SKILL.md'), 'utf8')
+const shortDrama = await readFile(join(skills, 'storycraft-short-drama', 'SKILL.md'), 'utf8')
 check('short form loads its shared method, not the long-form method',
   shortStory.includes('storycraft-short-writing') && !shortStory.includes('storycraft-long-writing'))
 check('screenplay loads its shared method, not the long-form method',

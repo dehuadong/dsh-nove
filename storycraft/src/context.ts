@@ -77,7 +77,7 @@ interface StandardSegment {
 /** Standards segments, summarised from the role skills. */
 const STANDARDS: Record<'reviewer' | 'reviser', StandardSegment> = {
   reviewer: {
-    source: 'skills/review/storycraft-review',
+    source: 'storycraft-review',
     content: [
       '审稿看四件事：事件是否推进、人物动机是否成立、信息是否自洽、结尾是否留下未解。',
       '每条给出位置、问题、读者影响、严重度与建议模式（patch/polish/rewrite/deslop）；最多 8 条，按严重度排序。',
@@ -85,7 +85,7 @@ const STANDARDS: Record<'reviewer' | 'reviser', StandardSegment> = {
     ].join('\n'),
   },
   reviser: {
-    source: 'skills/revise/storycraft-revise-craft',
+    source: 'storycraft-revise-craft',
     content: [
       'patch：只改点名条目涉及的位置，字数变化不超过两成；',
       'polish：润色措辞，情节与信息不变；rewrite：按条目重写整章；deslop：去掉空转与套话。',

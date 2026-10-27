@@ -32,29 +32,86 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 /** Package root, the directory that owns `skills/`. */
 const SKILLS_ROOT = join(HERE, '..')
 
-/** Modes a preset may mount, each mapped to its catalog directory. */
-const MODES: Record<string, string> = {
-  shared: '通用',
-  longform: '长篇小说',
-  shortform: '短篇小说',
-  screenplay: '短剧剧本',
-  review: '审稿',
-  write: '写作',
-  revise: '修订',
-  plan: '规划',
-}
-
-/** Catalogs the single work mode serves: every form and every role craft. */
-const STUDIO_MODES = ['shared', 'longform', 'shortform', 'screenplay', 'review', 'write', 'revise', 'plan']
-
-/** Catalogs a worker role serves: the craft docs of every form, without the studio method. */
-const FORM_MODES = ['longform', 'shortform', 'screenplay']
-
-/** A mode that serves every form and every role catalog: the work mode mounts this. */
+/** A mode that serves every catalog: the work mode mounts this. */
 const ALL = 'all'
+
+/** A mode that serves every form catalog, without the studio or role catalogs. */
+const FORMS = 'forms'
 
 /** Discovery rank; lower wins a name collision, and a preset-local catalog is authoritative. */
 const RANK = 100
+
+/** The catalog file: mode → skill names. */
+const CATALOG_FILE = join(SKILLS_ROOT, 'skills', 'catalog.json')
+
+/** Parsed mode catalog. */
+interface Catalog {
+  readonly modes: Record<string, readonly string[]>
+}
+
+/**
+ * Read the mode catalog.
+ *
+ * The file is the authority, not the directory path: a skill lives at a flat
+ * `skills/<name>/` and moving it between catalogs is one edit here.
+ * @returns parsed modes; empty when the file is missing or malformed.
+ */
+function readCatalog(): Catalog {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(readFileSync(CATALOG_FILE, 'utf8'))
+  } catch {
+    return { modes: {} }
+  }
+  const modes = (parsed as { modes?: unknown })?.modes
+  const result: Record<string, string[]> = {}
+  if (modes !== null && typeof modes === 'object') {
+    for (const [name, list] of Object.entries(modes as Record<string, unknown>)) {
+      if (!Array.isArray(list)) continue
+      result[name] = list.filter((item): item is string => typeof item === 'string')
+    }
+  }
+  return { modes: result }
+}
+
+/**
+ * Index every skill directory under `skills/` by its front-matter name.
+ *
+ * The walk accepts both the flat layout and a nested one, so this step can land
+ * before the directories are flattened.
+ * @returns name → absolute skill directory; the first directory wins.
+ */
+function skillIndex(): Map<string, string> {
+  const index = new Map<string, string>()
+  const walk = (dir: string): void => {
+    let entries
+    try {
+      entries = readdirSync(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const full = join(dir, entry.name)
+      const file = join(full, 'SKILL.md')
+      let text: string | undefined
+      try {
+        if (statSync(file).isFile()) text = readFileSync(file, 'utf8')
+      } catch {
+        text = undefined
+      }
+      if (text !== undefined) {
+        const { meta } = parseSkill(text)
+        const name = typeof meta.name === 'string' && meta.name !== '' ? meta.name : entry.name
+        if (!index.has(name)) index.set(name, full)
+        continue
+      }
+      walk(full)
+    }
+  }
+  walk(join(SKILLS_ROOT, 'skills'))
+  return index
+}
 
 /**
  * What this provider stores in `locator` and reads back in `get`. The registry
@@ -115,12 +172,12 @@ function parseSkill(text: string): ParsedSkill {
  * Read one skill directory into a registry candidate.
  * @param mode - catalog the skill belongs to.
  * @param provider - provider label reported on every entry.
- * @param skillDir - absolute catalog directory.
- * @param entry - directory name inside the catalog.
+ * @param dir - absolute skill directory.
  * @returns the candidate, or undefined when the directory holds no usable SKILL.md.
  */
-function readCandidate(mode: string, provider: string, skillDir: string, entry: string): DshSkillCandidate | undefined {
-  const file = join(skillDir, entry, 'SKILL.md')
+function readCandidate(mode: string, provider: string, dir: string): DshSkillCandidate | undefined {
+  const file = join(dir, 'SKILL.md')
+  const folder = dir.split(/[\\/]/u).pop() ?? ''
   let text: string
   try {
     if (!statSync(file).isFile()) return undefined
@@ -129,7 +186,7 @@ function readCandidate(mode: string, provider: string, skillDir: string, entry: 
     return undefined
   }
   const { meta } = parseSkill(text)
-  const skillName = typeof meta.name === 'string' && meta.name !== '' ? meta.name : entry
+  const skillName = typeof meta.name === 'string' && meta.name !== '' ? meta.name : folder
   const description = typeof meta.description === 'string' ? meta.description : ''
   return {
     path: file,
@@ -139,9 +196,9 @@ function readCandidate(mode: string, provider: string, skillDir: string, entry: 
     invocation: { modelInvocable: true, userInvocable: true },
     source: 'custom',
     provider,
-    resourceBase: { kind: 'directory', path: join(skillDir, entry) },
+    resourceBase: { kind: 'directory', path: dir },
     rank: RANK,
-    locator: { mode, dir: join(skillDir, entry), file, name: skillName, description },
+    locator: { mode, dir, file, name: skillName, description },
   }
 }
 
@@ -181,28 +238,28 @@ function readDefinition(candidate: DshSkillCandidate): DshSkillDefinition | unde
  */
 export function apply(ctx: DshContext, config: { mode?: unknown } = {}): void {
   const mode = typeof config?.mode === 'string' ? config.mode : ''
-  const modes = mode === ALL ? STUDIO_MODES : mode === 'forms' ? FORM_MODES : [mode]
-  if (modes.some(entry => !Object.prototype.hasOwnProperty.call(MODES, entry))) {
+  const catalog = readCatalog()
+  const available = Object.keys(catalog.modes)
+  const modes = mode === ALL
+    ? available
+    : mode === FORMS
+      ? ['longform', 'shortform', 'screenplay'].filter(entry => catalog.modes[entry] !== undefined)
+      : [mode]
+  if (modes.length === 0 || modes.some(entry => catalog.modes[entry] === undefined)) {
     ctx.logger?.warn?.(`storycraft-skills: unknown mode "${String(mode)}"; serving no skills`)
     return
   }
   const provider = `storycraft-${mode}`
+  const names = [...new Set(modes.flatMap(entry => catalog.modes[entry] ?? []))]
+  const index = skillIndex()
 
   const list = async (): Promise<DshSkillCandidate[]> => {
     const candidates: DshSkillCandidate[] = []
-    for (const name of modes) {
-      const catalogDir = join(SKILLS_ROOT, 'skills', name)
-      let entries
-      try {
-        entries = readdirSync(catalogDir, { withFileTypes: true })
-      } catch {
-        continue
-      }
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue
-        const candidate = readCandidate(name, provider, catalogDir, entry.name)
-        if (candidate !== undefined) candidates.push(candidate)
-      }
+    for (const name of names) {
+      const dir = index.get(name)
+      if (dir === undefined) continue
+      const candidate = readCandidate(mode, provider, dir)
+      if (candidate !== undefined) candidates.push(candidate)
     }
     return candidates
   }

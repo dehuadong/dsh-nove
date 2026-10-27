@@ -1,0 +1,17 @@
+{
+  "modes": {
+    "shared": ["storycraft-studio-orchestration"],
+    "longform": [
+      "storycraft-architect",
+      "storycraft-long-writing",
+      "storycraft-longform-chapter",
+      "storycraft-longform-method"
+    ],
+    "shortform": ["storycraft-short-story", "storycraft-short-writing"],
+    "screenplay": ["storycraft-script-writing", "storycraft-short-drama"],
+    "review": ["storycraft-review", "storycraft-state-check", "storycraft-state-settler"],
+    "write": ["storycraft-write-craft"],
+    "revise": ["storycraft-revise-craft"],
+    "plan": ["storycraft-plan-craft"]
+  }
+}
