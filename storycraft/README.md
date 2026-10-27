@@ -255,7 +255,7 @@ storycraft/
 
 | 装法 | 命令 | 生效 |
 | --- | --- | --- |
-| 开发（`link:`） | `dsh plugin add link:E:/dsh-nove/storycraft` | 改完 `npm run build` 后重新加载窗口 |
+| 开发（`link:`） | `dsh plugin add link:<仓库路径>/storycraft` | 改完 `npm run build` 后重新加载窗口 |
 | tarball / registry | `npm pack` 后 `dsh plugin add <tgz>`，或 `dsh plugin add see-storycraft@<版本>` | **重启 DeepSeek Harness**（渲染进程跑的是启动时那份客户端 bundle，正式构建没有「重新加载页面」菜单项） |
 
 发布前用 tarball 走一遍真实验收，不要用 `link:`：

@@ -11,8 +11,9 @@
  * repository's sample work.
  *
  * Environment:
- *   DSH_E2E_PORT  listen port (default 3317).
- *   DSH_E2E_APP   desktop client executable (default: the installed app).
+ *   DSH_E2E_PORT    listen port (default: a random port in 33000–33899).
+ *   DSH_E2E_APP     desktop client executable (default: the installed app).
+ *   DSH_E2E_KEEP=1  keep the temp home and fixture workspace for inspection.
  */
 
 import { spawn, spawnSync } from 'node:child_process'
@@ -65,6 +66,22 @@ const runtimeFile = path.join(tempRoot, 'runtime.json')
 const profileDir = path.join(home, 'profiles', 'web')
 const profileManifest = path.join(profileDir, 'package.json')
 const fixtureWorkspace = path.join(tempRoot, 'workspace')
+
+/** Keep the throwaway tree after exit, to inspect a failure. */
+const keepTemp = process.env.DSH_E2E_KEEP === '1'
+
+/** Remove the throwaway home, fixture workspace, and runtime file. */
+function cleanTemp() {
+  if (keepTemp) return
+  for (const target of [home, fixtureWorkspace, runtimeFile]) {
+    try {
+      rmSync(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+    } catch {
+      // Best effort on the way out: a file still locked by the dying host must
+      // not replace the real result with a cleanup error.
+    }
+  }
+}
 
 const appExe = process.env.DSH_E2E_APP ?? 'C:\\Users\\MyPC\\AppData\\Local\\Programs\\DeepSeek Harness\\DeepSeek Harness.exe'
 const appEntry = path.join(
@@ -154,6 +171,7 @@ function startHost(facts) {
     stopping = true
     clearTimeout(deadline)
     if (child.exitCode === null && child.signalCode === null) child.kill()
+    cleanTemp()
     process.exit(code)
   }
   deadline = setTimeout(() => {
@@ -186,7 +204,10 @@ function startHost(facts) {
   })
   process.on('SIGTERM', () => shutdown(0))
   process.on('SIGINT', () => shutdown(0))
-  process.on('exit', () => { if (child.exitCode === null && child.signalCode === null) child.kill() })
+  process.on('exit', () => {
+    if (child.exitCode === null && child.signalCode === null) child.kill()
+    cleanTemp()
+  })
 }
 
 if (!existsSync(appExe)) fail(`找不到桌面客户端：${appExe}\n用 DSH_E2E_APP 指向 DeepSeek Harness.exe。`)

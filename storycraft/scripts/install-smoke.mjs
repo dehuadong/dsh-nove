@@ -7,9 +7,15 @@
  * tarball the way a registry install does. Everything happens under
  * `.tmp-smoke/`; the developer's real profile is never touched.
  *
- * The instance it starts is headless (`ELECTRON_RUN_AS_NODE=1`, `web --no-open`,
- * random port). It is always killed on the way out — including on failure —
- * because a leaked instance keeps the console pipe open and looks like a hang.
+ * The profile is the shipped `web` one: `@deepseek-ai/dsh-base` plus
+ * `@deepseek-ai/dsh-web-app`, the same bundle stack the Electron Desktop profile
+ * carries. Install and boot must both target it — a smoke that installs into one
+ * profile and boots another proves nothing, so step 4 re-reads the manifest.
+ *
+ * The instance it starts is headless (`ELECTRON_RUN_AS_NODE=1`, `--profile web
+ * --no-open`, random port). It is always killed on the way out — including on
+ * failure — because a leaked instance keeps the console pipe open and looks like
+ * a hang.
  *
  * Environment:
  *   DSH_E2E_APP       desktop client executable (default: the installed app)
@@ -32,7 +38,7 @@ const home = path.join(tempRoot, 'home')
 const workspace = path.join(tempRoot, 'workspace')
 const packDir = path.join(tempRoot, 'pack')
 const runtimeFile = path.join(tempRoot, 'runtime.json')
-const profile = 'smoke'
+const profile = 'web'
 const packageName = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).name
 
 const appExe = process.env.DSH_E2E_APP ?? 'C:\\Users\\MyPC\\AppData\\Local\\Programs\\DeepSeek Harness\\DeepSeek Harness.exe'
@@ -42,13 +48,26 @@ const appEntry = path.join(
 const READY_TIMEOUT_MS = 180_000
 const PRINTED_URL = /dsh web: (http:\/\/127\.0\.0\.1:\d+\/\?token=[A-Za-z0-9_-]+)/u
 
-/** Run the DSH CLI against the throwaway home. */
+/**
+ * Run the DSH CLI against the throwaway home.
+ *
+ * stdin is closed and a timeout is set: a CLI that asks a question (or waits on
+ * a TTY) would otherwise block this script forever, which is exactly the shape
+ * of a "silent hang".
+ */
 function dsh(args) {
-  return spawnSync(appExe, [appEntry, ...args], {
+  const result = spawnSync(appExe, [appEntry, ...args], {
     cwd: root,
     encoding: 'utf8',
+    timeout: 180_000,
+    stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, DSH_HOME: home, ELECTRON_RUN_AS_NODE: '1' },
   })
+  if (result.error !== undefined) {
+    const reason = result.error.code === 'ETIMEDOUT' ? '超时（180 秒）' : result.error.message
+    throw new Error(`dsh ${args.join(' ')} 没有正常结束：${reason}\n${result.stdout ?? ''}${result.stderr ?? ''}`)
+  }
+  return result
 }
 
 /** Wait until the started instance prints its authenticated URL. */
@@ -98,18 +117,23 @@ async function main() {
   const tarball = path.join(packDir, tarballs[0])
   console.log(`[install-smoke] 已打包 ${tarballs[0]}`)
 
-  // 2. A fresh profile from the shipped web template.
-  const initialized = dsh(['--profile', profile, '--from-default-profile', 'web'])
+  // 2. Let DSH initialize the shipped `web` profile itself, then exit. The dump
+  //    flag is what makes it exit: without one the launcher boots the profile,
+  //    which starts a server and opens a browser.
+  const initialized = dsh(['--profile', profile, '--dump-config'])
   if (initialized.status !== 0) {
-    // Older builds accept the template only through the dump-config path.
-    const fallback = dsh(['--profile', profile, '--dump-config'])
-    if (fallback.status !== 0 || !existsSync(path.join(home, 'profiles', profile, 'package.json'))) {
-      throw new Error(`初始化临时 profile 失败\n${initialized.stderr ?? ''}${fallback.stderr ?? ''}`)
-    }
+    throw new Error(`初始化 profile ${profile} 失败\n${initialized.stderr ?? ''}`)
+  }
+  const profileManifest = path.join(home, 'profiles', profile, 'package.json')
+  if (!existsSync(profileManifest)) {
+    throw new Error(`临时 profile 没有生成：${profileManifest}`)
   }
 
-  // 3. Install the tarball the way a user would.
-  const installed = dsh(['plugin', '--profile', profile, 'add', tarball])
+  // 3. Install the tarball the way a user would. The spec is normalized to a
+  //    `file:` URL with forward slashes: on Windows a bare `E:\…` path is read
+  //    by pnpm as a package spec, not as a tarball.
+  const spec = `file:${tarball.replaceAll('\\', '/')}`
+  const installed = dsh(['plugin', '--profile', profile, 'add', spec])
   if (installed.status !== 0) throw new Error(`dsh plugin add <tgz> 失败\n${installed.stdout ?? ''}${installed.stderr ?? ''}`)
 
   // 4. The profile must gain this bundle's layer.
@@ -120,13 +144,23 @@ async function main() {
   }
   console.log(`[install-smoke] 已装上并出现 # == ${packageName} 层`)
 
+  // 4b. The boot below must serve the profile this tarball went into. Assert the
+  // bundle stack instead of trusting two names to stay in sync.
+  const installedManifest = JSON.parse(readFileSync(profileManifest, 'utf8'))
+  const bundles = installedManifest.dsh?.profile?.bundles ?? []
+  for (const required of ['@deepseek-ai/dsh-web-app', packageName]) {
+    if (!bundles.includes(required)) {
+      throw new Error(`profile ${profile} 的 bundles 缺少 ${required}：${JSON.stringify(bundles)}`)
+    }
+  }
+
   // 5. Fixture data plus a registered workspace, so the route has something to list.
   const facts = await buildFixture(workspace)
   seedWorkspace({ home, workspaceDir: workspace, facts, label: 'install-smoke' })
 
-  // 6. Boot the installed instance and wait for its authenticated URL.
+  // 6. Boot the same profile the tarball was installed into.
   const port = Number(process.env.DSH_E2E_PORT ?? String(33000 + Math.floor(Math.random() * 900)))
-  const child = spawn(appExe, [appEntry, 'web', '--port', String(port), '--no-open'], {
+  const child = spawn(appExe, [appEntry, '--profile', profile, '--port', String(port), '--no-open'], {
     cwd: root,
     env: { ...process.env, DSH_HOME: home, ELECTRON_RUN_AS_NODE: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -149,7 +183,9 @@ async function main() {
     if (playwright === undefined) {
       throw new Error('没有安装 Playwright：在 storycraft/ 下运行 npm install && npx playwright install chromium')
     }
-    const spec = spawnSync(process.execPath, [
+    // Named apart from the tarball `spec` above: two different things, and the
+    // install spec is still in scope here.
+    const pageRun = spawnSync(process.execPath, [
       playwright.cli, 'test', 'e2e/load.spec.cjs', '--workers=1',
     ], {
       cwd: root,
@@ -160,7 +196,7 @@ async function main() {
         STORYCRAFT_E2E_URL: url,
       },
     })
-    if ((spec.status ?? 1) !== 0) throw new Error('安装后的页面断言失败（见上面的 Playwright 输出）')
+    if ((pageRun.status ?? 1) !== 0) throw new Error('安装后的页面断言失败（见上面的 Playwright 输出）')
     console.log('[install-smoke] PASS: tarball 安装、挂载、页面与路由均通过')
   } finally {
     stopChild(child)

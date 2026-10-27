@@ -53,7 +53,7 @@ updated: 2026-10-27
 ### 3. 校验与安装 smoke
 
 - 扩展 `scripts/pack-check.mjs`：在现有断言（入口集合从 `exports` 派生、`lib/` 无未声明产物、禁止 `src`/tests/e2e/scripts）之外，断言 `private` 不存在、`engines.dsh` 存在、`license` 字段与 `LICENSE` 文件一致、`LICENSE` 在包内、`files` 里没有 `dist`。**断言逻辑抽成纯函数**（输入 `package.json`、tarball 清单与 `lib/` 文件列表，返回失败列表），负例由 `tests/` 里的单测喂伪造清单来证明，不修改工作区。
-- 新增 `scripts/install-smoke.mjs`：自己 `npm pack` 出一个 tgz 到临时目录（并断言只产出一个包），在临时 `DSH_HOME` 下用 `dsh --profile smoke --from-default-profile web` 建立独立 profile，再 `dsh plugin --profile smoke add <tgz>`；`dsh --profile smoke --dump-config` 断言出现 `# == see-storycraft` 层与 `see-storycraft` 行；随后按 `e2e/host.mjs` 的方式冷启动 web 实例（`ELECTRON_RUN_AS_NODE=1`、`web --port <空闲端口> --no-open`、解析 stdout 的 token URL）；写一份 `runtime.json` 后跑 `e2e/load.spec.cjs` 的同一套断言（页面无 `pageerror`、`GET /api/see-storycraft/works?root=…` 返回 200）。桌面客户端路径沿用 `DSH_E2E_APP` 覆盖，不写死在脚本里。
+- 新增 `scripts/install-smoke.mjs`：自己 `npm pack` 出一个 tgz 到临时目录（并断言只产出一个包），在临时 `DSH_HOME` 下用 `dsh --profile web --dump-config` 让 DSH 从随附 `web` 模板初始化 profile（bundle 栈 `@deepseek-ai/dsh-base` + `@deepseek-ai/dsh-web-app`，与 Electron 的 desktop profile 相同），再 `dsh plugin --profile web add <tgz>`；`dsh --profile web --dump-config` 断言出现 `# == see-storycraft` 层，并回读 profile manifest 断言 bundles 同时含 web-app 与 see-storycraft——装与启必须是同一个 profile；随后按 `e2e/host.mjs` 的方式冷启动该 profile（`ELECTRON_RUN_AS_NODE=1`、`--profile web --port <空闲端口> --no-open`、解析 stdout 的 token URL）；写一份 `runtime.json` 后跑 `e2e/load.spec.cjs` 的同一套断言（页面无 `pageerror`、`GET /api/see-storycraft/works?root=…` 返回 200）。`--dump-config` 是必需的：没有 dump 标志时 launcher 会直接启动 profile（起服务并开浏览器）。桌面客户端路径沿用 `DSH_E2E_APP` 覆盖，不写死在脚本里。
 - `ci.mjs` 二选一：默认跑 e2e 复制模式；加 `--smoke` 时改为跑 tarball 安装 smoke，两者互斥，避免同时启动两个实例。
 - 安装生效方式必须分开写：`link:` 开发是「build 后重新加载」（模块是 junction，改完即生效）；tarball 与 registry 安装**必须重启 DeepSeek Harness**，因为渲染进程跑的是启动时那份客户端 bundle，正式构建里没有「重新加载页面」菜单项（`dsh-seework` 实测，`Ctrl+R` 也未绑定）。
 
@@ -71,7 +71,7 @@ updated: 2026-10-27
 
 ### 4. 两种安装形态
 
-- 本机 link（开发）：`link:E:/dsh-nove/storycraft` 不变，改源码后先 `npm run build`；e2e 复制模式作为回归。
+- 本机 link（开发）：`link:<仓库路径>/storycraft` 不变，改源码后先 `npm run build`；e2e 复制模式作为回归。
 - registry（发布）：`npm publish` 后 `dsh plugin add see-storycraft@0.1.0`；若命中 pnpm 的 24 小时 `minimumReleaseAge`，在临时 profile 的 `pnpm-workspace.yaml` 写入 `minimumReleaseAgeExclude: see-storycraft@0.1.0`。tarball 安装是发布前的本地等价验证。
 
 不做的轨：GitHub 直装（`git+https://…`）、插件内更新 UI、插件市场索引。

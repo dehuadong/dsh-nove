@@ -52,9 +52,13 @@ const stop = () => { if (host.exitCode === null && host.signalCode === null) hos
 process.on('SIGTERM', stop)
 process.on('SIGINT', stop)
 
-/** Wait for the host to publish its authenticated URL. */
+/**
+ * Wait for the host to publish its authenticated URL. The host gives up after
+ * 180 seconds and exits; this waits a little longer so the host's own error is
+ * the one on screen instead of a second, less informative timeout.
+ */
 async function waitForRuntime() {
-  const deadline = Date.now() + 200_000
+  const deadline = Date.now() + 190_000
   while (Date.now() < deadline) {
     if (existsSync(runtimeFile)) {
       const text = readFileSync(runtimeFile, 'utf8')
