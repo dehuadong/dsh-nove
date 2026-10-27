@@ -22,11 +22,12 @@ async function openWork(page, title, form = '长篇') {
 test.describe('面板状态模型', () => {
   test.skip(!url, 'STORYCRAFT_E2E_URL 未设置：请用 node storycraft/e2e/run.mjs 运行')
 
-  test('基础设定缺失：只给生成基础设定一个主按钮', async ({ page }) => {
+  test('基础设定缺失：面板只报告状态，不提供生成按钮', async ({ page }) => {
     const card = await openWork(page, '状态-基础设定')
     await expect(card).toHaveAttribute('data-state', 'foundation-needed')
-    await expect(card.locator('button.sc-btn-primary')).toHaveCount(1)
-    await expect(card.getByRole('button', { name: '生成基础设定' })).toBeVisible()
+    // The panel never advances a protocol step: generation belongs to the session.
+    await expect(card.getByRole('button', { name: '生成基础设定' })).toHaveCount(0)
+    await expect(card.getByRole('button', { name: '基础设定待生成' })).toBeDisabled()
   })
 
   test('没有全书计划：主按钮写计划', async ({ page }) => {
