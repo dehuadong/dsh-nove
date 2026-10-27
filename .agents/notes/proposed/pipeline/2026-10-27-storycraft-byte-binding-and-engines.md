@@ -87,6 +87,10 @@ updated: 2026-10-27
 - `StoryError` 增加可选 `next`；工具失败回执为 `{ ok: false, error: { code, message, next, retryable } }`，不再让调用方解析文案；
 - 来源标注：artifact 读取返回身份（artifactId / revisionId / kind）；缺失是 `artifact-not-found`，类型不符是 `artifact-kind-mismatch`。实现已用错误码区分，不再新增 `status` 字段——同一件事两个表达渠道会漂移。
 
+## 决定：计划闸门的动作
+
+章纲未确认时，**动作随可用性而定**：没有正文 → `story_write` + `blocked:['plan-approval']`（保留 `plan-not-approved` 这个具体错误码）；已有正文 → `story_plan`（只能回去确认）。曾尝试统一为 `story_plan`，会丢掉写入口的具体错误码并推翻既有闸门测试，收益只是形式一致，因此**保持现状**。
+
 ## 与既有设计的关系
 
 - `#77` 定的载体分工不变：判定与机械检查进代码，方法进阶段技能，材料/问题/方法按节点由宿主给；
