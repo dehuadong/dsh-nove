@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Shell Guard",
+    "description": "Refuses delete and move commands whose targets fall outside the workspace, and points at the reversible alternative."
+  }
+}

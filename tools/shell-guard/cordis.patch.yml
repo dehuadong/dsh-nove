@@ -1,0 +1,3 @@
+- insert:
+    - id: shell-guard
+      name: '@dsh-nove/shell-guard'

@@ -4,6 +4,19 @@
 
 > inkos-master项目是参考复刻对象。具体见 &对拍工作法
 
+## 文件安全
+
+工作区指本文件所在目录。下面四条是硬约束，不因任务紧急、验收需要或“只是测试”而放宽：
+
+- **工作区外不删除、不移动、不覆盖**。`%USERPROFILE%`、`%APPDATA%`、`%LOCALAPPDATA%`、`%ProgramData%`、`C:\Windows` 与盘符根视为禁区；确需改动其中某个单文件时，一次一个、写出绝对路径、当次取得作者授权。
+- **需要干净的 DSH 状态时，只用临时 `DSH_HOME`**（`storycraft/.tmp-e2e/`、`storycraft/.tmp-smoke/`）。禁止清理真实的 `~/.dsh`，禁止删改 `~/.ssh`、`~/.gitconfig` 等用户级配置；用户级目录不是测试夹具。
+- **删除只走 `node scripts/trash.mjs`**：目标移到 `.trash/` 并保留原路径，`--restore <id>` 可还原。禁止用 `Remove-Item -Recurse`、`rm -rf` 直接抹除。
+- **`danger-full-access` 仅限单文件、单操作、路径已核对**；禁止目录递归、通配符和复合命令。
+
+派发前的强制拦截由 Host 插件 `@dsh-nove/shell-guard`（源码 `tools/shell-guard/`）执行：分类器命中“删除/移动动词 + 工作区外目标 / 通配符 / 变量拼接”时直接拒绝该次工具调用，并在回执里给出 `trash.mjs` 的替代路径。规则写在文档里是给人看的，这一层由运行时强制执行。
+
+边界说明：守卫装在当前 profile，只覆盖经由本 Harness 工具发起的命令；作者自己终端里的操作不在其内。因此删除一律走 `trash.mjs`，不要因为“有守卫”就放宽命令行。
+
 ## 工程工作流 
 
 工程任务从 Discuss 开始。
@@ -86,7 +99,7 @@
 3. 红的处理顺序：先让 spec 稳定复现（红）→ 读产物（`trace`、失败截图、`test-results/*/error-context.md` 的 ARIA 快照）→ 改代码 → 重跑同一条命令。
 4. 选择器用 `getByRole` / `getByLabel`；缺稳定锚点就在组件上补 `data-*`，不用脆弱的 CSS 层级。
 5. 不写 UI 单元测试（按钮渲染、className、快照）；业务逻辑、纯函数、接口契约仍由 `storycraft/tests` 覆盖。
-6. Playwright 是本包 devDependency（`storycraft/package.json`），浏览器装在机器级缓存。
+6. Playwright 是本包 devDependency（`storycraft/package.json`），浏览器装在机器级缓存；**不借用其它项目的 `node_modules`**，也不设 `NODE_PATH` 指过去。
 7. E2E 起的是临时实例：独立 `DSH_HOME`（`storycraft/.tmp-e2e/`）、临时端口、随 spec 结束退出。需要手工回收时按端口定位（`Get-NetTCPConnection -LocalPort <port>`），不许按进程名批量杀。
 8. 装出来的形态用 `node storycraft/scripts/ci.mjs --smoke` 验证（tarball → `dsh plugin add` → 冷启动）；它自己开实例、自己收尾，失败也必须杀干净，不能留下占着管道的子进程。
 

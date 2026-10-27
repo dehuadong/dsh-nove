@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Shell Guard">
+  <path d="M32 6 54 14v18c0 14-9 23-22 26C19 55 10 46 10 32V14z" fill="#1f2937"/>
+  <path d="M32 12 48 18v14c0 11-7 18-16 21-9-3-16-10-16-21V18z" fill="#3b82f6"/>
+  <path d="M22 32l7 7 14-14" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

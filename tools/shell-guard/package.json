@@ -1,0 +1,24 @@
+{
+  "name": "@dsh-nove/shell-guard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Refuses destructive shell commands whose targets fall outside the workspace.",
+  "exports": {
+    ".": "./index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "classify.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}
