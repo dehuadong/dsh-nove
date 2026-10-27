@@ -1,6 +1,6 @@
 ---
 name: storycraft-longform-chapter
-description: 长篇小说单章流程与闸门：章纲到定稿的动作顺序、前置读取与回退；方法正文读 storycraft-long-writing，立项/卷/重开见 references。只出方法与提交内容，不直接改文件。 触发：用户要求写长篇的下一章、续写、改章节，或需要确认单章流程与闸门时。
+description: 长篇小说单章流程与闸门：章纲到定稿的动作顺序、前置读取与回退；方法正文按阶段读 storycraft-long-plan / storycraft-long-prose / storycraft-long-settle，立项/卷/重开见 references。只出方法与提交内容，不直接改文件。 触发：用户要求写长篇的下一章、续写、改章节，或需要确认单章流程与闸门时。
 ---
 # 长篇单章流程
 
@@ -10,7 +10,7 @@ description: 长篇小说单章流程与闸门：章纲到定稿的动作顺序�
 
 ## 先读方法
 
-长篇方法正文在 `storycraft-long-writing`：写章纲读 `references/reader-contract-and-progression.md`，写正文读 `references/scene-dialogue-and-length-budget.md`，定稿读 `references/state-projection.md`。本技能只保留单章流程与闸门；立项、卷、重开与设置见 `references/flow-details.md`。
+方法正文按阶段加载：写章纲读 `storycraft-long-plan` 的 `references/chapter-plan.md`；写正文读 `storycraft-long-prose` 的 `references/scene-dialogue-and-length-budget.md`；定稿读 `storycraft-long-settle` 的 `references/state-projection.md`。本技能只保留单章流程与闸门；立项、卷、重开与设置见 `references/flow-details.md`。
 
 ## 开工前必须先读
 

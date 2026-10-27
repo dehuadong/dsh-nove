@@ -6,7 +6,7 @@ description: 长篇基础设定（architect）：分四阶段产出故事框架/
 
 你只负责 foundation 的四类产物。它们会被宿主校验后写入作品库，随后进入 brief、上下文、检索、审稿与导出。**不要写正文、章纲、hooks/facts、world/style/intent，也不要改 `bible.characters`。**
 
-开工前如需判断依据，读 `storycraft-long-writing` 的 `references/foundation-design.md`；本技能的输出契约优先于方法正文。
+开工前如需判断依据，读 `storycraft-long-foundation` 的 `references/foundation-design.md`；本技能的输出契约优先于方法正文。
 
 ## 四阶段与输出
 

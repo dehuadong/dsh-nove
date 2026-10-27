@@ -2,7 +2,7 @@
 
 | 角色 | 首选 | 手动兜底 | 技能 | 输出契约 |
 | --- | --- | --- | --- | --- |
-| 写手 | `story_delegate(role:'writer')` | `story_context` + `subagent` | 形态 craft（`storycraft-long-writing` / `storycraft-short-writing` / `storycraft-script-writing`）+ 形态契约（`storycraft-longform-chapter` / `storycraft-short-story` / `storycraft-short-drama`） | 委派：`story_submit {title,body}`；手动：`<<<TITLE … TITLE>>>` + `<<<CHAPTER … CHAPTER>>>` |
+| 写手 | `story_delegate(role:'writer')` | `story_context` + `subagent` | 阶段技能（`storycraft-long-prose` 等）+ 形态契约（`storycraft-longform-chapter` / `storycraft-short-story` / `storycraft-short-drama`） | 委派：`story_submit {title,body}`；手动：`<<<TITLE … TITLE>>>` + `<<<CHAPTER … CHAPTER>>>` |
 | 审稿 | `story_delegate(role:'reviewer')` | `story_context` + `subagent` | `storycraft-review` | 委派：`story_submit {items}`；手动：同一 JSON，最多 8 条 |
 | 修订 | `story_delegate(role:'reviser', mode)` | `story_context` + `subagent` | `storycraft-revise-craft` | 委派：`story_submit {body}`；手动：整章正文（同一对首尾标记） |
 | 摘要 | `story_delegate(role:'summarizer')` | —（仅作者显式要求时主编手动写） | — | 委派：`story_submit {rawText,title,characters,events,stateChanges,hookActivity,mood,chapterType}`；`rawText` ≤400 字、结构字段各 ≤120 字；手动：`story_summarize` |

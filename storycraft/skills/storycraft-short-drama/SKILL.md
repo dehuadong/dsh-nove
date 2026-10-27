@@ -1,6 +1,6 @@
 ---
 name: storycraft-short-drama
-description: 剧本形态契约：立项、spec/分集/场次提交与自检入口；方法正文读 storycraft-script-writing。只出方法与提交内容，不直接改文件。 触发：用户要求写短剧剧本、把一个故事改成竖屏短剧、或要求检查分集节奏与单集钩子时。
+description: 剧本形态契约：立项、spec/分集/场次提交与自检入口；方法正文读 storycraft-script-spec / storycraft-script-scene。只出方法与提交内容，不直接改文件。 触发：用户要求写短剧剧本、把一个故事改成竖屏短剧、或要求检查分集节奏与单集钩子时。
 ---
 # 剧本契约
 
@@ -8,7 +8,7 @@ description: 剧本形态契约：立项、spec/分集/场次提交与自检入�
 
 ## 先读方法
 
-加载 `storycraft-script-writing` 并读 `references/episode-scene-craft.md`。本技能只写形态契约，不复制方法正文。
+加载 `storycraft-script-scene` 读 `references/episode-scene-craft.md`；spec 与分集读 `storycraft-script-spec` 的 `references/spec.md`。本技能只写形态契约，不复制方法正文。
 
 ## 先讨论，后立项
 

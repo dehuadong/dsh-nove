@@ -1,6 +1,6 @@
 ---
 name: storycraft-short-story
-description: 短篇形态契约：立项、篇纲、正文提交与自检入口；方法正文读 storycraft-short-writing。只出方法与提交内容，不直接改文件。 触发：用户要求写一篇独立短篇、把一个想法写成短篇，或要求检查短篇的节奏与结构时。
+description: 短篇形态契约：立项、篇纲、正文提交与自检入口；方法正文读 storycraft-short-outline / storycraft-short-prose。只出方法与提交内容，不直接改文件。 触发：用户要求写一篇独立短篇、把一个想法写成短篇，或要求检查短篇的节奏与结构时。
 ---
 # 短篇契约
 
@@ -8,7 +8,7 @@ description: 短篇形态契约：立项、篇纲、正文提交与自检入口�
 
 ## 先读方法
 
-加载 `storycraft-short-writing` 并读 `references/production-checklist.md`。本技能只写形态契约，不复制方法正文。
+篇纲加载 `storycraft-short-outline` 读 `references/outline.md`；正文与自检加载 `storycraft-short-prose` 读 `references/production-checklist.md`。本技能只写形态契约，不复制方法正文。
 
 ## 先讨论，后立项
 
