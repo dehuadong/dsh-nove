@@ -329,6 +329,36 @@ function planMemoFrom(db: any, chapter: any): any {
 }
 
 /**
+ * The single method reference the next action needs.
+ *
+ * The host, not the skill, decides which reference a node reads: a resident
+ * skill that lists every reference would show planning material at writing time.
+ */
+function methodFor(step: any, form: string): { skill: string; reference?: string } | undefined {
+  const craft = form === 'short' ? 'storycraft-short-writing' : form === 'script' ? 'storycraft-script-writing' : 'storycraft-long-writing'
+  if (step.action === 'story_outline') {
+    return form === 'longform' ? { skill: craft, reference: 'references/foundation-design.md' } : undefined
+  }
+  if (step.action === 'story_plan') {
+    return { skill: craft, reference: form === 'script' ? 'references/spec.md' : form === 'short' ? 'references/outline.md' : 'references/chapter-plan.md' }
+  }
+  if (step.action === 'story_write') {
+    return {
+      skill: craft,
+      reference: form === 'script'
+        ? 'references/episode-scene-craft.md'
+        : form === 'short' ? 'references/production-checklist.md' : 'references/scene-dialogue-and-length-budget.md',
+    }
+  }
+  if (step.action === 'story_review') return { skill: 'storycraft-review', reference: 'references/review-dimensions.md' }
+  if (step.action === 'story_revise') return { skill: 'storycraft-revise-craft' }
+  if (step.action === 'story_settle') {
+    return form === 'longform' ? { skill: craft, reference: 'references/state-projection.md' } : undefined
+  }
+  return undefined
+}
+
+/**
  * The judgement material attached to a step.
  *
  * Only the decisions a `story_next` step can actually carry get an `ask` here:
@@ -1237,6 +1267,7 @@ export function nextStep(root: any, work: any) {
       return { chapter: last.number, stage, action: 'story_settle', reason: isCleanReview(candidate) ? `第 ${last.number} 章清稿审稿无问题，自动结算` : `第 ${last.number} 章已修订，自动结算`, missing: [] }
     })()
     const delegate = delegateOf(step, last, candidate)
+    const method = methodFor(step, formOf(manifest))
     const planMemo = (step.blocked ?? []).includes('plan-approval')
       ? planMemoFrom(db, step.chapter)
       : undefined
@@ -1248,6 +1279,7 @@ export function nextStep(root: any, work: any) {
       unit: unitOf(formOf(manifest)),
       ...(delegate === undefined ? {} : { delegate }),
       ...(ask === undefined ? {} : { ask }),
+      ...(method === undefined ? {} : { method }),
     }
   } finally {
     db.close()

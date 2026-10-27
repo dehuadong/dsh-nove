@@ -97,6 +97,29 @@ export function plannerSkills(form: Form): string[] {
   return [FORM_META[formOf({ form })].craft]
 }
 
+/**
+ * The one method reference a role reads at this node.
+ *
+ * The host picks it so a resident skill never has to list every reference and
+ * the child never sees planning material while writing.
+ */
+export function roleMethod(role: string, form: Form): { skill: string; reference?: string } | undefined {
+  const meta = FORM_META[formOf({ form })]
+  if (role === 'writer') {
+    return {
+      skill: meta.craft,
+      reference: form === 'script'
+        ? 'references/episode-scene-craft.md'
+        : form === 'short' ? 'references/production-checklist.md' : 'references/scene-dialogue-and-length-budget.md',
+    }
+  }
+  if (role === 'planner') {
+    return { skill: meta.craft, reference: form === 'script' ? 'references/spec.md' : form === 'short' ? 'references/outline.md' : 'references/chapter-plan.md' }
+  }
+  if (role === 'reviewer') return { skill: 'storycraft-review', reference: 'references/review-dimensions.md' }
+  return undefined
+}
+
 /** One chapter entry from the manifest. */
 interface ManifestChapter {
   number: number
@@ -251,6 +274,10 @@ function promptFor({ input, manifest, context, delegationId }: PromptRequest): s
     '## 输出契约',
     `必须调用 story_submit，delegationId 是 ${delegationId}。`,
   ]
+  const method = roleMethod(input.role, form)
+  if (method?.reference !== undefined) {
+    lines.push(`这一节点只读 \`${method.skill}\` 的 \`${method.reference}\`，不要读其它参考。`)
+  }
   if (input.role === 'writer') {
     lines.push('标题不超过 20 字，概括本章发生的那个变化，不要用「第 N 章」。')
     lines.push('只用手头上下文出现过的人名、地名、官职、数字与尺寸；需要新角色时用无名角色；不要读其它作品。')

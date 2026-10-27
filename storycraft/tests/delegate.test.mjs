@@ -130,7 +130,9 @@ try {
   const planner = await delegateRole(root, { work: plannerWork, chapter: 1, role: 'planner' }, { service: plannerService, agent, signal })
   check('planner delegates and lands an unapproved plan', planner.ok === true && planner.role === 'planner' && planner.planApproved === false && planner.stage === 'planned', JSON.stringify(planner))
   check('planner receipt carries no plan body', !('body' in planner) && !('threadRefs' in planner), JSON.stringify(planner))
-  check('planner prompt loads the form craft whose node rules name the plan reference', plannerService.specs[0].request.prompt[0].text.includes('storycraft-long-writing'))
+  check('planner prompt loads the form craft and its plan reference',
+    plannerService.specs[0].request.prompt[0].text.includes('storycraft-long-writing')
+    && plannerService.specs[0].request.prompt[0].text.includes('references/chapter-plan.md'))
   const storedPlan = s.readPlan(root, plannerWork, 1)
   check('planner plan lands under the bound work/chapter', typeof storedPlan === 'string' && storedPlan.includes('查清旧案') && planner.artifact?.artifactId === 'plan:1', String(storedPlan))
   const plannerTrace = readArtifact(root, { work: plannerWork, artifactId: 'trace:1:planner' })
@@ -189,7 +191,8 @@ try {
   check('long-form writer prompt loads its craft only',
     writerPrompt.includes('storycraft-long-writing')
     && !writerPrompt.includes('storycraft-longform-chapter')
-    && !writerPrompt.includes('storycraft-short-writing') && !writerPrompt.includes('storycraft-script-writing'),
+    && !writerPrompt.includes('storycraft-short-writing') && !writerPrompt.includes('storycraft-script-writing')
+    && writerPrompt.includes('references/scene-dialogue-and-length-budget.md'),
     writerPrompt.split('\n')[1])
   check('writer body landed', s.readChapter(root, { work, chapter: 1 }).content.includes('甲推开门'))
 

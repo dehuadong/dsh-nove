@@ -85,14 +85,6 @@ for (const entry of skillDirs) {
   if (bytes > MAX_MAIN_BYTES) {
     fail(`skills/${entry.name}: SKILL.md is ${bytes} bytes; move detail into references/ (limit ${MAX_MAIN_BYTES})`)
   }
-  const refsDir = join(dir, 'references')
-  try {
-    for (const ref of readdirSync(refsDir)) {
-      if (!text.includes(ref)) fail(`skills/${entry.name}: SKILL.md never names references/${ref}`)
-    }
-  } catch {
-    // No references directory: nothing to load per node.
-  }
   for (const nested of readdirSync(dir, { withFileTypes: true })) {
     if (nested.isDirectory() && !['references', 'scripts', 'examples'].includes(nested.name)) {
       fail(`skills/${entry.name}: unexpected directory ${nested.name}/`)

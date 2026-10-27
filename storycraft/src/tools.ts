@@ -924,6 +924,16 @@ const NEXT_OUTPUT: DshToolOutput = {
         },
         required: ['present', 'question'],
       },
+      method: {
+        type: 'object',
+        description: 'The single method reference the next action needs; the host picks it, not the skill.',
+        additionalProperties: false,
+        properties: {
+          skill: { type: 'string' },
+          reference: { type: 'string' },
+        },
+        required: ['skill'],
+      },
     },
     required: ['ok'],
   },

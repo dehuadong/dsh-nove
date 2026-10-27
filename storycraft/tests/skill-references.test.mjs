@@ -38,7 +38,6 @@ check('shared long-form method does not impersonate an output contract',
 
 const referenceText = {}
 for (const reference of REFERENCES) {
-  check(`method skill names ${reference}`, methodSkill.includes(`references/${reference}`))
   const file = join(methodDir, 'references', reference)
   let text = ''
   let present = false
@@ -68,13 +67,13 @@ check('the old method name is a thin alias to the shared method',
 
 const shortMethod = await readFile(join(skills, 'storycraft-short-writing', 'SKILL.md'), 'utf8')
 const shortChecklist = await readFile(join(skills, 'storycraft-short-writing', 'references', 'production-checklist.md'), 'utf8')
-check('short method names its production checklist',
-  shortMethod.includes('references/production-checklist.md') && shortChecklist.startsWith('# '))
+check('short method defers node selection and the checklist is a document',
+  shortMethod.includes('story_next.method') && shortChecklist.startsWith('# '))
 
 const scriptMethod = await readFile(join(skills, 'storycraft-script-writing', 'SKILL.md'), 'utf8')
 const scriptCraft = await readFile(join(skills, 'storycraft-script-writing', 'references', 'episode-scene-craft.md'), 'utf8')
-check('script method names its episode/scene reference',
-  scriptMethod.includes('references/episode-scene-craft.md') && scriptCraft.startsWith('# '))
+check('script method defers node selection and the reference is a document',
+  scriptMethod.includes('story_next.method') && scriptCraft.startsWith('# '))
 
 const roleSkills = {
   review: join(skills, 'storycraft-review', 'SKILL.md'),
@@ -93,10 +92,8 @@ for (const [role, text] of Object.entries(roleText)) {
     !/^## (从章纲到场景|卷怎么划|人物与因果|节奏与收尾|写作纪律|自检清单)/mu.test(text))
 }
 const longCraft = await readFile(join(skills, 'storycraft-long-writing', 'SKILL.md'), 'utf8')
-check('the long-form craft names its foundation, chapter-plan and reader-contract references',
-  longCraft.includes('`references/foundation-design.md`')
-  && longCraft.includes('`references/chapter-plan.md`')
-  && longCraft.includes('`references/reader-contract-and-progression.md`'))
+check('the long-form craft defers node selection to the host',
+  longCraft.includes('story_next.method') && !longCraft.includes('| 节点 |'))
 check('review loads the shared method and reads the reader contract + state projection',
   loadsMethod(roleText.review)
   && roleText.review.includes('`references/reader-contract-and-progression.md`')

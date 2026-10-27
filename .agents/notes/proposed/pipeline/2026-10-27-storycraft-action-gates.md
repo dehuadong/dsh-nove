@@ -69,7 +69,7 @@ updated: 2026-10-27
 | 载体 | 装什么 | 不装什么 | 本项目的落点 |
 | --- | --- | --- | --- |
 | **代码** | 闸门、顺序、上限、前置校验、错误码 | 创作判断、措辞、节点材料 | `tools.ts` 的 `NEXT_ACTION_GATES`、`delegate.ts` 的 `ROLE_ACTION`、`store-db.ts` 的 `MAX_REVISION_ROUNDS` |
-| **宿主拼接的提示词** | 该节点的材料、约束、要问的问题、失败回退 | 通用方法、长期记忆、跨节点规则 | `story_next` 的 `ask`；角色侧 `role-input.ts` + `promptFor` |
+| **宿主拼接的提示词** | 该节点的材料、约束、要问的问题、失败回退、**唯一一份方法参考** | 通用方法、长期记忆、跨节点规则 | `story_next` 的 `ask` 与 `method`；角色侧 `promptFor` 的 `roleMethod` |
 | **技能（常驻）** | 方法、判断标准、语气、边界（“什么样的意见值得改”） | 节点操作步骤、闸门条件、字段清单、模板 | `storycraft-long-writing`、`storycraft-review`、`storycraft-revise-craft` |
 | **references（按需）** | 模板、清单、样例、字段表 | 判定逻辑、跨节点规则 | 各技能 `references/*.md` |
 | **产物** | 正文、章纲、真值、事件 | 过程性说明 | `.storycraft/works/*.db` |
@@ -180,6 +180,8 @@ skills/
 | `validate.mjs` | 无技能校验器（仅有 Note 的 `decisions/check.mjs`） | 缺失 |
 
 修复：扁平化、front matter 规范化、主文件拆到 references、拆多目标技能、写侧加确认、新增 `storycraft/scripts/validate-skills.mjs` 并接进 `ci.mjs`。
+
+**参考只由宿主选择**：技能正文不列「阶段 → 参考」映射表——常驻技能如果列出全部参考，等于让模型在每个节点重新做路由，还会把规划材料带进写作节点。`story_next.method` 按 (形态, 动作) 给出唯一一份，子代理由 `promptFor` 的 `roleMethod` 注入同一条。
 
 **本仓库的校验约定**（`validate-skills.mjs` 实际强制，不只写在规范里）：目录一级扁平且 kebab-case；front matter 只有 `name` 与 `description`，`name` 等于目录名；`description` 必须含「触发：…」与一句读写边界（只读 / 只出方法 / 只给判断 / 写事件 / 不直接改文件）；主文件 ≤ 6100 字节；`references/` 里每个文件都必须在 SKILL.md 里被点名，否则视为无人加载的孤儿；`catalog.json` 列出的每个技能必须存在，每个技能必须至少属于一个模式。
 
