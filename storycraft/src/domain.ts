@@ -23,10 +23,13 @@ export interface ReviewLike {
 /** Failure carrying a stable code for the actions' structured results. */
 export class StoryError extends Error {
   code: string
-  constructor(code: string, message: string) {
+  /** What the caller should do next; part of the failure receipt, not prose to parse. */
+  next?: string
+  constructor(code: string, message: string, next?: string) {
     super(message)
     this.name = 'StoryError'
     this.code = code
+    if (next !== undefined) this.next = next
   }
 }
 

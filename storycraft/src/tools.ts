@@ -73,7 +73,7 @@ interface ArtifactRef {
 interface FailureEnvelope {
   ok: false
   missing?: string[]
-  error: { code: string, message: string }
+  error: { code: string, message: string, next?: string }
 }
 
 /** Manifest fields the actions read; the store owns the full shape. */
@@ -183,7 +183,7 @@ function sessionCurrentOf(root: string, sessionId: string | undefined): string |
 }
 
 /** Turn a thrown value into the structured failure every action returns. */
-function failureOf(error: unknown): FailureEnvelope {
+export function failureOf(error: unknown): FailureEnvelope {
   if (error instanceof StoryError) {
     const missing = error.code === 'bible-missing'
       ? error.message.replace(/^.*?：/u, '').split('（')[0].split('、').map(name => name.trim()).filter(Boolean)
@@ -191,7 +191,7 @@ function failureOf(error: unknown): FailureEnvelope {
     return {
       ok: false,
       ...(missing === undefined ? {} : { missing }),
-      error: { code: error.code, message: error.message },
+      error: { code: error.code, message: error.message, ...(error.next === undefined ? {} : { next: error.next }) },
     }
   }
   const message = error instanceof Error ? error.message : String(error)

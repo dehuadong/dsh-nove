@@ -185,7 +185,7 @@ export function planApprovalState(db: Database, chapter: unknown): PlanApprovalS
 export function assertPlanApproved(db: Database, chapter: unknown): void {
   const state = planApprovalState(db, chapter)
   if (!state.hasMemo) throw new StoryError('plan-not-found', `第 ${chapterNumber(chapter)} 章还没有章纲`)
-  if (state.blocked) throw new StoryError('plan-not-approved', `第 ${chapterNumber(chapter)} 章章纲还没经作者确认：请在面板「章纲」里点「确认章纲」`)
+  if (state.blocked) throw new StoryError('plan-not-approved', `第 ${chapterNumber(chapter)} 章章纲还没经作者确认：请在面板「章纲」里点「确认章纲」`, '请在面板「章纲」里确认，或先改章纲')
 }
 
 /**
