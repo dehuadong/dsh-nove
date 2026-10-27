@@ -86,7 +86,7 @@
 3. 红的处理顺序：先让 spec 稳定复现（红）→ 读产物（`trace`、失败截图、`test-results/*/error-context.md` 的 ARIA 快照）→ 改代码 → 重跑同一条命令。
 4. 选择器用 `getByRole` / `getByLabel`；缺稳定锚点就在组件上补 `data-*`，不用脆弱的 CSS 层级。
 5. 不写 UI 单元测试（按钮渲染、className、快照）；业务逻辑、纯函数、接口契约仍由 `storycraft/tests` 覆盖。
-6. Playwright 是本包 devDependency（`storycraft/package.json`），浏览器装在机器级缓存；**不借用其它项目的 `node_modules`**，也不设 `NODE_PATH` 指过去。
+6. Playwright 是本包 devDependency（`storycraft/package.json`），浏览器装在机器级缓存。
 7. E2E 起的是临时实例：独立 `DSH_HOME`（`storycraft/.tmp-e2e/`）、临时端口、随 spec 结束退出。需要手工回收时按端口定位（`Get-NetTCPConnection -LocalPort <port>`），不许按进程名批量杀。
 8. 装出来的形态用 `node storycraft/scripts/ci.mjs --smoke` 验证（tarball → `dsh plugin add` → 冷启动）；它自己开实例、自己收尾，失败也必须杀干净，不能留下占着管道的子进程。
 
