@@ -50,6 +50,7 @@ export interface MetaRow {
   outline_approved_at: string | null
   outline_approved_revision: string | null
   foundation_approved_at: string | null
+  foundation_approved_revision: string | null
   created_at: string
   updated_at: string
 }

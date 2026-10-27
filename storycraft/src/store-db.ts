@@ -316,6 +316,40 @@ function openObservationLines(review: any): string[] {
     .map((observation: any) => `${observation.id}｜${String(observation.severity ?? '')}｜${String(observation.summary ?? '')}｜改法：${String(observation.fix ?? '')}`)
 }
 
+/**
+ * Fingerprint of the latest foundation artifacts: one revision id per artifact,
+ * sorted, hashed. Any rewritten stage changes it and invalidates the approval.
+ */
+function foundationRevisionOf(db: any): string {
+  const entries: string[] = []
+  const latest = db.prepare('SELECT artifact_id, revision_id FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
+  for (const artifactId of FOUNDATION_STAGE_ARTIFACTS.frame) {
+    const row = latest.get(artifactId)
+    if (row !== undefined) entries.push(`${row.artifact_id}@${row.revision_id}`)
+  }
+  for (const artifactId of ['bible:book_rules', 'roles:index']) {
+    const row = latest.get(artifactId)
+    if (row !== undefined) entries.push(`${row.artifact_id}@${row.revision_id}`)
+  }
+  const cards = new Map<string, string>()
+  for (const row of db.prepare("SELECT artifact_id, revision_id FROM artifacts WHERE kind = 'role_card' ORDER BY rowid").all()) {
+    cards.set(String(row.artifact_id), String(row.revision_id))
+  }
+  for (const [artifact_id, revision_id] of [...cards.entries()].sort()) entries.push(`${artifact_id}@${revision_id}`)
+  return createHash('sha256').update(entries.join('\n')).digest('hex')
+}
+
+/**
+ * The author's foundation confirmation, only while the confirmed fingerprint is
+ * still the latest one.
+ */
+function foundationApprovedAt(db: any): string | undefined {
+  const meta = metaOf(db)
+  if (meta.foundation_approved_at === null || meta.foundation_approved_at === undefined) return undefined
+  if (meta.foundation_approved_revision !== foundationRevisionOf(db)) return undefined
+  return meta.foundation_approved_at
+}
+
 /** Latest revision id of one artifact, or undefined when it was never written. */
 function artifactRevisionOf(db: any, artifactId: string): string | undefined {
   const row = db.prepare('SELECT revision_id FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1').get(artifactId)
@@ -1000,7 +1034,7 @@ function foundationStateOf(db: any) {
     stages,
     complete,
     ...(nextStage === undefined ? {} : { nextStage }),
-    ...(metaOf(db).foundation_approved_at === null ? {} : { approvedAt: metaOf(db).foundation_approved_at }),
+    ...(foundationApprovedAt(db) === undefined ? {} : { approvedAt: foundationApprovedAt(db) }),
   }
 }
 
@@ -1109,7 +1143,7 @@ export function writeFoundationStage(root: any, input: any) {
         return { artifactId: envelope.artifactId, revisionId: envelope.revisionId, kind: envelope.kind }
       })
       if (anyWritten) {
-        db.prepare('UPDATE meta SET foundation_approved_at = NULL, updated_at = ? WHERE id = 1').run(at)
+        db.prepare('UPDATE meta SET foundation_approved_at = NULL, foundation_approved_revision = NULL, updated_at = ? WHERE id = 1').run(at)
       }
       return { workId, stage, artifacts, foundation: foundationStateOf(db) }
     })
@@ -1126,7 +1160,7 @@ export function approveFoundation(root: any, input: any) {
       const state = foundationStateOf(db)
       if (state.complete !== true) throw new StoryError('foundation-incomplete', 'foundation 还没生成完整：先跑完四个 stage')
       const at = now()
-      db.prepare('UPDATE meta SET foundation_approved_at = ?, updated_at = ? WHERE id = 1').run(at, at)
+      db.prepare('UPDATE meta SET foundation_approved_at = ?, foundation_approved_revision = ?, updated_at = ? WHERE id = 1').run(at, foundationRevisionOf(db), at)
       return { workId: String(input.work), approvedAt: at, foundation: foundationStateOf(db) }
     })
   } finally {

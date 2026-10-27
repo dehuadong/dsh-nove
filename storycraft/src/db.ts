@@ -129,6 +129,7 @@ CREATE TABLE IF NOT EXISTS meta (
   outline_approved_at TEXT,
   outline_approved_revision TEXT,
   foundation_approved_at TEXT,
+  foundation_approved_revision TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
