@@ -1,7 +1,7 @@
 /** Search projection helpers shared by the work store and artifact writers. */
 
-import type { Database } from './db.js'
-import { searchTokens } from './search-text.js'
+import type { Database } from './db.ts'
+import { searchTokens } from './search-text.ts'
 
 /** Remove one search document and its FTS row. */
 export function dropSearchDoc(db: Database, docId: string): void {

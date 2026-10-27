@@ -2,7 +2,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import * as store from '../dist/store-db.js'
+import * as store from '../src/store-db.ts'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0

@@ -75,7 +75,7 @@ test.describe('故事工坊工作台', () => {
   })
 
   test('过期摘要显示徽标和重写按钮', async ({ page }) => {
-    const store = await import('../dist/storage.js')
+    const store = await import('../src/storage.ts')
     store.reopenChapter(runtime.fixtureWorkspace, { work: facts.workId, chapter: 1 })
     store.writeChapter(runtime.fixtureWorkspace, {
       work: facts.workId, chapter: 1, title: '灰旗', body: '灰旗在风里翻了一夜。火在渠里烧着。'.repeat(45), rewrite: true,
@@ -264,7 +264,7 @@ test.describe('故事工坊工作台', () => {
   })
 
   test('新建作品后列表自动刷新', async ({ page }) => {
-    const store = await import('../dist/storage.js')
+    const store = await import('../src/storage.ts')
     const title = `刷新探针${Date.now()}`
     await openWorkbench(page, url)
     store.initWork(runtime.fixtureWorkspace, { title })
@@ -272,7 +272,7 @@ test.describe('故事工坊工作台', () => {
   })
 
   test('章节可以上移和下移', async ({ page }) => {
-    const store = await import('../dist/storage.js')
+    const store = await import('../src/storage.ts')
     const title = `章节移动${Date.now()}`
     const work = store.initWork(runtime.fixtureWorkspace, { title }).workId
     for (const [number, name] of [[1, '甲章'], [2, '乙章']]) {
@@ -290,7 +290,7 @@ test.describe('故事工坊工作台', () => {
   })
 
   test('章节可以删除', async ({ page }) => {
-    const store = await import('../dist/storage.js')
+    const store = await import('../src/storage.ts')
     const title = `章节删除${Date.now()}`
     const work = store.initWork(runtime.fixtureWorkspace, { title }).workId
     for (const [number, name] of [[1, '甲章'], [2, '乙章']]) {
@@ -333,7 +333,7 @@ test.describe('故事工坊工作台', () => {
   })
 
   test('章节倒序分页', async ({ page }) => {
-    const store = await import('../dist/storage.js')
+    const store = await import('../src/storage.ts')
     const title = `分页章节${Date.now()}`
     const work = store.initWork(runtime.fixtureWorkspace, { title }).workId
     for (let number = 1; number <= 25; number += 1) {
@@ -357,7 +357,7 @@ test.describe('故事工坊工作台', () => {
   })
 
   test('抽取文风写入样例', async ({ page }) => {
-    const store = await import('../dist/storage.js')
+    const store = await import('../src/storage.ts')
     const title = `文风按钮${Date.now()}`
     const work = store.initWork(runtime.fixtureWorkspace, { title }).workId
     for (const number of [1, 2, 3]) {
@@ -371,8 +371,8 @@ test.describe('故事工坊工作台', () => {
     const composer = page.getByRole('textbox', { name: /Describe what/ })
     const before = await composer.evaluate(node => String(node.value ?? node.textContent ?? ''))
     await page.getByRole('button', { name: '抽取文风', exact: true }).evaluate(node => node.click())
-    const { openWork } = await import('../dist/db.js')
-    const { STYLE_START } = await import('../dist/style.js')
+    const { openWork } = await import('../src/db.ts')
+    const { STYLE_START } = await import('../src/style.ts')
     await expect.poll(() => {
       const db = openWork(runtime.fixtureWorkspace, work)
       try {
@@ -391,8 +391,8 @@ test.describe('故事工坊工作台', () => {
   })
 
   test('真值可以编辑、取消并拒绝坏人物', async ({ page }) => {
-    const store = await import('../dist/storage.js')
-    const { openWork } = await import('../dist/db.js')
+    const store = await import('../src/storage.ts')
+    const { openWork } = await import('../src/db.ts')
     const title = `真值编辑${Date.now()}`
     const work = store.initWork(runtime.fixtureWorkspace, { title }).workId
     const seedDb = openWork(runtime.fixtureWorkspace, work)
@@ -477,7 +477,7 @@ test.describe('故事工坊工作台', () => {
   })
 
   test('详情在 focus 后刷新且不重复写当前指针', async ({ page }) => {
-    const store = await import('../dist/storage.js')
+    const store = await import('../src/storage.ts')
     const title = `焦点探针${Date.now()}`
     const created = store.initWork(runtime.fixtureWorkspace, { title })
     let pointerPosts = 0

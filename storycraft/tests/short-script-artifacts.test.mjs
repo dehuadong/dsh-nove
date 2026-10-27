@@ -3,11 +3,11 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { initWork } from '../dist/storage.js'
-import { readWork } from '../dist/store-db.js'
+import { initWork } from '../src/storage.ts'
+import { readWork } from '../src/store-db.ts'
 import {
   listArtifacts, putArtifact, readScript, readShortStory, writeScript, writeShortStory,
-} from '../dist/artifact-store.js'
+} from '../src/artifact-store.ts'
 
 let failures = 0
 function check(name, condition, detail) {

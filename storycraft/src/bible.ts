@@ -7,16 +7,16 @@
  * always assemble the same brief byte for byte.
  */
 
-import { StoryError, chapterNumber, chapterStem, contentVersion, sourceIdOf } from './domain.js'
-import { accountOf } from './accounting.js'
-import { buildQuery, select } from './retrieval.js'
-import { mergeBlock, styleBlock, styleProfile, type StyleMetrics } from './style.js'
+import { StoryError, chapterNumber, chapterStem, contentVersion, sourceIdOf } from './domain.ts'
+import { accountOf } from './accounting.ts'
+import { buildQuery, select } from './retrieval.ts'
+import { mergeBlock, styleBlock, styleProfile, type StyleMetrics } from './style.ts'
 import {
   listBodies, listSummaries, listSummaryStates, readBibleEntries, readBibleEntry, readBibleMap, readChapter as readChapterRow, readFoldedState,
   readManifest, readPlan, readSummary as readSummaryRow, readSummaryState, readVolumes, searchMemory, virtualPath,
   writeBible as writeBibleRow, writeSummary as writeSummaryRow,
-} from './store-db.js'
-import { readFoundationDocuments, renderFoundationContent } from './artifact-store.js'
+} from './store-db.ts'
+import { readFoundationDocuments, renderFoundationContent } from './artifact-store.ts'
 
 /** How one truth file's content is validated. */
 interface BibleFileSpec {

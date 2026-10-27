@@ -23,8 +23,9 @@ export const name = 'storycraft-skills'
 export const inject = ['skills']
 
 /**
- * Directory this module lives in. The compiled module sits in `dist/`, while the
- * catalogs ship at the package root, so `SKILLS_ROOT` steps one level up.
+ * Directory this module lives in: `lib/` in the built package and `src/` when a
+ * test imports the source. Both sit one level below the package root, where the
+ * catalogs ship, so `SKILLS_ROOT` steps one level up either way.
  */
 const HERE = dirname(fileURLToPath(import.meta.url))
 

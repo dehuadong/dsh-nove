@@ -6,7 +6,7 @@
  * boundary with these functions.
  */
 
-import { StoryError, STAGES, SUMMARY_FIELDS, WORK_FORMS } from './domain.js'
+import { StoryError, STAGES, SUMMARY_FIELDS, WORK_FORMS } from './domain.ts'
 
 /** Contract version carried by new works. */
 export const ARTIFACT_CONTRACT_VERSION = 2

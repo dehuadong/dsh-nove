@@ -1,5 +1,5 @@
 // Token accounting: the one estimator every budget in this package uses.
-import { BUDGET_UNIT, accountOf, estimateTokens, sumAccounts } from '../dist/accounting.js'
+import { BUDGET_UNIT, accountOf, estimateTokens, sumAccounts } from '../src/accounting.ts'
 
 let failures = 0
 function check(name, condition, detail) {

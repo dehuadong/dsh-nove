@@ -8,11 +8,11 @@
  * own inventions.
  */
 
-import { parseCharacters } from './bible.js'
-import { chapterNumber } from './domain.js'
+import { parseCharacters } from './bible.ts'
+import { chapterNumber } from './domain.ts'
 import {
   listBodies, listSummaries, readBibleEntry, readBibleMap, readFoldedState, readManifest, readPlan, readVolumes,
-} from './store-db.js'
+} from './store-db.ts'
 
 /** Chinese digit values used to normalise numerals before comparison. */
 const DIGITS: Record<string, number> = { 零: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 }

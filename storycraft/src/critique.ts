@@ -6,7 +6,7 @@
  * compared across revisions. Nothing here edits prose.
  */
 
-import { countWords } from './domain.js'
+import { countWords } from './domain.ts'
 
 /** Phrases that tend to mark machine-written Chinese prose. */
 const AI_PHRASES = [

@@ -2,8 +2,8 @@
 import { copyFile, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { WORK_SCHEMA_VERSION, openCatalog, openDatabase, openWork, trashFile, workFile } from '../dist/db.js'
-import * as store from '../dist/store-db.js'
+import { WORK_SCHEMA_VERSION, openCatalog, openDatabase, openWork, trashFile, workFile } from '../src/db.ts'
+import * as store from '../src/store-db.ts'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0

@@ -1,5 +1,5 @@
 // Test fixture helper: fills a body quote for review observations.
-import * as s from '../dist/storage.js'
+import * as s from '../src/storage.ts'
 
 export function reviewFixture(root, input) {
   if (Array.isArray(input.observations)) return s.writeReview(root, input)

@@ -61,3 +61,5 @@ $RECYCLE.BIN/
 ### 外部检出（软链接）
 # DSH 源码的链接目录：不跟随、不进版本库
 /deepseek-harness
+# 文件权限诊断报告（本机，不进版本库）
+/.acl-reports/

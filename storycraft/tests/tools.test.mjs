@@ -2,14 +2,14 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import * as tools from '../dist/tools.js'
-import * as s from '../dist/storage.js'
-import { openWork } from '../dist/db.js'
-import { writeContextTrace } from '../dist/artifact-store.js'
-import { readProposal } from '../dist/proposals.js'
-import { clearCurrent, setCurrent } from '../dist/current.js'
-import { checkDraft } from '../dist/landing.js'
-import { submitPayload } from '../dist/submission.js'
+import * as tools from '../src/tools.ts'
+import * as s from '../src/storage.ts'
+import { openWork } from '../src/db.ts'
+import { writeContextTrace } from '../src/artifact-store.ts'
+import { readProposal } from '../src/proposals.ts'
+import { clearCurrent, setCurrent } from '../src/current.ts'
+import { checkDraft } from '../src/landing.ts'
+import { submitPayload } from '../src/submission.ts'
 
 let failures = 0
 function check(name, condition, detail) {

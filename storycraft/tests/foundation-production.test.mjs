@@ -2,12 +2,12 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { delegateRole } from '../dist/delegate.js'
-import { submitPayload } from '../dist/submission.js'
-import * as s from '../dist/storage.js'
-import * as b from '../dist/bible.js'
-import { assembleRoleContext } from '../dist/context.js'
-import { readFoundationDocuments, readTextArtifact } from '../dist/artifact-store.js'
+import { delegateRole } from '../src/delegate.ts'
+import { submitPayload } from '../src/submission.ts'
+import * as s from '../src/storage.ts'
+import * as b from '../src/bible.ts'
+import { assembleRoleContext } from '../src/context.ts'
+import { readFoundationDocuments, readTextArtifact } from '../src/artifact-store.ts'
 
 let failures = 0
 function check(name, condition, detail) {

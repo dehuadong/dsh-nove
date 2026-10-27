@@ -4,8 +4,8 @@ import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { renameSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import * as s from '../dist/storage.js'
-import { exportsDir, openWork } from '../dist/db.js'
+import * as s from '../src/storage.ts'
+import { exportsDir, openWork } from '../src/db.ts'
 
 let failures = 0
 function check(name, condition, detail) {

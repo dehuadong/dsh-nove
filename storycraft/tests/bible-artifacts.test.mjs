@@ -2,10 +2,10 @@
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import * as s from '../dist/storage.js'
-import * as b from '../dist/bible.js'
-import { readTextArtifact } from '../dist/artifact-store.js'
-import { openWork } from '../dist/db.js'
+import * as s from '../src/storage.ts'
+import * as b from '../src/bible.ts'
+import { readTextArtifact } from '../src/artifact-store.ts'
+import { openWork } from '../src/db.ts'
 
 let failures = 0
 function check(name, condition, detail) {

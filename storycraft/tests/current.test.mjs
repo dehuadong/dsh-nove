@@ -1,5 +1,5 @@
 // The session's current work: memory only, explicit id wins, defaults resolve.
-import { clearCurrent, getCurrent, resolveWork, setCurrent } from '../dist/current.js'
+import { clearCurrent, getCurrent, resolveWork, setCurrent } from '../src/current.ts'
 
 let failures = 0
 function check(name, condition, detail) {

@@ -1,6 +1,8 @@
-// Packaging invariants for the TS build: published entry points resolve, every
-// source has its compiled module, and no consumer still points at a moved file.
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+// Packaging invariants for the bundled build: the manifest points at entry
+// bundles under lib/, sources import each other with .ts specifiers and stay
+// inside src/, and no test reaches back into a build directory — tests run the
+// source.
+import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -14,77 +16,52 @@ function check(name, condition, detail) {
     console.log(`FAIL ${name}${detail === undefined ? '' : ` — ${detail}`}`)
   }
 }
-const exists = path => {
-  try {
-    return statSync(path).isFile()
-  } catch {
-    return false
-  }
-}
 
 const manifest = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf8'))
-const srcNames = readdirSync(join(projectRoot, 'src')).filter(name => name.endsWith('.ts')).map(name => name.slice(0, -3))
-const rootJs = readdirSync(projectRoot).filter(name => name.endsWith('.js'))
+const srcNames = readdirSync(join(projectRoot, 'src'))
+  .filter(name => name.endsWith('.ts'))
+  .map(name => name.slice(0, -3))
 
-// Every source file has its compiled module; a stale dist breaks the install.
-const missingBuilt = srcNames.filter(name => !exists(join(projectRoot, 'dist', `${name}.js`)))
-check('every source module is built', missingBuilt.length === 0, missingBuilt.join(','))
-
-// And nothing in dist outlives its source: a deleted module must stop shipping.
-const distDir = join(projectRoot, 'dist')
-const builtNames = exists(distDir)
-  ? readdirSync(distDir).filter(name => name.endsWith('.js')).map(name => name.slice(0, -3))
-  : []
-const orphaned = builtNames.filter(name => !srcNames.includes(name))
-check('no built file outlives its source', orphaned.length === 0, orphaned.join(','))
-
-// Entry points must resolve to files that exist in this checkout.
-const unresolvable = Object.entries(manifest.exports)
-  .filter(([key]) => key !== './package.json')
-  .filter(([, target]) => !exists(join(projectRoot, target)))
-check('every export target exists', unresolvable.length === 0, unresolvable.map(([key]) => key).join(','))
-
-// Every entry is built: the Host ones through tsc, the Client through esbuild.
+// The published package exposes four bundles, nothing else.
+check('main points at the bundled entry', manifest.main === './lib/index.js', manifest.main)
 for (const key of ['.', './tools', './skills', './client']) {
-  check(`export ${key} points at the build`, String(manifest.exports[key]).startsWith('./dist/'), manifest.exports[key])
+  check(`export ${key} points at lib/`, String(manifest.exports[key] ?? '').startsWith('./lib/'), manifest.exports[key])
 }
-check('the Client bundle is shipped', exists(join(projectRoot, 'dist', 'client.js')))
-check('the manifest no longer ships root JavaScript',
-  !(manifest.files ?? []).some(entry => entry.includes('*.js')), JSON.stringify(manifest.files))
+const files = manifest.files ?? []
+check('files ships lib and never a stale dist', files.includes('lib') && !files.includes('dist'), JSON.stringify(files))
+check('files ships skills and the bundle patch',
+  files.includes('skills') && files.includes('cordis.patch.yml'), JSON.stringify(files))
 
-// A moved module must not keep a root-level twin.
-const duplicated = srcNames.filter(name => rootJs.includes(`${name}.js`))
-check('no module has both a source and a root build', duplicated.length === 0, duplicated.join(','))
-
-// TypeScript sources import each other, never a file above src/.
+// TypeScript sources import each other by .ts specifier and never leave src/.
+const jsSpecifiers = []
 const outward = []
 for (const name of srcNames) {
   const text = readFileSync(join(projectRoot, 'src', `${name}.ts`), 'utf8')
-  for (const match of text.matchAll(/from '(\.\.\/[^']+\.js)'/gu)) outward.push(`${name} -> ${match[1]}`)
+  for (const match of text.matchAll(/from '(\.{1,2}\/[^']+\.js)'/gu)) jsSpecifiers.push(`${name} -> ${match[1]}`)
+  for (const match of text.matchAll(/from '(\.\.\/[^']+)'/gu)) outward.push(`${name} -> ${match[1]}`)
 }
+check('sources import with .ts specifiers', jsSpecifiers.length === 0, jsSpecifiers.join(','))
 check('sources never import outside src', outward.length === 0, outward.join(','))
 
-// Tests load the compiled module, not the source or a moved root file.
+// Tests and the fixture run the source; a build directory must not creep back in.
 const stale = []
-for (const name of readdirSync(join(projectRoot, 'tests')).filter(entry => entry.endsWith('.test.mjs'))) {
+for (const name of readdirSync(join(projectRoot, 'tests')).filter(entry => entry.endsWith('.mjs'))) {
   const text = readFileSync(join(projectRoot, 'tests', name), 'utf8')
-  for (const match of text.matchAll(/from '\.\.\/([\w-]+)\.js'/gu)) {
-    if (srcNames.includes(match[1])) stale.push(`${name} -> ../${match[1]}.js`)
-  }
+  if (/\.\.\/dist\//u.test(text)) stale.push(name)
 }
-check('tests import compiled modules', stale.length === 0, stale.join(','))
+check('tests do not import a build directory', stale.length === 0, stale.join(','))
 
 // The migration itself forbids these directives.
 const suppressed = srcNames.filter(name => /@ts-(nocheck|ignore|expect-error)/u.test(readFileSync(join(projectRoot, 'src', `${name}.ts`), 'utf8')))
 check('no source suppresses type checking', suppressed.length === 0, suppressed.join(','))
 
-// The published package loads through its declared entry points.
-const entry = await import(`../dist/index.js`)
+// The entry modules load from source and expose the plugin shape.
+const entry = await import('../src/index.ts')
 check('package entry exports apply and inject',
   typeof entry.apply === 'function' && Array.isArray(entry.inject), Object.keys(entry).join(','))
-const actions = await import(`../dist/tools.js`)
+const actions = await import('../src/tools.ts')
 check('tool entry exports apply', typeof actions.apply === 'function', Object.keys(actions).join(','))
-const skills = await import(`../dist/skills.js`)
+const skills = await import('../src/skills.ts')
 check('skill entry exports apply, name and inject',
   typeof skills.apply === 'function' && typeof skills.name === 'string' && Array.isArray(skills.inject),
   Object.keys(skills).join(','))

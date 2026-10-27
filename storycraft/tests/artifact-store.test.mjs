@@ -3,9 +3,9 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { initWork } from '../dist/storage.js'
-import { writePlan } from '../dist/store-db.js'
-import { listArtifacts, putArtifact, readArtifact } from '../dist/artifact-store.js'
+import { initWork } from '../src/storage.ts'
+import { writePlan } from '../src/store-db.ts'
+import { listArtifacts, putArtifact, readArtifact } from '../src/artifact-store.ts'
 
 let failures = 0
 function check(name, condition, detail) {

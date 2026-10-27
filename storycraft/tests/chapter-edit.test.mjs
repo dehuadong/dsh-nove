@@ -2,9 +2,9 @@
 import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import * as s from '../dist/storage.js'
-import { backupsDir, openWork } from '../dist/db.js'
-import { chapterRemap } from '../dist/chapter-edit.js'
+import * as s from '../src/storage.ts'
+import { backupsDir, openWork } from '../src/db.ts'
+import { chapterRemap } from '../src/chapter-edit.ts'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0

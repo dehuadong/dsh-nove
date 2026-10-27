@@ -3,9 +3,9 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { closeSubmission, consumeSubmission, openSubmission, submitPayload } from '../dist/submission.js'
-import { SUBMIT_OUTPUT } from '../dist/tools.js'
-import * as s from '../dist/storage.js'
+import { closeSubmission, consumeSubmission, openSubmission, submitPayload } from '../src/submission.ts'
+import { SUBMIT_OUTPUT } from '../src/tools.ts'
+import * as s from '../src/storage.ts'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0

@@ -4,8 +4,8 @@ import { writeFileSync } from 'node:fs'
 import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import * as s from '../dist/storage.js'
-import { materialsDir, openWork } from '../dist/db.js'
+import * as s from '../src/storage.ts'
+import { materialsDir, openWork } from '../src/db.ts'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -181,10 +181,10 @@ try {
   }
   check('managed copy write failure is reported', writeFailure === 'material-write-failed', String(writeFailure))
   await rm(materialsDir(root), { force: true })
-  const prepared = (await import('../dist/materials.js')).prepareMaterial({ name: 'fail.md', contentBase64: b64('x') })
+  const prepared = (await import('../src/materials.ts')).prepareMaterial({ name: 'fail.md', contentBase64: b64('x') })
   let partialFailure
   try {
-    (await import('../dist/store-db.js')).writeManagedCopy(root, prepared, () => { throw new Error('disk full') })
+    (await import('../src/store-db.ts')).writeManagedCopy(root, prepared, () => { throw new Error('disk full') })
   } catch (error) {
     partialFailure = error.code
   }

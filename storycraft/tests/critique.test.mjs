@@ -2,11 +2,11 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import * as s from '../dist/storage.js'
-import * as b from '../dist/bible.js'
-import { openCatalog } from '../dist/db.js'
-import { countWords } from '../dist/storage.js'
-import { critique } from '../dist/critique.js'
+import * as s from '../src/storage.ts'
+import * as b from '../src/bible.ts'
+import { openCatalog } from '../src/db.ts'
+import { countWords } from '../src/storage.ts'
+import { critique } from '../src/critique.ts'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0

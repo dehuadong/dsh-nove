@@ -232,7 +232,7 @@ storycraft/
     …                          #   其余数据层与存储层模块
   types/dsh.d.ts               # 本包实际使用的 DSH ctx/exec 面
   types/client.d.ts            # 浏览器加载器与 React 注入面
-  dist/                        # 构建产物，不提交；prepack 构建
+  lib/                         # 构建产物，不提交；prepack 构建（tsdown 出 Host 入口，esbuild 出 client.js）
   skills/<mode>/<skill>/…      # 技能正文与脚本
   icon.svg
 ```
@@ -246,7 +246,7 @@ storycraft/
   ```
 
 - 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑 19 条页面 spec（工作台 17 + 预设 2）——侧栏入口、页面读数、作者确认、摘要徽标、素材导入/重命名/删除、面板导出、章节倒序分页/前移后移、文风样例、真值抽屉、备份恢复、指令门禁、预设声明与刷新。不调用模型，零额度；需要本机装有 Playwright（可用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装它的目录）。
-- `node storycraft/scripts/ci.mjs` 依次跑：`scripts/build.mjs`（Host tsc + Client esbuild）、Client 类型检查（`tsconfig.client.json`，`--noEmit`）、pack-check、全部单元文件、页面 spec。
+- `node storycraft/scripts/ci.mjs` 依次跑：Host 与 Client 类型检查（`tsc -p`，`--noEmit`）、全部单元文件（直接 import `src/*.ts`，靠 Node 类型擦除，不先构建）、`scripts/build.mjs`（tsdown 出 Host 入口 + esbuild 出 `client.js`）、pack-check、页面 spec。
 - 端到端验收、评审与证据记录在 issue `dehuadong/dsh-nove#18`。
 
 ## 安装与打包
@@ -261,7 +261,7 @@ npm pack
 node scripts/pack-check.mjs
 ```
 
-`npm pack` 的清单由 `package.json` 的 `files` 拥有，`pack-check.mjs` 检查实际 tarball：`dist/` 的四个入口与其余编译产物、`skills/`、`cordis.patch.yml`、`icon.svg`、`README.md` 必须在；`tests/`、`e2e/`、根 `scripts/`、报告与临时目录必须不在。`skills/*/scripts/*.mjs` 属于技能资源，会随 `skills/` 打包。`node storycraft/scripts/ci.mjs --no-e2e` 会先跑这项检查。
+`npm pack` 的清单由 `package.json` 的 `files` 拥有，`pack-check.mjs` 检查实际 tarball：`lib/` 的四个入口（`index`、`tools`、`skills`、`client`）、`skills/`、`cordis.patch.yml`、`icon.svg`、`README.md` 必须在；`src/` 的逐模块产物、`tests/`、`e2e/`、根 `scripts/`、报告与临时目录必须不在。`skills/*/scripts/*.mjs` 属于技能资源，会随 `skills/` 打包。`node storycraft/scripts/ci.mjs --no-e2e` 会跑这项检查。
 
 安装时用 `npm pack` 产出的 tarball（DSH 的 bundle 安装入口），不要直接把仓库目录当安装包。回滚时重新安装上一个 tarball；开发环境切回 `link:`。
 
@@ -269,16 +269,16 @@ node scripts/pack-check.mjs
 
 Host 与 Client 都已迁到 TS 的 L0–L5 层：`scope`、叶子层、数据层、存储层、消费与 DSH 接缝（`bible`、`facts`、`landing`、`consistency`、`context`、`role-input`、`submission`、`proposals`、`state-check`、`state-settle`、`delegate`、`tools`、`index`）、技能入口 `skills`，以及浏览器入口 `client`。`src/store-rows.ts` 定义 SQLite 表行类型，`types/dsh.d.ts` 与本包的 `types/client.d.ts` 声明实际使用的宿主面。
 
-- 源文件：`src/*.ts`；Host 走 `tsc`（`tsconfig.json`），Client 走 esbuild（`tsconfig.client.json` 只做类型检查）；`dist/` 由构建生成，不提交；
-- 包入口：`exports` 的 `.`、`./tools`、`./skills`、`./client` 全部指向 `dist/`；
-- 安装依赖：`npm install`（`typescript`、`esbuild`、`@types/node`、`@types/react` 都是 devDependencies，不进安装包）；
-- 编译：`npm run build` → `scripts/build.mjs`（先 tsc 再 esbuild）；`prepack` 自动 build；
-- Client 不是 ES module：`src/client.ts` 由 esbuild 单文件转译到 `dist/client.js`，保留 `window.__ModuleLoader__.load({ factory(require) })` 外壳，`require('react')` 原样交给宿主加载器；
-- 模块之间 import 写同层 `'./<module>.js'`：说明符指的是**编译产物**，`tsc` 在 `NodeNext` 下把它解析回 `src/<module>.ts`，产物里保持 `.js` 供 Node 直接加载。源码里不写 `.ts` 后缀、也不省扩展名——两者都会让产物带上不存在的路径；
-- 编辑器对这些说明符报 "Cannot find module" 时，是编辑器没用 `storycraft/tsconfig.json` 或没按 `NodeNext` 解析，不是源码问题：确认工作区包含该 tsconfig 后重启 TS 服务即可。不要把它指到 `node_modules/typescript`——本包的 TypeScript 7 是原生编译器，不带 `tsserver`，编辑器应使用自带版本；
-- 技能目录固定在包根 `skills/`，`dist/skills.js` 以编译产物位置为基准上跳一级解析。
+- 源文件：`src/*.ts`；Host 由 tsdown 打成 `lib/{index,tools,skills}.js`，Client 由 esbuild 转译成 `lib/client.js`；`tsconfig.json` 只用 `tsc -p` 做类型检查（`noEmit`），`lib/` 由构建生成，不提交；
+- 包入口：`exports` 的 `.`、`./tools`、`./skills`、`./client` 全部指向 `lib/`；
+- 安装依赖：`npm install`（`tsdown`、`esbuild`、`typescript`、`@types/node`、`@types/react` 都是 devDependencies，不进安装包）；
+- 编译：`npm run build` → `scripts/build.mjs`（先 tsdown 再 esbuild）；`prepack` 自动 build；
+- Client 不是 ES module：`src/client.ts` 由 esbuild 单文件转译到 `lib/client.js`，保留 `window.__ModuleLoader__.load({ factory(require) })` 外壳，`require('react')` 原样交给宿主加载器；它不能进打包器，否则外壳与 `require` 会被改写；
+- 模块之间 import 写同层 `'./<module>.ts'`：打包器与 Node 的类型擦除都按源码路径解析；每个入口被打包成一个文件，源码模块不逐个发布；
+- 测试与 e2e fixture 直接 import `src/*.ts`，因此要求 Node ≥22.18（类型擦除）；打包后不再有一对一的 `lib/<module>.js`；
+- 技能目录固定在包根 `skills/`，`lib/skills.js` 以自身位置为基准上跳一级解析（源码在 `src/` 被测试直接 import 时同样上跳一级）。
 
-开发 `link:` 时先 build；改 `src/*.ts` 后重新 build，不手改 `dist/`。
+开发 `link:` 时先 build；改 `src/*.ts` 后重新 build，不手改 `lib/`。
 
 ## 改动与生效
 

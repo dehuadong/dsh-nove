@@ -15,11 +15,11 @@ import {
   readManifest, readPlan, readSummaryState, reviseChapter, stageOf, summaryAdmissible, unitOf, writeChapter, writeFoundationStage,
   writeReview, writeSummary, writePlan,
   type Form,
-} from './storage.js'
-import { readFoundationDocuments, writeContextTrace } from './artifact-store.js'
-import { loadRoleInput } from './role-input.js'
-import { checkDraft } from './landing.js'
-import { closeSubmission, consumeSubmission, openSubmission } from './submission.js'
+} from './storage.ts'
+import { readFoundationDocuments, writeContextTrace } from './artifact-store.ts'
+import { loadRoleInput } from './role-input.ts'
+import { checkDraft } from './landing.ts'
+import { closeSubmission, consumeSubmission, openSubmission } from './submission.ts'
 
 /** One child run's budget; the timer is cleared before landing. */
 const DELEGATE_TIMEOUT_MS = 600000

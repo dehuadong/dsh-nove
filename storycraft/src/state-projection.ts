@@ -8,8 +8,8 @@
  */
 
 import { createHash } from 'node:crypto'
-import { StoryError, chapterNumber } from './domain.js'
-import { assertHookTransition, validateFact, validateHook } from './artifact-contract.js'
+import { StoryError, chapterNumber } from './domain.ts'
+import { assertHookTransition, validateFact, validateHook } from './artifact-contract.ts'
 
 /** Operations that only change hook metadata. */
 export const HOOK_OPS = ['upsert', 'progress', 'mention', 'defer', 'resolve', 'supersede']

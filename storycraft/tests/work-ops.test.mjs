@@ -2,8 +2,8 @@
 import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { trashDir, trashFile, workFile } from '../dist/db.js'
-import * as s from '../dist/storage.js'
+import { trashDir, trashFile, workFile } from '../src/db.ts'
+import * as s from '../src/storage.ts'
 
 let failures = 0
 function check(name, condition, detail) {

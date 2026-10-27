@@ -2,12 +2,12 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { delegateRole } from '../dist/delegate.js'
-import { checkWordRange } from '../dist/landing.js'
-import { submitPayload } from '../dist/submission.js'
-import * as s from '../dist/storage.js'
-import { readArtifact } from '../dist/artifact-store.js'
-import { writeBible } from '../dist/bible.js'
+import { delegateRole } from '../src/delegate.ts'
+import { checkWordRange } from '../src/landing.ts'
+import { submitPayload } from '../src/submission.ts'
+import * as s from '../src/storage.ts'
+import { readArtifact } from '../src/artifact-store.ts'
+import { writeBible } from '../src/bible.ts'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0
@@ -391,7 +391,7 @@ try {
     () => delegateRole(root, { work, chapter: 4, role: 'reviser' }, { service: fakeService([]), agent, signal }))
 
   // The model-visible action wires the same delegation path through ctx.get.
-  const { apply } = await import('../dist/tools.js')
+  const { apply } = await import('../src/tools.ts')
   const registered = []
   const hostService = fakeService([completed({
     output: [{ type: 'text', text: '<<<TITLE 第二章 TITLE>>>\n<<<CHAPTER 第二章正文。CHAPTER>>>' }],
@@ -405,7 +405,7 @@ try {
     get: name => (name === 'subagents' ? hostService : undefined),
   })
   const delegateAction = registered.find(definition => definition.name === 'story_delegate')
-  const { setCurrent } = await import('../dist/current.js')
+  const { setCurrent } = await import('../src/current.ts')
   setCurrent('action-parent', work)
   const actionResult = await delegateAction.execute(
     { work, chapter: 2, role: 'writer' },

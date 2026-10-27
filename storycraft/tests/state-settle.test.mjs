@@ -4,9 +4,9 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { settleChapterState } from '../dist/state-settle.js'
-import { submitPayload } from '../dist/submission.js'
-import * as s from '../dist/storage.js'
+import { settleChapterState } from '../src/state-settle.ts'
+import { submitPayload } from '../src/submission.ts'
+import * as s from '../src/storage.ts'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0

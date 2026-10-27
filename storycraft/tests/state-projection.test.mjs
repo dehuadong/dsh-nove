@@ -3,11 +3,11 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { applyFactOp, applyHookOp, projectFacts, projectHooks } from '../dist/state-projection.js'
-import { initWork, readFoldedState } from '../dist/storage.js'
+import { applyFactOp, applyHookOp, projectFacts, projectHooks } from '../src/state-projection.ts'
+import { initWork, readFoldedState } from '../src/storage.ts'
 import {
   approveChapterPlan, readEvents, settleState, writeChapter, writePlan, writeReview, writeSummary,
-} from '../dist/store-db.js'
+} from '../src/store-db.ts'
 
 let failures = 0
 function check(name, condition, detail) {

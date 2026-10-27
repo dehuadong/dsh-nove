@@ -19,10 +19,15 @@ import { spawn, spawnSync } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { assertNode } from '../scripts/node-version.mjs'
 
 const projectRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
 const repoRoot = path.resolve(projectRoot, '..')
 const packageName = 'dsh-storycraft'
+
+// The fixture imports TypeScript source, so this harness needs Node's type
+// stripping — same requirement as the unit tests.
+assertNode('e2e-host')
 
 // What the host reads out of the package: its manifest lists the shipped files,
 // including globs such as `*.js`, which the copy below has to expand the way npm
@@ -105,7 +110,7 @@ function copyTree(from, to) {
  * @returns {Promise<object>} facts the specs assert against.
  */
 async function buildFixture() {
-  const store = await import(pathToFileURL(path.join(projectRoot, 'dist', 'storage.js')).href)
+  const store = await import(pathToFileURL(path.join(projectRoot, 'src', 'storage.ts')).href)
   const created = await store.initWork(fixtureWorkspace, { title: '示例短篇' })
   const work = created.workId
   // The outline gate applies to every chapter plan now, so the fixture approves

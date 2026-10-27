@@ -2,9 +2,9 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import * as bible from '../dist/bible.js'
-import * as store from '../dist/store-db.js'
-import { select } from '../dist/retrieval.js'
+import * as bible from '../src/bible.ts'
+import * as store from '../src/store-db.ts'
+import { select } from '../src/retrieval.ts'
 import { reviewFixture } from './review-fixture.mjs'
 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-perf-'))

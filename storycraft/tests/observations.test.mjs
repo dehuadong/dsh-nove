@@ -3,15 +3,15 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { initWork } from '../dist/storage.js'
+import { initWork } from '../src/storage.ts'
 import {
   approveChapterPlan, writeBible, writeChapter, writePlan, writeReview,
-} from '../dist/store-db.js'
-import { openWork } from '../dist/db.js'
+} from '../src/store-db.ts'
+import { openWork } from '../src/db.ts'
 import {
   readChapterMeta, readChapterObservations, writeChapterObservations,
-} from '../dist/artifact-store.js'
-import { loadRoleInput } from '../dist/role-input.js'
+} from '../src/artifact-store.ts'
+import { loadRoleInput } from '../src/role-input.ts'
 
 let failures = 0
 function check(name, condition, detail) {

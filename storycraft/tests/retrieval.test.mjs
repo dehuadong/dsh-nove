@@ -2,10 +2,10 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { mintHookId } from '../dist/state-projection.js'
-import * as s from '../dist/storage.js'
-import { openWork } from '../dist/db.js'
-import { buildQuery, codePointLength, select, snippetFor } from '../dist/retrieval.js'
+import { mintHookId } from '../src/state-projection.ts'
+import * as s from '../src/storage.ts'
+import { openWork } from '../src/db.ts'
+import { buildQuery, codePointLength, select, snippetFor } from '../src/retrieval.ts'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0
@@ -101,7 +101,7 @@ try {
     .run(JSON.stringify(summaryContent), summaryRow.artifact_id, summaryRow.revision_id)
   events.close()
 
-  const { searchMemory } = await import('../dist/store-db.js')
+  const { searchMemory } = await import('../src/store-db.ts')
   const hook = searchMemory(root, work, '备用钥匙', { beforeChapter: 5 })
   check('unresolved hook is retrieved', hook.some(item => item.kind === 'hook' && item.text.startsWith('备用钥匙') && item.sourceIds[0] === 'state'), JSON.stringify(hook))
   const resolved = searchMemory(root, work, '旧井的水位', { beforeChapter: 5 })

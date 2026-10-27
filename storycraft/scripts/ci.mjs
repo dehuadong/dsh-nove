@@ -1,9 +1,9 @@
 /**
- * Storycraft CI entry: run every unit contract test, then the Playwright specs.
+ * Storycraft CI entry: typecheck, run every unit contract test against the
+ * source, build, check the tarball, then run the Playwright specs.
  *
- * This is the project-owned equivalent of the reference project's
- * `pnpm install --frozen-lockfile && pnpm build && pnpm test` path: one
- * command, deterministic exit code, no manual test writing.
+ * Tests import `src/*.ts` directly and rely on Node's type stripping, so they
+ * run before the build and never test a stale artifact.
  *
  * Usage:
  *   node storycraft/scripts/ci.mjs
@@ -14,10 +14,14 @@ import { spawnSync } from 'node:child_process'
 import { readdirSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { assertNode } from './node-version.mjs'
+
+assertNode('ci')
 
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url))
 const storycraftDir = path.dirname(scriptsDir)
 const noE2e = process.argv.includes('--no-e2e')
+const tsc = path.join('node_modules', 'typescript', 'bin', 'tsc')
 
 function run(command, args, cwd) {
   const result = spawnSync(command, args, { cwd, stdio: 'inherit', shell: false })
@@ -25,15 +29,14 @@ function run(command, args, cwd) {
   return result.status ?? 1
 }
 
-const buildCode = run(process.execPath, [path.join('scripts', 'build.mjs')], storycraftDir)
-const typecheckClient = run(process.execPath, [
-  path.join('node_modules', 'typescript', 'bin', 'tsc'), '-p', 'tsconfig.client.json',
-], storycraftDir)
-const packCode = run(process.execPath, [path.join('scripts', 'pack-check.mjs')], storycraftDir)
 let failed = 0
-if (buildCode !== 0) failed += 1
-if (typecheckClient !== 0) failed += 1
-if (packCode !== 0) failed += 1
+for (const [label, project] of [['Host', 'tsconfig.json'], ['Client', 'tsconfig.client.json']]) {
+  const code = run(process.execPath, [tsc, '-p', project], storycraftDir)
+  if (code !== 0) {
+    console.error(`[ci] ${label} 类型检查失败`)
+    failed += 1
+  }
+}
 
 const tests = readdirSync(path.join(storycraftDir, 'tests'))
   .filter(name => name.endsWith('.test.mjs'))
@@ -41,6 +44,11 @@ const tests = readdirSync(path.join(storycraftDir, 'tests'))
 
 for (const name of tests) {
   const code = run(process.execPath, [path.join('tests', name)], storycraftDir)
+  if (code !== 0) failed += 1
+}
+
+for (const script of ['scripts/build.mjs', 'scripts/pack-check.mjs']) {
+  const code = run(process.execPath, [path.join(...script.split('/'))], storycraftDir)
   if (code !== 0) failed += 1
 }
 

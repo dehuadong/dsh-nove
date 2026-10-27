@@ -7,7 +7,7 @@
  */
 
 import { createHash } from 'node:crypto'
-import { StoryError } from './domain.js'
+import { StoryError } from './domain.ts'
 
 /** Maximum accepted material size, in bytes. */
 export const MATERIAL_MAX_BYTES = 512 * 1024

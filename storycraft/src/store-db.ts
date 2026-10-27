@@ -14,8 +14,8 @@ import {
   closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, rmSync, statSync, unlinkSync, utimesSync, writeFileSync, writeSync,
 } from 'node:fs'
 import { join } from 'node:path'
-import type { Database } from './db.js'
-import type { ArtifactRow, BibleRow, ChapterRow, ChapterVersionRow, EventRow, MaterialRow, MetaRow, VolumeRow, WorkRow } from './store-rows.js'
+import type { Database } from './db.ts'
+import type { ArtifactRow, BibleRow, ChapterRow, ChapterVersionRow, EventRow, MaterialRow, MetaRow, VolumeRow, WorkRow } from './store-rows.ts'
 
 export interface WriteChapterInput {
   work: string
@@ -58,26 +58,26 @@ import {
   backupTo, checkpoint, createWorkDatabase, exportsDir, integrityCheck, WORK_SCHEMA_VERSION,
   materialsDir, moveDatabaseFiles, openCatalog, openDatabase, openWork, removeDatabaseFiles, touchMeta, transaction,
   trashDir, trashFile, workFile, worksDir, backupsDir,
-} from './db.js'
-import { MATERIAL_PURPOSES, MATERIAL_TITLE_MAX, materialMetadata, normalizeMaterialPurpose, prepareMaterial } from './materials.js'
-import { chapterRemap } from './chapter-edit.js'
-import { buildEpub } from './epub.js'
-import { snippetFor } from './retrieval.js'
-import { materialIndexText, searchTokens } from './search-text.js'
-import { dropSearchDoc, syncSearchDoc } from './search-index.js'
-import { STATE_LIMITS, applyFactOp, applyHookOp, mintHookId, projectState } from './state-projection.js'
+} from './db.ts'
+import { MATERIAL_PURPOSES, MATERIAL_TITLE_MAX, materialMetadata, normalizeMaterialPurpose, prepareMaterial } from './materials.ts'
+import { chapterRemap } from './chapter-edit.ts'
+import { buildEpub } from './epub.ts'
+import { snippetFor } from './retrieval.ts'
+import { materialIndexText, searchTokens } from './search-text.ts'
+import { dropSearchDoc, syncSearchDoc } from './search-index.ts'
+import { STATE_LIMITS, applyFactOp, applyHookOp, mintHookId, projectState } from './state-projection.ts'
 
 export { searchTokens }
 import {
   StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, WORK_FORMS, chapterNumber, chapterStem, contentVersion, countWords,
   formOf, now, planApprovalPolicy, stageOf, summaryAdmissible, trimSummary, unitOf, workIdOf,
-} from './domain.js'
-import { assertRevisionMode } from './revision.js'
-import { validateArtifactRecord } from './artifact-contract.js'
+} from './domain.ts'
+import { assertRevisionMode } from './revision.ts'
+import { validateArtifactRecord } from './artifact-contract.ts'
 import {
   artifactRevision, FOUNDATION_DOCUMENTS, putArtifactOnDb, remapChapterArtifacts, renderChapterMemo, renderFoundationContent,
   writeChapterMemoOnDb, writeChapterObservationsOnDb, writeChapterSummaryOnDb, writeTextArtifactOnDb, readTextArtifactOnDb,
-} from './artifact-store.js'
+} from './artifact-store.ts'
 
 /** How long an unused proposal is kept before the next proposal write prunes it. */
 export const PROPOSAL_TTL_MS = 30 * 24 * 60 * 60 * 1000

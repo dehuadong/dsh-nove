@@ -6,7 +6,7 @@
 export const STYLE_START = '<!-- storycraft:style-samples:start -->'
 export const STYLE_END = '<!-- storycraft:style-samples:end -->'
 
-import { SENTENCE_BREAK } from './critique.js'
+import { SENTENCE_BREAK } from './critique.ts'
 
 const DIALOGUE = /[“”"「」『』]/u
 const PUNCTUATION = /[。，、；：！？…]/gu

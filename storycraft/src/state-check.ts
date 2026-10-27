@@ -11,10 +11,10 @@
 import {
   StoryError, chapterNumber, previewState, readChapter, readFoldedState, readManifest, readPlan, readSummary,
   readSummaryState, stageOf,
-} from './storage.js'
-import { readCards } from './facts.js'
-import { closeSubmission, consumeSubmission, openSubmission, STATE_CHECK_NO_EVIDENCE } from './submission.js'
-import { runChild } from './delegate.js'
+} from './storage.ts'
+import { readCards } from './facts.ts'
+import { closeSubmission, consumeSubmission, openSubmission, STATE_CHECK_NO_EVIDENCE } from './submission.ts'
+import { runChild } from './delegate.ts'
 
 /** One chapter entry from the manifest. */
 interface ManifestChapter {

@@ -24,24 +24,24 @@ import {
   readSummaryState,
   reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter, setSessionCurrent,
   status as readStatus, updateSettings, workIdOf, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
-} from './storage.js'
-import { readArtifact, readChapterMemo, readChapterSummary, readTextArtifact } from './artifact-store.js'
+} from './storage.ts'
+import { readArtifact, readChapterMemo, readChapterSummary, readTextArtifact } from './artifact-store.ts'
 import {
   assembleBrief as assembleBriefFor, readBible as readBibleEntries,
   writeBible as writeBibleEntry, writeSummary as writeSummaryEntry,
-} from './bible.js'
-import { readVolumes, writeVolume } from './volumes.js'
-import { critique } from './critique.js'
-import { loadRoleInput } from './role-input.js'
-import { delegateRole } from './delegate.js'
-import { checkChapterState } from './state-check.js'
-import { settleChapterState } from './state-settle.js'
-import { submitPayload } from './submission.js'
-import { checkDraft } from './landing.js'
-import { getCurrent, hydrate as hydrateCurrent, markHydrated, resolveWork, setCurrent, shouldHydrate } from './current.js'
+} from './bible.ts'
+import { readVolumes, writeVolume } from './volumes.ts'
+import { critique } from './critique.ts'
+import { loadRoleInput } from './role-input.ts'
+import { delegateRole } from './delegate.ts'
+import { checkChapterState } from './state-check.ts'
+import { settleChapterState } from './state-settle.ts'
+import { submitPayload } from './submission.ts'
+import { checkDraft } from './landing.ts'
+import { getCurrent, hydrate as hydrateCurrent, markHydrated, resolveWork, setCurrent, shouldHydrate } from './current.ts'
 import { join } from 'node:path'
-import { createProposal, markProposalUsed, readProposal } from './proposals.js'
-import { SCOPE_MESSAGES, scopeDenial } from './scope.js'
+import { createProposal, markProposalUsed, readProposal } from './proposals.ts'
+import { SCOPE_MESSAGES, scopeDenial } from './scope.ts'
 
 /**
  * A JSON Schema node as this module writes it.

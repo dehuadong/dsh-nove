@@ -1,6 +1,6 @@
 // Workspace scope guard: path matrix, search defaults, shell mentions, DB root.
 import { join, resolve } from 'node:path'
-import { scopeDenial } from '../dist/scope.js'
+import { scopeDenial } from '../src/scope.ts'
 
 let failures = 0
 function check(name, condition, detail) {

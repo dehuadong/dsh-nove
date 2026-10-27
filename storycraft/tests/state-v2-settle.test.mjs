@@ -3,11 +3,11 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import * as s from '../dist/storage.js'
-import * as b from '../dist/bible.js'
-import { mintHookId } from '../dist/state-projection.js'
-import { checkDraft } from '../dist/landing.js'
-import { openWork } from '../dist/db.js'
+import * as s from '../src/storage.ts'
+import * as b from '../src/bible.ts'
+import { mintHookId } from '../src/state-projection.ts'
+import { checkDraft } from '../src/landing.ts'
+import { openWork } from '../src/db.ts'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0

@@ -2,8 +2,8 @@
 import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { mintHookId } from '../dist/state-projection.js'
-import * as s from '../dist/storage.js'
+import { mintHookId } from '../src/state-projection.ts'
+import * as s from '../src/storage.ts'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0

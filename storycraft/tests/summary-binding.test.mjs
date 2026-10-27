@@ -3,9 +3,9 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import * as s from '../dist/storage.js'
-import * as b from '../dist/bible.js'
-import { openDatabase, workFile } from '../dist/db.js'
+import * as s from '../src/storage.ts'
+import * as b from '../src/bible.ts'
+import { openDatabase, workFile } from '../src/db.ts'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0

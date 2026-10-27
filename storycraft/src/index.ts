@@ -13,15 +13,15 @@
 
 import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, resolve } from 'node:path'
-import { deriveWorkbench } from './workbench.js'
-import { approveChapterPlan, approveFoundation, approveOutline, createBackup, deleteBackup, deleteChapter, deleteMaterial, ensureReconciled, exportWorkAtomic, importMaterial, moveChapter, listMaterials, listTrash, listWorks, nextStep, purgeTrash, readFoundationState, readManifest, restoreBackup, listBackups, readChapter, readReview, readWork, renameMaterial, restoreWork, setMaterialPurpose, status as readStatus, StoryError } from './storage.js'
-import { critique } from './critique.js'
-import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent } from './current.js'
-import { readVolumes } from './volumes.js'
-import { clearSessionCurrent, readSessionCurrent, setSessionCurrent } from './store-db.js'
-import { assembleBrief, extractStyleSamples, readBible, writeBible } from './bible.js'
-import { listRoleCards, readFoundationDocuments, renderFoundationContent } from './artifact-store.js'
-import { backupsDir, exportsDir } from './db.js'
+import { deriveWorkbench } from './workbench.ts'
+import { approveChapterPlan, approveFoundation, approveOutline, createBackup, deleteBackup, deleteChapter, deleteMaterial, ensureReconciled, exportWorkAtomic, importMaterial, moveChapter, listMaterials, listTrash, listWorks, nextStep, purgeTrash, readFoundationState, readManifest, restoreBackup, listBackups, readChapter, readReview, readWork, renameMaterial, restoreWork, setMaterialPurpose, status as readStatus, StoryError } from './storage.ts'
+import { critique } from './critique.ts'
+import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent } from './current.ts'
+import { readVolumes } from './volumes.ts'
+import { clearSessionCurrent, readSessionCurrent, setSessionCurrent } from './store-db.ts'
+import { assembleBrief, extractStyleSamples, readBible, writeBible } from './bible.ts'
+import { listRoleCards, readFoundationDocuments, renderFoundationContent } from './artifact-store.ts'
+import { backupsDir, exportsDir } from './db.ts'
 
 /** Requires the host web server; without it the browser surface has no data. */
 export const inject = ['webServer']

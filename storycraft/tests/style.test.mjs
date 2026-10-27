@@ -2,10 +2,10 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import * as s from '../dist/storage.js'
-import { assembleBrief, extractStyleSamples, readBible, writeBible } from '../dist/bible.js'
-import { mergeBlock, styleBlock, styleProfile, stripBlock, STYLE_END, STYLE_START } from '../dist/style.js'
-import { openWork } from '../dist/db.js'
+import * as s from '../src/storage.ts'
+import { assembleBrief, extractStyleSamples, readBible, writeBible } from '../src/bible.ts'
+import { mergeBlock, styleBlock, styleProfile, stripBlock, STYLE_END, STYLE_START } from '../src/style.ts'
+import { openWork } from '../src/db.ts'
 
 let failures = 0
 function check(name, condition, detail) {

@@ -4,8 +4,8 @@ import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/
 import { crc32, inflateRawSync } from 'node:zlib'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { openDatabase } from '../dist/db.js'
-import * as store from '../dist/store-db.js'
+import { openDatabase } from '../src/db.ts'
+import * as store from '../src/store-db.ts'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0

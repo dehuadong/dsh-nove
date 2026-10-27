@@ -2,8 +2,8 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { openDatabase, openWork, workFile, WORK_SCHEMA_VERSION } from '../dist/db.js'
-import * as s from '../dist/storage.js'
+import { openDatabase, openWork, workFile, WORK_SCHEMA_VERSION } from '../src/db.ts'
+import * as s from '../src/storage.ts'
 
 let failures = 0
 function check(name, condition, detail) {

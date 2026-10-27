@@ -7,14 +7,17 @@
  * rewriting, and the `require('react')` the loader provides stays untouched.
  */
 import { build } from 'esbuild'
+import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
+const outfile = join(root, 'lib', 'client.js')
+mkdirSync(dirname(outfile), { recursive: true })
 
 const result = await build({
   entryPoints: [join(root, 'src', 'client.ts')],
-  outfile: join(root, 'dist', 'client.js'),
+  outfile,
   bundle: false,
   target: 'es2022',
   logLevel: 'warning',
@@ -26,4 +29,4 @@ if (output === undefined) {
   console.error('[build-client] esbuild produced no output')
   process.exit(1)
 }
-console.error(`[build-client] compiled dist/client.js (${output.bytes} bytes)`)
+console.error(`[build-client] compiled lib/client.js (${output.bytes} bytes)`)

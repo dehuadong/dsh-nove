@@ -7,7 +7,7 @@ import {
   validateContextSource, validateFact, validateHook, validateObservation, validateReviewObservations,
   validateRoleCard, validateRolesIndex, validateScript, validateShortStory, validateStoryFrame,
   validateVolumeMap, validateWorkConfig,
-} from '../dist/artifact-contract.js'
+} from '../src/artifact-contract.ts'
 
 let failures = 0
 function check(name, condition, detail) {

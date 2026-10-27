@@ -7,7 +7,7 @@
  * before comparison.
  */
 
-import { PLACE_PATTERN, PLACE_STOP, extractSpeakerNames, toArabic } from './facts.js'
+import { PLACE_PATTERN, PLACE_STOP, extractSpeakerNames, toArabic } from './facts.ts'
 
 /** The whitelist as land-time validation passes it in; every list may be absent. */
 interface WhitelistInput {

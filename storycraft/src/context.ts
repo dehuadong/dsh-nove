@@ -10,17 +10,17 @@
  * in the work database, not in files.
  */
 
-import { deriveWhitelist, readCards, summariseWhitelist } from './facts.js'
-import { readFoundationDocuments, renderFoundationContent } from './artifact-store.js'
+import { deriveWhitelist, readCards, summariseWhitelist } from './facts.ts'
+import { readFoundationDocuments, renderFoundationContent } from './artifact-store.ts'
 import {
   StoryError, chapterNumber, chapterStem, formOf, planApprovalPolicy, sourceIdOf, unitOf,
-} from './domain.js'
+} from './domain.ts'
 import {
   readBibleMap, readChapter as readChapterRow, readFoldedState, readManifest, readPlan,
   readVolumes, readSummaryState, searchMemory, virtualPath,
-} from './store-db.js'
-import { buildQuery, select } from './retrieval.js'
-import { accountOf } from './accounting.js'
+} from './store-db.ts'
+import { buildQuery, select } from './retrieval.ts'
+import { accountOf } from './accounting.ts'
 
 /** Default budget for one role context, in estimated tokens. */
 export const DEFAULT_CONTEXT_BUDGET = 8000

@@ -9,20 +9,24 @@
     "description": "为长篇创作提供动作集与一个只读编排工作台；人设、技能与脚本跟随预设。"
   },
   "icon": "./icon.svg",
+  "main": "./lib/index.js",
   "exports": {
-    ".": "./dist/index.js",
-    "./client": "./dist/client.js",
-    "./skills": "./dist/skills.js",
-    "./tools": "./dist/tools.js",
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./skills": "./lib/skills.js",
+    "./tools": "./lib/tools.js",
     "./package.json": "./package.json"
   },
   "files": [
-    "dist",
+    "lib",
     "cordis.patch.yml",
     "icon.svg",
     "README.md",
     "skills"
   ],
+  "engines": {
+    "node": ">=22.18"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
@@ -38,12 +42,14 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "prepack": "node scripts/build.mjs"
+    "prepack": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.client.json"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
     "@types/react": "^18.3.31",
     "esbuild": "^0.28.2",
+    "tsdown": "^0.23.2",
     "typescript": "^7.0.2"
   }
 }

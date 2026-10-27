@@ -7,14 +7,14 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, countWords, trimSummary } from './domain.js'
-import { STATE_LIMITS } from './state-projection.js'
-import { assertRevisionMode } from './revision.js'
+import { StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, countWords, trimSummary } from './domain.ts'
+import { STATE_LIMITS } from './state-projection.ts'
+import { assertRevisionMode } from './revision.ts'
 import {
   validateBookRules, validateRoleCard, validateRolesIndex, validateStoryFrame, validateVolumeMap,
-} from './artifact-contract.js'
-import { checkWordRange } from './landing.js'
-import { readChapter } from './storage.js'
+} from './artifact-contract.ts'
+import { checkWordRange } from './landing.ts'
+import { readChapter } from './storage.ts'
 
 /** Entries live long enough for a slow child, never beyond the host run. */
 const SUBMISSION_TTL_MS = 10 * 60 * 1000

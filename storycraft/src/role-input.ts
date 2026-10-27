@@ -7,9 +7,9 @@
  * chapter body to the established `chapter-not-written` business code.
  */
 
-import { StoryError, chapterNumber } from './domain.js'
-import { latestReview, readChapter, readManifest } from './storage.js'
-import { assembleRoleContext } from './context.js'
+import { StoryError, chapterNumber } from './domain.ts'
+import { latestReview, readChapter, readManifest } from './storage.ts'
+import { assembleRoleContext } from './context.ts'
 
 /** Roles this loader accepts. */
 type Role = 'writer' | 'planner' | 'reviewer' | 'reviser' | 'summarizer'

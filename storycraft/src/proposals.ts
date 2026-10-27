@@ -14,7 +14,7 @@ import {
   markProposalUsed as markProposalUsedRow,
   pruneProposals as pruneProposalsRows,
   readProposal as readProposalRow,
-} from './store-db.js'
+} from './store-db.ts'
 
 export { PROPOSAL_TTL_MS }
 

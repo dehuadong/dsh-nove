@@ -4,8 +4,8 @@
  * drifting away from `reviseChapter`.
  */
 
-import { StoryError, countWords } from './domain.js'
-import { critique } from './critique.js'
+import { StoryError, countWords } from './domain.ts'
+import { critique } from './critique.ts'
 
 /**
  * Validate one revision against its mode.

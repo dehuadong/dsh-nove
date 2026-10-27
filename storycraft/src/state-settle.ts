@@ -7,14 +7,14 @@
  * fallback when reconciliation cannot be resolved.
  */
 
-import { StoryError, chapterNumber } from './storage.js'
+import { StoryError, chapterNumber } from './storage.ts'
 import {
   previewState, readChapter, readEvents, readFoldedState, readManifest, readPlan, readSummary, settleState, statePreflight,
-} from './storage.js'
-import { readCards } from './facts.js'
-import { closeSubmission, consumeSubmission, openSubmission } from './submission.js'
-import { runChild } from './delegate.js'
-import { checkChapterState } from './state-check.js'
+} from './storage.ts'
+import { readCards } from './facts.ts'
+import { closeSubmission, consumeSubmission, openSubmission } from './submission.ts'
+import { runChild } from './delegate.ts'
+import { checkChapterState } from './state-check.ts'
 
 /** One chapter entry from the manifest. */
 interface ManifestChapter {

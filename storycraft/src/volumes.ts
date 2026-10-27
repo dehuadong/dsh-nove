@@ -6,8 +6,8 @@
  * in the same transaction as the write.
  */
 
-import { chapterNumber } from './domain.js'
-import { readManifest, readVolumes as readVolumeRows, writeVolume as writeVolumeRow } from './store-db.js'
+import { chapterNumber } from './domain.ts'
+import { readManifest, readVolumes as readVolumeRows, writeVolume as writeVolumeRow } from './store-db.ts'
 
 /**
  * Read every volume of one work.

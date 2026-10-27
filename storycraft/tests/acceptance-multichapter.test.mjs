@@ -8,12 +8,12 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, relative, sep } from 'node:path'
 import { inflateRawSync } from 'node:zlib'
-import * as tools from '../dist/tools.js'
-import * as s from '../dist/storage.js'
-import { writeBible } from '../dist/bible.js'
-import { submitPayload } from '../dist/submission.js'
-import { listArtifacts, readArtifact, writeFoundationDocument } from '../dist/artifact-store.js'
-import { setCurrent } from '../dist/current.js'
+import * as tools from '../src/tools.ts'
+import * as s from '../src/storage.ts'
+import { writeBible } from '../src/bible.ts'
+import { submitPayload } from '../src/submission.ts'
+import { listArtifacts, readArtifact, writeFoundationDocument } from '../src/artifact-store.ts'
+import { setCurrent } from '../src/current.ts'
 
 let failures = 0
 function check(name, condition, detail) {
