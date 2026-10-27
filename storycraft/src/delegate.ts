@@ -618,6 +618,25 @@ async function delegateArchitect(root: string, input: ArchitectInput, host: Dele
       rolesIndex: documents.rolesIndex?.content,
     },
   })
+  // The architect is the one role whose output can contradict the proposal, so
+  // its assembled input is recorded like the other roles.
+  try {
+    writeContextTrace(root, {
+      work, chapter: 1, role: 'architect',
+      trace: {
+        stage,
+        instruction: typeof input.instruction === 'string' ? input.instruction : '',
+        sources: [
+          ...(documents.storyFrame === undefined ? [] : [{ name: 'story_frame', revisionId: documents.storyFrame.version }]),
+          ...(documents.volumeMap === undefined ? [] : [{ name: 'volume_map', revisionId: documents.volumeMap.version }]),
+          ...(documents.rolesIndex === undefined ? [] : [{ name: 'roles_index', revisionId: documents.rolesIndex.version }]),
+        ],
+        foundationComplete: state.stages,
+      },
+    })
+  } catch {
+    // Diagnostics only: the child still gets its prompt.
+  }
   const timeoutMs = Number.isFinite(host.timeoutMs) ? host.timeoutMs! : DELEGATE_TIMEOUT_MS
   const signal = host.signal ?? new AbortController().signal
   let child: ChildRun | undefined
