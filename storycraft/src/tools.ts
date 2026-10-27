@@ -19,6 +19,7 @@
 import { createHash } from 'node:crypto'
 import {
   StoryError, backupWork, deleteWork, exportWork, initWork, nextStep as nextStepFor, settleState,
+  approveFoundation, approveOutline, approveChapterPlan,
   planApprovalPolicy,
   latestReview, readBibleEntry, readChapter, readEvents, readEventsText, readManifest, readPlan, readSessionCurrent,
   readSummaryState,
@@ -1554,6 +1555,55 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
       },
     }),
 
+    action({
+      name: 'story_approve',
+      mutates: true,
+      description: '记录作者对基础设定 / 全书计划 / 章纲的确认，来源记为 conversation。'
+        + ' 只在作者明确说「确认 / 就按这个来」之后调用；面板上的按钮写同一事件，两者都会绑定内容指纹。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+          kind: { type: 'string', enum: ['foundation', 'outline', 'plan'], description: '确认哪一项。' },
+          chapter: { type: 'integer', description: 'kind=plan 时必填：第几章。' },
+        },
+        required: ['work', 'kind'],
+      },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            ok: { type: 'boolean' },
+            workId: { type: 'string' },
+            kind: { type: 'string' },
+            source: { type: 'string', enum: ['conversation', 'panel'] },
+          },
+          required: ['ok', 'workId', 'kind', 'source'],
+        },
+        render: OUTPUT.render,
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const workId = String(args.work)
+        const kind = String(args.kind)
+        if (kind === 'foundation') {
+          approveFoundation(root, { work: workId, source: 'conversation' })
+          return { ok: true, workId, kind, source: 'conversation' }
+        }
+        if (kind === 'outline') {
+          approveOutline(root, { work: workId, source: 'conversation' })
+          return { ok: true, workId, kind, source: 'conversation' }
+        }
+        if (kind === 'plan') {
+          if (args.chapter === undefined) throw new StoryError('chapter-required', '记录章纲确认需要 chapter')
+          approveChapterPlan(root, { work: workId, chapter: args.chapter, source: 'conversation' })
+          return { ok: true, workId, kind, source: 'conversation' }
+        }
+        throw new StoryError('invalid-kind', `未知的确认类型：${kind}`)
+      },
+    }),
     action({
       name: 'story_plan',
       mutates: true,

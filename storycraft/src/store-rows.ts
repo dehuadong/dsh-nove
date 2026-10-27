@@ -49,8 +49,10 @@ export interface MetaRow {
   outline_written_at: string | null
   outline_approved_at: string | null
   outline_approved_revision: string | null
+  outline_approved_source: string | null
   foundation_approved_at: string | null
   foundation_approved_revision: string | null
+  foundation_approved_source: string | null
   created_at: string
   updated_at: string
 }
@@ -64,6 +66,7 @@ export interface ChapterRow {
   words: number
   plan_approved_at: string | null
   plan_revision: string | null
+  plan_approved_source: string | null
   provenance: 'generated' | 'imported' | 'edited'
   last_revise_mode: string | null
   updated_at: string

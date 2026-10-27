@@ -1210,7 +1210,8 @@ export function approveFoundation(root: any, input: any) {
       const state = foundationStateOf(db)
       if (state.complete !== true) throw new StoryError('foundation-incomplete', 'foundation 还没生成完整：先跑完四个 stage')
       const at = now()
-      db.prepare('UPDATE meta SET foundation_approved_at = ?, foundation_approved_revision = ?, updated_at = ? WHERE id = 1').run(at, foundationRevisionOf(db), at)
+      const source = input.source === 'conversation' ? 'conversation' : 'panel'
+      db.prepare('UPDATE meta SET foundation_approved_at = ?, foundation_approved_revision = ?, foundation_approved_source = ?, updated_at = ? WHERE id = 1').run(at, foundationRevisionOf(db), source, at)
       return { workId: String(input.work), approvedAt: at, foundation: foundationStateOf(db) }
     })
   } finally {
@@ -1487,7 +1488,8 @@ export function approveOutline(root: any, input: any) {
       if (meta.outline_written_at === null) throw new StoryError('outline-required', '还没有全书计划：先 story_outline')
       const at = now()
       const revision = outlineRevisionOf(db)
-      db.prepare('UPDATE meta SET outline_approved_at = ?, outline_approved_revision = ?, updated_at = ? WHERE id = 1').run(at, revision ?? null, at)
+      const source = input.source === 'conversation' ? 'conversation' : 'panel'
+      db.prepare('UPDATE meta SET outline_approved_at = ?, outline_approved_revision = ?, outline_approved_source = ?, updated_at = ? WHERE id = 1').run(at, revision ?? null, source, at)
       return { workId, outline: { writtenAt: meta.outline_written_at, approvedAt: at } }
     })
   } finally {
@@ -1773,8 +1775,9 @@ export function approveChapterPlan(root: any, input: any) {
       if (entry === undefined || memo === undefined) throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲`)
       const at = now()
       const planRevision = memo.revision_id
-      db.prepare('UPDATE chapters SET plan_approved_at = ?, plan_revision = ?, updated_at = ? WHERE number = ?')
-        .run(at, planRevision, at, number)
+      const source = input.source === 'conversation' ? 'conversation' : 'panel'
+      db.prepare('UPDATE chapters SET plan_approved_at = ?, plan_revision = ?, plan_approved_source = ?, updated_at = ? WHERE number = ?')
+        .run(at, planRevision, source, at, number)
       touchMeta(db, at)
       return {
         workId,
