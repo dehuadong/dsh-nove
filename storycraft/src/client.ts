@@ -10,11 +10,12 @@ window.__ModuleLoader__.load({
     /**
      * The message the panel sends after an author approval.
      *
-     * It continues only to the next author gate: "不要再次询问确认" let the model
-     * run through every later gate (#76), so the wording names the stop instead.
+     * It stops the run: every later step is a judgement point (plan review,
+     * observation triage, revision scope, chapter acceptance), so the panel only
+     * records the decision and the conversation decides what happens next (#76).
      */
     const approvalMessage = (what: string): string =>
-      `${what}已确认。请调 story_next，按返回的下一步继续；遇到下一个作者闸门就停下等我确认，不要跳过。`
+      `${what}已确认。请停在这一步，不要自动继续；等作者在会话里决定下一步。`
 
     // ---------------------------------------------------------------------
     // Types this bundle hands around. All of it is erased at build time: the
