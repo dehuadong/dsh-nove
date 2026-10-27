@@ -8,11 +8,12 @@
  * Deliberately narrow: text only, no attachments, no model/preset changes.
  */
 
-export const inject = ['tools']
+export const inject = ['tools', 'sessionController']
 
 export function apply(ctx) {
-  const controller = ctx.get('sessionController')
-  if (controller === undefined) return
+  // Injection guarantees the service exists; reading it during apply would race
+  // the controller's own registration and silently skip the tool after a restart.
+  const controller = ctx.sessionController
 
   ctx.tools.register({
     name: 'session_prompt',
@@ -23,6 +24,11 @@ export function apply(ctx) {
       properties: {
         sessionId: { type: 'string', description: 'Exact session id, e.g. session-<uuid>.' },
         text: { type: 'string', description: 'Message text to deliver as the user.' },
+        mode: {
+          type: 'string',
+          enum: ['queue', 'steer'],
+          description: 'queue delivers at the next turn boundary; steer interrupts the running turn.',
+        },
       },
       required: ['sessionId', 'text'],
     },
@@ -47,7 +53,7 @@ export function apply(ctx) {
       const value = await controller.prompt({
         requestId: `acceptance-${crypto.randomUUID()}`,
         sessionId: args.sessionId,
-        mode: 'queue',
+        mode: args.mode === 'steer' ? 'steer' : 'queue',
         content: [{ type: 'text', text: args.text }],
         clientTimeZone: 'Asia/Shanghai',
       }, exec.signal)
