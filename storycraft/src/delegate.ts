@@ -637,7 +637,8 @@ async function delegateArchitect(root: string, input: ArchitectInput, host: Dele
       work, chapter: 1, role: 'architect',
       trace: {
         chapter: 1,
-        plannerInputs: [],
+        // The architect's inputs are the foundation documents it was given.
+        plannerInputs: sources,
         composerInputs: [],
         selectedSources: sources,
         contextTiers: { protectedSources: sources, compressibleSources: [] },
