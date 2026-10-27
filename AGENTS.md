@@ -79,6 +79,17 @@
 
 不测：文笔好坏、情节是否好看、具体小说的人名/角色词是否“正确”、某部作品该写什么。
 
+### E2E 测试规则
+
+1. 浏览器级验证一律走 `node storycraft/e2e/run.mjs`（它起临时实例再跑 `playwright.spec.cjs`）；只跑一个文件用 `node storycraft/e2e/run.mjs e2e/load.spec.cjs`，只看清单用 `--list`。
+2. 新功能或 bugfix 要带一条能复现它的 spec（`storycraft/e2e/*.spec.cjs`），和业务代码一起提交；spec 只覆盖浏览器里才观测得到的那层。
+3. 红的处理顺序：先让 spec 稳定复现（红）→ 读产物（`trace`、失败截图、`test-results/*/error-context.md` 的 ARIA 快照）→ 改代码 → 重跑同一条命令。
+4. 选择器用 `getByRole` / `getByLabel`；缺稳定锚点就在组件上补 `data-*`，不用脆弱的 CSS 层级。
+5. 不写 UI 单元测试（按钮渲染、className、快照）；业务逻辑、纯函数、接口契约仍由 `storycraft/tests` 覆盖。
+6. Playwright 是本包 devDependency（`storycraft/package.json`），浏览器装在机器级缓存；**不借用其它项目的 `node_modules`**，也不设 `NODE_PATH` 指过去。
+7. E2E 起的是临时实例：独立 `DSH_HOME`（`storycraft/.tmp-e2e/`）、临时端口、随 spec 结束退出。需要手工回收时按端口定位（`Get-NetTCPConnection -LocalPort <port>`），不许按进程名批量杀。
+8. 装出来的形态用 `node storycraft/scripts/ci.mjs --smoke` 验证（tarball → `dsh plugin add` → 冷启动）；它自己开实例、自己收尾，失败也必须杀干净，不能留下占着管道的子进程。
+
 
 ### 对拍工作法
 - InkOS 仓库分析研究文档 `docs\report\inkos\readme.md`；全量对拍证据见 `docs/report/inkos/2026-10-23-full-project-parity-audit.md`，产物专项见 `docs/report/inkos/2026-10-23-artifact-and-resource-parity-audit.md`；三形态执行计划归 `.agents/notes/proposed/workspace/2026-10-19-storycraft-roadmap.md`，报告不拥有排期。
@@ -104,7 +115,7 @@
 - 不能把任务工作量“成本高”而作为裁剪、简单实现的理由，应该去规划分阶段排期。
 - **没有旧作品，不存在数据迁移/兼容**：本项目的测试作品一律删除重建。提案、设计 Note、实现与验收不得包含旧作品迁移、兼容层、双读、旧行回退、legacy 分支、旧文件导入，或“旧作品显示为空/需重填”一类设计；旧 schema 直接 `schema-version-mismatch`，旧表/旧列直接删除或不再读写。对拍里的“能力迁移”不等于数据迁移，不能用来保留兼容层。
 - 本项目具体功能性实现先参考对拍项目InkOS，是否是相同或类似功能，以及其实现方法，见&对拍工作法.
-- 开发测试由代理执行，不交给用户手工跑：项目 CI 命令是 `node storycraft/scripts/ci.mjs`（打包清单检查 + 全部单元契约文件，当前 54 个 + Playwright E2E）；没有 Playwright 时按 `e2e/run.mjs` 的提示安装或用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装目录。
+- 开发测试由代理执行，不交给用户手工跑：项目 CI 命令是 `node storycraft/scripts/ci.mjs`（类型检查 + 打包清单检查 + 全部单元契约文件，当前 55 个 + Playwright E2E）；Playwright 是本包 devDependency，首次用 `cd storycraft && npm install && npx playwright install chromium`，不借用其它项目的安装。
 - 参考工程的 CI 是 `.github/workflows/ci.yml` 里的 `pnpm install --frozen-lockfile && pnpm build && pnpm test`；对拍时先读参考的 CI、技能、角色资源和测试，再决定我们的实现，不凭印象造替代方案。差异必须写清原因、约束和为什么不能完全照做，必要时先取得用户许可。
 - #19/#21 的教训是：整章正文与装配上下文多次穿过主会话，单靠节点单测和“让用户实测”发现不了 token、路径、角色输入的问题。验证必须覆盖主会话路径、工具回执与 token 预算；不能只用“单元测试通过”代替。
 - 用户只在最后做一次真实使用验收；需要新会话做真实链路时，用户提供 `sessionID`，代理自己在该会话跑，不要求用户写测试小说、补 fixture 或手工跑开发测试。

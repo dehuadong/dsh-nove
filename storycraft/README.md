@@ -245,25 +245,31 @@ storycraft/
   Get-ChildItem storycraft/tests -Filter *.test.mjs | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { exit 1 } }
   ```
 
-- 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑 19 条页面 spec（工作台 17 + 预设 2）——侧栏入口、页面读数、作者确认、摘要徽标、素材导入/重命名/删除、面板导出、章节倒序分页/前移后移、文风样例、真值抽屉、备份恢复、指令门禁、预设声明与刷新。不调用模型，零额度；需要本机装有 Playwright（可用 `DSH_E2E_PLAYWRIGHT_ROOT` 指向已安装它的目录）。
-- `node storycraft/scripts/ci.mjs` 依次跑：Host 与 Client 类型检查（`tsc -p`，`--noEmit`）、全部单元文件（直接 import `src/*.ts`，靠 Node 类型擦除，不先构建）、`scripts/build.mjs`（tsdown 出 Host 入口 + esbuild 出 `client.js`）、pack-check、页面 spec。
+- 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑 26 条页面 spec——侧栏入口、加载契约（无 `pageerror`、`/api/see-storycraft/works` 200）、页面读数、作者确认、摘要徽标、素材导入/重命名/删除、面板导出、章节倒序分页/前移后移、文风样例、真值抽屉、备份恢复、指令门禁、预设声明与刷新。不调用模型，零额度；Playwright 是本包 devDependency（首次 `npm install && npx playwright install chromium`），`node storycraft/e2e/run.mjs --list` 可只看清单。
+- `node storycraft/scripts/ci.mjs` 依次跑：Host 与 Client 类型检查（`tsc -p`，`--noEmit`）、全部单元文件（直接 import `src/*.ts`，靠 Node 类型擦除，不先构建）、`scripts/build.mjs`（tsdown 出 Host 入口 + esbuild 出 `client.js`）、pack-check，最后二选一：默认跑复制安装的页面 spec，`--smoke` 跑 tarball 安装 smoke（`npm pack` → `dsh plugin add <tgz>` → 冷启动 → 加载契约）。
 - 端到端验收、评审与证据记录在 issue `dehuadong/dsh-nove#18`。
 
 ## 安装与打包
 
-开发时 profile 用 `link:` 指向本目录，改 `src/client.ts` 后重新 build 再刷新窗口即生效；这是调试路径，不是安装包路径。
+两种安装方式，生效方式不同，别混：
 
-发布/验收用 tarball：
+| 装法 | 命令 | 生效 |
+| --- | --- | --- |
+| 开发（`link:`） | `dsh plugin add link:E:/dsh-nove/storycraft` | 改完 `npm run build` 后重新加载窗口 |
+| tarball / registry | `npm pack` 后 `dsh plugin add <tgz>`，或 `dsh plugin add see-storycraft@<版本>` | **重启 DeepSeek Harness**（渲染进程跑的是启动时那份客户端 bundle，正式构建没有「重新加载页面」菜单项） |
+
+发布前用 tarball 走一遍真实验收，不要用 `link:`：
 
 ```powershell
 cd storycraft
-npm pack
-node scripts/pack-check.mjs
+node scripts/ci.mjs --smoke
 ```
 
-`npm pack` 的清单由 `package.json` 的 `files` 拥有，`pack-check.mjs` 检查实际 tarball：`lib/` 的四个入口（`index`、`tools`、`skills`、`client`）、`skills/`、`cordis.patch.yml`、`icon.svg`、`README.md` 必须在；`src/` 的逐模块产物、`tests/`、`e2e/`、根 `scripts/`、报告与临时目录必须不在。`skills/*/scripts/*.mjs` 属于技能资源，会随 `skills/` 打包。`node storycraft/scripts/ci.mjs --no-e2e` 会跑这项检查。
+它等价于 `npm pack` → `dsh plugin add <tgz>` → `--dump-config` 断言层 → 冷启动 → 跑 `e2e/load.spec.cjs`。首次运行会在 `.tmp-smoke/` 建一个一次性 `DSH_HOME`，不碰你的 desktop profile；`DSH_SMOKE_KEEP=1` 可保留现场。
 
-安装时用 `npm pack` 产出的 tarball（DSH 的 bundle 安装入口），不要直接把仓库目录当安装包。回滚时重新安装上一个 tarball；开发环境切回 `link:`。
+`npm pack` 的清单由 `package.json` 的 `files` 拥有，`pack-check.mjs` 检查实际 tarball：`lib/` 的四个入口（`index`、`tools`、`skills`、`client`）、`skills/`、`cordis.patch.yml`、`icon.svg`、`README.md`、`LICENSE` 必须在；`src/` 的逐模块产物、`tests/`、`e2e/`、根 `scripts/`、报告与临时目录必须不在。发布字段也在这一步校验：`private` 不能存在、`engines.dsh` 必须存在、`license` 要与 `LICENSE` 一致。断言逻辑在 `scripts/pack-manifest.mjs`（纯函数，负例由 `tests/packaging-manifest.test.mjs` 覆盖）。`npm publish` 会先跑 `prepublishOnly`（构建 + pack-check）再打包。
+
+回滚时重新安装上一个 tarball；开发环境切回 `link:`。
 
 ## TypeScript 接入
 
@@ -282,7 +288,7 @@ Host 与 Client 都已迁到 TS 的 L0–L5 层：`scope`、叶子层、数据�
 
 ## 改动与生效
 
-包以 `link:` 装入 profile，改 `src/client.ts` 并重新 `npm run build` 后刷新窗口即可；改 `cordis.patch.yml` 或 Host 半边需要重启应用，或让 `plugin_manager` 把 bundle 关→开重载补丁。停用用 `set_bundle enabled:false`，卸载用 `remove_bundle`。
+包以 `link:` 装入 profile 时，改 `src/client.ts` 并重新 `npm run build` 后刷新窗口即可；改 `cordis.patch.yml` 或 Host 半边需要重启应用，或让 `plugin_manager` 把 bundle 关→开重载补丁。**tarball 与 registry 安装没有这个便利**：客户端 bundle 只在应用启动时拉取，装完必须重启 DeepSeek Harness。停用用 `set_bundle enabled:false`，卸载用 `remove_bundle`。
 
 ## 阶段上下文
 

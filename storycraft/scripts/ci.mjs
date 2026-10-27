@@ -1,12 +1,19 @@
 /**
  * Storycraft CI entry: typecheck, run every unit contract test against the
- * source, build, check the tarball, then run the Playwright specs.
+ * source, build, check the tarball, then run one browser-level pass.
  *
  * Tests import `src/*.ts` directly and rely on Node's type stripping, so they
  * run before the build and never test a stale artifact.
  *
+ * The browser pass is one of two exclusive modes:
+ *   (default)  copy install: `files` copied into a temp profile — fast, what the
+ *              specs run while developing;
+ *   --smoke    tarball install: `npm pack` → `dsh plugin add <tgz>` — the shape
+ *              a registry user gets. Slower; run before publishing.
+ *
  * Usage:
  *   node storycraft/scripts/ci.mjs
+ *   node storycraft/scripts/ci.mjs --smoke
  *   node storycraft/scripts/ci.mjs --no-e2e
  */
 
@@ -21,7 +28,13 @@ assertNode('ci')
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url))
 const storycraftDir = path.dirname(scriptsDir)
 const noE2e = process.argv.includes('--no-e2e')
+const smoke = process.argv.includes('--smoke')
 const tsc = path.join('node_modules', 'typescript', 'bin', 'tsc')
+
+if (noE2e && smoke) {
+  console.error('[ci] --no-e2e 与 --smoke 互斥：smoke 本身就是浏览器级检查')
+  process.exit(1)
+}
 
 function run(command, args, cwd) {
   const result = spawnSync(command, args, { cwd, stdio: 'inherit', shell: false })
@@ -53,12 +66,14 @@ for (const script of ['scripts/build.mjs', 'scripts/pack-check.mjs']) {
 }
 
 if (!noE2e) {
-  const code = run(process.execPath, [path.join('e2e', 'run.mjs')], storycraftDir)
+  const entry = smoke ? path.join('scripts', 'install-smoke.mjs') : path.join('e2e', 'run.mjs')
+  const code = run(process.execPath, [entry], storycraftDir)
   if (code !== 0) failed += 1
 }
 
+const mode = noE2e ? '' : (smoke ? ' + tarball smoke' : ' + E2E')
 if (failed > 0) {
   console.error(`\n[ci] FAILED: ${failed} command(s)`)
   process.exit(1)
 }
-console.log(`\n[ci] PASS: ${tests.length} unit files${noE2e ? '' : ' + E2E'}`)
+console.log(`\n[ci] PASS: ${tests.length} unit files${mode}`)

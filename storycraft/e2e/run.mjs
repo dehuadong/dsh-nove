@@ -1,54 +1,43 @@
 /**
  * Run the Storycraft page specs against a throwaway DSH instance.
  *
- * Playwright is a development tool, not a dependency of this zero-dependency
- * bundle, so it is located at run time: a local `node_modules`, an explicit
- * `DSH_E2E_PLAYWRIGHT_ROOT`, or a sibling checkout that already installed it.
- * The host is started here (not by a Playwright `webServer` entry) because the
- * instance only publishes its authenticated URL through its own stdout.
+ * Playwright comes from this package's devDependencies (see
+ * `playwright.config.ts`): its version decides the browser build, so there is no
+ * fallback to another checkout. The host is started here rather than by a
+ * Playwright `webServer` entry because the instance only publishes its
+ * authenticated URL through its own stdout.
  *
- * Usage: node storycraft/e2e/run.mjs [--grep <pattern>] [--headed]
+ * Usage: node storycraft/e2e/run.mjs [--grep <pattern>] [--headed] [--list]
  */
 
 import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { locatePlaywright } from '../scripts/playwright-cli.mjs'
 
 const e2eDir = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.dirname(e2eDir)
-const repoRoot = path.dirname(projectRoot)
 const runtimeFile = path.join(projectRoot, '.tmp-e2e', 'runtime.json')
 
-/** Candidate roots that may contain an installed `@playwright/test`. */
-const candidates = [
-  process.env.DSH_E2E_PLAYWRIGHT_ROOT,
-  projectRoot,
-  repoRoot,
-].filter(Boolean)
-
-/** Locate the Playwright CLI and the node_modules root that resolves it. */
-function locatePlaywright() {
-  for (const candidate of candidates) {
-    for (const cli of [
-      path.join(candidate, 'node_modules', '@playwright', 'test', 'cli.js'),
-      path.join(candidate, 'node_modules', 'playwright', 'cli.js'),
-    ]) {
-      if (existsSync(cli)) return { cli, nodeModules: path.join(candidate, 'node_modules') }
-    }
-  }
-  return undefined
-}
-
-const playwright = locatePlaywright()
+const playwright = locatePlaywright(projectRoot)
 if (playwright === undefined) {
-  console.error('[e2e] 找不到 Playwright。安装一次开发依赖，或用 DSH_E2E_PLAYWRIGHT_ROOT 指向已安装它的目录：')
-  console.error('  pnpm add -D @playwright/test   # 在 storycraft/ 下')
-  console.error('  DSH_E2E_PLAYWRIGHT_ROOT=<含 node_modules 的目录> node storycraft/e2e/run.mjs')
+  console.error('[e2e] 没有安装 Playwright。在 storycraft/ 下运行：')
+  console.error('  npm install')
+  console.error('  npx playwright install chromium')
   process.exit(1)
 }
 
 const extra = process.argv.slice(2)
+// `--list` only needs the config, not a running instance.
+if (extra.includes('--list')) {
+  const listed = spawnSync(process.execPath, [playwright.cli, 'test', '--list', ...extra], {
+    cwd: projectRoot,
+    stdio: 'inherit',
+  })
+  process.exit(listed.status ?? 1)
+}
+
 // A fresh port per run: a pinned one collides with whatever else is listening.
 const port = Number(process.env.DSH_E2E_PORT ?? String(33000 + Math.floor(Math.random() * 900)))
 
@@ -85,14 +74,12 @@ if (runtime === undefined) {
 }
 
 const result = spawnSync(process.execPath, [
-  playwright.cli, 'test', 'e2e',
-  '--reporter=line', '--workers=1', ...extra,
+  playwright.cli, 'test', ...extra,
 ], {
   cwd: projectRoot,
   stdio: 'inherit',
   env: {
     ...process.env,
-    NODE_PATH: playwright.nodeModules,
     STORYCRAFT_E2E_RUNTIME: runtimeFile,
     STORYCRAFT_E2E_URL: runtime.url,
   },
