@@ -181,6 +181,8 @@ skills/
 
 修复：扁平化、front matter 规范化、主文件拆到 references、拆多目标技能、写侧加确认、新增 `storycraft/scripts/validate-skills.mjs` 并接进 `ci.mjs`。
 
+**技能按阶段切分**：不存在「形态级共享方法」。一个技能只装一个节点的 craft——`storycraft-long-foundation` / `long-plan` / `long-prose` / `long-settle`、`short-outline` / `short-prose`、`script-spec` / `script-scene`——该节点的参考跟着这个技能走。形态级技能会把规划、章纲、正文、结算放在同一份常驻文本里，节点就会看到别的阶段。
+
 **参考只由宿主选择**：技能正文不列「阶段 → 参考」映射表——常驻技能如果列出全部参考，等于让模型在每个节点重新做路由，还会把规划材料带进写作节点。`story_next.method` 按 (形态, 动作) 给出唯一一份，子代理由 `promptFor` 的 `roleMethod` 注入同一条。
 
 **本仓库的校验约定**（`validate-skills.mjs` 实际强制，不只写在规范里）：目录一级扁平且 kebab-case；front matter 只有 `name` 与 `description`，`name` 等于目录名；`description` 必须含「触发：…」与一句读写边界（只读 / 只出方法 / 只给判断 / 写事件 / 不直接改文件）；主文件 ≤ 6100 字节；`references/` 里每个文件都必须在 SKILL.md 里被点名，否则视为无人加载的孤儿；`catalog.json` 列出的每个技能必须存在，每个技能必须至少属于一个模式。
