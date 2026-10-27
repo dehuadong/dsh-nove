@@ -429,14 +429,46 @@ function methodFor(step: any, form: string): { skill: string; reference?: string
  * cannot be one of them — findings only exist after `story_settle` runs, so that
  * point is carried by the settle receipt itself.
  */
-function askFor(step: any, last: any, candidate: any, planMemo?: any): NextAsk | undefined {
+/** One sentence per foundation stage, for the confirmation ask. */
+function foundationSummaryOf(db: any): string[] {
+  const line = (text: string) => (String(text).split(/\r?\n/u).find(item => item.trim() !== '' && !item.trim().startsWith('#')) ?? '').trim().slice(0, 60)
+  const read = (artifactId: string) => {
+    const row = db.prepare('SELECT content, content_type FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1').get(artifactId)
+    if (row === undefined) return ''
+    if (row.content_type === 'json') {
+      try {
+        const parsed = JSON.parse(String(row.content))
+        return String(parsed?.markdown ?? '')
+      } catch {
+        return ''
+      }
+    }
+    return String(row.content)
+  }
+  const rolesRow = db.prepare('SELECT content FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1').get('roles:index')
+  let roleCount = 0
+  try {
+    const parsed = rolesRow === undefined ? undefined : JSON.parse(String(rolesRow.content))
+    roleCount = Array.isArray(parsed?.roles) ? parsed.roles.length : 0
+  } catch {
+    roleCount = 0
+  }
+  const cards = db.prepare("SELECT COUNT(*) AS n FROM artifacts WHERE kind = 'role_card'").get()
+  return [
+    `故事框架：${line(read('bible:story_frame')) || '已生成'}`,
+    `作品规则：${line(read('bible:book_rules')) || '已生成'}`,
+    `角色：${roleCount} 人`,
+    `角色卡：${Number(cards?.n ?? 0)} 张`,
+  ]
+}
+function askFor(step: any, last: any, candidate: any, planMemo?: any, foundationSummary?: string[]): NextAsk | undefined {
   const blocked: string[] = Array.isArray(step.blocked) ? step.blocked : []
   const chapter = step.chapter
   const currentRevision = last?.currentRevision ?? 0
   const words = last?.words ?? 0
   if (blocked.includes('foundation-approval')) {
     return {
-      present: [{ kind: 'text', items: ['故事框架', '作品规则', '角色索引', '角色卡'] }],
+      present: [{ kind: 'text', items: foundationSummary ?? ['故事框架', '作品规则', '角色索引', '角色卡'] }],
       question: '确认基础设定吗？还是要改哪一阶段？',
     }
   }
@@ -1403,7 +1435,8 @@ export function nextStep(root: any, work: any) {
     const planMemo = (step.blocked ?? []).includes('plan-approval')
       ? planMemoFrom(db, step.chapter)
       : undefined
-    const ask = askFor(step, last, candidate, planMemo)
+    const foundationSummary = (step.blocked ?? []).includes('foundation-approval') ? foundationSummaryOf(db) : undefined
+    const ask = askFor(step, last, candidate, planMemo, foundationSummary)
     return {
       workId: manifest.workId,
       ...step,

@@ -42,9 +42,12 @@ try {
   const pending = await s.nextStep(root, work)
   check('a complete but unconfirmed foundation blocks at the gate',
     (pending.blocked ?? []).includes('foundation-approval'), JSON.stringify(pending))
-  check('the foundation ask carries its stages and one question',
+  const items = pending.ask?.present?.[0]?.items ?? []
+  check('the foundation ask carries one sentence per stage and one question',
     pending.ask?.question?.includes('确认基础设定') === true
-    && (pending.ask?.present?.[0]?.items ?? []).length === 4,
+    && items.length === 4
+    && items[0].startsWith('故事框架：') && items[1].startsWith('作品规则：')
+    && items[2].startsWith('角色：') && items[3].startsWith('角色卡：'),
     JSON.stringify(pending.ask))
 
   s.approveFoundation(root, { work })
