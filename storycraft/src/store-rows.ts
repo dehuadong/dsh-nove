@@ -48,6 +48,7 @@ export interface MetaRow {
   word_max: number | null
   outline_written_at: string | null
   outline_approved_at: string | null
+  outline_approved_revision: string | null
   foundation_approved_at: string | null
   created_at: string
   updated_at: string

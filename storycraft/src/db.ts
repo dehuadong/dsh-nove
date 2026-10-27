@@ -127,6 +127,7 @@ CREATE TABLE IF NOT EXISTS meta (
   word_max INTEGER,
   outline_written_at TEXT,
   outline_approved_at TEXT,
+  outline_approved_revision TEXT,
   foundation_approved_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL

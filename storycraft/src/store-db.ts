@@ -316,6 +316,29 @@ function openObservationLines(review: any): string[] {
     .map((observation: any) => `${observation.id}｜${String(observation.severity ?? '')}｜${String(observation.summary ?? '')}｜改法：${String(observation.fix ?? '')}`)
 }
 
+/** Latest revision id of one artifact, or undefined when it was never written. */
+function artifactRevisionOf(db: any, artifactId: string): string | undefined {
+  const row = db.prepare('SELECT revision_id FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1').get(artifactId)
+  return row === undefined ? undefined : String(row.revision_id)
+}
+
+/** Latest全书计划 revision id. */
+function outlineRevisionOf(db: any): string | undefined {
+  return artifactRevisionOf(db, 'outline')
+}
+
+/**
+ * The author's outline confirmation, only while the confirmed revision is still
+ * the latest one: any rewrite invalidates it without clearing the timestamp.
+ */
+function outlineApprovedAt(db: any): string | undefined {
+  const meta = metaOf(db)
+  if (meta.outline_approved_at === null || meta.outline_approved_at === undefined) return undefined
+  const revision = outlineRevisionOf(db)
+  if (revision === undefined || meta.outline_approved_revision !== revision) return undefined
+  return meta.outline_approved_at
+}
+
 /** The plan memo (five fields) of one chapter, when it is readable. */
 function planMemoFrom(db: any, chapter: any): any {
   try {
@@ -509,7 +532,7 @@ export function readManifest(root: string, work: unknown): any {
         ...(meta.outline_written_at === null ? {} : {
           outline: {
             writtenAt: meta.outline_written_at,
-            ...(meta.outline_approved_at === null ? {} : { approvedAt: meta.outline_approved_at }),
+            ...(outlineApprovedAt(db) === undefined ? {} : { approvedAt: outlineApprovedAt(db) }),
           },
         }),
         foundation: foundationStateOf(db),
@@ -1347,7 +1370,7 @@ export function writeOutline(root: any, input: any) {
       if (written.created) {
         syncSearchDoc(db, 'outline', 'outline', 'outline/plan', 0, written.content)
       }
-      db.prepare('UPDATE meta SET outline_written_at = ?, outline_approved_at = NULL, updated_at = ? WHERE id = 1').run(at, at)
+      db.prepare('UPDATE meta SET outline_written_at = ?, outline_approved_at = NULL, outline_approved_revision = NULL, updated_at = ? WHERE id = 1').run(at, at)
       return { workId, outline: { writtenAt: at, revision: written.revisionId } }
     })
   } finally {
@@ -1369,7 +1392,8 @@ export function approveOutline(root: any, input: any) {
       const meta = metaOf(db)
       if (meta.outline_written_at === null) throw new StoryError('outline-required', '还没有全书计划：先 story_outline')
       const at = now()
-      db.prepare('UPDATE meta SET outline_approved_at = ?, updated_at = ? WHERE id = 1').run(at, at)
+      const revision = outlineRevisionOf(db)
+      db.prepare('UPDATE meta SET outline_approved_at = ?, outline_approved_revision = ?, updated_at = ? WHERE id = 1').run(at, revision ?? '', at)
       return { workId, outline: { writtenAt: meta.outline_written_at, approvedAt: at } }
     })
   } finally {
