@@ -131,7 +131,8 @@
 - 开发测试由代理执行，不交给用户手工跑：项目 CI 命令是 `node storycraft/scripts/ci.mjs`（类型检查 + 打包清单检查 + 全部单元契约文件，当前 55 个 + Playwright E2E）；Playwright 是本包 devDependency，首次用 `cd storycraft && npm install && npx playwright install chromium`，不借用其它项目的安装。
 - 参考工程的 CI 是 `.github/workflows/ci.yml` 里的 `pnpm install --frozen-lockfile && pnpm build && pnpm test`；对拍时先读参考的 CI、技能、角色资源和测试，再决定我们的实现，不凭印象造替代方案。差异必须写清原因、约束和为什么不能完全照做，必要时先取得用户许可。
 - #19/#21 的教训是：整章正文与装配上下文多次穿过主会话，单靠节点单测和“让用户实测”发现不了 token、路径、角色输入的问题。验证必须覆盖主会话路径、工具回执与 token 预算；不能只用“单元测试通过”代替。
-- 用户只在最后做一次真实使用验收；需要新会话做真实链路时，用户提供 `sessionID`，代理自己在该会话跑，不要求用户写测试小说、补 fixture 或手工跑开发测试。
+- 用户只在最后做一次真实使用验收；需要新会话做真实链路时，用户提供 `sessionID`，代理自己在该会话跑，不要求用户写测试小说、补 fixture 或手工跑开发测试。**跨会话投递用工具 `session_prompt`**（源码 `tools/session-driver/`，走宿主 `sessionController.prompt`，与 GUI 发消息同一条路径）：`dsh --profile headless --session-id` 会拒绝带 agent preset 的会话（`assertAdoptable` 抛错），不能用来接管 GUI 会话；面板确认、导出打开仍归作者。
+- 跨会话驱动的证据：投递后用 `node` 解 `session.v4.jsonl.zstd`（按 zstd 帧切分）读 `tool/call`、`tool/result` 与 `assistant/message`；不要凭 GUI 截图判断。
 - `story_read` / artifact ID / 阶段上下文是 #22 的契约；真实链路验收要检查模型没有拿到 `works/` 路径、没有跨章读取、没有把上下文重复灌回主会话。
 - 推进任一设计前，先扫所有关联 Note 的 owner、partial replacement、旧 AC、动作数与重试规则；有冲突先改文档并互相链接，再继续，避免做了后面的就忘掉前面的。
 

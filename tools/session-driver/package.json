@@ -1,0 +1,23 @@
+{
+  "name": "@dsh-nove/session-driver",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Delivers one user message into an existing session by id, for acceptance runs.",
+  "exports": {
+    ".": "./index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}
