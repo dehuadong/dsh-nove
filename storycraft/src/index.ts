@@ -64,6 +64,35 @@ function isLoopback(req: import('node:http').IncomingMessage): boolean {
   return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1'
 }
 
+/**
+ * Parse a request body; an empty body is an empty object, bad JSON is a typed error.
+ * @param text - request body as UTF-8 text.
+ */
+export function parseRequestBody(text: string): any {
+  if (text === '') return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    throw new StoryError('invalid-body', '请求体不是合法 JSON')
+  }
+}
+
+/**
+ * Record the panel's foundation confirmation for the session's current work.
+ * @param root - workspace directory.
+ * @param input - session and work identity from the panel.
+ */
+export function approveFoundationFromPanel(root: string, input: { sessionId: string, workId: string }) {
+  if (input.sessionId === '' || input.workId === '') {
+    throw new StoryError('invalid-body', '确认基础设定需要 sessionId 与 workId')
+  }
+  if (getCurrent(input.sessionId) !== input.workId) {
+    throw new StoryError('work-mismatch', '只在面板当前作品里确认基础设定')
+  }
+  const approved = approveFoundation(root, { work: input.workId, source: 'panel' })
+  return { workId: input.workId, foundation: approved.foundation }
+}
+
 /** The single failure envelope every route answers with. */
 function failure(code: string, message: string): { ok: false, error: { code: string, message: string } } {
   return { ok: false, error: { code, message } }
@@ -138,12 +167,7 @@ async function postRoute(
       chunks.push(chunk)
     }
     const text = Buffer.concat(chunks).toString('utf8')
-    let body: any
-    try {
-      body = text === '' ? {} : JSON.parse(text)
-    } catch {
-      throw new StoryError('invalid-body', '请求体不是合法 JSON')
-    }
+    const body = parseRequestBody(text)
     json(res, 200, { ok: true, ...(await handler(body)) })
   } catch (error) {
     if (error instanceof StoryError) {
@@ -431,15 +455,8 @@ export function apply(ctx: DshContext): void {
         void postRoute(req, res, async (body) => {
           const sessionId = typeof body?.sessionId === 'string' ? body.sessionId : ''
           const workId = typeof body?.workId === 'string' ? body.workId : ''
-          if (sessionId === '' || workId === '') {
-            throw new StoryError('invalid-body', '确认基础设定需要 sessionId 与 workId')
-          }
           const root = await rootOf(ctx, new URLSearchParams({ root: String(body?.root ?? '') }))
-          if (getCurrent(sessionId) !== workId) {
-            throw new StoryError('work-mismatch', '只在面板当前作品里确认基础设定')
-          }
-          const approved = approveFoundation(root, { work: workId })
-          return { workId, foundation: approved.foundation }
+          return approveFoundationFromPanel(root, { sessionId, workId })
         })
       },
     }),
