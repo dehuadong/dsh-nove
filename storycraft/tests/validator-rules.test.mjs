@@ -1,6 +1,6 @@
 // The dangling-name rule fails on a name with no directory, and it is the rule
 // the skill walk uses for both SKILL.md and references.
-import { findDanglingSkills } from '../scripts/validate-skills.mjs'
+import { findDanglingSkills } from '../scripts/skill-rules.mjs'
 
 let failures = 0
 function check(name, condition, detail) {

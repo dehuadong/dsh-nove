@@ -13,24 +13,12 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { findDanglingSkills } from './skill-rules.mjs'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const skillsRoot = join(root, 'skills')
 const MAX_MAIN_BYTES = 6100
 const MAX_DESCRIPTION = 400
-
-/**
- * Skill names mentioned in text that have no directory.
- * @param text - any document that may name a skill.
- * @param known - names of the skills on disk.
- */
-export function findDanglingSkills(text, known) {
-  const missing = []
-  for (const match of String(text).matchAll(/storycraft-[a-z0-9-]+/gu)) {
-    if (!known.has(match[0])) missing.push(match[0])
-  }
-  return [...new Set(missing)]
-}
 
 const failures = []
 const fail = (message) => failures.push(message)
