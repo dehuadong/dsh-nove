@@ -107,26 +107,64 @@ updated: 2026-10-27
 
 ### 提案
 
-采纳两者并集：**形态做技能，节点做 reference，加载单元是（形态 × 节点）**。
+采纳两者并集：**形态做技能，节点做 reference，加载单元是（形态 × 节点）**。目录遵守编写规范（扁平、一技能一文件夹）：
 
 ```
 skills/
-  long/    SKILL.md（craft） + references/{foundation, chapter-plan, prose, review, revise, settle}.md
-  short/   SKILL.md（craft） + references/{outline, batch-draft, review, revision-plan, package}.md
-  script/  SKILL.md（craft） + references/{spec, script, scene-set}.md
+  storycraft-long-craft/        SKILL.md + references/{foundation, chapter-plan, prose, review, revise, settle}.md
+  storycraft-short-craft/       SKILL.md + references/{outline, batch-draft, review, revision-plan, package}.md
+  storycraft-script-craft/      SKILL.md + references/{spec, script, scene-set}.md
+  storycraft-studio-orchestration/  SKILL.md（只留判断与沟通原则）
+  storycraft-review/            SKILL.md（审稿标准）
+  storycraft-revise-craft/      SKILL.md（修订手法）
+  storycraft-state-check/ storycraft-state-settler/  SKILL.md
+  catalog.json                  模式 → 技能清单
 ```
 
-加载规则写进每个 `SKILL.md` 尾部（与 inkos 同构）：基础设定/全书计划 → `foundation`；章纲 → `chapter-plan`；正文 → `prose`；审稿 → `review`；修订 → `revise`；结算 → `settle`。**不在节点上的 reference 不加载。**
+### 目录清单（catalog）：扁平化的前提
 
-角色契约（writer / reviewer / reviser / summarizer / planner）不再写成技能：由 `promptFor` 按（形态 × 节点）组装，与 inkos 的 `writer-prompts.ts` 同构。
+现状 `skills.ts` 用**首段路径**当 mode（`skills/<mode>/<skill>/`），`context.ts` 与多处测试也依赖该路径。扁平化会打断它，所以必须同时引入 `skills/catalog.json`：
 
-编排技能只留“怎么判断、怎么谈”的原则；工具用法进 tool description，阶段规则进 `story_next.ask`。
+```json
+{
+  "studio": ["storycraft-studio-orchestration", "storycraft-long-craft", "storycraft-short-craft",
+             "storycraft-script-craft", "storycraft-review", "storycraft-revise-craft",
+             "storycraft-state-check", "storycraft-state-settler"],
+  "worker": ["storycraft-long-craft", "storycraft-short-craft", "storycraft-script-craft"]
+}
+```
 
-### 验收
+- `skills.ts` 改为读 `catalog.json` 决定每个预设可见的技能，不再从目录名推 mode；
+- `context.ts` 的 `source` 标签改为技能名；
+- 测试（`skills.test.mjs`、`skill-references.test.mjs`、`packaging-manifest.test.mjs`）改为断言 catalog 与扁平路径。
 
-- 检索技能目录，不存在覆盖两种以上形态的 craft 技能；
+### 角色与形态的映射
+
+现状 `delegate.ts` 把 writer 固定映射到 `storycraft-write-craft`、planner 到 `storycraft-plan-craft`，`domain.ts` 又把每个形态映射到同一份 write-craft——这是“三形态共用一份方法”的根因。
+
+- 角色**协议**进 `promptFor`（按形态 × 节点组装），不再是技能；
+- 角色要读的 **craft** 由形态决定：长/短/剧本各取 `storycraft-*-craft`，并与节点 reference 一起出现；
+- `storycraft-write-craft` 与 `storycraft-plan-craft` 删除，其内容拆入形态 craft 与节点 references。
+
+### `story_next.ask` 的形状
+
+```json
+"ask": {
+  "present": [{ "kind": "observation" | "plan" | "text" | "findings", "items": ["…"] }],
+  "question": "哪几条改、哪几条不改"
+}
+```
+
+- 只在六个判断点出现（章纲、审稿、修订、正文验收、结算失败、章间）；其余动作不带 `ask`；
+- `present.items` 是已经取好的材料，不需要模型再调工具取；
+- 字段与 `blocked` 同一定义处声明，输出 schema 必须同步（参考 `revision-limit` 那次 schema 漏改的教训）。
+
+### 设计验证点（产品验收归 #77）
+
+- 技能目录扁平，`catalog.json` 决定可见技能；
+- 不存在覆盖两种以上形态的 craft 技能，`write-craft` / `plan-craft` 已删除；
 - 每个 `SKILL.md` 末尾有按节点的加载条件；
-- 真实链路中，写手/审稿/修订三次派发的上下文里只出现对应节点的方法与参考（`trace` 可核）。
+- 写手/审稿/修订三次派发的 prompt 只出现对应节点的方法与 reference（`story_delegate` 的 prompt 快照可核）。
 
 ### 规范符合性（按项目技能编写规范）
 
@@ -166,9 +204,12 @@ skills/
 
 ## 验收条件
 
-- 单元：闸门错误码、修订上限、接受后转摘要、`not-next-action` 时状态不变；
-- E2E：状态卡只出现判断点动作；导出/删除/重排仍在各自入口，不进入状态卡；
-- 真实链路（#50 重跑）：确认后停在原地、审稿先给清单再问、修订不越范围、结算失败会停。
+产品验收归 `#77`；本节只列本 Note 承担的设计验证。
+
+- `skills/catalog.json` 存在，`skills.ts` 不再从目录名推 mode；
+- `story_next.ask` 的 schema 与六个判断点一致，输出 schema 同步更新；
+- 闸门错误码、修订上限、接受后转摘要的单元用例保持通过；
+- `validate-skills.mjs` 通过：扁平目录、front matter 仅 `name`+`description`、name 与目录一致、主文件大小上限。
 
 ## 风险
 
