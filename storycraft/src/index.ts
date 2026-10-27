@@ -14,7 +14,7 @@
 import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, resolve } from 'node:path'
 import { deriveWorkbench } from './workbench.ts'
-import { approveChapterPlan, approveFoundation, approveOutline, createBackup, deleteBackup, deleteChapter, deleteMaterial, ensureReconciled, exportWorkAtomic, importMaterial, moveChapter, listMaterials, listTrash, listWorks, nextStep, purgeTrash, readFoundationState, readManifest, restoreBackup, listBackups, readChapter, readReview, readWork, renameMaterial, restoreWork, setMaterialPurpose, status as readStatus, StoryError } from './storage.ts'
+import { acceptChapter, approveChapterPlan, approveFoundation, approveOutline, createBackup, deleteBackup, deleteChapter, deleteMaterial, ensureReconciled, exportWorkAtomic, importMaterial, moveChapter, listMaterials, listTrash, listWorks, nextStep, purgeTrash, readFoundationState, readManifest, restoreBackup, listBackups, readChapter, readReview, readWork, renameMaterial, restoreWork, setMaterialPurpose, status as readStatus, StoryError } from './storage.ts'
 import { critique } from './critique.ts'
 import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent } from './current.ts'
 import { readVolumes } from './volumes.ts'
@@ -490,6 +490,31 @@ export function apply(ctx: DshContext): void {
           }
           const approved = await approveChapterPlan(root, { work: workId, chapter: body?.chapter })
           return { workId, chapter: approved.entry.number, planApprovedAt: approved.entry.planApprovedAt }
+        })
+      },
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/chapter/accept`,
+      handler: (req, res) => {
+        if (req.method !== 'POST') {
+          void readRoute(req, res, async () => {
+            throw new StoryError('method-not-allowed', '接受当前版本只接受 POST')
+          })
+          return
+        }
+        void postRoute(req, res, async (body) => {
+          const sessionId = typeof body?.sessionId === 'string' ? body.sessionId : ''
+          const workId = typeof body?.workId === 'string' ? body.workId : ''
+          if (sessionId === '' || workId === '') {
+            throw new StoryError('invalid-body', '接受当前版本需要 sessionId 与 workId')
+          }
+          const root = await rootOf(ctx, new URLSearchParams({ root: String(body?.root ?? '') }))
+          if (getCurrent(sessionId) !== workId) {
+            throw new StoryError('work-mismatch', '只在面板当前作品里接受当前版本')
+          }
+          const accepted = acceptChapter(root, { work: workId, chapter: body?.chapter })
+          return { workId, chapter: accepted.chapter, accepted: accepted.accepted }
         })
       },
     }),

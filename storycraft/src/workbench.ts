@@ -116,10 +116,8 @@ export function deriveWorkbench(input: { next: WorkbenchNext, manifest: Workbenc
       key: 'revising',
       label: '修订已达上限',
       hint: `第 ${chapter} ${unit}已修订多轮，仍有未处理审稿：请作者裁决，接受当前版本或明确要求继续修订`,
-      primary: action('revise', `继续修订第 ${chapter} ${unit}`),
-      secondary: [action('summarize', `写第 ${chapter} ${unit}摘要`, {
-        code: 'open-items', reason: '审稿清单还有未处理条目',
-      })],
+      primary: action('accept', `接受第 ${chapter} ${unit}当前版本`),
+      secondary: [action('revise', `继续修订第 ${chapter} ${unit}`)],
     }
   }
 
@@ -166,9 +164,12 @@ export function deriveWorkbench(input: { next: WorkbenchNext, manifest: Workbenc
         label: '待修订',
         hint,
         primary: action('revise', `修订第 ${chapter} ${unit}`),
-        secondary: [action('summarize', `写第 ${chapter} ${unit}摘要`, {
-          code: 'open-items', reason: '审稿清单还有未处理条目',
-        })],
+        secondary: [
+          action('accept', `接受第 ${chapter} ${unit}当前版本`),
+          action('summarize', `写第 ${chapter} ${unit}摘要`, {
+            code: 'open-items', reason: '审稿清单还有未处理条目',
+          }),
+        ],
       }
     case 'story_summarize':
       return {

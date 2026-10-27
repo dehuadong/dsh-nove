@@ -1816,6 +1816,62 @@ export function readReview(root: any, work: any, chapter: any) {
  * @param {{work: string, chapter: number|string, body: string, problemIds?: string[], mode?: string}} input - revision input.
  * @returns {object} result with a virtual artifact path.
  */
+/**
+ * The author accepts one chapter's current revision despite open observations.
+ * @param input - target work and chapter.
+ */
+export interface AcceptChapterInput {
+  work: string
+  chapter: number | string
+}
+
+/**
+ * The author accepts the current revision together with its open observations.
+ *
+ * Writes a new review round that records every open issue as resolved by the
+ * author (`resolves` points at the issue it answers), which is what lets the
+ * stage machine move on to the summary. Without it the only way past an open
+ * review is another revision — the loop #76 caps.
+ */
+export function acceptChapter(root: string, input: AcceptChapterInput): any {
+  const number = chapterNumber(input.chapter)
+  const workId = String(input.work)
+  const db = openWork(root, workId)
+  let open: any[]
+  try {
+    const entry = chapterRow(db, number)
+    if (entry === undefined || entry.current_revision === 0) {
+      throw new StoryError('body-not-found', `第 ${number} 章还没有正文，不能接受`)
+    }
+    if (stageOf(entry) === 'settled') throw new StoryError('chapter-settled', `第 ${number} 章已定稿`)
+    const review = latestReviewRow(db, number)
+    if (review === undefined) throw new StoryError('review-required', `第 ${number} 章还没有审稿：先 story_review`)
+    if (!reviewCovers(review, entry)) {
+      throw new StoryError('review-required', `第 ${number} 章的审稿针对旧版本 r${review.revision}：先重新审稿`)
+    }
+    open = openObservations(review)
+    if (open.length === 0) throw new StoryError('nothing-to-accept', `第 ${number} 章没有未处理审稿`)
+  } finally {
+    db.close()
+  }
+  const observations = open.map((observation: any) => ({
+    id: observation.id,
+    summary: `作者接受，不再修改：${String(observation.summary ?? '')}`.trim(),
+    evidence: Array.isArray(observation.evidence) ? observation.evidence : [],
+    category: observation.category,
+    assessment: 'resolved',
+    resolves: observation.id,
+    target: observation.target,
+    sourceRefs: Array.isArray(observation.sourceRefs) ? observation.sourceRefs : [],
+  }))
+  const review = writeReview(root, { work: workId, chapter: number, observations })
+  return { workId, chapter: number, accepted: observations.length, review }
+}
+
+/**
+ * Replace a chapter's body with an edited version.
+ * @param input - work, chapter number, new body, and the mode.
+ */
 export function reviseChapter(root: string, input: ReviseChapterInput): any {
   const number = chapterNumber(input.chapter)
   const body = String(input.body ?? '')

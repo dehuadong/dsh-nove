@@ -175,7 +175,12 @@ try {
   const capped = await state(cappedWork)
   check('revision rounds stop at the cap and ask the author',
     capped.key === 'revising' && capped.label.includes('上限')
-    && capped.hint.includes('请作者裁决') && capped.primary.id === 'revise', JSON.stringify(capped))
+    && capped.hint.includes('请作者裁决') && capped.primary.id === 'accept', JSON.stringify(capped))
+
+  const accepted = s.acceptChapter(root, { work: cappedWork, chapter: 1 })
+  const afterAccept = await state(cappedWork)
+  check('accepting the current revision moves on to the summary',
+    accepted.accepted === 1 && afterAccept.key === 'summarizing', JSON.stringify(afterAccept))
 
   const seen = [foundation, outlineNeeded, outlinePending, planNeeded, planPending, writing, reviewing,
     revising, summarizing, settling, volume, foundationPending]

@@ -430,6 +430,12 @@ window.__ModuleLoader__.load({
         workId: string,
         chapter: number,
       ): Promise<unknown>
+      acceptChapter(
+        root: string | undefined,
+        sessionId: string | undefined,
+        workId: string,
+        chapter: number,
+      ): Promise<{ accepted: number }>
       approveOutline(root: string | undefined, sessionId: string | undefined, workId: string): Promise<unknown>
       foundation(root: string | undefined, id: string): Promise<FoundationPayload>
       approveFoundation(root: string | undefined, sessionId: string | undefined, workId: string): Promise<unknown>
@@ -670,6 +676,7 @@ window.__ModuleLoader__.load({
       work: '/api/see-storycraft/work',
       chapter: '/api/see-storycraft/chapter',
       approve: '/api/see-storycraft/chapter/approve',
+      accept: '/api/see-storycraft/chapter/accept',
       outlineApprove: '/api/see-storycraft/outline/approve',
       foundation: '/api/see-storycraft/foundation',
       foundationApprove: '/api/see-storycraft/foundation/approve',
@@ -1013,6 +1020,7 @@ window.__ModuleLoader__.load({
         work: (root, id) => route(ROUTE.work, { root, id }),
         chapter: (root, id, chapter, view, revision) => route(ROUTE.chapter, { root, id, chapter, view, revision }),
         approveChapterPlan: (root, sessionId, workId, chapter) => post(ROUTE.approve, { root, sessionId, workId, chapter }),
+        acceptChapter: (root, sessionId, workId, chapter) => post(ROUTE.accept, { root, sessionId, workId, chapter }),
         approveOutline: (root, sessionId, workId) => post(ROUTE.outlineApprove, { root, sessionId, workId }),
         foundation: (root, id) => route(ROUTE.foundation, { root, id }),
         approveFoundation: (root, sessionId, workId) => post(ROUTE.foundationApprove, { root, sessionId, workId }),
@@ -2103,12 +2111,29 @@ window.__ModuleLoader__.load({
           onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
         }
       }
+      const acceptChapterNow = async (chapter: number) => {
+        if (sessionId === undefined) return
+        try {
+          const accepted = await face.acceptChapter(root, sessionId, manifest.workId, chapter)
+          const failure = await face.send(
+            `第 ${chapter} 章已由作者接受当前版本（${accepted.accepted} 条审稿不再修改）。`
+            + '请调 story_next，按返回的下一步继续；遇到下一个作者闸门就停下等我确认，不要跳过。',
+          )
+          onNotice(failure === undefined
+            ? { kind: 'ok', text: '已接受当前版本，已通知会话继续。' }
+            : { kind: 'error', text: `已接受当前版本，但通知会话失败：${failure}` })
+          void load()
+        } catch (error) {
+          onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
+        }
+      }
       const runWorkbench = (id: string) => {
         const chapter = cardChapter
         switch (id) {
           case 'confirm-foundation': void confirmFoundationNow(); return
           case 'confirm-outline': void confirmOutlineNow(); return
           case 'confirm-plan': void confirmPlanNow(chapter); return
+          case 'accept': void acceptChapterNow(chapter); return
           case 'write-chapter': compose(INSTRUCTIONS.flowToRevision(workId, chapter)); return
           case 'full-flow': compose(INSTRUCTIONS.flowFull(workId, chapter)); return
           case 'export': void runExport(); return
