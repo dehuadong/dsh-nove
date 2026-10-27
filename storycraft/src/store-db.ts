@@ -174,11 +174,10 @@ export function planApprovalState(db: Database, chapter: unknown): PlanApprovalS
   const entry = db.prepare('SELECT * FROM chapters WHERE number = ?').get(number)
   if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
   const required = metaOf(db).plan_approval === 'required'
-  const memo = db.prepare(`SELECT revision_id FROM artifacts
-    WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1`).get(`plan:${number}`)
-  if (!required) return { required: false, approved: true, blocked: false, hasMemo: memo !== undefined }
-  if (memo === undefined) return { required: true, approved: false, blocked: false, hasMemo: false }
-  const approved = entry.plan_approved_at !== null && entry.plan_revision === memo.revision_id
+  const memoRevision = artifactRevisionOf(db, `plan:${number}`)
+  if (!required) return { required: false, approved: true, blocked: false, hasMemo: memoRevision !== undefined }
+  if (memoRevision === undefined) return { required: true, approved: false, blocked: false, hasMemo: false }
+  const approved = entry.plan_approved_at !== null && entry.plan_revision === memoRevision
   return { required: true, approved, blocked: !approved, hasMemo: true }
 }
 
@@ -277,9 +276,8 @@ function reviewRecords(db: any, number: any) {
     .map((row: any) => {
       const match = /^review:(\d+):r(\d+):(\d+)$/u.exec(String(row.artifact_id))
       const content = JSON.parse(String(row.content))
-      const currentPlan = db.prepare('SELECT revision_id FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
-        .get(`plan:${number}`)
-      const stale = (row.input_revision ?? null) !== (currentPlan === undefined ? null : String(currentPlan.revision_id))
+      const currentPlan = artifactRevisionOf(db, `plan:${number}`)
+      const stale = (row.input_revision ?? null) !== (currentPlan ?? null)
       return {
         artifactId: row.artifact_id,
         revisionId: row.revision_id,
@@ -328,13 +326,9 @@ function openObservationLines(review: any): string[] {
 function foundationRevisionOf(db: any): string {
   const entries: string[] = []
   const latest = db.prepare('SELECT artifact_id, revision_id FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
-  for (const artifactId of FOUNDATION_STAGE_ARTIFACTS.frame) {
-    const row = latest.get(artifactId)
-    if (row !== undefined) entries.push(`${row.artifact_id}@${row.revision_id}`)
-  }
-  for (const artifactId of ['bible:book_rules', 'roles:index']) {
-    const row = latest.get(artifactId)
-    if (row !== undefined) entries.push(`${row.artifact_id}@${row.revision_id}`)
+  for (const artifactId of [...FOUNDATION_STAGE_ARTIFACTS.frame, ...FOUNDATION_STAGE_ARTIFACTS.rules, ...FOUNDATION_STAGE_ARTIFACTS.roles]) {
+    const revision = artifactRevisionOf(db, artifactId)
+    if (revision !== undefined) entries.push(`${artifactId}@${revision}`)
   }
   const cards = new Map<string, string>()
   for (const row of db.prepare("SELECT artifact_id, revision_id FROM artifacts WHERE kind = 'role_card' ORDER BY rowid").all()) {
@@ -1030,8 +1024,8 @@ function foundationStateOf(db: any) {
   const has = (artifactId: any) => db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ? LIMIT 1').get(artifactId) !== undefined
   const stages = {
     frame: FOUNDATION_STAGE_ARTIFACTS.frame.every(has),
-    rules: has('bible:book_rules'),
-    roles: has('roles:index'),
+    rules: FOUNDATION_STAGE_ARTIFACTS.rules.every(has),
+    roles: FOUNDATION_STAGE_ARTIFACTS.roles.every(has),
     cards: db.prepare("SELECT 1 FROM artifacts WHERE kind = 'role_card' LIMIT 1").get() !== undefined,
   }
   const complete = FOUNDATION_STAGES.every(stage => (stages as Record<string, boolean>)[stage] === true)
