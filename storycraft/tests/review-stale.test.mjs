@@ -54,6 +54,20 @@ try {
 check('deslop with nothing mechanical stops with a typed exit', deslopCode === 'polish-noop', deslopCode)
 check('the deslop exit names the next step', typeof deslopNext === 'string' && deslopNext.includes('跳过修订'), String(deslopNext))
 
+
+  // A plan rewrite after the review makes the review stale even on the same body.
+  s.writeReview(root, {
+    work, chapter: 1,
+    observations: [{
+      id: 'O2', summary: '再改一处', evidence: ['e'], category: 'quality', assessment: 'issue',
+      sourceRefs: [{ sourceId: 'chapter:1:r2', quote: '甲推开门' }],
+    }],
+  })
+  s.writePlan(root, { work, chapter: 1, perspective: '甲', goal: '改成第三件事', obstacle: 'o', cost: 'c', turn: 't', body: 'b3', threadRefs: [] })
+  s.approveChapterPlan(root, { work, chapter: 1 })
+  const afterPlan = await s.nextStep(root, work)
+  check('a plan rewrite invalidates the previous review', afterPlan.action === 'story_review', JSON.stringify(afterPlan))
+
 } finally {
   await rm(root, { recursive: true, force: true })
 }

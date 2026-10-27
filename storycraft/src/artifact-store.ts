@@ -44,10 +44,11 @@ export function putArtifactOnDb(db: any, input: any, options: any = {}) {
     .get(envelope.artifactId, envelope.revisionId)
   if (existing !== undefined) throw new StoryError('artifact-revision-exists', `artifact revision 已存在：${envelope.artifactId}@${envelope.revisionId}`)
   db.prepare(`INSERT INTO artifacts
-    (artifact_id, revision_id, kind, scope_chapter, content_type, content, provenance, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+    (artifact_id, revision_id, kind, scope_chapter, content_type, content, provenance, created_at, input_revision)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(envelope.artifactId, envelope.revisionId, envelope.kind,
-      envelope.scope?.chapter ?? null, contentType, text, envelope.provenance, at)
+      envelope.scope?.chapter ?? null, contentType, text, envelope.provenance, at,
+      typeof options.inputRevision === 'string' ? options.inputRevision : null)
   // A new memo revision invalidates the author's earlier confirmation.
   if (envelope.kind === 'plan' && chapter !== undefined) {
     db.prepare('UPDATE chapters SET plan_approved_at = NULL, plan_revision = NULL, updated_at = ? WHERE number = ?')
@@ -799,6 +800,8 @@ export function writeChapterObservationsOnDb(db: any, root: any, input: any) {
   verifyObservationSources(root, input.work, chapter, bodyRevision, input.observations, db)
   const artifactId = `review:${chapter}:r${bodyRevision}:${round}`
   const content = { observations: input.observations }
+  const planRow = db.prepare('SELECT revision_id FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
+    .get(`plan:${chapter}`)
   putArtifactOnDb(db, {
     workId: String(input.work),
     artifactId,
@@ -808,7 +811,7 @@ export function writeChapterObservationsOnDb(db: any, root: any, input: any) {
     content,
     provenance: input.provenance ?? 'generated',
     createdAt: input.createdAt ?? now(),
-  })
+  }, { inputRevision: planRow === undefined ? undefined : String(planRow.revision_id) })
   return { artifactId, revision: round, revisionId: artifactRevision(content) }
 }
 

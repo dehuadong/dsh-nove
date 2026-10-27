@@ -272,17 +272,21 @@ function summaryStateFrom(map: any, number: any) {
 
 /** All review artifacts of one chapter, oldest first. */
 function reviewRecords(db: any, number: any) {
-  return db.prepare(`SELECT artifact_id, revision_id, content, created_at FROM artifacts
+  return db.prepare(`SELECT artifact_id, revision_id, content, created_at, input_revision FROM artifacts
     WHERE kind = 'review' AND scope_chapter = ? ORDER BY rowid`).all(number)
     .map((row: any) => {
       const match = /^review:(\d+):r(\d+):(\d+)$/u.exec(String(row.artifact_id))
       const content = JSON.parse(String(row.content))
+      const currentPlan = db.prepare('SELECT revision_id FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
+        .get(`plan:${number}`)
+      const stale = (row.input_revision ?? null) !== (currentPlan === undefined ? null : String(currentPlan.revision_id))
       return {
         artifactId: row.artifact_id,
         revisionId: row.revision_id,
         round: Number(match?.[3] ?? 0),
         revision: Number(match?.[2] ?? 0),
         observations: Array.isArray(content.observations) ? content.observations : [],
+        stale,
       }
     })
 }
@@ -485,6 +489,7 @@ function currentVersion(db: Database, chapter: ChapterRow): ChapterVersionRow | 
 function reviewCovers(review: any, chapter: any, allowPrevious = false) {
   const current = chapter.currentRevision ?? chapter.current_revision
   if (review === undefined || current === undefined) return false
+  if (review.stale === true) return false
   return review.revision === current || (allowPrevious && review.revision === current - 1)
 }
 
@@ -1282,6 +1287,15 @@ export function nextStep(root: any, work: any) {
           }
         }
         return { chapter: last.number, stage, action: 'story_write', reason: `第 ${last.number} 章已有章纲，写正文`, missing: ['body'] }
+      }
+      // An unconfirmed plan wins over any chapter step: revising or re-reviewing
+      // under a plan the author has not accepted would write against a draft.
+      if (hasPlan(last.number) && planApprovalPolicy(manifest) === 'required' && last.planApproved !== true) {
+        return {
+          chapter: last.number, stage, action: 'story_plan',
+          reason: `第 ${last.number} 章章纲等作者确认：在面板「章纲」里点「确认章纲」`,
+          missing: [], blocked: ['plan-approval'],
+        }
       }
       if (stage === 'written') {
         return { chapter: last.number, stage, action: 'story_review', reason: `第 ${last.number} 章已有正文，先审稿`, missing: ['review'] }
