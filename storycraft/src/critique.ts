@@ -53,6 +53,46 @@ export interface CritiqueMetrics {
   longBy?: number
 }
 
+export type FindingSeverity = 'blocking' | 'major' | 'minor'
+
+export type FindingCode = 'word-range' | 'repeated-sentence' | 'ai-phrase' | 'person-consistency' | 'dialogue-ratio'
+
+export interface Finding {
+  readonly code: FindingCode
+  readonly severity: FindingSeverity
+  readonly detail: string
+  readonly quote?: string
+}
+
+/**
+ * Turn the metrics into findings a program can defend.
+ *
+ * Stable codes let the review prompt skip what the machine already reported.
+ */
+export function findingsOf(text: string, metrics: CritiqueMetrics, perspective?: string): Finding[] {
+  const findings: Finding[] = []
+  if (metrics.withinRange === false && (metrics.shortBy ?? 0) > 0) {
+    findings.push({ code: 'word-range', severity: 'major', detail: `${metrics.words} 字，比下限少 ${metrics.shortBy} 字` })
+  }
+  if (metrics.withinRange === false && (metrics.longBy ?? 0) > 0) {
+    findings.push({ code: 'word-range', severity: 'major', detail: `${metrics.words} 字，比上限多 ${metrics.longBy} 字` })
+  }
+  for (const entry of metrics.repeated) {
+    findings.push({ code: 'repeated-sentence', severity: 'minor', detail: `同一句出现 ${entry.count} 次`, quote: entry.text })
+  }
+  for (const hit of metrics.aiPhrases.hits) {
+    findings.push({ code: 'ai-phrase', severity: 'minor', detail: `套话命中 ${hit.count} 次`, quote: hit.phrase })
+  }
+  const person = perspective?.trim() ?? ''
+  if (person !== '' && !text.includes(person)) {
+    findings.push({ code: 'person-consistency', severity: 'major', detail: `章纲视角人物「${person}」在正文里没有出现` })
+  }
+  if (metrics.words > 0 && (metrics.dialogueRatio < 0.05 || metrics.dialogueRatio > 0.7)) {
+    findings.push({ code: 'dialogue-ratio', severity: 'minor', detail: `对话占比 ${Math.round(metrics.dialogueRatio * 100)}%` })
+  }
+  return findings
+}
+
 /**
  * Score one body of text.
  */

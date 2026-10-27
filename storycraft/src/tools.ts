@@ -31,7 +31,7 @@ import {
   writeBible as writeBibleEntry, writeSummary as writeSummaryEntry,
 } from './bible.ts'
 import { readVolumes, writeVolume } from './volumes.ts'
-import { critique } from './critique.ts'
+import { critique, findingsOf } from './critique.ts'
 import { loadRoleInput } from './role-input.ts'
 import { delegateRole } from './delegate.ts'
 import { checkChapterState } from './state-check.ts'
@@ -2288,11 +2288,39 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
         },
         required: ['work', 'chapter'],
       },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            ok: { type: 'boolean' },
+            workId: { type: 'string' },
+            metrics: { type: 'object', additionalProperties: true },
+            findings: {
+              type: 'array',
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  code: { type: 'string', enum: ['word-range', 'repeated-sentence', 'ai-phrase', 'person-consistency', 'dialogue-ratio'] },
+                  severity: { type: 'string', enum: ['blocking', 'major', 'minor'] },
+                  detail: { type: 'string' },
+                  quote: { type: 'string' },
+                },
+                required: ['code', 'severity', 'detail'],
+              },
+            },
+          },
+          required: ['ok', 'workId', 'metrics', 'findings'],
+        },
+        render: OUTPUT.render,
+      },
       async execute(args, exec) {
         const root = workspaceOf(exec)
         const manifest = await readManifest(root, args.work)
         const current = await readChapter(root, { work: args.work, chapter: args.chapter })
-        return { ok: true, workId: args.work, metrics: critique(current.content, manifest.wordRange) }
+        const metrics = critique(current.content, manifest.wordRange)
+        return { ok: true, workId: args.work, metrics, findings: findingsOf(String(current.content ?? ''), metrics) }
       },
     }),
 
