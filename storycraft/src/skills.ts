@@ -83,33 +83,28 @@ function readCatalog(): Catalog {
  */
 function skillIndex(): Map<string, string> {
   const index = new Map<string, string>()
-  const walk = (dir: string): void => {
-    let entries
-    try {
-      entries = readdirSync(dir, { withFileTypes: true })
-    } catch {
-      return
-    }
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue
-      const full = join(dir, entry.name)
-      const file = join(full, 'SKILL.md')
-      let text: string | undefined
-      try {
-        if (statSync(file).isFile()) text = readFileSync(file, 'utf8')
-      } catch {
-        text = undefined
-      }
-      if (text !== undefined) {
-        const { meta } = parseSkill(text)
-        const name = typeof meta.name === 'string' && meta.name !== '' ? meta.name : entry.name
-        if (!index.has(name)) index.set(name, full)
-        continue
-      }
-      walk(full)
-    }
+  const root = join(SKILLS_ROOT, 'skills')
+  let entries
+  try {
+    entries = readdirSync(root, { withFileTypes: true })
+  } catch {
+    return index
   }
-  walk(join(SKILLS_ROOT, 'skills'))
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    const full = join(root, entry.name)
+    const file = join(full, 'SKILL.md')
+    let content: string | undefined
+    try {
+      if (statSync(file).isFile()) content = readFileSync(file, 'utf8')
+    } catch {
+      content = undefined
+    }
+    if (content === undefined) continue
+    const { meta } = parseSkill(content)
+    const name = typeof meta.name === 'string' && meta.name !== '' ? meta.name : entry.name
+    if (!index.has(name)) index.set(name, full)
+  }
   return index
 }
 

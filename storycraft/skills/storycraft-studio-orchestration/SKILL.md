@@ -13,7 +13,7 @@ description: 故事工坊的编排方法：判断阶段、决定自己写还是�
      → story_plan → story_write → story_review → story_revise → story_summarize → story_settle
 ```
 
-顺序由宿主判定：不在当前步骤的动作会被拒绝（`not-next-action`）。不要绕过，也不要自己改阶段；每一步的具体条件由动作回执给出。
+每一步做什么由 `story_next` 给出；照回执执行，不要自己改阶段。
 
 ## 判断点
 

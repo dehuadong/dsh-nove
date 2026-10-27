@@ -87,10 +87,9 @@ function isRoleName(role: string): role is RoleName {
   return (ROLE_META as Record<string, RoleMeta | undefined>)[role] !== undefined
 }
 
-/** Craft and contract skills the writer loads for one form. */
+/** Skills the writer loads: the form's craft only; the role protocol lives in `promptFor`. */
 export function writerSkills(form: Form): string[] {
-  const meta = FORM_META[formOf({ form })]
-  return [...new Set([meta.craft, meta.skill])]
+  return [FORM_META[formOf({ form })].craft]
 }
 
 /** Skills the planner loads: the form's craft, whose node rules name the plan reference. */
@@ -253,6 +252,8 @@ function promptFor({ input, manifest, context, delegationId }: PromptRequest): s
     `必须调用 story_submit，delegationId 是 ${delegationId}。`,
   ]
   if (input.role === 'writer') {
+    lines.push('标题不超过 20 字，概括本章发生的那个变化，不要用「第 N 章」。')
+    lines.push('只用手头上下文出现过的人名、地名、官职、数字与尺寸；需要新角色时用无名角色；不要读其它作品。')
     lines.push('payload 格式：{"title":"本章标题","body":"整章正文"}。')
     lines.push('不要省略正文，不要把正文作为最终回答；提交成功后最终只回「已提交」。')
   } else if (input.role === 'planner') {

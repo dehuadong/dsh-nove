@@ -29,7 +29,7 @@ function parseFrontMatter(text) {
   const meta = {}
   let index = 1
   for (; index < lines.length; index += 1) {
-    if (lines[index].trim() === '---') return { meta, bodyLines: lines.length - index - 1 }
+    if (lines[index].trim() === '---') return { meta }
     const match = /^([A-Za-z][\w-]*)\s*:\s*(.*)$/.exec(lines[index])
     if (match === null) continue
     meta[match[1]] = match[2].trim()
@@ -78,9 +78,20 @@ for (const entry of skillDirs) {
   if (description.length < 20) fail(`skills/${entry.name}: description is too short`)
   if (description.length > MAX_DESCRIPTION) fail(`skills/${entry.name}: description exceeds ${MAX_DESCRIPTION} characters`)
   if (!description.includes('触发：')) fail(`skills/${entry.name}: description does not state the trigger (触发：…)`)
+  if (!/只读|只出方法|只给判断|写事件|不直接改文件/u.test(description)) {
+    fail(`skills/${entry.name}: description does not state the read/write boundary`)
+  }
   const bytes = Buffer.byteLength(text, 'utf8')
   if (bytes > MAX_MAIN_BYTES) {
     fail(`skills/${entry.name}: SKILL.md is ${bytes} bytes; move detail into references/ (limit ${MAX_MAIN_BYTES})`)
+  }
+  const refsDir = join(dir, 'references')
+  try {
+    for (const ref of readdirSync(refsDir)) {
+      if (!text.includes(ref)) fail(`skills/${entry.name}: SKILL.md never names references/${ref}`)
+    }
+  } catch {
+    // No references directory: nothing to load per node.
   }
   for (const nested of readdirSync(dir, { withFileTypes: true })) {
     if (nested.isDirectory() && !['references', 'scripts', 'examples'].includes(nested.name)) {

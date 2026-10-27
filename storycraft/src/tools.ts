@@ -914,7 +914,7 @@ const NEXT_OUTPUT: DshToolOutput = {
               type: 'object',
               additionalProperties: false,
               properties: {
-                kind: { type: 'string' },
+                kind: { type: 'string', enum: ['observation', 'plan', 'text', 'findings'] },
                 items: { type: 'array', items: { type: 'string' } },
               },
               required: ['kind', 'items'],

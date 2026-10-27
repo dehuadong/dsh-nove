@@ -298,13 +298,13 @@ function openObservations(review: any) {
 }
 
 /** One block of material a judgement point presents to the author. */
-export interface AskMaterial {
+interface AskMaterial {
   kind: string
   items: string[]
 }
 
 /** The material and the single question a judgement point asks. */
-export interface NextAsk {
+interface NextAsk {
   present: AskMaterial[]
   question: string
 }
@@ -313,53 +313,66 @@ export interface NextAsk {
 function openObservationLines(review: any): string[] {
   return openObservations(review)
     .slice(0, 8)
-    .map((observation: any) => `${observation.id}｜${String(observation.severity ?? '')}｜${String(observation.summary ?? '')}`)
+    .map((observation: any) => `${observation.id}｜${String(observation.severity ?? '')}｜${String(observation.summary ?? '')}｜改法：${String(observation.fix ?? '')}`)
+}
+
+/** The plan memo (five fields) of one chapter, when it is readable. */
+function planMemoFrom(db: any, chapter: any): any {
+  try {
+    const row = db.prepare(`SELECT content_type, content FROM artifacts
+      WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1`).get(`plan:${chapter}`)
+    if (row === undefined || row.content_type !== 'json') return undefined
+    return JSON.parse(String(row.content))
+  } catch {
+    return undefined
+  }
 }
 
 /**
  * The judgement material attached to a step.
  *
- * The six points that need a substantive author decision get their material from
- * here, so the orchestration skill carries no per-node table.
+ * Only the decisions a `story_next` step can actually carry get an `ask` here:
+ * 章纲 (five fields), 审稿取舍+修订 (open observations with fix), 正文验收
+ * (revision cap: version and words), 章间 (previous chapter settled). 结算失败
+ * cannot be one of them — findings only exist after `story_settle` runs, so that
+ * point is carried by the settle receipt itself.
  */
-function askFor(step: any, last: any, candidate: any): NextAsk | undefined {
+function askFor(step: any, last: any, candidate: any, planMemo?: any): NextAsk | undefined {
   const blocked: string[] = Array.isArray(step.blocked) ? step.blocked : []
   const chapter = step.chapter
   const currentRevision = last?.currentRevision ?? 0
   const words = last?.words ?? 0
   if (blocked.includes('plan-approval')) {
+    const items = planMemo === undefined
+      ? [`plan:${chapter}`]
+      : [
+          `视角 ${String(planMemo.perspective ?? '')}`,
+          `目标 ${String(planMemo.goal ?? '')}`,
+          `阻力 ${String(planMemo.obstacle ?? '')}`,
+          `代价 ${String(planMemo.cost ?? '')}`,
+          `结尾 ${String(planMemo.turn ?? '')}`,
+        ]
     return {
-      present: [{ kind: 'plan', items: [`plan:${chapter}`, `第 ${chapter} 章章纲已落盘`] }],
+      present: [{ kind: 'plan', items }],
       question: '按这个章纲写正文，还是先改哪一项？',
     }
   }
   if (blocked.includes('revision-limit')) {
     return {
-      present: [{ kind: 'observation', items: openObservationLines(candidate) }],
+      present: [{ kind: 'text', items: [`第 ${chapter} 章 r${currentRevision}`, `${words} 字`, `${openObservations(candidate).length} 条未处理`] }],
       question: '接受当前版本，还是继续修订这一章？',
-    }
-  }
-  if (step.action === 'story_review') {
-    return {
-      present: [{ kind: 'chapter', items: [`r${currentRevision}`, `${words} 字`] }],
-      question: '现在审稿，还是先自己看一遍？',
     }
   }
   if (step.action === 'story_revise') {
     return {
       present: [{ kind: 'observation', items: openObservationLines(candidate) }],
-      question: '哪几条改、哪几条不改（并说明用 patch / polish / rewrite / deslop）？',
+      question: '哪几条改（其余不改）？用 patch / polish / rewrite / deslop 中的哪一种？',
     }
   }
-  if (step.action === 'story_settle') {
+  if (step.action === 'story_plan' && !blocked.includes('outline-approval') && !blocked.includes('foundation-approval')
+    && currentRevision > 0 && last?.stage === 'settled') {
     return {
-      present: [{ kind: 'settle', items: [] }],
-      question: '结算失败时按 findings 修正重试，还是先停？',
-    }
-  }
-  if (step.action === 'story_plan' && currentRevision > 0) {
-    return {
-      present: [{ kind: 'next-chapter', items: [`第 ${chapter} 章`] }],
+      present: [{ kind: 'text', items: [`第 ${last.number} 章已定稿`] }],
       question: '现在开始下一章章纲，还是先停？',
     }
   }
@@ -1224,7 +1237,10 @@ export function nextStep(root: any, work: any) {
       return { chapter: last.number, stage, action: 'story_settle', reason: isCleanReview(candidate) ? `第 ${last.number} 章清稿审稿无问题，自动结算` : `第 ${last.number} 章已修订，自动结算`, missing: [] }
     })()
     const delegate = delegateOf(step, last, candidate)
-    const ask = askFor(step, last, candidate)
+    const planMemo = (step.blocked ?? []).includes('plan-approval')
+      ? planMemoFrom(db, step.chapter)
+      : undefined
+    const ask = askFor(step, last, candidate, planMemo)
     return {
       workId: manifest.workId,
       ...step,

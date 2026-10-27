@@ -36,7 +36,7 @@ updated: 2026-10-23
 | --- | --- | --- | --- |
 | architect | 书级设计（世界观、卷、人物弧、初始伏笔） | 规划角色 + `story_delegate` architect 四阶段 | 已采纳：frame/rules/roles/cards 由 #44 生产；planner 仍未委派 |
 | planner | 单章计划（目标/阻力/代价/变化） | 规划角色 + `story_context` + 章纲 | 部分：`story_delegate` 仍不含 planner，章纲由主编写 |
-| writer | 写正文 | 写手子代理 + `storycraft-write-craft` + 形态技能 | 已采纳：form 路由已接；定稿时由 `story_settle` 自动抽取 |
+| writer | 写正文 | 写手子代理 + 形态 craft（`storycraft-*-writing`）+ 形态契约 | 已采纳：form 路由已接；定稿时由 `story_settle` 自动抽取 |
 | auditor / reviewer | 审稿清单与证据 | 审稿子代理 + `storycraft-review` | 部分：已有 observation code/quote/sourceRefs；行号与前后 revision 对比仍缺 |
 | reviser | 按条目改稿 | 修订者子代理 + `storycraft-revise-craft` | 已采纳：按 observation id 处理，可标 resolved |
 | settler | 把事实与伏笔归档 | `story_settle` + `storycraft-state-settler` | 已采纳：定稿时自动抽取；未解决回退 `story_state` |

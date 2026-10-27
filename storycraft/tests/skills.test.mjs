@@ -44,8 +44,10 @@ check('every role and form craft is reachable from the work mode',
 check('no warning for all', all.warnings.length === 0, all.warnings.join('; '))
 const routed = [...Object.values(ROLE_META).map(meta => meta.skill), ...Object.values(FORM_META).map(meta => meta.skill)].filter(Boolean)
 check('every routed role/form skill is mounted', routed.every(name => names.includes(name)), routed.join(','))
-check('writerSkills loads the form craft and its contract',
-  writerSkills('longform').length === 2 && writerSkills('short').length === 2 && writerSkills('script').length === 2)
+check('writerSkills loads only the form craft',
+  writerSkills('longform').join() === 'storycraft-long-writing'
+  && writerSkills('short').join() === 'storycraft-short-writing'
+  && writerSkills('script').join() === 'storycraft-script-writing')
 check('plan approval defaults to required and honors off', planApprovalPolicy({}) === 'required' && planApprovalPolicy({ planApproval: 'off' }) === 'off')
 try {
   planApprovalPolicy(undefined)

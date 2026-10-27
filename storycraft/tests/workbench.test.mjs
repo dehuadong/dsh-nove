@@ -84,6 +84,12 @@ try {
     && planPending.hint.includes('章纲等作者确认')
     && planPending.secondary.some(item => item.id === 'rewrite-plan'), JSON.stringify(planPending))
 
+  const planPendingNext = await s.nextStep(root, chapterWork)
+  check('a pending plan puts its five fields in front of the author',
+    planPendingNext.ask?.present?.[0]?.kind === 'plan'
+    && planPendingNext.ask.present[0].items.some(line => line.startsWith('视角 甲'))
+    && planPendingNext.ask.question.includes('写正文'), JSON.stringify(planPendingNext.ask))
+
   // The outline gate wins over a later chapter plan.
   s.writeOutline(root, { work: chapterWork, mainline: '改过的主线' })
   const outlineOverPlan = await state(chapterWork)
