@@ -889,7 +889,10 @@ const NEXT_OUTPUT: DshToolOutput = {
       blocked: {
         type: 'array',
         description: 'Author or host actions that must happen before the action can run.',
-        items: { type: 'string', enum: ['outline-approval', 'plan-approval', 'foundation-approval'] },
+        items: {
+          type: 'string',
+          enum: ['outline-approval', 'plan-approval', 'foundation-approval', 'revision-limit'],
+        },
       },
       delegate: {
         type: 'object',
