@@ -1,11 +1,11 @@
 ---
-title: 故事工坊：动作分类与交互闸门
+title: 故事工坊：动作分类、交互闸门与载体分工
 status: proposed
 created: 2026-10-27
 updated: 2026-10-27
 ---
 
-# Agent Note：故事工坊：动作分类与交互闸门
+# Agent Note：故事工坊：动作分类、交互闸门与载体分工
 
 ## 问题
 
@@ -60,18 +60,36 @@ updated: 2026-10-27
 
 导出、备份/恢复、重命名、删除、重排、真值编辑、素材导入、刷新都属于这一层：拓扑上它们不改变阶段，也不需要主编同意。主编只在被问到时说入口。
 
-## 知识放置
+## 载体分工与内容要求
 
 对拍证据：`inkos-master/packages/core/src/agents/writer-prompts.ts` 首行——「Writer protocol. Narrative craft comes from the active long-writing Skill.」；同目录另有 `planner-prompts.ts`、`settler-prompts.ts`，`src/prompts/` 放阶段提示词。即**协议在代码里按节点组装，craft 在技能里常驻**。
 
-| 知识 | 位置 | 本项目的落点 |
-| --- | --- | --- |
-| 硬约束 | 代码 | `tools` / `delegate` 的顺序闸门、修订上限、store 的前置校验 |
-| 每节点的材料与问题 | 宿主按状态组装 | `story_next` 回执的 `ask` 字段；角色侧 `role-input.ts` + `promptFor` |
-| 创作方法 | 技能（常驻） | `storycraft-long-writing` / `storycraft-review` / `storycraft-revise-craft` |
-| 细则与模板 | references（按需） | 各技能的 `references/*.md` |
+每种载体装什么、不装什么，是本提案的主体，不只是“代码 vs 技能”两句：
+
+| 载体 | 装什么 | 不装什么 | 本项目的落点 |
+| --- | --- | --- | --- |
+| **代码** | 闸门、顺序、上限、前置校验、错误码 | 创作判断、措辞、节点材料 | `tools.ts` 的 `NEXT_ACTION_GATES`、`delegate.ts` 的 `ROLE_ACTION`、`store-db.ts` 的 `MAX_REVISION_ROUNDS` |
+| **宿主拼接的提示词** | 该节点的材料、约束、要问的问题、失败回退 | 通用方法、长期记忆、跨节点规则 | `story_next` 的 `ask`；角色侧 `role-input.ts` + `promptFor` |
+| **技能（常驻）** | 方法、判断标准、语气、边界（“什么样的意见值得改”） | 节点操作步骤、闸门条件、字段清单、模板 | `storycraft-long-writing`、`storycraft-review`、`storycraft-revise-craft` |
+| **references（按需）** | 模板、清单、样例、字段表 | 判定逻辑、跨节点规则 | 各技能 `references/*.md` |
+| **产物** | 正文、章纲、真值、事件 | 过程性说明 | `.storycraft/works/*.db` |
 
 反例（本提案修正的对象）：把「blocked 非空时不要执行」写进技能——那是闸门，应由代码拒绝；把判断点表写进技能——那是逐节点协议，写进常驻技能会让所有节点变成同一份说明。
+
+### 每个节点的上下文由什么组成
+
+| 节点 | 材料（宿主） | 问什么（宿主 ask） | 方法（技能） | 细则（references） |
+| --- | --- | --- | --- | --- |
+| 全书计划 | 基础设定四份、字数范围、章数 | 按这个写章纲吗 | `storycraft-plan-craft` | — |
+| 章纲 | 全书计划、前章摘要、角色卡 | 写正文，还是先改哪一项 | `storycraft-plan-craft` | — |
+| 正文 | 章纲、装配上下文、字数范围 | —（写完进验收） | `storycraft-write-craft` | 长篇再加方法参考 |
+| 审稿 | 正文、章纲、既有事实 | 哪几条改、哪几条不改 | `storycraft-review` | — |
+| 修订 | 选中条目、mode、原正文 | 范围与模式确认吗 | `storycraft-revise-craft` | — |
+| 摘要 | 正文 | — | — | 摘要字段表 |
+| 结算 | 正文、事件、拟写 payload | 失败时 findings 原样 | `storycraft-state-settler` | `state-projection` |
+| 正文验收 | 字数、版本、与前版差别 | 接受，还是继续改 | — | — |
+
+这张表的每一行都是**宿主按状态生成**的输入，不是技能里的说明。
 
 ## 三个批准记录在哪里
 
@@ -119,3 +137,8 @@ updated: 2026-10-27
 1. 批准是否开放对话入口（当前只有面板）。开放则要解决“如何证明是作者而不是模型的决定”。
 2. 审稿器一轮 5–8 条是否需要设上限与严重度门槛。
 3. 正文验收：现在是「接受当前版本」按钮，是否也要能“接受并继续下一章”。
+
+## 引用
+
+- 工作项：`#77`（本 Note 的产品合同与验收）
+- 相关：`#50`（验收发现 D6/D8/D11）、`#76`（确认文案与修订上限）、`#66`（面板状态模型）
