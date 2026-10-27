@@ -158,8 +158,9 @@ function ensureChapter(db: Database, number: number): ChapterRow | undefined {
 /**
  * Whether the author's plan confirmation still covers the current memo.
  *
- * A chapter without a memo uses the legacy confirmation (the plan text action);
- * once `plan:<n>` exists, the confirmed revision must be its latest revision.
+ * A chapter without a memo has nothing to confirm yet; once `plan:<n>` exists,
+ * the confirmed revision must be its latest revision. There is no plan-text
+ * fallback: an old work is deleted and rebuilt, never migrated.
  */
 function planGateSatisfied(db: any, entry: any) {
   return planApprovalState(db, entry.number).approved
