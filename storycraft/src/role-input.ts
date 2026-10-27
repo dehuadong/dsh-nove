@@ -7,6 +7,7 @@
  * chapter body to the established `chapter-not-written` business code.
  */
 
+import { applyPolishRules } from './polish-rules.ts'
 import { StoryError, chapterNumber } from './domain.ts'
 import { latestReview, readChapter, readManifest } from './storage.ts'
 import { assembleRoleContext } from './context.ts'
@@ -103,6 +104,14 @@ export async function loadRoleInput(root: string, input: RoleInput): Promise<Loa
         throw new StoryError('chapter-not-written', `第 ${number} 章还没有正文：先写正文，再审稿、修订或写摘要`)
       }
       throw error
+    }
+    if (role === 'reviser' && mode === 'deslop') {
+      // The deterministic rules run first: when they change nothing there is no
+      // deslop work for the model to do, so the dispatch stops with a typed exit.
+      const polished = applyPolishRules(body)
+      if (polished.changes.length === 0) {
+        throw new StoryError('polish-noop', `第 ${number} 章没有可机械处理的腔调词`, '跳过修订，直接进入下一步（摘要或定稿）')
+      }
     }
     if (role !== 'summarizer') {
       latest = latestReview(root, manifest, entry)

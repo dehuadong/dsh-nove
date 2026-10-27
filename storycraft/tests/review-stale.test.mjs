@@ -4,6 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../src/storage.ts'
+import { loadRoleInput } from '../src/role-input.ts'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -41,6 +42,18 @@ try {
   check('the revision number actually changed',
     s.readChapter(root, { work, chapter: 1 }).revision === 2,
     JSON.stringify(s.readChapter(root, { work, chapter: 1 }).revision))
+
+let deslopCode = ''
+let deslopNext = ''
+try {
+  await loadRoleInput(root, { work, chapter: 1, role: 'reviser', mode: 'deslop' })
+} catch (error) {
+  deslopCode = error.code
+  deslopNext = error.next
+}
+check('deslop with nothing mechanical stops with a typed exit', deslopCode === 'polish-noop', deslopCode)
+check('the deslop exit names the next step', typeof deslopNext === 'string' && deslopNext.includes('跳过修订'), String(deslopNext))
+
 } finally {
   await rm(root, { recursive: true, force: true })
 }
