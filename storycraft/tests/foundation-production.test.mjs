@@ -7,7 +7,7 @@ import { submitPayload } from '../src/submission.ts'
 import * as s from '../src/storage.ts'
 import * as b from '../src/bible.ts'
 import { assembleRoleContext } from '../src/context.ts'
-import { readFoundationDocuments, readTextArtifact } from '../src/artifact-store.ts'
+import { readArtifact, readFoundationDocuments, readTextArtifact } from '../src/artifact-store.ts'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -92,6 +92,13 @@ try {
   })
   check('frame lands three artifacts', landed.foundationStage === 'frame'
     && landed.artifacts.length === 3 && landed.foundation.stages.frame === true, JSON.stringify(landed))
+  const trace = readArtifact(root, { work, artifactId: 'trace:1:architect' })
+  check('the architect dispatch records the input it assembled',
+    trace.artifact.content.chapter === 1
+    && Array.isArray(trace.artifact.content.selectedSources)
+    && String(trace.artifact.content.notes).includes('stage=frame'),
+    JSON.stringify(trace.artifact.content).slice(0, 160))
+
   const rerun = await delegateRole(root, { work, role: 'architect', stage: 'frame' }, {
     service: fakeService([{ payload: frame }]), agent, signal,
   })

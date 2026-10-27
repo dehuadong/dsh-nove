@@ -629,7 +629,7 @@ export const ARTIFACT_IDENTITY = {
   plan: { pattern: /^plan:([1-9]\d*)$/u, chapterScoped: true },
   summary: { pattern: /^summary:([1-9]\d*)$/u, chapterScoped: true },
   review: { pattern: /^review:([1-9]\d*):r([1-9]\d*):([1-9]\d*)$/u, chapterScoped: true },
-  trace: { pattern: /^trace:([1-9]\d*):(writer|planner|reviewer|reviser|summarizer)$/u, chapterScoped: true },
+  trace: { pattern: /^trace:([1-9]\d*):(writer|planner|reviewer|reviser|summarizer|architect)$/u, chapterScoped: true },
   short_story: { pattern: /^short:[^\s:]+$/u },
   script: { pattern: /^script:[^\s:]+$/u },
 }

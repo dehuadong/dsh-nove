@@ -619,23 +619,33 @@ async function delegateArchitect(root: string, input: ArchitectInput, host: Dele
     },
   })
   // The architect is the one role whose output can contradict the proposal, so
-  // its assembled input is recorded like the other roles.
+  // its assembled input is recorded like the other roles. The shape follows the
+  // trace contract; extra facts go into notes, which the contract allows.
   try {
+    const sources = [
+      ...(documents.storyFrame === undefined ? [] : ['story_frame']),
+      ...(documents.volumeMap === undefined ? [] : ['volume_map']),
+      ...(documents.rolesIndex === undefined ? [] : ['roles_index']),
+    ]
     writeContextTrace(root, {
       work, chapter: 1, role: 'architect',
       trace: {
-        stage,
-        instruction: typeof input.instruction === 'string' ? input.instruction : '',
-        sources: [
-          ...(documents.storyFrame === undefined ? [] : [{ name: 'story_frame', revisionId: documents.storyFrame.version }]),
-          ...(documents.volumeMap === undefined ? [] : [{ name: 'volume_map', revisionId: documents.volumeMap.version }]),
-          ...(documents.rolesIndex === undefined ? [] : [{ name: 'roles_index', revisionId: documents.rolesIndex.version }]),
-        ],
-        foundationComplete: state.stages,
+        chapter: 1,
+        plannerInputs: [],
+        composerInputs: [],
+        selectedSources: sources,
+        contextTiers: { protectedSources: sources, compressibleSources: [] },
+        tokenBudget: { protectedTokens: 0, compressibleTokens: 0, totalSelectedTokens: 0 },
+        notes: [`stage=${stage}`, `complete=${JSON.stringify(state.stages)}`, `instruction=${typeof input.instruction === 'string' ? input.instruction : ''}`],
+        sections: [],
+        trimmed: [],
+        dropped: [],
+        missing: [],
+        overflow: false,
       },
     })
-  } catch {
-    // Diagnostics only: the child still gets its prompt.
+  } catch (error) {
+    if (process.env.DSH_TRACE_DEBUG === '1') console.error('architect trace:', error)
   }
   const timeoutMs = Number.isFinite(host.timeoutMs) ? host.timeoutMs! : DELEGATE_TIMEOUT_MS
   const signal = host.signal ?? new AbortController().signal

@@ -34,7 +34,9 @@ export function putArtifactOnDb(db: any, input: any, options: any = {}) {
   const { contentType, text } = serialize(envelope.content)
   const at = envelope.createdAt
   const chapter = envelope.scope?.chapter
-  if (chapter !== undefined) {
+  // Diagnostics traces may be written before the chapter row exists (foundation
+  // stages run at work level); they are not chapter artifacts for that reason.
+  if (chapter !== undefined && envelope.kind !== 'trace') {
     const row = db.prepare('SELECT stage FROM chapters WHERE number = ?').get(chapter)
     if (row === undefined) throw new StoryError('chapter-not-found', `没有第 ${chapter} 章：不能写章节 artifact`)
     if (row.stage === 'settled' && !(options.allowSettled === true && (envelope.kind === 'summary' || envelope.kind === 'trace'))) {
