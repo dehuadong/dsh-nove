@@ -109,6 +109,7 @@ export interface ArtifactRow {
   content: string
   provenance: 'generated' | 'imported' | 'edited'
   created_at: string
+  input_revision?: string | null
 }
 
 export interface MaterialRow {

@@ -527,10 +527,10 @@ export function remapChapterArtifacts(db: any, input: any) {
     }
     const { contentType, text } = serialize(item.content)
     db.prepare(`INSERT INTO artifacts
-      (artifact_id, revision_id, kind, scope_chapter, content_type, content, provenance, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      (artifact_id, revision_id, kind, scope_chapter, content_type, content, provenance, created_at, input_revision)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(item.nextId, item.revisionId, item.row.kind, item.scope,
-        contentType, text, item.row.provenance, item.row.created_at)
+        contentType, text, item.row.provenance, item.row.created_at, item.row.input_revision ?? null)
   }
   // Reviews in identity chapters may target a memo that moved or disappeared.
   const identityReviewRows = db.prepare(`SELECT a.* FROM artifacts a
@@ -560,9 +560,9 @@ export function remapChapterArtifacts(db: any, input: any) {
     if (existing !== undefined) continue
     const { contentType, text } = serialize(content)
     db.prepare(`INSERT INTO artifacts
-      (artifact_id, revision_id, kind, scope_chapter, content_type, content, provenance, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(row.artifact_id, revisionId, row.kind, row.scope_chapter, contentType, text, row.provenance, row.created_at)
+      (artifact_id, revision_id, kind, scope_chapter, content_type, content, provenance, created_at, input_revision)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(row.artifact_id, revisionId, row.kind, row.scope_chapter, contentType, text, row.provenance, row.created_at, row.input_revision ?? null)
   }
   for (const [oldNumber, newNumber] of mapping) {
     if (oldNumber === newNumber) continue

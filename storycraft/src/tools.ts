@@ -2326,7 +2326,8 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
           const stored = readArtifact(root, { work: args.work, artifactId: `plan:${args.chapter}` })
           const memo = stored.artifact.content as { perspective?: unknown } | undefined
           perspective = typeof memo?.perspective === 'string' ? memo.perspective : ''
-        } catch {
+        } catch (error) {
+          if ((error as { code?: unknown })?.code !== 'artifact-not-found') throw error
           perspective = ''
         }
         return { ok: true, workId: args.work, metrics, findings: findingsOf(String(current.content ?? ''), metrics, perspective) }

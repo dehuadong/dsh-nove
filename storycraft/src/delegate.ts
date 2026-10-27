@@ -732,7 +732,7 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
     const metrics = critique(loaded.body, manifest.wordRange)
     const findings = findingsOf(loaded.body, metrics)
     if (findings.length > 0) {
-      const summary = findings.map(finding => `- ${finding.code}/${finding.severity}：${finding.detail}`).join('\n')
+      const summary = findings.map(finding => `- ${finding.code}/${finding.severity}：${finding.detail}${finding.refs.length === 0 ? '' : `（${finding.refs.join('、')}）`}`).join('\n')
       loaded.context.taskText = loaded.context.taskText + "\n\n机械检查已发现（不要重复报告）：\n" + summary
     }
   }

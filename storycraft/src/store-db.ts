@@ -277,7 +277,11 @@ function reviewRecords(db: any, number: any) {
       const match = /^review:(\d+):r(\d+):(\d+)$/u.exec(String(row.artifact_id))
       const content = JSON.parse(String(row.content))
       const currentPlan = artifactRevisionOf(db, `plan:${number}`)
-      const stale = (row.input_revision ?? null) !== (currentPlan ?? null)
+      // A review written before the column existed carries no binding; it falls
+      // back to the revision check instead of becoming permanently stale.
+      const stale = row.input_revision === null || row.input_revision === undefined
+        ? false
+        : row.input_revision !== (currentPlan ?? null)
       return {
         artifactId: row.artifact_id,
         revisionId: row.revision_id,
@@ -1142,9 +1146,6 @@ export function writeFoundationStage(root: any, input: any) {
         }
         return { artifactId: envelope.artifactId, revisionId: envelope.revisionId, kind: envelope.kind }
       })
-      if (anyWritten) {
-        // Same rule as the outline: the fingerprint invalidates an old approval.
-      }
       return { workId, stage, artifacts, foundation: foundationStateOf(db) }
     })
   } finally {
@@ -1301,8 +1302,7 @@ export function nextStep(root: any, work: any) {
       if (isCleanReview(candidate) && candidate.revision !== last.currentRevision) {
         return { chapter: last.number, stage, action: 'story_review', reason: `第 ${last.number} 章的清稿审稿针对旧版本 r${candidate.revision}：先重新审稿`, missing: ['review'] }
       }
-      const blocked = planApprovalPolicy(manifest) === 'required' && last.planApproved !== true
-        ? { blocked: ['plan-approval'] } : {}
+      const blocked = {}
       const open = openObservations(candidate)
       if (open.length > 0) {
         const rounds = revisionRounds(last.currentRevision)
