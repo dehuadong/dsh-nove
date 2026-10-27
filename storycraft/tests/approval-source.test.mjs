@@ -51,6 +51,14 @@ try {
     db2.close()
   }
 
+  let invalid = ''
+  try {
+    s.approveChapterPlan(root, { work, chapter: 1, source: 'somewhere' })
+  } catch (error) {
+    invalid = error?.code ?? String(error)
+  }
+  check('an unknown approval source is refused', invalid === 'approval-source-invalid', invalid)
+
   // The panel path keeps working and records its own source.
   s.writePlan(root, { work, chapter: 1, perspective: '甲', goal: 'g2', obstacle: 'o', cost: 'c', turn: 't', body: 'b2', threadRefs: [] })
   s.approveChapterPlan(root, { work, chapter: 1 })

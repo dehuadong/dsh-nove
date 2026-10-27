@@ -429,6 +429,14 @@ function methodFor(step: any, form: string): { skill: string; reference?: string
  * cannot be one of them — findings only exist after `story_settle` runs, so that
  * point is carried by the settle receipt itself.
  */
+/** Normalise the approval source; an unknown value is a caller error. */
+function approvalSourceOf(input: any): 'panel' | 'conversation' {
+  const source = input?.source
+  if (source === undefined) return 'panel'
+  if (source === 'panel' || source === 'conversation') return source
+  throw new StoryError('approval-source-invalid', `未知的批准来源：${String(source)}`, '来源只能是 panel 或 conversation')
+}
+
 /** One sentence per foundation stage, for the confirmation ask. */
 function foundationSummaryOf(db: any): string[] {
   const line = (text: string) => (String(text).split(/\r?\n/u).find(item => item.trim() !== '' && !item.trim().startsWith('#')) ?? '').trim().slice(0, 60)
@@ -1256,7 +1264,7 @@ export function approveFoundation(root: any, input: any) {
       const state = foundationStateOf(db)
       if (state.complete !== true) throw new StoryError('foundation-incomplete', 'foundation 还没生成完整：先跑完四个 stage')
       const at = now()
-      const source = input.source === 'conversation' ? 'conversation' : 'panel'
+      const source = approvalSourceOf(input)
       db.prepare('UPDATE meta SET foundation_approved_at = ?, foundation_approved_revision = ?, foundation_approved_source = ?, updated_at = ? WHERE id = 1').run(at, foundationRevisionOf(db), source, at)
       return { workId: String(input.work), approvedAt: at, foundation: foundationStateOf(db) }
     })
@@ -1535,7 +1543,7 @@ export function approveOutline(root: any, input: any) {
       if (meta.outline_written_at === null) throw new StoryError('outline-required', '还没有全书计划：先 story_outline')
       const at = now()
       const revision = outlineRevisionOf(db)
-      const source = input.source === 'conversation' ? 'conversation' : 'panel'
+      const source = approvalSourceOf(input)
       db.prepare('UPDATE meta SET outline_approved_at = ?, outline_approved_revision = ?, outline_approved_source = ?, updated_at = ? WHERE id = 1').run(at, revision ?? null, source, at)
       return { workId, outline: { writtenAt: meta.outline_written_at, approvedAt: at } }
     })
@@ -1822,7 +1830,7 @@ export function approveChapterPlan(root: any, input: any) {
       if (entry === undefined || memo === undefined) throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲`)
       const at = now()
       const planRevision = memo.revision_id
-      const source = input.source === 'conversation' ? 'conversation' : 'panel'
+      const source = approvalSourceOf(input)
       db.prepare('UPDATE chapters SET plan_approved_at = ?, plan_revision = ?, plan_approved_source = ?, updated_at = ? WHERE number = ?')
         .run(at, planRevision, source, at, number)
       touchMeta(db, at)
