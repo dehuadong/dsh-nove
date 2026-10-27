@@ -20,7 +20,8 @@ updated: 2026-10-27
 - `inkos-master/.github/workflows/release.yml`：`v*` tag 触发 test → smoke-test（产物 `--help`、`import()`、`npm pack` 后检查 tarball 内容）→ publish-canary → verify-canary → publish-release → verify-release → GitHub Release。采纳：版本与 tag 逐字对齐、发布前构建并校验 tarball、发布后以消费者身份重装一次；不采纳 canary 双发布与 `workspace:` 协议重写（本包是单包，没有 workspace 依赖）。
 - `inkos-master/packages/cli/package.json`：`prepack` 先构建、`files` 只列产物、`prepublishOnly` 再校验一次 manifest。采纳“打包必构建 + 白名单 + 发布前校验”，不采纳其 monorepo 构建链。
 - `dsh-seework`（`E:\workspace\dsh-plugin\dsh-seework`）：`docs/design/2026-09-29-npm-distribution-and-in-plugin-update.md` 记录的 npm 发布事实 —— 首版 `0.1.0`、去 `private`、补 `repository`、`prepublishOnly` 构建、`files` 只留运行时文件、peer 依赖只告警、registry 安装与开发安装分离、pnpm 默认拒绝发布不满 24 小时的版本、tarball/path spec 重装报 `ambiguous-install`。这些全部采纳为本包的安装与发布事实。
-- `dsh-webnovel-writer`（`E:\workspace\dsh-webnovel-writer`）：`packages/bundle/package.json` 用 `files` 白名单发布入口文件；采纳其白名单形状，不采纳其 monorepo 与内联打包。
+- `dsh-webnovel-writer`（`E:\workspace\dsh-webnovel-writer`）：`pnpm-workspace.yaml` 是 `packages/*`，共 9 个包——4 个发布包（`@linfengqaqtat/dsh-scriptor`、`-companion`、`-retrieval`、`-full`）加 5 个内部库（`@webnovel/core`、`drafting`、`review`、`ledger`、`polish`，均 `0.0.1`）；`bundle` 用 `workspace:*` 依赖内部库并在构建时内联。采纳其 `files` 白名单形状；不采纳其 workspace 结构（判断见 §7）。
+- `dsh-seework` 的 `AGENTS.md`「验证入口」：把验证拆成 `typecheck` / `test` / `build` / `smoke`（对构建产物跑、无需 GUI）/ `sync`（把产物同步进已安装 profile）/ `probe`（真实宿主上核对客户端半边）/ `verify-live`（真实部署跑一遍业务链路）/ `npx playwright test`（真实 GUI，临时实例 + 临时 `DSH_HOME`）七条，并规定 E2E 只覆盖 jsdom 观测不到的那层。采纳这种分层，本包的对应关系见 §3.1。
 - DSH 宿主契约：`deepseek-harness/docs/user/develop/basic/publish.zh.md`（第 66 行要求 `engines.dsh`，缺省时回退到 `@deepseek-ai/dsh*` peer 范围；npm 与 tarball 安装使用预构建产物，不执行构建）；`deepseek-harness/packages/boot/app-boot/src/plugin-compatibility.ts` 第 55–73 行规定有 `engines.dsh` 时只看它、两者都缺视为满足。
 - 无参考实现的取值：`engines.dsh` 的具体范围与 `dsh-storycraft` 在 npm 的占用属于本包事实，参考工程都没有使用 DSH。范围由作者在 2026-10-26 定为 `>=0.2.1-rc.2 <0.3.0`。
 
@@ -54,6 +55,19 @@ updated: 2026-10-27
 - 扩展 `scripts/pack-check.mjs`：在现有断言（入口集合从 `exports` 派生、`lib/` 无未声明产物、禁止 `src`/tests/e2e/scripts）之外，断言 `private` 不存在、`engines.dsh` 存在、`license` 字段与 `LICENSE` 文件一致、`LICENSE` 在包内、`files` 里没有 `dist`。
 - 新增 `scripts/install-smoke.mjs`：临时 `DSH_HOME` 下用 `dsh --profile smoke --from-default-profile web` 建立独立 profile，再 `dsh plugin --profile smoke add <tgz>`；`dsh --profile smoke --dump-config` 断言出现 `# == dsh-storycraft` 层与 `dsh-storycraft` 行；随后按 `e2e/host.mjs` 的方式冷启动 web 实例（`ELECTRON_RUN_AS_NODE=1`、`web --port <空闲端口> --no-open`、解析 stdout 的 token URL）；用 `e2e/load.spec.cjs` 同一套断言检查页面无 `pageerror`、`GET /api/dsh-storycraft/works?root=…` 返回 200。桌面客户端路径沿用 `DSH_E2E_APP` 覆盖，不写死在脚本里。
 - `ci.mjs` 增加一次 tarball 安装 smoke；与现有 e2e 复制模式二选一运行，避免同时启动两个实例。
+- 安装生效方式必须分开写：`link:` 开发是「build 后重新加载」（模块是 junction，改完即生效）；tarball 与 registry 安装**必须重启 DeepSeek Harness**，因为渲染进程跑的是启动时那份客户端 bundle，正式构建里没有「重新加载页面」菜单项（`dsh-seework` 实测，`Ctrl+R` 也未绑定）。
+
+### 3.1 验证入口（分层）
+
+| 命令 | 覆盖 |
+| --- | --- |
+| `npm run typecheck` | Host 与 Client 两半的类型（`tsc -p`，`noEmit`） |
+| `node tests/<file>.test.mjs` / `ci.mjs` | 单元契约，直接跑 `src/*.ts` |
+| `node scripts/build.mjs` | 产物 `lib/` |
+| `node scripts/pack-check.mjs` | tarball 清单与入口契约（不触发构建） |
+| `node scripts/install-smoke.mjs`（新增） | tarball 装进干净临时 profile、冷启动、页面与接口 |
+| `node e2e/run.mjs` | 真实 GUI 里的 26 条 spec（复制安装） |
+| 作者真实会话 | 安装形态下打开工作台、确认可用 |
 
 ### 4. 两种安装形态
 
@@ -74,10 +88,20 @@ updated: 2026-10-27
 
 发布包采用 MIT，不附带源码；仓库保持私有，npm 发布不要求仓库公开。
 
+### 7. 结构前提：单包，暂不 workspace 化
+
+作者 2026-10-27 决定：本包保持单包，**不引入 pnpm workspace**。
+
+- 组合的粒度是 Cordis 条目，不是 npm 包：现有 `cordis.patch.yml` 已在一个包内插入 `storycraft`、`preset-storycraft`（后者再挂 `dsh-storycraft/skills`、`dsh-storycraft/tools`），增加形态或能力不需要新包。
+- 本包没有运行时依赖，不存在“内联 workspace 库”的需求；`dsh-webnovel-writer` 之所以 workspace 化，是因为它有 4 个发布包与 5 个内部库要共享 core（见对拍参考）。
+- 迁移触发条件，满足任一条再做，且作为**独立工作项**先做结构迁移：① 出现第二个要独立发布的包（例如某形态拆成 `dsh-storycraft-script` 单独发版）；② 两个包需要共享一份 core；③ 某个包的产物要被另一个包内联。
+- 触发时的最小方案：仓库根加 `pnpm-workspace.yaml`（`packages: ['storycraft', 'packages/*']`）与根 `package.json`，内部库用 `workspace:*`，构建用 `pnpm -r --if-present build`，发布仍逐个包；届时一并处理包管理器（npm→pnpm）、lockfile、`ci.mjs`/`install-smoke` 的安装语义，并修正 TypeScript 迁移 Note 里“不采纳 monorepo”的记录。
+
 ## 备选方案
 
 - **继续只做 link 开发**：不满足可分发目标；否决。
 - **GitHub 直装**（`git+https://…&path:/storycraft`，安装时 `prepare` 构建）：私有仓库需要凭据、安装时依赖 devDependencies 与 pnpm 行为，且作者 2026-10-27 明确不需要；否决。
+- **现在就 pnpm workspace 化**（把 storycraft 拆成 workspace 里的第一个包）：为将来的组合插件提前铺路，代价是换包管理器、lockfile、CI 与安装语义，且当前只有一个包、没有共享 core 的需求；作者 2026-10-27 决定按触发条件再迁移（见 §7）；本次不做。
 - **提交 `lib` 让安装免构建**：生成物成为第二真源，且与“`lib` 不提交”的决定冲突；否决。
 - **不做 `prepare`、只支持 npm**：已采纳（见 §2）。
 - **依赖 GitHub Actions 自动发布**：仓库没有 CI；先做可本地复现的门禁，CI 化留给后续工作项。
@@ -91,6 +115,7 @@ updated: 2026-10-27
 3. 发布后从 registry 安装 `dsh-storycraft@0.1.0` 成功并完成同样的挂载验收。
 4. 本机 link 开发回归：现有 e2e 复制模式仍通过。
 5. 把 `engines.dsh` 改成当前运行版本不满足的范围后，隔离 profile 的安装被宿主拒绝并给出原因。
+6. 安装生效说明分成两条并写进 README：`link:` 是 build 后重新加载；tarball/registry 是**重启 DeepSeek Harness**。发布验收必须用 tarball 装进干净 profile，不用 `link:`。
 
 ## 风险
 
@@ -99,3 +124,4 @@ updated: 2026-10-27
 - `npm publish` 是出站动作，需要单独确认；发布后的 CDN 同步滞后会让紧随其后的安装 404，重试即可。
 - `dsh plugin add` 对 tarball 与 path spec 的重装报 `ambiguous-install`（`dsh-seework` 实测），smoke 每次使用全新临时 profile 规避。
 - `repository` 指向私有仓库：npm 页面对外部访问者不可达，只作元数据；不影响安装。
+- 将来 workspace 化会牵动包管理器、lockfile、CI 与 `install-smoke` 的安装语义，并需要修正已交付 Note 的记录；按 §7 的触发条件另立工作项，不并入发布工作项。
