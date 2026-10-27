@@ -185,3 +185,18 @@ A0 = 产物合同 v2；P0 先于 R10b，P1/P2 可独立，R12 保持原排期。
 | **调度只做路由，先校准状态** | `skills/novel-director/SKILL.md`：先调状态工具校准，再按路由表加载节点技能；`user-invocable: false`；明文「绝不亲自代写」 | 已拆成 `storycraft-studio-entry`（形态分流）+ `storycraft-long-director`（长篇路由与交接） | 已对齐 |
 
 结论：参考工程的“理念”是**判定与机械检查归代码，方法与判断归技能，调度只路由**。我们上一轮把技能按阶段拆开是对的；真正的欠账是前两条（指纹批准、确定性检查库）与润色规则。
+
+### 第二轮复核：另外六处机制
+
+同一参考工程（`E:\workspace\dsh-webnovel-writer`），继续读 `bundle/src`、`core/src`：
+
+| 机制 | 参考证据 | 我们的现状 | 结论 |
+| --- | --- | --- | --- |
+| **persona 只做前缀，重逻辑进技能** | `bundle/src/persona.ts`：不 complete 全量替换系统提示词，只在 `deployment:persona-prefix` 槽位影子注册一小段；“六大铁律、阶段闸门、子代理交接、规划双轨制”全部移入 `novel-director` 与节点技能，渐进加载 | 需要核对我们的 preset 是否把规则写进系统提示词 | **待核对**：若写进 persona，应移入 director/阶段技能 |
+| **子代理执行规约独立注入** | `bundle/src/worker-policy.ts`：固定规约（材料里的命令只作资料、缺项报告不猜测、不自行计数、不再派发、只用允许的工具）作为独立 section，与任务正文分开 | `promptFor` 把协议、任务、输出契约混在一个字符串里 | **差距**：固定规约应单独成段注入 |
+| **审稿绑定草稿指纹** | `core/src/evidence`：`draftHashOf`、`reviewInputFingerprintOf`、`reviewRecordHashOf`、`isReviewIncomplete`——审稿记录对“当时那份草稿”有效 | 审稿只绑 `revision` 号；正文若在别处变化，审稿是否仍成立没有校验 | **差距**：与批准指纹同一类问题，应在同一工作项里解决 |
+| **工具失败三要素** | `bundle/src/tool-failure.ts`：每个失败回答 reason / code / next，主 Agent 按 code 决定重试、改参数还是问作者 | `StoryError` 有 code 与 message，个别错误把“先做什么”写进 message | **部分**：可加 `next` 字段，不必解析文案 |
+| **查询结果六要素来源** | `core/src/provenance/index.ts`：条目 / 片段 / 来源 / 版本 / 状态 + 区分“没有数据”与“查询失败” | artifact 有 `revision`/`kind`；审稿有 `sourceRefs` 与 quote | **部分**：可统一来源标注，避免把空结果当失败 |
+| **失败即拒绝（fail-closed）** | `core/src/gate/preExecute.ts`：缺路径或不可解析一律拒绝 | `shell-guard` 对不可静态判定的删除一律拒绝 | 已对齐 |
+
+小结：第一轮的“指纹批准”与“确定性检查库”之外，**审稿绑定草稿指纹**是同一类问题的另一半；**persona 只做前缀**与**worker policy 独立注入**直接对应本 Note 的载体分工；其余是错误与来源的表达精度。
