@@ -1,7 +1,6 @@
 {
   "name": "see-storycraft",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "description": "故事工坊：长篇创作的动作集与编排工作台（作品、章节、真值、审稿、状态）。",
   "meta": {
@@ -22,11 +21,27 @@
     "cordis.patch.yml",
     "icon.svg",
     "README.md",
+    "LICENSE",
     "skills"
   ],
-  "engines": {
-    "node": ">=22.18"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dehuadong/dsh-nove.git",
+    "directory": "storycraft"
   },
+  "engines": {
+    "node": ">=22.18",
+    "dsh": ">=0.2.1-rc.2 <0.3.0"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "novel",
+    "fiction",
+    "writing",
+    "workbench"
+  ],
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
@@ -43,9 +58,11 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "prepack": "node scripts/build.mjs",
+    "prepublishOnly": "node scripts/build.mjs && node scripts/pack-check.mjs",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.client.json"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^26.6.5",
     "@types/react": "^18.3.31",
     "esbuild": "^0.28.2",
