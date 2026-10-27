@@ -459,6 +459,9 @@ export function remapChapterArtifacts(db: any, input: any) {
   let deletedCount = 0
 
   for (const row of ordered) {
+    // The architect trace is work-level despite its chapter scope: a chapter move
+    // must not rename or delete it.
+    if (row.kind === 'trace' && row.artifact_id === 'trace:1:architect') continue
     const oldNumber = row.scope_chapter
     const newNumber = mapping.get(oldNumber)
     if (newNumber === undefined) {
