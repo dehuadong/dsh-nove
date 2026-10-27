@@ -85,7 +85,7 @@ updated: 2026-10-27
 ### D. 表达精度
 
 - `StoryError` 增加可选 `next`；工具失败回执为 `{ ok: false, error: { code, message, next, retryable } }`，不再让调用方解析文案；
-- 来源标注：artifact 读取与 brief/context 分段返回 `{ source, revision, status }`；`status` 区分 `present` / `absent`，失败仍抛错，禁止用空结果冒充失败。
+- 来源标注：artifact 读取返回身份（artifactId / revisionId / kind）；缺失是 `artifact-not-found`，类型不符是 `artifact-kind-mismatch`。实现已用错误码区分，不再新增 `status` 字段——同一件事两个表达渠道会漂移。
 
 ## 与既有设计的关系
 
