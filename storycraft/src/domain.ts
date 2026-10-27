@@ -40,9 +40,9 @@ export const WORK_FORMS = ['longform', 'short', 'script'] as const
  * form. Neither covers more than one form.
  */
 export const FORM_META = Object.freeze({
-  longform: { label: '长篇小说', skill: 'storycraft-longform-chapter', craft: 'storycraft-long-writing' },
-  short: { label: '短篇小说', skill: 'storycraft-short-story', craft: 'storycraft-short-writing' },
-  script: { label: '剧本', skill: 'storycraft-short-drama', craft: 'storycraft-script-writing' },
+  longform: { label: '长篇小说', skill: 'storycraft-longform-chapter', craft: 'storycraft-long-prose' },
+  short: { label: '短篇小说', skill: 'storycraft-short-story', craft: 'storycraft-short-prose' },
+  script: { label: '剧本', skill: 'storycraft-short-drama', craft: 'storycraft-script-scene' },
 })
 
 /** Current time in ISO form. */

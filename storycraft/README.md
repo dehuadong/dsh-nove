@@ -15,9 +15,9 @@ DSH 里的长篇创作编排：三十二个动作把立项、章纲、正文、�
 写手、审稿、修订、摘要、架构师、规划**不是预设**，而是子代理；六种角色默认由宿主动作 `story_delegate` 通过官方 `subagents` 服务启动：
 
 - `story_delegate` 在宿主侧预检、装配上下文、启动子代理、校验并落库；主编只收紧凑回执，正文不进入主会话；
-- 手动兜底仍用官方 `subagent`：省略 `agentPreset`，子代理加入故事工坊当前组合；写手与规划没有专属技能：角色协议由 `promptFor` 按形态组装，创作方法取形态技能（`storycraft-long-writing` / `storycraft-short-writing` / `storycraft-script-writing`）；审稿、修订、架构师仍用 `storycraft-review`、`storycraft-revise-craft`、`storycraft-architect` 薄契约；角色技能只写任务、提交 schema、闸门与失败回退，方法正文读形态技能；
+- 手动兜底仍用官方 `subagent`：省略 `agentPreset`，子代理加入故事工坊当前组合；写手与规划没有专属技能：角色协议由 `promptFor` 按形态组装，创作方法取阶段技能（`storycraft-long-*` / `storycraft-short-*` / `storycraft-script-*`）；审稿、修订、架构师仍用 `storycraft-review`、`storycraft-revise-craft`、`storycraft-architect` 薄契约；角色技能只写任务、提交 schema、闸门与失败回退，方法正文读形态技能；
 - `planner` 只写**首次章纲**：已有 `plan:<n>` 时返回 `plan-exists`，改章纲仍由主编手动 `story_plan`，避免子代理覆盖已确认章纲；
-- 写手按作品 `form` 加载形态 craft 与形态契约：长篇 `storycraft-long-writing` + `storycraft-longform-chapter`，短篇 `storycraft-short-writing` + `storycraft-short-story`，剧本 `storycraft-script-writing` + `storycraft-short-drama`；提示按「章 / 篇 / 集」显示单位；形态契约同样只写流程与提交，方法读各自的 craft；
+- 写手按作品 `form` 加载形态 craft 与形态契约：长篇 `storycraft-long-prose` + `storycraft-longform-chapter`，短篇 `storycraft-short-prose` + `storycraft-short-story`，剧本 `storycraft-script-scene` + `storycraft-short-drama`；提示按「章 / 篇 / 集」显示单位；形态契约同样只写流程与提交，方法读各自的 craft；
 - 定稿前的状态对账由 `storycraft-state-check` 子代理完成（`story_state_check`），只读、只出建议；它不替代 `storycraft-review` 的正文审稿；
 - 定稿本身优先由 `story_settle` 自动完成：`storycraft-state-settler` 从正文抽取 `factOps`/`hookOps`/`newHooks`，再走 `story_state_check`；未解决时用 `story_state` 手动修正；
 - 长篇任务里，规划、写作、审稿与定稿前的主编按各自技能正文的触发加载 `storycraft-long-writing` 的 references；短篇、剧本各读 `storycraft-short-writing` / `storycraft-script-writing`；方法技能只给判断依据，不产出提交内容，也不替代角色技能的输出契约；

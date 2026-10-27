@@ -114,7 +114,10 @@ export function roleMethod(role: string, form: Form): { skill: string; reference
     }
   }
   if (role === 'planner') {
-    return { skill: meta.craft, reference: form === 'script' ? 'references/spec.md' : form === 'short' ? 'references/outline.md' : 'references/chapter-plan.md' }
+    return {
+      skill: form === 'script' ? 'storycraft-script-spec' : form === 'short' ? 'storycraft-short-outline' : 'storycraft-long-plan',
+      reference: form === 'script' ? 'references/spec.md' : form === 'short' ? 'references/outline.md' : 'references/chapter-plan.md',
+    }
   }
   if (role === 'reviewer') return { skill: 'storycraft-review', reference: 'references/review-dimensions.md' }
   return undefined

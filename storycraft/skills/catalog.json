@@ -3,12 +3,14 @@
     "shared": ["storycraft-studio-orchestration"],
     "longform": [
       "storycraft-architect",
-      "storycraft-long-writing",
-      "storycraft-longform-chapter",
-      "storycraft-longform-method"
+      "storycraft-long-foundation",
+      "storycraft-long-plan",
+      "storycraft-long-prose",
+      "storycraft-long-settle",
+      "storycraft-longform-chapter"
     ],
-    "shortform": ["storycraft-short-story", "storycraft-short-writing"],
-    "screenplay": ["storycraft-script-writing", "storycraft-short-drama"],
+    "shortform": ["storycraft-short-story", "storycraft-short-outline", "storycraft-short-prose"],
+    "screenplay": ["storycraft-script-spec", "storycraft-script-scene", "storycraft-short-drama"],
     "review": ["storycraft-review", "storycraft-state-check", "storycraft-state-settler"],
     "revise": ["storycraft-revise-craft"]
   }

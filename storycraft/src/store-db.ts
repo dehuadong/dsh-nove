@@ -335,16 +335,18 @@ function planMemoFrom(db: any, chapter: any): any {
  * skill that lists every reference would show planning material at writing time.
  */
 function methodFor(step: any, form: string): { skill: string; reference?: string } | undefined {
-  const craft = form === 'short' ? 'storycraft-short-writing' : form === 'script' ? 'storycraft-script-writing' : 'storycraft-long-writing'
   if (step.action === 'story_outline') {
-    return form === 'longform' ? { skill: craft, reference: 'references/foundation-design.md' } : undefined
+    const skill = form === 'script' ? 'storycraft-script-spec' : form === 'short' ? 'storycraft-short-outline' : 'storycraft-long-foundation'
+    return { skill, reference: form === 'script' ? 'references/spec.md' : form === 'short' ? 'references/outline.md' : 'references/foundation-design.md' }
   }
   if (step.action === 'story_plan') {
-    return { skill: craft, reference: form === 'script' ? 'references/spec.md' : form === 'short' ? 'references/outline.md' : 'references/chapter-plan.md' }
+    const skill = form === 'script' ? 'storycraft-script-spec' : form === 'short' ? 'storycraft-short-outline' : 'storycraft-long-plan'
+    return { skill, reference: form === 'script' ? 'references/spec.md' : form === 'short' ? 'references/outline.md' : 'references/chapter-plan.md' }
   }
   if (step.action === 'story_write') {
+    const skill = form === 'script' ? 'storycraft-script-scene' : form === 'short' ? 'storycraft-short-prose' : 'storycraft-long-prose'
     return {
-      skill: craft,
+      skill,
       reference: form === 'script'
         ? 'references/episode-scene-craft.md'
         : form === 'short' ? 'references/production-checklist.md' : 'references/scene-dialogue-and-length-budget.md',
@@ -353,7 +355,7 @@ function methodFor(step: any, form: string): { skill: string; reference?: string
   if (step.action === 'story_review') return { skill: 'storycraft-review', reference: 'references/review-dimensions.md' }
   if (step.action === 'story_revise') return { skill: 'storycraft-revise-craft' }
   if (step.action === 'story_settle') {
-    return form === 'longform' ? { skill: craft, reference: 'references/state-projection.md' } : undefined
+    return { skill: 'storycraft-long-settle', reference: 'references/state-projection.md' }
   }
   return undefined
 }

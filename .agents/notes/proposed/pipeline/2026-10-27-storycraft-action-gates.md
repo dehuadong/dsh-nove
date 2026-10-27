@@ -70,7 +70,7 @@ updated: 2026-10-27
 | --- | --- | --- | --- |
 | **代码** | 闸门、顺序、上限、前置校验、错误码 | 创作判断、措辞、节点材料 | `tools.ts` 的 `NEXT_ACTION_GATES`、`delegate.ts` 的 `ROLE_ACTION`、`store-db.ts` 的 `MAX_REVISION_ROUNDS` |
 | **宿主拼接的提示词** | 该节点的材料、约束、要问的问题、失败回退、**唯一一份方法参考** | 通用方法、长期记忆、跨节点规则 | `story_next` 的 `ask` 与 `method`；角色侧 `promptFor` 的 `roleMethod` |
-| **技能（常驻）** | 方法、判断标准、语气、边界（“什么样的意见值得改”） | 节点操作步骤、闸门条件、字段清单、模板 | `storycraft-long-writing`、`storycraft-review`、`storycraft-revise-craft` |
+| **技能（常驻）** | 方法、判断标准、语气、边界（“什么样的意见值得改”） | 节点操作步骤、闸门条件、字段清单、模板 | `storycraft-long-prose` 等阶段技能、`storycraft-review`、`storycraft-revise-craft` |
 | **references（按需）** | 模板、清单、样例、字段表 | 判定逻辑、跨节点规则 | 各技能 `references/*.md` |
 | **产物** | 正文、章纲、真值、事件 | 过程性说明 | `.storycraft/works/*.db` |
 
