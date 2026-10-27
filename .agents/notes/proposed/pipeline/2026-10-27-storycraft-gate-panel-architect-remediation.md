@@ -12,6 +12,8 @@ updated: 2026-10-27
 - 基础一：[2026-10-27-storycraft-action-gates.md](2026-10-27-storycraft-action-gates.md)（动作分类、交互闸门、载体分工）
 - 基础二：[2026-10-27-storycraft-byte-binding-and-engines.md](2026-10-27-storycraft-byte-binding-and-engines.md)（字节绑定、确定性引擎、注入精度）
 
+与既有记录：本文**补充**两份提案，不替代它们；两份提案仍然有效，本文只记录它们的实现偏差与新增修复项。`#77` 与 `#78` 的实现已提交，本文的修复在 `#79`。
+
 ## 问题
 
 1. **架构师首轮产出与提案无关**：作品《回归一章》的提案是“修表匠发现所有钟表慢三分钟”，第一次 `story_delegate(architect)` 落盘的 `bible:story_frame` 却是“结构工程师沈砚 / 陵川 / 化工厂泄漏”，与提案无一处对得上；主模型在读取后才发现，重派 architect 覆盖为“老周 / 修表店”。宿主没有任何拦截。
@@ -78,6 +80,13 @@ updated: 2026-10-27
 - 新增主控动作 `story_approve`（`kind: foundation | outline | plan`），仅在作者明确表态后调用；
 - 宿主记录 `approvedAt` + `source: conversation | panel` + 内容指纹；面板按钮写同一事件；
 - 认可代价：无法从技术上证明作者确实说了，记录作者原话片段留审计。
+
+## 决定
+
+- **面板不发送协议指令**：`workbench` 的 `foundation-needed` 卡片保留状态与禁用说明，主按钮改为不可用；`client.ts` 删除 `case 'architect'`，即使旧点击也不发送。「抽取文风」从流程条移除，不作为流程步骤。
+- **前提校验规则**：取提案的 `premise` 与 `characters` 名字，切成 ≥2 字的词元；`bible:story_frame` 至少命中一个词元才允许落盘，命中数写入回执。全部不命中时返回 `foundation-mismatch`，作者可用 `story_approve` 带 `reason` 例外（记录在批准事件里）。
+- **追溯落点**：`delegateArchitect` 写 `trace:1:architect`，内容与其他角色一致（装配的段落与来源）。
+- **批准来源**：批准事件增加来源字段——基础设定与全书计划存 `meta` 的 `approved_source`，章纲存章节行的 `plan_approved_source`；会话入口为 `story_approve`，面板写同一事件。
 
 ## 验收条件
 

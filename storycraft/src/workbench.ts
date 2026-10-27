@@ -123,7 +123,16 @@ export function deriveWorkbench(input: { next: WorkbenchNext, manifest: Workbenc
 
   switch (next.action) {
     case 'story_architect':
-      return { key: 'foundation-needed', label: '基础设定', hint, primary: action('architect', '生成基础设定'), secondary: [] }
+      return {
+        key: 'foundation-needed',
+        label: '基础设定',
+        hint,
+        primary: {
+          ...action('architect', '基础设定待生成'),
+          disabled: { code: 'session-driven', reason: '由会话按 story_next 推进：跟主编说“开始写”即可' },
+        },
+        secondary: [],
+      }
     case 'story_outline':
       return {
         key: 'outline-needed',

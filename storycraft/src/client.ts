@@ -2144,8 +2144,7 @@ window.__ModuleLoader__.load({
           case 'rewrite-outline': compose(INSTRUCTIONS.step(workId, 1, 'story_outline')); return
           case 'open-outline': switchTab('truth'); return
           case 'write-outline': compose(INSTRUCTIONS.step(workId, chapter, 'story_outline')); return
-          case 'architect': compose(INSTRUCTIONS.step(workId, chapter, 'story_architect')); return
-          case 'review': compose(INSTRUCTIONS.review(workId, chapter)); return
+                case 'review': compose(INSTRUCTIONS.review(workId, chapter)); return
           case 'revise': compose(INSTRUCTIONS.revise(workId, chapter, reviseMode)); return
           case 'summarize': compose(INSTRUCTIONS.step(workId, chapter, 'story_summarize')); return
           case 'settle': compose(INSTRUCTIONS.step(workId, chapter, 'story_settle')); return
