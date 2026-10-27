@@ -34,7 +34,7 @@ test.describe('故事工坊工作模式', () => {
   test.skip(skip !== false, skip || '')
 
   test('只有一个故事工坊预设且没有装载失败', async ({ request }) => {
-    const response = await request.get(`${base}/api/dsh-storycraft/roster`)
+    const response = await request.get(`${base}/api/see-storycraft/roster`)
     expect(response.ok()).toBe(true)
     const roster = await response.json()
     const storycraft = roster.presets.filter(preset => preset.id === 'storycraft')
@@ -44,8 +44,8 @@ test.describe('故事工坊工作模式', () => {
   })
 
   test('组合继承标准预设的每一行，委派固定为 spawn 且不可再派发', async ({ request }) => {
-    const standard = rowBlocks((await (await request.get(`${base}/api/dsh-storycraft/document?id=standard`)).json()).content)
-    const storycraft = rowBlocks((await (await request.get(`${base}/api/dsh-storycraft/document?id=storycraft`)).json()).content)
+    const standard = rowBlocks((await (await request.get(`${base}/api/see-storycraft/document?id=standard`)).json()).content)
+    const storycraft = rowBlocks((await (await request.get(`${base}/api/see-storycraft/document?id=storycraft`)).json()).content)
 
     expect(storycraft.map(row => row.id).slice(-2)).toEqual(['storycraft-skills', 'storycraft-tools'])
 

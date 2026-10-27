@@ -27,7 +27,7 @@ import { backupsDir, exportsDir } from './db.ts'
 export const inject = ['webServer']
 
 /** Route prefix owned by this plugin. */
-const BASE = '/api/dsh-storycraft'
+const BASE = '/api/see-storycraft'
 
 /** One foundation document as the artifact store returns it. */
 type FoundationDocument = NonNullable<ReturnType<typeof readFoundationDocuments>['storyFrame']>
@@ -745,5 +745,5 @@ export function apply(ctx: DshContext): void {
   ]
   ctx.effect(() => () => {
     for (const dispose of disposers) dispose()
-  }, 'dsh-storycraft: read-only routes')
+  }, 'see-storycraft: read-only routes')
 }

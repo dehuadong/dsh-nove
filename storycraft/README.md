@@ -1,4 +1,4 @@
-# 故事工坊（dsh-storycraft）
+# 故事工坊（see-storycraft）
 
 DSH 里的长篇创作编排：三十二个动作把立项、章纲、正文、审稿、修订、定稿归档与导出备份落到**一作品一库**的 SQLite 存储，一个**工作台**以只读方式看作品与章节，并按键把固定指令投给当前会话。故事工坊是**一个工作模式**（一个 Agent 预设），以标准预设为基线再挂自己的动作、技能与人设。
 
@@ -165,7 +165,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 
 `style` 真值里的 `<!-- storycraft:style-samples:start -->` / `<!-- storycraft:style-samples:end -->` 是「抽取文风」的受管区块：重新抽取会替换整块，作者不要把保留标记写进正文；块外文字保留。若 style 编辑器里有未保存内容，重新抽取会覆盖它；先保存或取消。
 
-页面读取作品内容；写操作只有作者直接触发的管理动作：章纲/全书计划确认（`POST /chapter/approve`、`POST /outline/approve`）、章节删除/上下移（`POST /chapter/delete|move`）、文风样例抽取（`POST /style/extract`）、真值编辑（`POST /bible/write`）、素材库的导入/重命名/删除（`POST /api/dsh-storycraft/materials/*`），以及面板导出（`POST /api/dsh-storycraft/export`）。它们不改正文或只做章号重排，也不会自动发送写正文指令；确认后由作者点动作按钮，把指令填入输入框，补充信息后发送。指令按钮在被点击时才校验——没有会话、或当前会话不是故事工坊时只显示原因不投递；故事工坊预设装载失败时，页面顶部直接显示宿主给出的失败原因。
+页面读取作品内容；写操作只有作者直接触发的管理动作：章纲/全书计划确认（`POST /chapter/approve`、`POST /outline/approve`）、章节删除/上下移（`POST /chapter/delete|move`）、文风样例抽取（`POST /style/extract`）、真值编辑（`POST /bible/write`）、素材库的导入/重命名/删除（`POST /api/see-storycraft/materials/*`），以及面板导出（`POST /api/see-storycraft/export`）。它们不改正文或只做章号重排，也不会自动发送写正文指令；确认后由作者点动作按钮，把指令填入输入框，补充信息后发送。指令按钮在被点击时才校验——没有会话、或当前会话不是故事工坊时只显示原因不投递；故事工坊预设装载失败时，页面顶部直接显示宿主给出的失败原因。
 
 ## 读取作用域
 
@@ -184,27 +184,27 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 | --- | --- |
 | `POST /chapter/approve` | 作者确认本章章纲（写 `planApprovedAt`） |
 | `POST /outline/approve` | 作者确认全书计划（写 `outline.approvedAt`） |
-| `GET /api/dsh-storycraft/works?root=<工作区>` | 作品列表 |
-| `GET /api/dsh-storycraft/work?root=&id=` | 一个作品的章节、状态、伏笔 |
-| `GET /api/dsh-storycraft/chapter?root=&id=&chapter=&view=body\|plan&revision=` | 章正文或章纲 |
-| `GET /api/dsh-storycraft/review?root=&id=&chapter=` | 最新章节的审稿条目与轮次 |
-| `POST /api/dsh-storycraft/chapter/delete` | 删除章节并前移后续章号（需确认，自动备份） |
-| `POST /api/dsh-storycraft/chapter/move` | 相邻章上移/下移并重排章号 |
-| `POST /api/dsh-storycraft/style/extract` | 从当前正文抽取文风样例到 style 受管区块 |
-| `POST /api/dsh-storycraft/bible/write` | 保存可编辑真值（world/characters/style/intent；plan 拒绝；64KB；可选 `expectedVersion`） |
-| `GET /api/dsh-storycraft/state?root=&id=` | 一个作品的进度摘要 |
-| `GET /api/dsh-storycraft/bible?root=&id=&file=` | 真值文件与内容版本 |
-| `GET /api/dsh-storycraft/brief?root=&id=&chapter=` | 写前上下文装配结果 |
-| `GET /api/dsh-storycraft/materials?root=&workId=&purpose=` | 素材元数据列表（可按用途过滤） |
-| `POST /api/dsh-storycraft/materials/import` | 上传 txt/md 导入（JSON + base64；可选 purpose） |
-| `POST /api/dsh-storycraft/materials/rename` | 重命名素材标题 |
-| `POST /api/dsh-storycraft/materials/purpose` | 修改素材用途 |
-| `POST /api/dsh-storycraft/materials/delete` | 删除素材库记录与索引（保留副本） |
-| `POST /api/dsh-storycraft/export` | 面板直接导出（原子替换，返回目录与文件数） |
-| `GET /api/dsh-storycraft/exports?root=&id=` | 作者导出目录状态（只读） |
-| `GET /api/dsh-storycraft/backups?root=&id=` | 作者备份文件列表（只读） |
-| `GET /api/dsh-storycraft/roster` | 预设名册（含装载失败原因） |
-| `GET /api/dsh-storycraft/document?id=` | 某预设的完整声明 |
+| `GET /api/see-storycraft/works?root=<工作区>` | 作品列表 |
+| `GET /api/see-storycraft/work?root=&id=` | 一个作品的章节、状态、伏笔 |
+| `GET /api/see-storycraft/chapter?root=&id=&chapter=&view=body\|plan&revision=` | 章正文或章纲 |
+| `GET /api/see-storycraft/review?root=&id=&chapter=` | 最新章节的审稿条目与轮次 |
+| `POST /api/see-storycraft/chapter/delete` | 删除章节并前移后续章号（需确认，自动备份） |
+| `POST /api/see-storycraft/chapter/move` | 相邻章上移/下移并重排章号 |
+| `POST /api/see-storycraft/style/extract` | 从当前正文抽取文风样例到 style 受管区块 |
+| `POST /api/see-storycraft/bible/write` | 保存可编辑真值（world/characters/style/intent；plan 拒绝；64KB；可选 `expectedVersion`） |
+| `GET /api/see-storycraft/state?root=&id=` | 一个作品的进度摘要 |
+| `GET /api/see-storycraft/bible?root=&id=&file=` | 真值文件与内容版本 |
+| `GET /api/see-storycraft/brief?root=&id=&chapter=` | 写前上下文装配结果 |
+| `GET /api/see-storycraft/materials?root=&workId=&purpose=` | 素材元数据列表（可按用途过滤） |
+| `POST /api/see-storycraft/materials/import` | 上传 txt/md 导入（JSON + base64；可选 purpose） |
+| `POST /api/see-storycraft/materials/rename` | 重命名素材标题 |
+| `POST /api/see-storycraft/materials/purpose` | 修改素材用途 |
+| `POST /api/see-storycraft/materials/delete` | 删除素材库记录与索引（保留副本） |
+| `POST /api/see-storycraft/export` | 面板直接导出（原子替换，返回目录与文件数） |
+| `GET /api/see-storycraft/exports?root=&id=` | 作者导出目录状态（只读） |
+| `GET /api/see-storycraft/backups?root=&id=` | 作者备份文件列表（只读） |
+| `GET /api/see-storycraft/roster` | 预设名册（含装载失败原因） |
+| `GET /api/see-storycraft/document?id=` | 某预设的完整声明 |
 
 `root` 必须是宿主工作区注册表认识的工作区目录，否则返回 `unknown-workspace`；参数不合法或作品不存在都返回同一个失败信封 `{ ok:false, error:{ code, message } }`。
 

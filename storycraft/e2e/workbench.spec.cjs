@@ -174,7 +174,7 @@ test.describe('故事工坊工作台', () => {
     await expect.poll(() => fs.existsSync(manifestPath), { timeout: 5_000 }).toBe(true)
 
     const rejected = await page.evaluate(async ({ root, workId }) => {
-      const response = await fetch('/api/dsh-storycraft/export', {
+      const response = await fetch('/api/see-storycraft/export', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ root, sessionId: 'not-this-session', workId }),
@@ -184,7 +184,7 @@ test.describe('故事工坊工作台', () => {
     expect(rejected.ok).toBe(false)
     expect(rejected.error.code).toBe('work-mismatch')
     const invalid = await page.evaluate(async () => {
-      const response = await fetch('/api/dsh-storycraft/export', {
+      const response = await fetch('/api/see-storycraft/export', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: '{}',
@@ -194,7 +194,7 @@ test.describe('故事工坊工作台', () => {
     expect(invalid.ok).toBe(false)
     expect(invalid.error.code).toBe('invalid-body')
     const unknown = await page.evaluate(async () => {
-      const response = await fetch('/api/dsh-storycraft/export', {
+      const response = await fetch('/api/see-storycraft/export', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ root: 'C:\\\\definitely-not-a-workspace', sessionId: 'x', workId: 'y' }),
@@ -204,7 +204,7 @@ test.describe('故事工坊工作台', () => {
     expect(unknown.ok).toBe(false)
     expect(['unknown-workspace', 'invalid-root']).toContain(unknown.error.code)
     const missing = await page.evaluate(async ({ root }) => {
-      const response = await fetch('/api/dsh-storycraft/export', {
+      const response = await fetch('/api/see-storycraft/export', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ root, sessionId: 'x', workId: 'no-such-work' }),
@@ -214,7 +214,7 @@ test.describe('故事工坊工作台', () => {
     expect(missing.ok).toBe(false)
     expect(missing.error.code).toBe('work-not-found')
     const relative = await page.evaluate(async () => {
-      const response = await fetch('/api/dsh-storycraft/export', {
+      const response = await fetch('/api/see-storycraft/export', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ root: 'relative', sessionId: 'x', workId: 'y' }),
@@ -456,7 +456,7 @@ test.describe('故事工坊工作台', () => {
       db.close()
     }
     const tooLarge = await page.evaluate(async () => {
-      const response = await fetch('/api/dsh-storycraft/bible/write', {
+      const response = await fetch('/api/see-storycraft/bible/write', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ root: '', sessionId: '', workId: '', file: 'world', content: 'x'.repeat(70_000) }),
@@ -465,7 +465,7 @@ test.describe('故事工坊工作台', () => {
     })
     expect(tooLarge).toContain('body-too-large')
     const mismatched = await page.evaluate(async ({ root, workId }) => {
-      const response = await fetch('/api/dsh-storycraft/bible/write', {
+      const response = await fetch('/api/see-storycraft/bible/write', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ root, sessionId: 'not-this-session', workId, file: 'world', content: '# x\n' }),
@@ -482,7 +482,7 @@ test.describe('故事工坊工作台', () => {
     const created = store.initWork(runtime.fixtureWorkspace, { title })
     let pointerPosts = 0
     page.on('request', request => {
-      if (request.method() === 'POST' && request.url().includes('/api/dsh-storycraft/current')) pointerPosts += 1
+      if (request.method() === 'POST' && request.url().includes('/api/see-storycraft/current')) pointerPosts += 1
     })
     await openWorkbench(page, url)
     await page.getByRole('button', { name: new RegExp(title) }).evaluate(node => node.click())
@@ -495,11 +495,11 @@ test.describe('故事工坊工作台', () => {
     expect(pointerPosts).toBe(before)
 
     // A failed detail refresh keeps the old data and shows a non-blocking notice.
-    await page.route('**/api/dsh-storycraft/work?*', route => route.abort())
+    await page.route('**/api/see-storycraft/work?*', route => route.abort())
     await page.evaluate(() => window.dispatchEvent(new Event('focus')))
     await expect(page.getByText(/刷新失败：/)).toBeVisible({ timeout: 5_000 })
     await expect(page.getByRole('button', { name: '确认全书计划', exact: true })).toBeVisible()
-    await page.unroute('**/api/dsh-storycraft/work?*')
+    await page.unroute('**/api/see-storycraft/work?*')
     await page.evaluate(() => window.dispatchEvent(new Event('focus')))
     await expect(page.getByText(/刷新失败：/)).toHaveCount(0, { timeout: 5_000 })
   })

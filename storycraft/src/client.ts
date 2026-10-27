@@ -1,7 +1,7 @@
 import type * as ReactTypes from 'react'
 
 window.__ModuleLoader__.load({
-  id: 'dsh-storycraft',
+  id: 'see-storycraft',
   factory(require: (name: string) => unknown) {
     const React = require('react') as typeof ReactTypes
     const h = React.createElement
@@ -652,29 +652,29 @@ window.__ModuleLoader__.load({
 
     /** Read-only routes this bundle serves. */
     const ROUTE = {
-      works: '/api/dsh-storycraft/works',
-      trash: '/api/dsh-storycraft/trash',
-      volumes: '/api/dsh-storycraft/volumes',
-      critique: '/api/dsh-storycraft/critique',
-      next: '/api/dsh-storycraft/next',
-      current: '/api/dsh-storycraft/current',
-      work: '/api/dsh-storycraft/work',
-      chapter: '/api/dsh-storycraft/chapter',
-      approve: '/api/dsh-storycraft/chapter/approve',
-      outlineApprove: '/api/dsh-storycraft/outline/approve',
-      foundation: '/api/dsh-storycraft/foundation',
-      foundationApprove: '/api/dsh-storycraft/foundation/approve',
-      review: '/api/dsh-storycraft/review',
-      bible: '/api/dsh-storycraft/bible',
-      brief: '/api/dsh-storycraft/brief',
-      materials: '/api/dsh-storycraft/materials',
-      materialImport: '/api/dsh-storycraft/materials/import',
-      materialRename: '/api/dsh-storycraft/materials/rename',
-      materialDelete: '/api/dsh-storycraft/materials/delete',
-      materialPurpose: '/api/dsh-storycraft/materials/purpose',
-      exportWork: '/api/dsh-storycraft/export',
-      exports: '/api/dsh-storycraft/exports',
-      backups: '/api/dsh-storycraft/backups',
+      works: '/api/see-storycraft/works',
+      trash: '/api/see-storycraft/trash',
+      volumes: '/api/see-storycraft/volumes',
+      critique: '/api/see-storycraft/critique',
+      next: '/api/see-storycraft/next',
+      current: '/api/see-storycraft/current',
+      work: '/api/see-storycraft/work',
+      chapter: '/api/see-storycraft/chapter',
+      approve: '/api/see-storycraft/chapter/approve',
+      outlineApprove: '/api/see-storycraft/outline/approve',
+      foundation: '/api/see-storycraft/foundation',
+      foundationApprove: '/api/see-storycraft/foundation/approve',
+      review: '/api/see-storycraft/review',
+      bible: '/api/see-storycraft/bible',
+      brief: '/api/see-storycraft/brief',
+      materials: '/api/see-storycraft/materials',
+      materialImport: '/api/see-storycraft/materials/import',
+      materialRename: '/api/see-storycraft/materials/rename',
+      materialDelete: '/api/see-storycraft/materials/delete',
+      materialPurpose: '/api/see-storycraft/materials/purpose',
+      exportWork: '/api/see-storycraft/export',
+      exports: '/api/see-storycraft/exports',
+      backups: '/api/see-storycraft/backups',
     }
 
     const MATERIAL_PURPOSE_LABELS: Record<string, string> = {
@@ -991,11 +991,11 @@ window.__ModuleLoader__.load({
         context: () => currentContext(ctx),
         listWorks: (root) => route(ROUTE.works, { root }),
         listTrash: (root) => route(ROUTE.trash, { root }),
-        restoreTrash: (root, workId) => post('/api/dsh-storycraft/trash/restore', { root, workId }),
-        purgeTrash: (root, workId) => post('/api/dsh-storycraft/trash/purge', { root, workId, confirm: true }),
-        createBackup: (root, sessionId, workId, keep) => post('/api/dsh-storycraft/backups/create', { root, sessionId, workId, keep }),
-        restoreBackup: (root, sessionId, workId, backupId) => post('/api/dsh-storycraft/backups/restore', { root, sessionId, workId, backupId, confirm: true }),
-        deleteBackup: (root, sessionId, workId, backupId) => post('/api/dsh-storycraft/backups/delete', { root, sessionId, workId, backupId, confirm: true }),
+        restoreTrash: (root, workId) => post('/api/see-storycraft/trash/restore', { root, workId }),
+        purgeTrash: (root, workId) => post('/api/see-storycraft/trash/purge', { root, workId, confirm: true }),
+        createBackup: (root, sessionId, workId, keep) => post('/api/see-storycraft/backups/create', { root, sessionId, workId, keep }),
+        restoreBackup: (root, sessionId, workId, backupId) => post('/api/see-storycraft/backups/restore', { root, sessionId, workId, backupId, confirm: true }),
+        deleteBackup: (root, sessionId, workId, backupId) => post('/api/see-storycraft/backups/delete', { root, sessionId, workId, backupId, confirm: true }),
         volumes: (root, id) => route(ROUTE.volumes, { root, id }),
         critique: (root, id, chapter) => route(ROUTE.critique, { root, id, chapter }),
         next: (root, id) => route(ROUTE.next, { root, id }),
@@ -1009,7 +1009,7 @@ window.__ModuleLoader__.load({
         approveFoundation: (root, sessionId, workId) => post(ROUTE.foundationApprove, { root, sessionId, workId }),
         review: (root, id, chapter) => route(ROUTE.review, { root, id, chapter }),
         bible: (root, id) => route(ROUTE.bible, { root, id }),
-        writeBible: (root, sessionId, workId, file, content, expectedVersion) => post('/api/dsh-storycraft/bible/write', {
+        writeBible: (root, sessionId, workId, file, content, expectedVersion) => post('/api/see-storycraft/bible/write', {
           root, sessionId, workId, file, content, expectedVersion,
         }),
         brief: (root, id, chapter) => route(ROUTE.brief, { root, id, chapter }),
@@ -1024,11 +1024,11 @@ window.__ModuleLoader__.load({
         renameMaterial: (root, sessionId, workId, id, title) => post(ROUTE.materialRename, { root, sessionId, workId, id, title }),
         setMaterialPurpose: (root, sessionId, workId, id, purpose) => post(ROUTE.materialPurpose, { root, sessionId, workId, id, purpose }),
         deleteMaterial: (root, sessionId, workId, id) => post(ROUTE.materialDelete, { root, sessionId, workId, id }),
-        extractStyle: (root, sessionId, workId) => post('/api/dsh-storycraft/style/extract', { root, sessionId, workId }),
-        deleteChapter: (root, sessionId, workId, chapter) => post('/api/dsh-storycraft/chapter/delete', {
+        extractStyle: (root, sessionId, workId) => post('/api/see-storycraft/style/extract', { root, sessionId, workId }),
+        deleteChapter: (root, sessionId, workId, chapter) => post('/api/see-storycraft/chapter/delete', {
           root, sessionId, workId, chapter, confirm: true,
         }),
-        moveChapter: (root, sessionId, workId, from, to) => post('/api/dsh-storycraft/chapter/move', {
+        moveChapter: (root, sessionId, workId, from, to) => post('/api/see-storycraft/chapter/move', {
           root, sessionId, workId, from, to,
         }),
         exportWork: (root, sessionId, workId) => post(ROUTE.exportWork, { root, sessionId, workId }),
@@ -3101,7 +3101,7 @@ window.__ModuleLoader__.load({
 
       useEffect(() => {
         let cancelled = false
-        fetchOwnRoute('/api/dsh-storycraft/roster').then(
+        fetchOwnRoute('/api/see-storycraft/roster').then(
           (body: RosterPayload) => {
             if (cancelled) return
             const row = (body.presets ?? []).find(item => item.id === 'storycraft')
@@ -3275,7 +3275,7 @@ window.__ModuleLoader__.load({
         const bindings = { prompt: undefined }
         const face = createFace(ctx, bindings)
         pluginFace = face
-        const tabId = 'dsh-storycraft'
+        const tabId = 'see-storycraft'
         // Registration is an effect: the type lives exactly as long as this plugin.
         const disposeType = ctx.effect(() => {
           return ctx.sidebarRightTabs.register({
@@ -3302,13 +3302,13 @@ window.__ModuleLoader__.load({
             bindings.prompt = scope.remote?.session
           })
         } catch (error) {
-          console.warn('[dsh-storycraft] session Remote is unavailable:', error)
+          console.warn('[see-storycraft] session Remote is unavailable:', error)
         }
         ctx.effect(() => () => {
           disposeBindings?.()
           disposeTabBody()
           disposeTabTitle()
-        }, 'dsh-storycraft: sidebar entry and workbench')
+        }, 'see-storycraft: sidebar entry and workbench')
       },
     }
   },

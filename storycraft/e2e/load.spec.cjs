@@ -22,7 +22,7 @@ test.describe('故事工坊加载契约', () => {
     // Same origin as the page: the session cookie the GUI handed out is enough.
     // The route names the workspace explicitly, exactly like the panel does.
     const result = await page.evaluate(async (root) => {
-      const response = await fetch(`/api/dsh-storycraft/works?root=${encodeURIComponent(root)}`)
+      const response = await fetch(`/api/see-storycraft/works?root=${encodeURIComponent(root)}`)
       const body = await response.json().catch(() => undefined)
       return { status: response.status, works: Array.isArray(body?.works) ? body.works.length : -1 }
     }, fixtureWorkspace)

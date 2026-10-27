@@ -9,7 +9,7 @@
 import { defineConfig } from 'tsdown'
 
 export default defineConfig({
-  name: 'dsh-storycraft',
+  name: 'see-storycraft',
   entry: {
     index: 'src/index.ts',
     tools: 'src/tools.ts',

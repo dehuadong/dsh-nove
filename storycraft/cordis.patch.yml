@@ -6,7 +6,7 @@
 # tools.js 的运行时守卫与写动作断言强制。
 - insert:
     - id: storycraft
-      name: 'dsh-storycraft'
+      name: 'see-storycraft'
 
     - id: preset-storycraft
       name: '@deepseek-ai/dsh-agent-preset'
@@ -152,8 +152,8 @@
             disabled: true
           # ---- 故事工坊 ----
           - id: storycraft-skills
-            name: 'dsh-storycraft/skills'
+            name: 'see-storycraft/skills'
             config:
               mode: all
           - id: storycraft-tools
-            name: 'dsh-storycraft/tools'
+            name: 'see-storycraft/tools'

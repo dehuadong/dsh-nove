@@ -23,7 +23,7 @@ updated: 2026-10-27
 - `dsh-webnovel-writer`（`E:\workspace\dsh-webnovel-writer`）：`pnpm-workspace.yaml` 是 `packages/*`，共 9 个包——4 个发布包（`@linfengqaqtat/dsh-scriptor`、`-companion`、`-retrieval`、`-full`）加 5 个内部库（`@webnovel/core`、`drafting`、`review`、`ledger`、`polish`，均 `0.0.1`）；`bundle` 用 `workspace:*` 依赖内部库并在构建时内联。采纳其 `files` 白名单形状；不采纳其 workspace 结构（判断见 §7）。
 - `dsh-seework` 的 `AGENTS.md`「验证入口」：把验证拆成 `typecheck` / `test` / `build` / `smoke`（对构建产物跑、无需 GUI）/ `sync`（把产物同步进已安装 profile）/ `probe`（真实宿主上核对客户端半边）/ `verify-live`（真实部署跑一遍业务链路）/ `npx playwright test`（真实 GUI，临时实例 + 临时 `DSH_HOME`）七条，并规定 E2E 只覆盖 jsdom 观测不到的那层。采纳这种分层，本包的对应关系见 §3.1。
 - DSH 宿主契约：`deepseek-harness/docs/user/develop/basic/publish.zh.md`（第 66 行要求 `engines.dsh`，缺省时回退到 `@deepseek-ai/dsh*` peer 范围；npm 与 tarball 安装使用预构建产物，不执行构建）；`deepseek-harness/packages/boot/app-boot/src/plugin-compatibility.ts` 第 55–73 行规定有 `engines.dsh` 时只看它、两者都缺视为满足。
-- 无参考实现的取值：`engines.dsh` 的具体范围与 `dsh-storycraft` 在 npm 的占用属于本包事实，参考工程都没有使用 DSH。范围由作者在 2026-10-26 定为 `>=0.2.1-rc.2 <0.3.0`。
+- 无参考实现的取值：`engines.dsh` 的具体范围与 `see-storycraft` 在 npm 的占用属于本包事实，参考工程都没有使用 DSH。范围由作者在 2026-10-26 定为 `>=0.2.1-rc.2 <0.3.0`。
 
 ## 提案
 
@@ -53,7 +53,7 @@ updated: 2026-10-27
 ### 3. 校验与安装 smoke
 
 - 扩展 `scripts/pack-check.mjs`：在现有断言（入口集合从 `exports` 派生、`lib/` 无未声明产物、禁止 `src`/tests/e2e/scripts）之外，断言 `private` 不存在、`engines.dsh` 存在、`license` 字段与 `LICENSE` 文件一致、`LICENSE` 在包内、`files` 里没有 `dist`。
-- 新增 `scripts/install-smoke.mjs`：临时 `DSH_HOME` 下用 `dsh --profile smoke --from-default-profile web` 建立独立 profile，再 `dsh plugin --profile smoke add <tgz>`；`dsh --profile smoke --dump-config` 断言出现 `# == dsh-storycraft` 层与 `dsh-storycraft` 行；随后按 `e2e/host.mjs` 的方式冷启动 web 实例（`ELECTRON_RUN_AS_NODE=1`、`web --port <空闲端口> --no-open`、解析 stdout 的 token URL）；用 `e2e/load.spec.cjs` 同一套断言检查页面无 `pageerror`、`GET /api/dsh-storycraft/works?root=…` 返回 200。桌面客户端路径沿用 `DSH_E2E_APP` 覆盖，不写死在脚本里。
+- 新增 `scripts/install-smoke.mjs`：临时 `DSH_HOME` 下用 `dsh --profile smoke --from-default-profile web` 建立独立 profile，再 `dsh plugin --profile smoke add <tgz>`；`dsh --profile smoke --dump-config` 断言出现 `# == see-storycraft` 层与 `see-storycraft` 行；随后按 `e2e/host.mjs` 的方式冷启动 web 实例（`ELECTRON_RUN_AS_NODE=1`、`web --port <空闲端口> --no-open`、解析 stdout 的 token URL）；用 `e2e/load.spec.cjs` 同一套断言检查页面无 `pageerror`、`GET /api/see-storycraft/works?root=…` 返回 200。桌面客户端路径沿用 `DSH_E2E_APP` 覆盖，不写死在脚本里。
 - `ci.mjs` 增加一次 tarball 安装 smoke；与现有 e2e 复制模式二选一运行，避免同时启动两个实例。
 - 安装生效方式必须分开写：`link:` 开发是「build 后重新加载」（模块是 junction，改完即生效）；tarball 与 registry 安装**必须重启 DeepSeek Harness**，因为渲染进程跑的是启动时那份客户端 bundle，正式构建里没有「重新加载页面」菜单项（`dsh-seework` 实测，`Ctrl+R` 也未绑定）。
 
@@ -72,7 +72,7 @@ updated: 2026-10-27
 ### 4. 两种安装形态
 
 - 本机 link（开发）：`link:E:/dsh-nove/storycraft` 不变，改源码后先 `npm run build`；e2e 复制模式作为回归。
-- registry（发布）：`npm publish` 后 `dsh plugin add dsh-storycraft@0.1.0`；若命中 pnpm 的 24 小时 `minimumReleaseAge`，在临时 profile 的 `pnpm-workspace.yaml` 写入 `minimumReleaseAgeExclude: dsh-storycraft@0.1.0`。tarball 安装是发布前的本地等价验证。
+- registry（发布）：`npm publish` 后 `dsh plugin add see-storycraft@0.1.0`；若命中 pnpm 的 24 小时 `minimumReleaseAge`，在临时 profile 的 `pnpm-workspace.yaml` 写入 `minimumReleaseAgeExclude: see-storycraft@0.1.0`。tarball 安装是发布前的本地等价验证。
 
 不做的轨：GitHub 直装（`git+https://…`）、插件内更新 UI、插件市场索引。
 
@@ -92,9 +92,9 @@ updated: 2026-10-27
 
 作者 2026-10-27 决定：本包保持单包，**不引入 pnpm workspace**。
 
-- 组合的粒度是 Cordis 条目，不是 npm 包：现有 `cordis.patch.yml` 已在一个包内插入 `storycraft`、`preset-storycraft`（后者再挂 `dsh-storycraft/skills`、`dsh-storycraft/tools`），增加形态或能力不需要新包。
+- 组合的粒度是 Cordis 条目，不是 npm 包：现有 `cordis.patch.yml` 已在一个包内插入 `storycraft`、`preset-storycraft`（后者再挂 `see-storycraft/skills`、`see-storycraft/tools`），增加形态或能力不需要新包。
 - 本包没有运行时依赖，不存在“内联 workspace 库”的需求；`dsh-webnovel-writer` 之所以 workspace 化，是因为它有 4 个发布包与 5 个内部库要共享 core（见对拍参考）。
-- 迁移触发条件，满足任一条再做，且作为**独立工作项**先做结构迁移：① 出现第二个要独立发布的包（例如某形态拆成 `dsh-storycraft-script` 单独发版）；② 两个包需要共享一份 core；③ 某个包的产物要被另一个包内联。
+- 迁移触发条件，满足任一条再做，且作为**独立工作项**先做结构迁移：① 出现第二个要独立发布的包（例如某形态拆成 `see-storycraft-script` 单独发版）；② 两个包需要共享一份 core；③ 某个包的产物要被另一个包内联。
 - 触发时的最小方案：仓库根加 `pnpm-workspace.yaml`（`packages: ['storycraft', 'packages/*']`）与根 `package.json`，内部库用 `workspace:*`，构建用 `pnpm -r --if-present build`，发布仍逐个包；届时一并处理包管理器（npm→pnpm）、lockfile、`ci.mjs`/`install-smoke` 的安装语义，并修正 TypeScript 迁移 Note 里“不采纳 monorepo”的记录。
 
 ## 备选方案
@@ -111,8 +111,8 @@ updated: 2026-10-27
 ## 验收条件
 
 1. `npm pack` 产物通过扩展后的 pack-check：清单含 `lib/{index,client,skills,tools}.js`、`skills/**`、`cordis.patch.yml`、`icon.svg`、`README.md`、`LICENSE`，不含 `src`、`tests`、`e2e`、`scripts`；`private` 不存在、`engines.dsh` 存在、`license` 与 `LICENSE` 一致。
-2. tarball 在临时 `DSH_HOME` 的独立 profile 中安装成功，`--dump-config` 出现 `dsh-storycraft` 层，冷启动页面无 `pageerror` 且工作台路由返回 200。
-3. 发布后从 registry 安装 `dsh-storycraft@0.1.0` 成功并完成同样的挂载验收。
+2. tarball 在临时 `DSH_HOME` 的独立 profile 中安装成功，`--dump-config` 出现 `see-storycraft` 层，冷启动页面无 `pageerror` 且工作台路由返回 200。
+3. 发布后从 registry 安装 `see-storycraft@0.1.0` 成功并完成同样的挂载验收。
 4. 本机 link 开发回归：现有 e2e 复制模式仍通过。
 5. 把 `engines.dsh` 改成当前运行版本不满足的范围后，隔离 profile 的安装被宿主拒绝并给出原因。
 6. 安装生效说明分成两条并写进 README：`link:` 是 build 后重新加载；tarball/registry 是**重启 DeepSeek Harness**。发布验收必须用 tarball 装进干净 profile，不用 `link:`。

@@ -23,7 +23,7 @@ import { assertNode } from '../scripts/node-version.mjs'
 
 const projectRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
 const repoRoot = path.resolve(projectRoot, '..')
-const packageName = 'dsh-storycraft'
+const packageName = 'see-storycraft'
 
 // The fixture imports TypeScript source, so this harness needs Node's type
 // stripping — same requirement as the unit tests.
