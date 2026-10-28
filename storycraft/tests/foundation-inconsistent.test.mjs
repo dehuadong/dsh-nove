@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../src/storage.ts'
+import { createProposal, markProposalUsed } from '../src/proposals.ts'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -32,7 +33,13 @@ const rules = name => ({
 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-foundation-inconsistent-'))
 try {
+  const proposal = await createProposal(root, {
+    title: '人名一致', form: 'longform',
+    premise: '一个抄表员发现自己抄的表都多算了一度。',
+    characters: JSON.stringify([{ name: '陈守衡' }]),
+  })
   const { workId: work } = s.initWork(root, { title: '人名一致' })
+  await markProposalUsed(root, proposal.id, work)
   s.writeFoundationStage(root, { work, stage: 'frame', payload: frame })
 
   let drifted = ''

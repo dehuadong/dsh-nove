@@ -1217,7 +1217,21 @@ export function writeFoundationStage(root: any, input: any) {
         if (protagonist !== '') {
           const frame = db.prepare("SELECT content FROM artifacts WHERE artifact_id = 'bible:story_frame' ORDER BY rowid DESC LIMIT 1").get()
           const frameText = frame === undefined ? '' : String(frame.content)
-          if (frameText !== '' && !frameText.includes(protagonist)) {
+          // Only judge when the frame actually names proposal people; a frame that
+          // names nobody gives the guard nothing to compare against.
+          const proposal = acceptedProposalOf(root, workId)
+          const known = new Set<string>()
+          try {
+            const list = JSON.parse(proposal?.characters ?? '[]')
+            for (const item of Array.isArray(list) ? list : []) {
+              const name = typeof item === 'string' ? item : item?.name
+              if (typeof name === 'string' && name !== '') known.add(name)
+            }
+          } catch {
+            // A malformed proposal list is not this guard's to report.
+          }
+          const frameNamesSomeone = [...known].some(name => frameText.includes(name))
+          if (frameText !== '' && frameNamesSomeone && !frameText.includes(protagonist)) {
             throw new StoryError(
               'foundation-inconsistent',
               `作品规则的主角「${protagonist}」没有出现在故事框架里`,
