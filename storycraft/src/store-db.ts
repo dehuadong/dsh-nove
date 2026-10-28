@@ -1936,7 +1936,7 @@ export function writeChapter(root: string, input: WriteChapterInput): any {
       if (settled) {
         const seq = Number((db.prepare('SELECT max(seq) AS n FROM events').get() as { n: number } | undefined)?.n ?? 0) + 1
         db.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
-          .run(seq, at, number, 'reopen', JSON.stringify({ kind: 'reopen' }))
+          .run(seq, at, number, 'reopen', JSON.stringify({ kind: 'reopen', revision: entry.current_revision }))
       }
       touchMeta(db, at)
       return {
@@ -2654,7 +2654,15 @@ export function settleState(root: string, input: any): any {
   const db = openWork(root, workId)
   try {
     return transaction(db, () => {
-      const { counts, appended, projection } = planSettlement(db, number, input, {
+      // A reopened chapter may be re-settled without new state changes: the author
+      // reopened it and changed nothing, and settle is the way back.
+      const latestMark = db.prepare("SELECT kind, payload FROM events WHERE chapter = ? AND kind IN ('reopen', 'settle') ORDER BY seq DESC LIMIT 1").get(number)
+      const reopenRevision = latestMark?.kind === 'reopen' ? JSON.parse(String(latestMark.payload ?? '{}')).revision : undefined
+      // Empty is allowed only when the reveal changed nothing: the revision now is
+      // the one the reopen recorded. A reopened chapter that got a new body still
+      // has to explain its state changes.
+      const wasReopened = reopenRevision !== undefined && Number(reopenRevision) === Number(chapterRow(db, number)?.current_revision)
+      const { counts, appended, projection } = planSettlement(db, number, { ...input, allowEmpty: input.allowEmpty === true || wasReopened }, {
         beforeApply: () => assertStateGate(db, number, { requireBody: input.requireBody === true }),
       })
       let seq = db.prepare('SELECT max(seq) AS n FROM events').get()?.n ?? 0
@@ -3001,7 +3009,7 @@ export function reopenChapter(root: any, input: any) {
       const at = now()
       const seq = Number((db.prepare('SELECT max(seq) AS n FROM events').get() as { n: number } | undefined)?.n ?? 0) + 1
       db.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
-        .run(seq, at, number, 'reopen', JSON.stringify({ kind: 'reopen' }))
+        .run(seq, at, number, 'reopen', JSON.stringify({ kind: 'reopen', revision: entry.current_revision }))
       db.prepare("UPDATE chapters SET stage = 'written', status = 'written', updated_at = ? WHERE number = ?").run(at, number)
       touchMeta(db, at)
       return { workId, chapter: number, stage: 'written', artifact: { path: virtualPath(workId, 'state/events.jsonl') } }

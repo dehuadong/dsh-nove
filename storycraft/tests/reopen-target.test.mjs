@@ -38,6 +38,12 @@ try {
   const next = await s.nextStep(root, work)
   check('the guided flow returns to the reopened chapter',
     next.action === 'story_review' && next.chapter === 1, JSON.stringify(next))
+
+  // Re-settling a reopened chapter without new state changes is allowed.
+  const resettled = s.settleState(root, { work, chapter: 1 })
+  check('a reopened chapter can be re-settled without new state changes',
+    resettled.appended === 0 && s.readManifest(root, work).chapters.find(item => item.number === 1).stage === 'settled',
+    JSON.stringify(resettled))
 } finally {
   await rm(root, { recursive: true, force: true })
 }
