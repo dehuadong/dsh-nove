@@ -1450,7 +1450,7 @@ export function nextStep(root: any, work: any) {
         if (rounds >= MAX_REVISION_ROUNDS) {
           return {
             chapter: last.number, stage, action: 'story_revise',
-            reason: `第 ${last.number} 章已修订 ${rounds} 轮（上限 ${MAX_REVISION_ROUNDS}），仍有 ${open.length} 条未处理审稿：请作者在面板裁决`,
+            reason: `第 ${last.number} 章已修订 ${rounds} 轮（上限 ${MAX_REVISION_ROUNDS}），仍有 ${open.length} 条未处理审稿：请作者裁决（接受当前版本，或说明继续修订）`,
             missing: open.map((item: any) => item.id),
             ...blocked,
             blocked: ['revision-limit', ...((blocked as { blocked?: string[] }).blocked ?? [])],
