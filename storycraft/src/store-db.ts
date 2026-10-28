@@ -1326,7 +1326,16 @@ export function nextStep(root: any, work: any) {
     const hasPlan = (number: any) => db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ?').get(`plan:${number}`) !== undefined
     const summaryOf = (number: any) => summaryStateOf(db, number)
     const chapters = manifest.chapters
-    const last = chapters.length === 0 ? undefined : chapters[chapters.length - 1]
+    // A reopened earlier chapter must be finished before later ones; otherwise the
+  // flow keeps targeting the last chapter as before.
+  const reopened = new Set<number>()
+  for (const event of db.prepare("SELECT chapter, kind FROM events WHERE kind IN ('reopen', 'settle') ORDER BY seq").all()) {
+    if (event.chapter === null || event.chapter === undefined) continue
+    if (event.kind === 'reopen') reopened.add(Number(event.chapter))
+    else reopened.delete(Number(event.chapter))
+  }
+  const reopenedChapter = chapters.find((entry: any) => reopened.has(entry.number) && entry.stage !== 'settled')
+  const last = chapters.length === 0 ? undefined : (reopenedChapter ?? chapters[chapters.length - 1])
     const chapter = last === undefined ? 1 : last.number
     const outline = manifest.outline
     let candidate
