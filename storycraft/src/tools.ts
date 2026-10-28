@@ -700,6 +700,10 @@ const OUTPUT_PROPERTIES: SchemaNode = {
     properties: {
       code: { type: 'string' },
       message: { type: 'string' },
+      // Failure envelopes carry the next step and the retry hint; the host
+      // validates this shape, so the fields belong here rather than in a cast.
+      next: { type: 'string' },
+      retryable: { type: 'boolean' },
     },
     required: ['code', 'message'],
   },
@@ -1032,6 +1036,10 @@ export const SUBMIT_OUTPUT: DshToolOutput = {
         properties: {
           code: { type: 'string' },
           message: { type: 'string' },
+          // A failure can carry the next step and whether a retry helps; the host
+          // validates this envelope, so both belong to the declared shape.
+          next: { type: 'string' },
+          retryable: { type: 'boolean' },
         },
         required: ['code', 'message'],
       },

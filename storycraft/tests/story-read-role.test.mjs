@@ -32,6 +32,10 @@ const readTool = byName.get('story_read')
 // AC4b: the model must be able to see that role cards are readable.
 check('the tool description names role:<slug>', readTool.description.includes('role:<slug>'), readTool.description)
 check('the artifactId example spells out role:<slug>', readTool.parameters.properties.artifactId.description.includes('role:<slug>'), readTool.parameters.properties.artifactId.description)
+check('the failure envelope declares next and retryable',
+  readTool.output?.schema?.properties?.error?.properties?.next !== undefined
+  && readTool.output?.schema?.properties?.error?.properties?.retryable !== undefined,
+  JSON.stringify(readTool.output?.schema?.properties?.error))
 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-read-role-'))
 const exec = { agent: { id: 'role-session', session: { header: { cwd: root } } } }
