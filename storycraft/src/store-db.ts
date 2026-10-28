@@ -1211,6 +1211,20 @@ export function writeFoundationStage(root: any, input: any) {
           record('bible:current_focus', 'current_focus', focus, 'foundation/current_focus'),
         ]
       } else if (stage === 'rules') {
+        // The frame carries the protagonist the author confirmed; a rules-stage
+        // name that never appears there means the stages drifted apart.
+        const protagonist = String(payload.bookRules?.protagonist?.name ?? '').trim()
+        if (protagonist !== '') {
+          const frame = db.prepare("SELECT content FROM artifacts WHERE artifact_id = 'bible:story_frame' ORDER BY rowid DESC LIMIT 1").get()
+          const frameText = frame === undefined ? '' : String(frame.content)
+          if (frameText !== '' && !frameText.includes(protagonist)) {
+            throw new StoryError(
+              'foundation-inconsistent',
+              `作品规则的主角「${protagonist}」没有出现在故事框架里`,
+              '按框架改规则里的主角名；确实要换主角时，先说明为什么改方向',
+            )
+          }
+        }
         records = [record('bible:book_rules', 'book_rules', payload.bookRules, 'foundation/book_rules')]
       } else if (stage === 'roles') {
         const roles = Array.isArray(payload.rolesIndex?.roles) ? payload.rolesIndex.roles : []
