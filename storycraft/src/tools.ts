@@ -26,7 +26,7 @@ import {
   reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter, setSessionCurrent,
   status as readStatus, updateSettings, workIdOf, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
 } from './storage.ts'
-import { readArtifact, readChapterMemo, readChapterSummary, readTextArtifact } from './artifact-store.ts'
+import { listRoleCards, readArtifact, readChapterMemo, readChapterSummary, readRoleCard, readTextArtifact } from './artifact-store.ts'
 import {
   assembleBrief as assembleBriefFor, readBible as readBibleEntries,
   writeBible as writeBibleEntry, writeSummary as writeSummaryEntry,
@@ -1985,13 +1985,13 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
 
     action({
       name: 'story_read',
-      description: '只读：按 artifactId 读取已登记的作品内容（chapter/plan/review/summary/state/bible/outline/volume/trace）。宿主校验作品与当前章作用域；不返回文件路径。',
+      description: '只读：按 artifactId 读取已登记的作品内容（chapter/plan/review/summary/state/bible/outline/volume/role:<slug>/trace）。宿主校验作品与当前章作用域；不返回文件路径。角色卡按 slug 读，字段是卡合同（不含索引六字段）。',
       parameters: {
         type: 'object',
         additionalProperties: false,
         properties: {
           work: { type: 'string', description: '作品 id。' },
-          artifactId: { type: 'string', description: '如 chapter:1、plan:1、bible:characters。' },
+          artifactId: { type: 'string', description: '如 chapter:1、plan:1、bible:characters、role:jia（单个角色卡）。' },
           revisionId: { type: 'string', description: '可选；不传则读当前版本。' },
           startLine: { type: 'integer', description: '可选：从第几行开始（1 起）。' },
           lineCount: { type: 'integer', description: '可选：最多返回多少行。' },
@@ -2101,6 +2101,27 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
             })
             content = String(read.artifact.content)
             ref = { ...ref, ...expected, revisionId: read.artifact.revisionId as string }
+          }
+        } else if (kind === 'role') {
+          const slug = parts.join(':')
+          try {
+            const card = readRoleCard(root, {
+              work: workId,
+              slug,
+              ...(args.revisionId === undefined ? {} : { revisionId: String(args.revisionId) }),
+            })
+            content = JSON.stringify(card.artifact.content, null, 2)
+            ref = { ...ref, artifactId: String(card.artifact.artifactId), revisionId: String(card.artifact.revisionId), kind: 'role_card' }
+          } catch (error) {
+            // A thrown store error is a dynamic boundary: only its stable code is read.
+            const code = (error as { code?: unknown } | null | undefined)?.code
+            if (code !== 'artifact-not-found') throw error
+            const slugs = listRoleCards(root, workId).map(item => String(item.artifactId).slice('role:'.length))
+            throw new StoryError(
+              'artifact-not-found',
+              `没有角色卡：role:${slug}`,
+              slugs.length === 0 ? '先跑角色卡阶段（架构师 roles/cards），再按 slug 读' : `已有角色卡：${slugs.join('、')}`,
+            )
           }
         } else if (kind === 'state') {
           content = readEventsText(root, workId)
