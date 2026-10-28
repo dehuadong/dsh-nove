@@ -89,6 +89,15 @@ test.describe('故事工坊工作台', () => {
     const rewrite = page.locator('button.sc-btn').filter({ hasText: /^重写摘要$/ })
     await expect(rewrite).toBeVisible()
     await expect(rewrite).toHaveAttribute('title', /delegate\.role=summarizer/)
+
+    // Restore the shared fixture: reopening in this test must not leave the flow
+    // pointed at chapter 1 for the specs that follow.
+    store.writeReview(runtime.fixtureWorkspace, { work: facts.workId, chapter: 1, observations: [] })
+    store.writeSummary(runtime.fixtureWorkspace, { work: facts.workId, chapter: 1, text: '甲在渠边丢了半袋粮，灰旗还挂着。' })
+    store.settleState(runtime.fixtureWorkspace, {
+      work: facts.workId, chapter: 1,
+      factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '丢了半袋粮' }] },
+    })
   })
 
   test('素材面板可以导入、重命名、去重和删除', async ({ page }) => {
