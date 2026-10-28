@@ -18,7 +18,7 @@ import {
 } from './storage.ts'
 import { readFoundationDocuments, writeContextTrace } from './artifact-store.ts'
 import { acceptedProposalOf } from './store-db.ts'
-import { critique, findingsOf } from './critique.ts'
+import { critique, findingsOf, withMechanicalFindings } from './critique.ts'
 import { loadRoleInput } from './role-input.ts'
 import { checkDraft } from './landing.ts'
 import { closeSubmission, consumeSubmission, openSubmission } from './submission.ts'
@@ -767,12 +767,7 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
   // The mechanical checks are material for the reviewer: findings come first,
   // and the prompt asks the model not to repeat them.
   if (role === 'reviewer') {
-    const metrics = critique(loaded.body, manifest.wordRange)
-    const findings = findingsOf(loaded.body, metrics)
-    if (findings.length > 0) {
-      const summary = findings.map(finding => `- ${finding.code}/${finding.severity}：${finding.detail}${finding.refs.length === 0 ? '' : `（${finding.refs.join('、')}）`}`).join('\n')
-      loaded.context.taskText = loaded.context.taskText + "\n\n机械检查已发现（不要重复报告）：\n" + summary
-    }
+    loaded.context.taskText = withMechanicalFindings(loaded.context.taskText, loaded.body, manifest.wordRange)
   }
   // Record what this dispatch sends. The planner's plan does not exist yet, so
   // its trace is written after landing; a failed write never blocks dispatch.

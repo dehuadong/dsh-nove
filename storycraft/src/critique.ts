@@ -52,6 +52,20 @@ function finding(code: FindingCode, severity: FindingSeverity, detail: string, q
   return { code, severity, detail, refs: quote === undefined ? [] : [quote], ...(quote === undefined ? {} : { quote }) }
 }
 
+/**
+ * Append the mechanical findings to a reviewer task, when there are any.
+ *
+ * A clean chapter adds nothing: the section only exists to stop the reviewer
+ * from repeating what the program already proved.
+ */
+export function withMechanicalFindings(taskText: string, body: string, wordRange?: { min?: number, max?: number } | null): string {
+  const findings = findingsOf(body, critique(body, wordRange ?? undefined))
+  if (findings.length === 0) return taskText
+  const summary = findings
+    .map(finding => `- ${finding.code}/${finding.severity}：${finding.detail}${finding.refs.length === 0 ? '' : `（${finding.refs.join('、')}）`}`)
+    .join('\n')
+  return `${taskText}\n\n机械检查已发现（不要重复报告）：\n${summary}`
+}
 export function findingsOf(text: string, metrics: CritiqueMetrics, perspective?: string): Finding[] {
   const findings: Finding[] = []
   if (metrics.withinRange === false && (metrics.shortBy ?? 0) > 0) {
