@@ -1889,7 +1889,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
     action({
       name: 'story_settle',
       mutates: true,
-      description: '自动结算本章状态：settler 从正文抽取事实与伏笔 delta，先做确定性预检，再用 R9b 语义检查；'
+      description: '定稿本章：settler 从正文抽取事实与伏笔，先做确定性预检，再做语义对账；'
         + 'major/确定性 error 带反馈重算一次，仍不一致则返回 settled:false 且不写库。'
         + '成功时写入 events 并定稿；手动修正仍用 story_state。只允许主会话调用。',
       parameters: {
@@ -1916,7 +1916,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
     action({
       name: 'story_state',
       mutates: true,
-      description: '把本章产生的 hook/fact 变化定稿进作品状态，并返回投影后的计数。'
+      description: '把本章产生的 hook/fact 变化入账，并返回投影后的计数。'
         + ' 只写变化：已有伏笔用 hookOps 引 hookId，新伏笔放 newHooks（宿主铸 id）；fact 用三元组 + 有效期。'
         + ' 当前正文版本没有摘要返回 summary-required，摘要过期返回 summary-stale；钩子 id 不存在返回 hook-not-found，非法转移返回 hook-transition-invalid，无可失效 fact 返回 fact-not-found；已定稿再次归档返回 chapter-settled。',
       parameters: {
