@@ -183,12 +183,12 @@ function sessionCurrentOf(root: string, sessionId: string | undefined): string |
   return getCurrent(sessionId)
 }
 
-/** Turn a thrown value into the structured failure every action returns. */
 /** The stable code of a thrown store error, at a dynamic boundary. */
 function storeErrorCodeOf(error: unknown): string | undefined {
   return (error as { code?: unknown } | null | undefined)?.code as string | undefined
 }
 
+/** Turn a thrown value into the structured failure every action returns. */
 export function failureOf(error: unknown): FailureEnvelope {
   if (error instanceof StoryError) {
     const missing = error.code === 'bible-missing'
@@ -2048,7 +2048,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
             })
           } catch (error) {
             // A thrown store error is a dynamic boundary: only its stable `code` is read.
-            const code = (error as { code?: unknown } | null | undefined)?.code
+            const code = storeErrorCodeOf(error)
             if (code === 'artifact-not-found' || code === 'chapter-not-found') {
               throw new StoryError('plan-not-found', `第 ${chapterNumber} 章还没有章纲`)
             }
@@ -2080,7 +2080,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
             })
           } catch (error) {
             // A thrown store error is a dynamic boundary: only its stable `code` is read.
-            const code = (error as { code?: unknown } | null | undefined)?.code
+            const code = storeErrorCodeOf(error)
             if (code === 'artifact-not-found' || code === 'chapter-not-found') {
               throw new StoryError('summary-not-found', `第 ${chapterNumber} 章还没有摘要`)
             }
