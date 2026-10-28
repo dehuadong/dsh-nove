@@ -31,7 +31,7 @@ const readTool = byName.get('story_read')
 
 // AC4b: the model must be able to see that role cards are readable.
 check('the tool description names role:<slug>', readTool.description.includes('role:<slug>'), readTool.description)
-check('the artifactId example names a role card', readTool.parameters.properties.artifactId.description.includes('role:'), readTool.parameters.properties.artifactId.description)
+check('the artifactId example spells out role:<slug>', readTool.parameters.properties.artifactId.description.includes('role:<slug>'), readTool.parameters.properties.artifactId.description)
 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-read-role-'))
 const exec = { agent: { id: 'role-session', session: { header: { cwd: root } } } }
@@ -94,8 +94,6 @@ try {
   check('the card fields match the contract',
     keys === 'arc,knowledge,limits,markdown,motivation,name,relationshipPressure,slug,tier',
     keys)
-  check('the card never carries the index six fields',
-    !('want' in content) && !('fear' in content) && !('voice' in content), JSON.stringify(content))
 
   // AC2: the revision is the one that was written.
   check('the read revision is the written revision', read.artifact?.revisionId === written.artifact.revisionId,
@@ -103,23 +101,25 @@ try {
 
   // AC3: a wrong slug names the existing cards; a work without cards points at the stage.
   setCurrent('role-session', work)
-  const wrongResult = await readTool.execute({ work, artifactId: 'role:nobody' }, exec).catch(error => ({ ok: false, error }))
+  const wrongResult = await readTool.execute({ work, artifactId: 'role:nobody' }, exec)
   const wrongSlug = `${wrongResult?.error?.code ?? ''}|${wrongResult?.error?.next ?? ''}`
   check('a wrong slug fails with artifact-not-found and lists existing slugs',
     wrongSlug.startsWith('artifact-not-found|') && wrongSlug.includes('jia'), wrongSlug)
 
   const bare = await seedWork('没有角色卡')
   setCurrent('role-session', bare)
-  const noCardsResult = await readTool.execute({ work: bare, artifactId: 'role:x' }, exec).catch(error => ({ ok: false, error }))
+  const noCardsResult = await readTool.execute({ work: bare, artifactId: 'role:x' }, exec)
   const noCards = `${noCardsResult?.error?.code ?? ''}|${noCardsResult?.error?.next ?? ''}`
   check('a work without cards points at the role-card stage',
-    noCards.startsWith('artifact-not-found|') && noCards.includes('角色卡'), noCards)
+    noCards.startsWith('artifact-not-found|')
+    && noCards.includes('先跑角色卡阶段')
+    && noCards !== wrongSlug, noCards)
 
   // AC5: the other id shapes keep their behaviour.
   setCurrent('role-session', work)
   const bibleRead = await readTool.execute({ work, artifactId: 'bible:characters' }, exec)
   check('bible:characters still reads', bibleRead.ok === true, JSON.stringify(bibleRead).slice(0, 120))
-  const unknownResult = await readTool.execute({ work, artifactId: 'nonsense:1' }, exec).catch(error => ({ ok: false, error }))
+  const unknownResult = await readTool.execute({ work, artifactId: 'nonsense:1' }, exec)
   const unknown = unknownResult?.error?.code ?? ''
   check('an unknown kind stays artifact-not-readable', unknown === 'artifact-not-readable', unknown)
 } finally {

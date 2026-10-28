@@ -40,7 +40,7 @@ description: 长篇小说单章流程与闸门：章纲到定稿的动作顺序�
 
 ## 输出契约
 
-- 正文、章纲、审稿、摘要、状态、卷一律由动作落盘，不要直写作品库：动作负责版本、进度与事务。
-- 只读动作：`story_next`、`story_context`、`story_brief`、`story_bible`、`story_critique`、`story_status`、`story_volumes`、`story_read`；单个角色按 slug 读：`story_read role:<slug>`。
-- 写正文/审稿/修订优先用 `story_delegate`；delegate 不可用或需要手动控制时，才用 `story_context(work, chapter, role)` + `subagent`。写前预览用 `story_brief`。
+- 正文、章纲、审稿清单、摘要、状态、卷一律由动作落盘，不要直写作品库：直写会让进度与库不一致。
+- 只读动作：`story_next`、`story_context`、`story_brief`、`story_bible`、`story_critique`、`story_status`、`story_volumes`、`story_read`；角色卡 `story_read role:<slug>`。
+- 写正文/审稿/修订优先用 `story_delegate`；delegate 不可用或需要手动控制时，才用 `story_context(work, chapter, role)` + `subagent`。自己写前预览仍可用 `story_brief`。
 - 章节末尾不写「作者的话」，不写总结段落。

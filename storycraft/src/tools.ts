@@ -184,6 +184,11 @@ function sessionCurrentOf(root: string, sessionId: string | undefined): string |
 }
 
 /** Turn a thrown value into the structured failure every action returns. */
+/** The stable code of a thrown store error, at a dynamic boundary. */
+function storeErrorCodeOf(error: unknown): string | undefined {
+  return (error as { code?: unknown } | null | undefined)?.code as string | undefined
+}
+
 export function failureOf(error: unknown): FailureEnvelope {
   if (error instanceof StoryError) {
     const missing = error.code === 'bible-missing'
@@ -1991,7 +1996,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
         additionalProperties: false,
         properties: {
           work: { type: 'string', description: '作品 id。' },
-          artifactId: { type: 'string', description: '如 chapter:1、plan:1、bible:characters、role:jia（单个角色卡）。' },
+          artifactId: { type: 'string', description: '如 chapter:1、plan:1、bible:characters、role:<slug>（如 role:jia）。' },
           revisionId: { type: 'string', description: '可选；不传则读当前版本。' },
           startLine: { type: 'integer', description: '可选：从第几行开始（1 起）。' },
           lineCount: { type: 'integer', description: '可选：最多返回多少行。' },
@@ -2113,8 +2118,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
             content = JSON.stringify(card.artifact.content, null, 2)
             ref = { ...ref, artifactId: String(card.artifact.artifactId), revisionId: String(card.artifact.revisionId), kind: 'role_card' }
           } catch (error) {
-            // A thrown store error is a dynamic boundary: only its stable code is read.
-            const code = (error as { code?: unknown } | null | undefined)?.code
+            const code = storeErrorCodeOf(error)
             if (code !== 'artifact-not-found') throw error
             const slugs = listRoleCards(root, workId).map(item => String(item.artifactId).slice('role:'.length))
             throw new StoryError(
