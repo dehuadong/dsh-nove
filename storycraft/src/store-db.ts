@@ -1484,7 +1484,7 @@ export function nextStep(root: any, work: any) {
           missing: ['summary'],
         }
       }
-      return { chapter: last.number, stage, action: 'story_settle', reason: isCleanReview(candidate) ? `第 ${last.number} 章清稿审稿无问题：定稿（状态结算）` : `第 ${last.number} 章已修订：定稿（状态结算）`, missing: [] }
+      return { chapter: last.number, stage, action: 'story_settle', reason: isCleanReview(candidate) ? `第 ${last.number} 章清稿审稿无问题，自动结算` : `第 ${last.number} 章已修订，自动结算`, missing: [] }
     })()
     const delegate = delegateOf(step, last, candidate)
     const method = methodFor(step, formOf(manifest))

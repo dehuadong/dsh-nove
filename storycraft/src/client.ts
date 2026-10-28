@@ -906,7 +906,7 @@ window.__ModuleLoader__.load({
           story_write: '写本章正文',
           story_review: '审本章',
           story_revise: '按清单修订本章',
-          story_settle: '定稿：抽取状态、对账并入账',
+          story_settle: '自动结算：抽取事实并定稿',
           story_state: '手动定稿：写入本章事实',
           story_summarize: '写本章摘要',
           story_volume: '补本卷摘要',
@@ -2831,7 +2831,7 @@ window.__ModuleLoader__.load({
                   groups.set(fact.subject, list)
                 }
                 if (groups.size === 0) return h('p', { className: 'sc-muted' }, detail.state.events > 0
-                  ? '已有事件记录，但没有 v2 状态投影；请重新定稿本章。'
+                  ? '已有事件记录，但没有 v2 状态投影；请重新结算本章。'
                   : '还没有定稿过人物事实。')
                 return [...groups].map(([subject, facts]) => h('div', { className: 'sc-item', key: subject },
                   h('div', { className: 'sc-item-head' }, h('span', { className: 'sc-item-name' }, subject)),
