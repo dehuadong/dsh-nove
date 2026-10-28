@@ -3,7 +3,7 @@
 import { StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, chapterNumber, contentVersion, now } from './domain.ts'
 import { ARTIFACT_IDENTITY, validateArtifactRecord, validateChapterMemo, validateChapterMeta, validateChapterSummary } from './artifact-contract.ts'
 import { openWork, touchMeta, transaction } from './db.ts'
-import { syncSearchDoc } from './search-index.ts'
+import { dropSearchDoc, syncSearchDoc } from './search-index.ts'
 import { reviewInputOf } from './review-binding.ts'
 
 function serialize(content: any) {
@@ -313,6 +313,35 @@ export function readFoundationDocuments(root: any, work: any) {
   } finally {
     db.close()
   }
+}
+
+/**
+ * Drop major role cards whose name is no longer in the roles index.
+ *
+ * Runs inside the caller's transaction. Every revision of a removed artifact is
+ * deleted together with its search document, so an old revisionId cannot read it
+ * back. Minor cards are left alone: the foundation cards stage never writes them.
+ * @param db - work database inside a transaction.
+ * @param keep - names that remain in the index major set.
+ * @returns how many artifacts were removed.
+ */
+export function dropRoleCardsOnDb(db: any, keep: Set<string>): number {
+  const rows = db.prepare(`SELECT a.artifact_id, a.content_type, a.content FROM artifacts a
+    JOIN (SELECT artifact_id, max(rowid) AS rowid FROM artifacts
+      WHERE kind = 'role_card' GROUP BY artifact_id) latest ON a.rowid = latest.rowid`).all()
+  const doomed: string[] = []
+  for (const row of rows) {
+    if (row.content_type !== 'json') continue
+    const card = JSON.parse(String(row.content))
+    if (card?.tier !== 'major') continue
+    if (keep.has(String(card?.name ?? ''))) continue
+    doomed.push(String(row.artifact_id))
+  }
+  for (const artifactId of doomed) {
+    dropSearchDoc(db, artifactId)
+    db.prepare('DELETE FROM artifacts WHERE artifact_id = ?').run(artifactId)
+  }
+  return doomed.length
 }
 
 /** Latest role cards of one work, ascending by artifact id. */

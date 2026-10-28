@@ -90,7 +90,7 @@ import {
 import { assertRevisionMode } from './revision.ts'
 import { validateArtifactRecord } from './artifact-contract.ts'
 import {
-  artifactRevision, FOUNDATION_DOCUMENTS, putArtifactOnDb, remapChapterArtifacts, renderChapterMemo, renderFoundationContent,
+  artifactRevision, dropRoleCardsOnDb, FOUNDATION_DOCUMENTS, putArtifactOnDb, remapChapterArtifacts, renderChapterMemo, renderFoundationContent,
   writeChapterMemoOnDb, writeChapterObservationsOnDb, writeChapterSummaryOnDb, writeTextArtifactOnDb, readTextArtifactOnDb,
 } from './artifact-store.ts'
 import { reviewInputOf } from './review-binding.ts'
@@ -1286,6 +1286,12 @@ export function writeFoundationStage(root: any, input: any) {
         }
         return { artifactId: envelope.artifactId, revisionId: envelope.revisionId, kind: envelope.kind }
       })
+      if (stage === 'roles') {
+        // The index is the person list; a card whose name left the major set is stale.
+        const roles = Array.isArray(payload.rolesIndex?.roles) ? payload.rolesIndex.roles : []
+        const keep = new Set<string>(roles.filter((role: any) => role?.tier === 'major').map((role: any) => String(role?.name ?? '')))
+        dropRoleCardsOnDb(db, keep)
+      }
       return { workId, stage, artifacts, foundation: foundationStateOf(db) }
     })
   } finally {
