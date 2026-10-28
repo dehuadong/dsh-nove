@@ -180,10 +180,12 @@ interface SettleReceipt {
 }
 
 /** One settler/validator child run's budget. */
-const STATE_SETTLE_TIMEOUT_MS = 180000
+// The validator reads body, summary and folded state; real runs took 180-300s,
+// so the old 180s per-child budget fired on healthy work (see #50 acceptance).
+const STATE_SETTLE_TIMEOUT_MS = 300000
 
 /** Whole settlement budget; a timeout returns a receipt instead of retrying. */
-const SETTLE_TOTAL_TIMEOUT_MS = 480000
+const SETTLE_TOTAL_TIMEOUT_MS = 600000
 
 /** Severity values that force a second settler attempt. */
 const BLOCKING_SEVERITY = 'major'
