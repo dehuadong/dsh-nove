@@ -1719,8 +1719,11 @@ export function deleteWork(root: any, input: any) {
     }
     moveDatabaseFiles(from, target)
     try {
-      transaction(catalog, () => catalog.prepare('UPDATE works SET trashed_at = ?, missing_at = NULL WHERE work_id = ?')
-        .run(now(), workId))
+      transaction(catalog, () => {
+        catalog.prepare('UPDATE works SET trashed_at = ?, missing_at = NULL WHERE work_id = ?').run(now(), workId)
+        // A deleted work cannot stay bound to a session: the pointer would be dead.
+        catalog.prepare('DELETE FROM session_current WHERE work_id = ?').run(workId)
+      })
     } catch (error: any) {
       moveDatabaseFiles(trashFile(root, workId), from)
       throw error

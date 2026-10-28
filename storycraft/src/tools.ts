@@ -39,7 +39,7 @@ import { checkChapterState } from './state-check.ts'
 import { settleChapterState } from './state-settle.ts'
 import { submitPayload } from './submission.ts'
 import { checkDraft } from './landing.ts'
-import { getCurrent, hydrate as hydrateCurrent, markHydrated, resolveWork, setCurrent, shouldHydrate } from './current.ts'
+import { clearCurrent, getCurrent, hydrate as hydrateCurrent, markHydrated, resolveWork, setCurrent, shouldHydrate } from './current.ts'
 import { join } from 'node:path'
 import { createProposal, markProposalUsed, readProposal } from './proposals.ts'
 import { SCOPE_MESSAGES, scopeDenial } from './scope.ts'
@@ -2278,6 +2278,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
       async execute(args, exec) {
         const root = workspaceOf(exec)
         const result = await deleteWork(root, { work: args.work })
+        if (sessionCurrentOf(root, sessionOf(exec)) === String(args.work)) clearCurrent(sessionOf(exec))
         return { ok: true, workId: result.workId, artifact: { path: result.path } }
       },
     }),
