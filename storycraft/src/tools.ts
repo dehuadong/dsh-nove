@@ -2127,8 +2127,11 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
             ref = { ...ref, artifactId: String(card.artifact.artifactId), revisionId: String(card.artifact.revisionId), kind: 'role_card' }
           } catch (error) {
             const code = storeErrorCodeOf(error)
-            if (code !== 'artifact-not-found') throw error
             const slugs = listRoleCards(root, workId).map(item => String(item.artifactId).slice('role:'.length))
+            // A deleted card has no rows at all, so even an explicit revision is "not found";
+            // an existing card with a missing revision keeps the revision error.
+            if (code === 'revision-not-found' && slugs.includes(slug)) throw error
+            if (code !== 'artifact-not-found' && code !== 'revision-not-found') throw error
             throw new StoryError(
               'artifact-not-found',
               `没有角色卡：role:${slug}`,

@@ -90,7 +90,7 @@ import {
 import { assertRevisionMode } from './revision.ts'
 import { validateArtifactRecord } from './artifact-contract.ts'
 import {
-  artifactRevision, dropRoleCardsOnDb, FOUNDATION_DOCUMENTS, putArtifactOnDb, remapChapterArtifacts, renderChapterMemo, renderFoundationContent,
+  artifactRevision, dropRoleCardsOnDb, FOUNDATION_DOCUMENTS, majorNamesOf, putArtifactOnDb, remapChapterArtifacts, renderChapterMemo, renderFoundationContent,
   writeChapterMemoOnDb, writeChapterObservationsOnDb, writeChapterSummaryOnDb, writeTextArtifactOnDb, readTextArtifactOnDb,
 } from './artifact-store.ts'
 import { reviewInputOf } from './review-binding.ts'
@@ -1249,12 +1249,7 @@ export function writeFoundationStage(root: any, input: any) {
         if (cards.length === 0) throw new StoryError('artifact-invalid', '角色卡至少需要一张')
         if (cards.length > 12) throw new StoryError('artifact-invalid', '角色卡最多 12 张')
         const index = db.prepare("SELECT content FROM artifacts WHERE artifact_id = 'roles:index' ORDER BY rowid DESC LIMIT 1").get()
-        const majorNames = new Set()
-        if (index !== undefined) {
-          for (const role of JSON.parse(String(index.content)).roles ?? []) {
-            if (role.tier === 'major') majorNames.add(role.name)
-          }
-        }
+        const majorNames = index === undefined ? new Set<string>() : majorNamesOf(JSON.parse(String(index.content)))
         const names = new Set()
         const slugs = new Set()
         records = cards.map((card: any) => {
@@ -1289,8 +1284,9 @@ export function writeFoundationStage(root: any, input: any) {
       if (stage === 'roles') {
         // The index is the person list; a card whose name left the major set is stale.
         const roles = Array.isArray(payload.rolesIndex?.roles) ? payload.rolesIndex.roles : []
-        const keep = new Set<string>(roles.filter((role: any) => role?.tier === 'major').map((role: any) => String(role?.name ?? '')))
-        dropRoleCardsOnDb(db, keep)
+        const keep = majorNamesOf(payload.rolesIndex)
+        // An index with no major role is ambiguous; do not purge every card on it.
+        if (keep.size > 0) dropRoleCardsOnDb(db, keep)
       }
       return { workId, stage, artifacts, foundation: foundationStateOf(db) }
     })

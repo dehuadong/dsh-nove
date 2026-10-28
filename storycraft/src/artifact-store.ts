@@ -315,6 +315,12 @@ export function readFoundationDocuments(root: any, work: any) {
   }
 }
 
+/** Names of the index's major roles: the one definition of "major". */
+export function majorNamesOf(rolesIndex: any): Set<string> {
+  const roles = Array.isArray(rolesIndex?.roles) ? rolesIndex.roles : []
+  return new Set<string>(roles.filter((role: any) => role?.tier === 'major').map((role: any) => String(role?.name ?? '')))
+}
+
 /**
  * Drop major role cards whose name is no longer in the roles index.
  *
@@ -325,7 +331,7 @@ export function readFoundationDocuments(root: any, work: any) {
  * @param keep - names that remain in the index major set.
  * @returns how many artifacts were removed.
  */
-export function dropRoleCardsOnDb(db: any, keep: Set<string>): number {
+export function dropRoleCardsOnDb(db: any, keep: Set<string>): void {
   const rows = db.prepare(`SELECT a.artifact_id, a.content_type, a.content FROM artifacts a
     JOIN (SELECT artifact_id, max(rowid) AS rowid FROM artifacts
       WHERE kind = 'role_card' GROUP BY artifact_id) latest ON a.rowid = latest.rowid`).all()
@@ -341,7 +347,6 @@ export function dropRoleCardsOnDb(db: any, keep: Set<string>): number {
     dropSearchDoc(db, artifactId)
     db.prepare('DELETE FROM artifacts WHERE artifact_id = ?').run(artifactId)
   }
-  return doomed.length
 }
 
 /** Latest role cards of one work, ascending by artifact id. */
