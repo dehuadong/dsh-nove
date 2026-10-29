@@ -27,11 +27,11 @@
 | 分诊角色标签 | 已启用；issue 分诊 | 角色到标签字符串的映射见 [triage-labels.md](agents/triage-labels.md) |
 | 独立 RFC / ADR | 新工作未启用 | 技术设计与决定写 Agent Note |
 | 独立 Spec | 按需启用；跨工作项持续生效的行为合同 | 首次需要时先登记属主、适用范围、位置与规则入口，再写正文 |
-| Agent Note | 已启用；长期技术提案、设计、决定、备选与理由 | `.agents/notes/`（相对管理根）；格式与生命周期见 [其 README](../.agents/notes/README.md)，分类见 [config.json](../.agents/notes/config.json) |
+| Agent Note | 已启用；长期技术提案、设计、决定、备选与理由 | `.agents/notes/`（相对管理根）；单根，格式与生命周期由 `write-agent-notes` Skill 拥有，根范围与校验入口见 [.agents/notes/AGENTS.md](../.agents/notes/AGENTS.md) |
 | 领域术语表 | 未建立；按需创建 | 单上下文，根目录 `GLOSSARY.md`；读取规则见 [domain.md](agents/domain.md) |
 | 作品正文与设定 | 由各作品目录自有的文件拥有 | 各作品目录；本仓库文档不复制作品内容、口径与进度 |
 
-已启用类型即使还没有记录也已登记位置。Agent Note 的记录分类由 `.agents/notes/config.json` 唯一决定。
+已启用类型即使还没有记录也已登记位置。Agent Note 的格式、生命周期与 6 个固定分类由 `write-agent-notes` Skill 唯一拥有。
 
 ## 一个事实一个家
 
@@ -57,5 +57,5 @@
 
 ## 检查
 
-- Agent Note 的目录、元数据、正文骨架与本地链接：从仓库管理根运行 `node scripts/decisions/check.mjs`。
+- Agent Note 的目录、头块、正文骨架与本地链接：从仓库管理根运行 `npm run verify-notes`。
 - 机械检查通过不代替对事实归属、内容真实性与合同完整性的审阅。本仓库未配置 CI 或提交钩子。

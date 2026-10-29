@@ -67,7 +67,7 @@ DSH 里的长篇创作编排：三十四个动作把立项、章纲、正文、�
   backups/<workId>-<ts>.db   单作品备份
 ```
 
-`catalog.db` 只存元数据，是 title/form/tags 的权威；作品库的 `meta` 行是导出副本。每部作品独立 `user_version`，升级一部不影响其他；作品库只支持当前 schema；没有旧作品，不做迁移或兼容读取，版本不符直接返回 `schema-version-mismatch`。表结构、连接策略、改名/删除/恢复顺序与启动对账的完整设计见 [作品入库 Note](../.agents/notes/implemented/pipeline/2026-10-19-storycraft-sqlite-store.md)。
+`catalog.db` 只存元数据，是 title/form/tags 的权威；作品库的 `meta` 行是导出副本。每部作品独立 `user_version`，升级一部不影响其他；作品库只支持当前 schema；没有旧作品，不做迁移或兼容读取，版本不符直接返回 `schema-version-mismatch`。表结构、连接策略、改名/删除/恢复顺序与启动对账的完整设计见 [作品入库 Note](../.agents/notes/implemented/architecture/2026-10-19-storycraft-sqlite-store.md)。
 
 动作与路由返回的模型可见 artifact 只有 `artifactId` / `revisionId` / `kind`，不含文件路径；正文/章纲/审稿/摘要等内容按 ID 用 `story_read` 或上下文动作读取。UI 与作者导出仍显示路径；实际内容在作品库内。宿主启动及首次读取一个工作区时对账目录与文件：缺失的作品在列表跳过并记入宿主诊断，孤儿文件与回收站文件保留待人工恢复。
 

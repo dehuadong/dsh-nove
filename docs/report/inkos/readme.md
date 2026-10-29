@@ -1,6 +1,6 @@
 InkOS 仓库分析研究文档（本地仓库地址：`E:\dsh-nove\inkos-master`）
 
-> 2026-10-23 复核基线：`inkos-master` 2.0.0（`package.json`，无 `.git`）。下列 v1.0 / L1–L7 报告主要基于 1.x 与 2.0 早期源码，**不是当前源码的完整描述**；2.0 的执行模型、capability/profile、Skill 发现与资源绑定见 [InkOS 2.0 Harness 增量研究](2.0-harness-delta.md)。能力对拍见 [与参考实现的能力对拍清单](../../../.agents/notes/proposed/pipeline/2026-10-18-storycraft-parity-matrix.md)，阶段排期见 [路线图](../../../.agents/notes/proposed/workspace/2026-10-19-storycraft-roadmap.md)。报告里的旧 commit pin 不能作为当前基线证据。
+> 2026-10-23 复核基线：`inkos-master` 2.0.0（`package.json`，无 `.git`）。下列 v1.0 / L1–L7 报告主要基于 1.x 与 2.0 早期源码，**不是当前源码的完整描述**；2.0 的执行模型、capability/profile、Skill 发现与资源绑定见 [InkOS 2.0 Harness 增量研究](2.0-harness-delta.md)。能力对拍见 [与参考实现的能力对拍清单](../../../.agents/notes/proposed/process/2026-10-18-storycraft-parity-matrix.md)，阶段排期见 [路线图](../../../.agents/notes/proposed/process/2026-10-19-storycraft-roadmap.md)。报告里的旧 commit pin 不能作为当前基线证据。
 
 ## [InkOS 总体研究结论 v1.0](01.md)，整合以下多轮研究：
 

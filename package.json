@@ -1,0 +1,11 @@
+{
+  "name": "dsh-nove",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "verify-agent-note-tree": "node .agents/skills/write-agent-notes/scripts/verify-agent-note-tree.ts --root .agents/notes",
+    "verify-agent-note-format": "node .agents/skills/write-agent-notes/scripts/verify-agent-note-format.ts --root .agents/notes",
+    "verify-archived": "node .agents/skills/write-agent-notes/scripts/verify-archived-agent-notes.ts --root .agents/notes",
+    "verify-notes": "npm run verify-agent-note-tree && npm run verify-agent-note-format && npm run verify-archived"
+  }
+}

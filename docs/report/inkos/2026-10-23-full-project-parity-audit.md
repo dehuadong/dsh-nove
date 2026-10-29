@@ -2,7 +2,7 @@
 
 > 范围：`inkos-master` 2.0.0 的 Agent、Skill/资源、产物/数据模型、流水线与宿主机制 vs `storycraft/` 当前实现。  
 > 立场：**不做信息损失裁剪**。缺口只按依赖与风险排序，不按迁移成本否决；确实属于宿主平台差异的，要求等价行为，不能静默省略；不属于当前产品的，必须由作者明确裁决并从产品范围删除，不能由实现自行裁掉。  
-> 配套：[产物结构与资源文档对拍审查](2026-10-23-artifact-and-resource-parity-audit.md)（专项细节）、[对拍矩阵](../../../.agents/notes/proposed/pipeline/2026-10-18-storycraft-parity-matrix.md)、[路线图](../../../.agents/notes/proposed/workspace/2026-10-19-storycraft-roadmap.md)。
+> 配套：[产物结构与资源文档对拍审查](2026-10-23-artifact-and-resource-parity-audit.md)（专项细节）、[对拍矩阵](../../../.agents/notes/proposed/process/2026-10-18-storycraft-parity-matrix.md)、[路线图](../../../.agents/notes/proposed/process/2026-10-19-storycraft-roadmap.md)。
 
 ## 1. 结论
 
@@ -212,7 +212,7 @@ R10 当前 #44 已退回 `planning`。建议拆为：
 
 ## 11. 整改方向（排期归路线图）
 
-本报告只记录差距与整改方向，不拥有阶段排期。执行顺序、阶段范围、退出条件与工作项归 [路线图](../../../.agents/notes/proposed/workspace/2026-10-19-storycraft-roadmap.md) 的「对拍整改路线」；能力差距归 [对拍矩阵](../../../.agents/notes/proposed/pipeline/2026-10-18-storycraft-parity-matrix.md)。
+本报告只记录差距与整改方向，不拥有阶段排期。执行顺序、阶段范围、退出条件与工作项归 [路线图](../../../.agents/notes/proposed/process/2026-10-19-storycraft-roadmap.md) 的「对拍整改路线」；能力差距归 [对拍矩阵](../../../.agents/notes/proposed/process/2026-10-18-storycraft-parity-matrix.md)。
 
 方向约束：
 

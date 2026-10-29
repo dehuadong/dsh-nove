@@ -1,0 +1,121 @@
+# Agent Note: 故事工坊：npm 发布形态与安装验收
+
+Status: proposed
+
+## 问题
+
+构建形态已由 [2026-10-26-storycraft-bundled-build.md](../../implemented/process/2026-10-26-storycraft-bundled-build.md) 定稿并交付：`lib/` 四个入口、测试跑源码、`engines.node >=22.18`。
+
+剩下的是“这个包怎样被安装与发布”：`package.json` 仍是 `private: true`，没有 `license`、`repository`、`engines.dsh`、`keywords`，也没有 `LICENSE` 文件；开发期只有 `link:` 一种装法，没有任何命令能证明“打出来的 tarball 装进一个干净 profile 后还能用”。
+
+作者在 2026-10-27 决定：**只走 npm 发布，不做 GitHub 直装**。因此不需要为 git 安装设计构建触发（`prepare`），也不需要仓库对外可读；需要确定的是发布字段取值、发布门禁放在哪里、以及发布前用什么可观察证据证明 tarball 可用。
+
+## 对拍参考
+
+- `inkos-master/.github/workflows/release.yml`：`v*` tag 触发 test → smoke-test（产物 `--help`、`import()`、`npm pack` 后检查 tarball 内容）→ publish-canary → verify-canary → publish-release → verify-release → GitHub Release。采纳：版本与 tag 逐字对齐、发布前构建并校验 tarball、发布后以消费者身份重装一次；不采纳 canary 双发布与 `workspace:` 协议重写（本包是单包，没有 workspace 依赖）。
+- `inkos-master/packages/cli/package.json`：`prepack` 先构建、`files` 只列产物、`prepublishOnly` 再校验一次 manifest。采纳“打包必构建 + 白名单 + 发布前校验”，不采纳其 monorepo 构建链。
+- `dsh-seework`（`E:\workspace\dsh-plugin\dsh-seework`）：`docs/design/2026-09-29-npm-distribution-and-in-plugin-update.md` 记录的 npm 发布事实 —— 首版 `0.1.0`、去 `private`、补 `repository`、`prepublishOnly` 构建、`files` 只留运行时文件、peer 依赖只告警、registry 安装与开发安装分离、pnpm 默认拒绝发布不满 24 小时的版本、tarball/path spec 重装报 `ambiguous-install`。这些全部采纳为本包的安装与发布事实。
+- `dsh-webnovel-writer`（`E:\workspace\dsh-webnovel-writer`）：`pnpm-workspace.yaml` 是 `packages/*`，共 9 个包——4 个发布包（`@linfengqaqtat/dsh-scriptor`、`-companion`、`-retrieval`、`-full`）加 5 个内部库（`@webnovel/core`、`drafting`、`review`、`ledger`、`polish`，均 `0.0.1`）；`bundle` 用 `workspace:*` 依赖内部库并在构建时内联。采纳其 `files` 白名单形状；不采纳其 workspace 结构（判断见 §7）。
+- `dsh-seework` 的 `AGENTS.md`「验证入口」：把验证拆成 `typecheck` / `test` / `build` / `smoke`（对构建产物跑、无需 GUI）/ `sync`（把产物同步进已安装 profile）/ `probe`（真实宿主上核对客户端半边）/ `verify-live`（真实部署跑一遍业务链路）/ `npx playwright test`（真实 GUI，临时实例 + 临时 `DSH_HOME`）七条，并规定 E2E 只覆盖 jsdom 观测不到的那层。采纳这种分层，本包的对应关系见 §3.1。
+- DSH 宿主契约：`deepseek-harness/docs/user/develop/basic/publish.zh.md`（第 66 行要求 `engines.dsh`，缺省时回退到 `@deepseek-ai/dsh*` peer 范围；npm 与 tarball 安装使用预构建产物，不执行构建）；`deepseek-harness/packages/boot/app-boot/src/plugin-compatibility.ts` 第 55–73 行规定有 `engines.dsh` 时只看它、两者都缺视为满足。
+- 无参考实现的取值：`engines.dsh` 的具体范围与 `see-storycraft` 在 npm 的占用属于本包事实，参考工程都没有使用 DSH。范围由作者在 2026-10-26 定为 `>=0.2.1-rc.2 <0.3.0`。
+
+## 提案
+
+### 1. manifest
+
+`storycraft/package.json` 增加发布字段；产物位置与入口由 [2026-10-26-storycraft-bundled-build.md](../../implemented/process/2026-10-26-storycraft-bundled-build.md) 拥有，`exports`、`main`、`dsh`、`icon`、`description` 的**值**以该 Note 为准，本节只管发布字段：
+
+- 去掉 `private`；
+- `version: "0.1.0"`；
+- `license: "MIT"`，新增 `storycraft/LICENSE`（MIT 全文）；
+- `repository: { "type": "git", "url": "git+https://github.com/dehuadong/dsh-nove.git", "directory": "storycraft" }`（仅作元数据；仓库保持私有，不影响 npm 安装）；
+- `engines.dsh: ">=0.2.1-rc.2 <0.3.0"`（`engines.node` 由 bundled-build 拥有：`>=22.18`）；
+- `keywords` 补 DSH 插件检索词（`dsh-plugin`、`deepseek-harness`、`novel` 等）；
+- `files` 增加 `LICENSE`，其余保持 `lib`、`skills`、`cordis.patch.yml`、`icon.svg`、`README.md`。
+
+`src` 不进包；`lib` 仍由构建生成、不提交。
+
+### 2. 构建与安装脚本
+
+沿用 `scripts/build.mjs` 作为唯一构建入口，不引入第二套构建命令：
+
+- `build`：现有 `scripts/build.mjs`；
+- `prepack`：与 build 相同，保证 `npm pack` 与 `npm publish` 的产物完整；
+- `prepublishOnly`：`npm run build && node scripts/pack-check.mjs`。`npm publish` 先跑 prepublishOnly、再跑 prepack，而 pack-check 用 `npm pack --dry-run --ignore-scripts` 读清单、自己不再构建，所以这里必须先 build，否则干净树上会检查到空的 `lib/`；
+- 不设 `prepare`：它只对 git 安装有意义，而本包不做 git 轨。
+
+### 3. 校验与安装 smoke
+
+- 扩展 `scripts/pack-check.mjs`：在现有断言（入口集合从 `exports` 派生、`lib/` 无未声明产物、禁止 `src`/tests/e2e/scripts）之外，断言 `private` 不存在、`engines.dsh` 存在、`license` 字段与 `LICENSE` 文件一致、`LICENSE` 在包内、`files` 里没有 `dist`。**断言逻辑抽成纯函数**（输入 `package.json`、tarball 清单与 `lib/` 文件列表，返回失败列表），负例由 `tests/` 里的单测喂伪造清单来证明，不修改工作区。
+- 新增 `scripts/install-smoke.mjs`：自己 `npm pack` 出一个 tgz 到临时目录（并断言只产出一个包），在临时 `DSH_HOME` 下用 `dsh --profile web --dump-config` 让 DSH 从随附 `web` 模板初始化 profile（bundle 栈 `@deepseek-ai/dsh-base` + `@deepseek-ai/dsh-web-app`，与 Electron 的 desktop profile 相同），再 `dsh plugin --profile web add <tgz>`；`dsh --profile web --dump-config` 断言出现 `# == see-storycraft` 层，并回读 profile manifest 断言 bundles 同时含 web-app 与 see-storycraft——装与启必须是同一个 profile；随后按 `e2e/host.mjs` 的方式冷启动该 profile（`ELECTRON_RUN_AS_NODE=1`、`--profile web --port <空闲端口> --no-open`、解析 stdout 的 token URL）；写一份 `runtime.json` 后跑 `e2e/load.spec.cjs` 的同一套断言（页面无 `pageerror`、`GET /api/see-storycraft/works?root=…` 返回 200）。`--dump-config` 是必需的：没有 dump 标志时 launcher 会直接启动 profile（起服务并开浏览器）。桌面客户端路径沿用 `DSH_E2E_APP` 覆盖，不写死在脚本里。
+- `ci.mjs` 二选一：默认跑 e2e 复制模式；加 `--smoke` 时改为跑 tarball 安装 smoke，两者互斥，避免同时启动两个实例。
+- 安装生效方式必须分开写：`link:` 开发是「build 后重新加载」（模块是 junction，改完即生效）；tarball 与 registry 安装**必须重启 DeepSeek Harness**，因为渲染进程跑的是启动时那份客户端 bundle，正式构建里没有「重新加载页面」菜单项（`dsh-seework` 实测，`Ctrl+R` 也未绑定）。
+
+### 3.1 验证入口（分层）
+
+| 命令 | 覆盖 |
+| --- | --- |
+| `npm run typecheck` | Host 与 Client 两半的类型（`tsc -p`，`noEmit`） |
+| `node tests/<file>.test.mjs` / `ci.mjs` | 单元契约，直接跑 `src/*.ts` |
+| `node scripts/build.mjs` | 产物 `lib/` |
+| `node scripts/pack-check.mjs` | tarball 清单与入口契约（不触发构建） |
+| `node scripts/install-smoke.mjs`（新增） | tarball 装进干净临时 profile、冷启动、页面与接口 |
+| `node e2e/run.mjs` | 真实 GUI 里的 26 条 spec（复制安装） |
+| 作者真实会话 | 安装形态下打开工作台、确认可用 |
+
+### 4. 两种安装形态
+
+- 本机 link（开发）：`link:<仓库路径>/storycraft` 不变，改源码后先 `npm run build`；e2e 复制模式作为回归。
+- registry（发布）：`npm publish` 后 `dsh plugin add see-storycraft@0.1.0`；若命中 pnpm 的 24 小时 `minimumReleaseAge`，在临时 profile 的 `pnpm-workspace.yaml` 写入 `minimumReleaseAgeExclude: see-storycraft@0.1.0`。tarball 安装是发布前的本地等价验证。
+
+不做的轨：GitHub 直装（`git+https://…`）、插件内更新 UI、插件市场索引。
+
+### 5. 版本与发布流程
+
+1. 确认版本与提交一致，运行 `node storycraft/scripts/ci.mjs`；
+2. `npm pack`，运行 install-smoke；
+3. 打 tag `v0.1.0`（仅作发布标记，与 `package.json.version` 逐字一致；不作为安装入口）；
+4. `npm publish`（出站动作，单独确认；预发布版本只进非 `latest` 的 dist-tag）；
+5. 从 registry 重装一次并完成同样的挂载验收。
+
+### 6. 许可与源码
+
+发布包采用 MIT，不附带源码；仓库保持私有，npm 发布不要求仓库公开。
+
+### 7. 结构前提：单包，暂不 workspace 化
+
+作者 2026-10-27 决定：本包保持单包，**不引入 pnpm workspace**。
+
+- 组合的粒度是 Cordis 条目，不是 npm 包：现有 `cordis.patch.yml` 已在一个包内插入 `storycraft`、`preset-storycraft`（后者再挂 `see-storycraft/skills`、`see-storycraft/tools`），增加形态或能力不需要新包。
+- 本包没有运行时依赖，不存在“内联 workspace 库”的需求；`dsh-webnovel-writer` 之所以 workspace 化，是因为它有 4 个发布包与 5 个内部库要共享 core（见对拍参考）。
+- 迁移触发条件，满足任一条再做，且作为**独立工作项**先做结构迁移：① 出现第二个要独立发布的包（例如某形态拆成 `see-storycraft-script` 单独发版）；② 两个包需要共享一份 core；③ 某个包的产物要被另一个包内联。
+- 触发时的最小方案：仓库根加 `pnpm-workspace.yaml`（`packages: ['storycraft', 'packages/*']`）与根 `package.json`，内部库用 `workspace:*`，构建用 `pnpm -r --if-present build`，发布仍逐个包；届时一并处理包管理器（npm→pnpm）、lockfile、`ci.mjs`/`install-smoke` 的安装语义，并修正 TypeScript 迁移 Note 里“不采纳 monorepo”的记录。
+
+## 备选方案
+
+- **继续只做 link 开发**：不满足可分发目标；否决。
+- **GitHub 直装**（`git+https://…&path:/storycraft`，安装时 `prepare` 构建）：私有仓库需要凭据、安装时依赖 devDependencies 与 pnpm 行为，且作者 2026-10-27 明确不需要；否决。
+- **现在就 pnpm workspace 化**（把 storycraft 拆成 workspace 里的第一个包）：为将来的组合插件提前铺路，代价是换包管理器、lockfile、CI 与安装语义，且当前只有一个包、没有共享 core 的需求；作者 2026-10-27 决定按触发条件再迁移（见 §7）；本次不做。
+- **提交 `lib` 让安装免构建**：生成物成为第二真源，且与“`lib` 不提交”的决定冲突；否决。
+- **不做 `prepare`、只支持 npm**：已采纳（见 §2）。
+- **依赖 GitHub Actions 自动发布**：仓库没有 CI；先做可本地复现的门禁，CI 化留给后续工作项。
+- **GPL-3.0-only 并把源码放进 npm 包**：能合规，但作者选择更简单的 MIT；否决 GPL。
+- **插件市场索引与中央注册表**：作者决定本次不做；延后。
+
+## 验收条件
+
+本节只列该设计需要被证明成立的技术点；交付范围、产品验收与批准证据归工作项 `#75`。
+
+1. pack-check 的新断言不是空转：断言纯函数由单测喂伪造清单（缺 `engines.dsh`、`license` 与 `LICENSE` 不一致、`lib/` 多出未声明文件）时各返回失败，且不改动工作区。
+2. tarball 在临时 `DSH_HOME` 的独立 profile 中安装后，`--dump-config` 出现 `see-storycraft` 层，冷启动页面无 `pageerror` 且工作台路由返回 200。
+3. 把 `engines.dsh` 改成当前运行版本不满足的范围后，隔离 profile 的安装被宿主拒绝并给出原因。
+
+## 风险
+
+- 本机只有 `0.2.1-rc.3` 可运行（checkout 为 rc.2 且没有 `node_modules`）；`engines.dsh` 含 rc.2 但 rc.2 未实测，登记为已知缺口。
+- pnpm 的 24 小时 `minimumReleaseAge` 会挡住发布当天的 registry 安装验证，需要在临时 profile 显式豁免该版本。
+- `npm publish` 是出站动作，需要单独确认；发布后的 CDN 同步滞后会让紧随其后的安装 404，重试即可。
+- `dsh plugin add` 对 tarball 与 path spec 的重装报 `ambiguous-install`（`dsh-seework` 实测），smoke 每次使用全新临时 profile 规避。
+- `repository` 指向私有仓库：npm 页面对外部访问者不可达，只作元数据；不影响安装。
+- 将来 workspace 化会牵动包管理器、lockfile、CI 与 `install-smoke` 的安装语义，并需要修正已交付 Note 的记录；按 §7 的触发条件另立工作项，不并入发布工作项。

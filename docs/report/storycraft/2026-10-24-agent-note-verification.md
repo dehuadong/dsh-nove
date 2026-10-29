@@ -2,6 +2,8 @@
 
 这是对 2026-10-24 批量从 `proposed/pipeline` 移到 `implemented/pipeline` 的 17 份 Note 的逐份核验记录。
 
+> 2026-10-29 迁移说明：本记录保留当时的目录与检查器名称（`proposed/pipeline`、`implemented/pipeline`、`node scripts/decisions/check.mjs`），属于历史证据，不再按现行布局改写。现行分类、格式与校验入口见 [.agents/notes/AGENTS.md](../../../.agents/notes/AGENTS.md)。
+
 ## 方法
 
 每份 Note 按四项核对：

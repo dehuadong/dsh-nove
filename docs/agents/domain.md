@@ -5,7 +5,7 @@
 ## 先读什么
 
 - 术语：根目录 `GLOSSARY.md`。本仓库是单上下文，没有 `GLOSSARY-MAP.md`；术语表在首次确认术语时才创建，不存在不视为配置错误。
-- 决定与约束：按 [文档标准](../AGENTS.md) 的归属跳到适用属主。长期技术设计与决定在 `.agents/notes/`，读取路径与记录范围按该目录的 README 与 config.json。
+- 决定与约束：按 [文档标准](../AGENTS.md) 的归属跳到适用属主。长期技术设计与决定在 `.agents/notes/`，写入与读取规则由 `write-agent-notes` Skill 拥有，根范围见 `.agents/notes/AGENTS.md`。
 - 路径从仓库管理根目录解析，不以当前工作目录为准；普通 Markdown 链接相对其所在文件解析。
 
 需要的输入缺失或范围冲突时，报告具体缺口和受影响的工作，不自行新增第二个属主。
