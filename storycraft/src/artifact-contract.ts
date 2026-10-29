@@ -443,10 +443,20 @@ export function validateStateDraft(value: ArtifactRecord): ArtifactRecord {
   keys(input, ['chapter', 'revision', 'factOps', 'hookOps', 'newHooks', 'findings', 'ready', 'resolvedBy', 'createdAt'], 'state_draft')
   integer(input.chapter, 'state_draft.chapter', 1)
   integer(input.revision, 'state_draft.revision', 1)
+  if (input.factOps === null) invalid('state_draft.factOps 不能是 null')
+  if (input.hookOps === null) invalid('state_draft.hookOps 不能是 null')
   object(input.factOps ?? {}, 'state_draft.factOps')
   object(input.hookOps ?? {}, 'state_draft.hookOps')
   if (input.newHooks !== undefined && !Array.isArray(input.newHooks)) invalid('state_draft.newHooks 必须是数组')
-  if (input.findings !== undefined && !Array.isArray(input.findings)) invalid('state_draft.findings 必须是数组')
+  if (input.findings !== undefined) {
+    if (!Array.isArray(input.findings)) invalid('state_draft.findings 必须是数组')
+    for (const finding of input.findings) {
+      const item = object(finding, 'state_draft.findings[]')
+      // Findings come from the validator and may carry extra evidence fields.
+      if (typeof item.code !== 'string') invalid('state_draft.findings[].code 必须是字符串')
+      if (typeof item.problem !== 'string') invalid('state_draft.findings[].problem 必须是字符串')
+    }
+  }
   if (typeof input.ready !== 'boolean') invalid('state_draft.ready 必须是布尔值')
   if (input.resolvedBy !== null && input.resolvedBy !== undefined && input.resolvedBy !== 'author') {
     invalid('state_draft.resolvedBy 只能是 author 或 null')

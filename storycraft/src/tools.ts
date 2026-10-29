@@ -18,7 +18,7 @@
 
 import { createHash } from 'node:crypto'
 import {
-  StoryError, backupWork, deleteWork, exportWork, initWork, nextStep as nextStepFor, settleState,
+  StoryError, backupWork, deleteWork, exportWork, initWork, nextStep as nextStepFor, 
   approveFoundation, approveOutline, approveChapterPlan, finalizeChapter, markStateDraftReady, mergeStateDraft,
   planApprovalPolicy,
   latestReview, readBibleEntry, readChapter, readEvents, readEventsText, readManifest, readPlan, readSessionCurrent,
@@ -1213,6 +1213,21 @@ const STATE_SETTLE_OUTPUT: DshToolOutput = {
       settled: { type: 'boolean' },
       counts: OUTPUT_PROPERTIES.counts,
       warnings: OUTPUT_PROPERTIES.warnings,
+      appended: { type: 'integer' },
+      seq: { type: 'integer' },
+      hooks: { type: 'array', items: { type: 'object', additionalProperties: true } },
+      facts: { type: 'array', items: { type: 'object', additionalProperties: true } },
+      draft: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          artifactId: { type: 'string' },
+          revisionId: { type: 'string' },
+          revision: { type: 'integer' },
+          ready: { type: 'boolean' },
+        },
+        required: ['artifactId', 'revisionId', 'revision', 'ready'],
+      },
       items: { type: 'array', items: STATE_CHECK_ITEM },
       proposed: STATE_SETTLE_PROPOSED,
       reason: { type: 'string', enum: ['state-reconcile-required', 'state-invalid', 'state-settle-timeout'] },

@@ -121,6 +121,7 @@ interface ReceiptTrace {
 
 /** One unresolved receipt before any write. */
 interface UnresolvedInput {
+  root: string
   work: string
   chapter: number
   revision: number
@@ -210,7 +211,33 @@ function feedbackFor(items: Finding[]): string {
 }
 
 /** Build one unresolved receipt; no write has happened at this point. */
+function hasProposedOps(payload: StatePayload | undefined): boolean {
+  if (payload === undefined) return false
+  return Object.keys(payload.factOps ?? {}).length > 0
+    || Object.keys(payload.hookOps ?? {}).length > 0
+    || (Array.isArray(payload.newHooks) && payload.newHooks.length > 0)
+}
+
 function unresolved(input: UnresolvedInput): SettleReceipt {
+  // A reconcile or timeout receipt with usable ops is material for the author:
+  // store it as an unaccepted draft so story_apply_draft has something to accept.
+  let draft: { artifactId: string; revisionId: string; revision: number; ready: boolean } | undefined
+  if (hasProposedOps(input.proposed) && input.revision > 0) {
+    try {
+      const entry = readManifest(input.root, input.work).chapters.find((chapter: ManifestChapter) => chapter.number === input.chapter)
+      if (entry !== undefined && entry.currentRevision === input.revision) {
+        draft = writeStateDraft(input.root, {
+          work: input.work, chapter: input.chapter,
+          ...input.proposed,
+          findings: input.items,
+          ready: false,
+        })
+      }
+    } catch {
+      // The receipt is still useful even if the draft cannot be stored.
+    }
+  }
+
   const trace: SettlementTrace = input.trace ?? { durationMs: 0, perAttempt: [] }
   trace.durationMs = Date.now() - input.started
   return {
@@ -222,6 +249,7 @@ function unresolved(input: UnresolvedInput): SettleReceipt {
     reason: input.reason,
     ...(input.message === undefined ? {} : { message: input.message }),
     proposed: input.proposed,
+    ...(draft === undefined ? {} : { draft }),
     warnings: input.warnings,
     items: input.items,
     attempts: { settler: input.settlerAttempts, validator: input.validatorAttempts },
@@ -341,7 +369,7 @@ export async function settleChapterState(
   const timedOut = (message: string, extra: TimeoutExtra = {}): SettleReceipt => {
     trace.durationMs = Date.now() - started
     return unresolved({
-    work, chapter, revision: extra.revision ?? 0, reason: 'state-settle-timeout', message,
+    root, work, chapter, revision: extra.revision ?? 0, reason: 'state-settle-timeout', message,
     proposed: extra.proposed ?? { factOps: {}, hookOps: {}, newHooks: [] },
     warnings: extra.warnings ?? [], items: extra.items ?? [],
     settlerAttempts: extra.settlerAttempts ?? 0, validatorAttempts: extra.validatorAttempts ?? 0,
@@ -412,6 +440,7 @@ export async function settleChapterState(
         continue
       }
       return unresolved({
+        root,
         work, chapter, revision, reason: 'state-invalid', message: String(error?.message ?? error),
         proposed, warnings: [], items: [], settlerAttempts, validatorAttempts, started, trace,
       })
@@ -425,6 +454,7 @@ export async function settleChapterState(
         })
       }
       return unresolved({
+        root,
         work, chapter, revision, reason: 'state-reconcile-required',
         proposed, warnings: pendingWarnings, items: pendingItems, settlerAttempts, validatorAttempts, started, trace,
       })
@@ -470,6 +500,7 @@ export async function settleChapterState(
         continue
       }
       return unresolved({
+        root,
         work, chapter, revision, reason: 'state-invalid', message: String(error?.message ?? error),
         proposed, warnings: [], items: [], settlerAttempts, validatorAttempts, started, trace,
       })
@@ -493,6 +524,7 @@ export async function settleChapterState(
       continue
     }
     return unresolved({
+      root,
       work, chapter, revision, reason: 'state-reconcile-required',
       proposed, warnings: check.warnings, items: check.items, settlerAttempts, validatorAttempts, started, trace,
     })

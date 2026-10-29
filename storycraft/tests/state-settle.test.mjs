@@ -183,6 +183,12 @@ try {
     && unresolved.items.length === 1 && s.readEvents(root, unresolvedWork).length === 0
     && s.readManifest(root, unresolvedWork).chapters[0].stage !== 'settled', JSON.stringify(unresolved))
 
+  check('a reconcile receipt carries its draft', unresolved.draft?.ready === false
+    && unresolved.draft?.artifactId === 'state:draft:1:r1', JSON.stringify(unresolved.draft))
+  const reconcileNext = await s.nextStep(root, unresolvedWork)
+  check('story_next points at the draft acceptance', reconcileNext.action === 'story_apply_draft'
+    && reconcileNext.chapter === 1, JSON.stringify(reconcileNext))
+
   const invalidWork = makeWork('非法 delta')
   makeChapter(invalidWork)
   const invalidService = fakeService([

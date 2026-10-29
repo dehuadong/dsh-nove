@@ -169,6 +169,8 @@ window.__ModuleLoader__.load({
       hasSummary: boolean
       summaryRevision: number | null
       summaryStale: boolean
+  stateReadyRevision: number
+  stateDraftReady: boolean
       reviewRound: number
       openProblems: number
       updatedAt: string
@@ -909,7 +911,7 @@ window.__ModuleLoader__.load({
           story_settle: '结算：抽取状态草案（不写事件）',
           story_apply_draft: '接受状态草案（作者确认）',
           story_finalize: '定稿：应用草案并入账',
-          story_state: '手动定稿：写入本章事实',
+          story_state: '改状态草案（定稿前）',
           story_summarize: '写本章摘要',
           story_volume: '补本卷摘要',
         } as Record<string, string>)[action] ?? action
@@ -1469,8 +1471,8 @@ window.__ModuleLoader__.load({
                     : chapter.openProblems > 0
                       ? `还有 ${chapter.openProblems} 条审稿未处理：先修订`
                       : '把本章的人物变化与伏笔记进书里，并把该章锁为已定稿',
-                onClick: () => compose(INSTRUCTIONS.fold(workId, chapter.number)),
-              }, '定稿'),
+                onClick: () => compose(INSTRUCTIONS.step(workId, chapter.number, chapter.stateDraftReady === true ? 'story_finalize' : 'story_settle')),
+              }, chapter.stateDraftReady === true ? '定稿' : '结算'),
           ),
         ),
         chapter.stage === 'settled'
@@ -2562,8 +2564,8 @@ window.__ModuleLoader__.load({
                             title: item.hasSummary === true
                               ? '把事实与伏笔记进书里并锁定本章'
                               : item.summaryStale === true ? '摘要过期：先重写摘要，再定稿' : '先写摘要，再定稿',
-                            onClick: () => compose(INSTRUCTIONS.fold(manifest.workId, item.number)),
-                          }, '定稿'),
+                            onClick: () => compose(INSTRUCTIONS.step(manifest.workId, item.number, item.stateDraftReady === true ? 'story_finalize' : 'story_settle')),
+                          }, item.stateDraftReady === true ? '定稿' : '结算'),
                       )
                       : null,
                   ))),
