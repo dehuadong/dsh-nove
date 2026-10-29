@@ -34,6 +34,8 @@ export type WorkbenchKey =
   | 'revising'
   | 'summarizing'
   | 'settling'
+  | 'draft-ready'
+  | 'finalizing'
   | 'volume-summary'
 
 /** The slice of the stage machine's step this module reads. */
@@ -192,9 +194,25 @@ export function deriveWorkbench(input: { next: WorkbenchNext, manifest: Workbenc
     case 'story_settle':
       return {
         key: 'settling',
+        label: '可结算',
+        hint,
+        primary: action('settle', `结算第 ${chapter} ${unit}状态`),
+        secondary: [action('review', '重新审稿')],
+      }
+    case 'story_apply_draft':
+      return {
+        key: 'draft-ready',
+        label: '待接受草案',
+        hint,
+        primary: action('apply-draft', `接受第 ${chapter} ${unit}状态草案`),
+        secondary: [action('settle', `重新结算第 ${chapter} ${unit}`)],
+      }
+    case 'story_finalize':
+      return {
+        key: 'finalizing',
         label: '可定稿',
         hint,
-        primary: action('settle', `定稿第 ${chapter} ${unit}`),
+        primary: action('finalize', `定稿第 ${chapter} ${unit}`),
         secondary: [action('review', '重新审稿')],
       }
     case 'story_volume':

@@ -34,10 +34,10 @@ const ctx = {
 tools.apply(ctx, { mode: 'longform' })
 
 const names = registered.map(definition => definition.name).sort()
-check('registers thirty-two actions', names.length === 32, names.join(','))
+check('registers thirty-two actions', names.length === 34, names.join(','))
 check('action names', names.join(',') === [
-  'story_approve', 'story_backup', 'story_bible', 'story_bible_write', 'story_brief', 'story_context',
-  'story_critique', 'story_current', 'story_delegate', 'story_delete', 'story_export', 'story_init', 'story_next', 'story_outline',
+  'story_apply_draft', 'story_approve', 'story_backup', 'story_bible', 'story_bible_write', 'story_brief', 'story_context',
+  'story_critique', 'story_current', 'story_delegate', 'story_delete', 'story_export', 'story_finalize', 'story_init', 'story_next', 'story_outline',
   'story_plan', 'story_propose', 'story_read', 'story_rename', 'story_reopen', 'story_restore', 'story_review', 'story_revise', 'story_settings', 'story_settle', 'story_state', 'story_state_check', 'story_status', 'story_submit', 'story_summarize', 'story_volume', 'story_volumes', 'story_write',
 ].sort().join(','), names.join(','))
 check('the delegation and scope guards are registered', guards.length === 2, String(guards.length))
@@ -359,7 +359,12 @@ try {
     factOps: { upsert: [{ subject: '林澈', predicate: '状态', object: '拿到假合同' }] },
     newHooks: [{ text: '合同是假的' }],
   }, exec)
-  check('story_state ok', state.ok === true && state.counts.newHooks === 1, JSON.stringify(state))
+  check('story_state writes a draft', state.ok === true && state.artifact?.kind === 'state_draft', JSON.stringify(state))
+  const applied = await byName.get('story_apply_draft').execute({ work, chapter: 1 }, exec)
+  check('story_apply_draft marks the draft ready', applied.ok === true && applied.artifact?.kind === 'state_draft', JSON.stringify(applied))
+  const finalized = await byName.get('story_finalize').execute({ work, chapter: 1 }, exec)
+  check('story_finalize applies the draft and settles',
+    finalized.ok === true && finalized.counts?.facts >= 1, JSON.stringify(finalized))
 
   const duplicates = await byName.get('story_init').execute({ title: '雨里的灯', proposal: proposal.proposal }, exec)
   check('duplicate init refused', duplicates.ok === false && duplicates.error.code === 'work-exists', JSON.stringify(duplicates))

@@ -19,7 +19,7 @@ DSH 里的长篇创作编排：三十二个动作把立项、章纲、正文、�
 - `planner` 只写**首次章纲**：已有 `plan:<n>` 时返回 `plan-exists`，改章纲仍由主编手动 `story_plan`，避免子代理覆盖已确认章纲；
 - 写手按作品 `form` 加载形态 craft 与形态契约：长篇 `storycraft-long-prose` + `storycraft-longform-chapter`，短篇 `storycraft-short-prose` + `storycraft-short-story`，剧本 `storycraft-script-scene` + `storycraft-short-drama`；提示按「章 / 篇 / 集」显示单位；形态契约同样只写流程与提交，方法读各自的 craft；
 - 定稿前的状态对账由 `storycraft-state-check` 子代理完成（`story_state_check`），只读、只出建议；它不替代 `storycraft-review` 的正文审稿；
-- 定稿本身优先由 `story_settle` 自动完成：`storycraft-state-settler` 从正文抽取 `factOps`/`hookOps`/`newHooks`，再走 `story_state_check`；未解决时用 `story_state` 手动修正；
+- 结算由 `story_settle` 产出状态草案（不写事件）：`storycraft-state-settler` 从正文抽取 `factOps`/`hookOps`/`newHooks`，再走 `story_state_check`；作者接受草案或 `story_state` 改草案后，用 `story_finalize` 定稿入账；
 - 长篇任务里，规划、写作、审稿与定稿前的主编按各自技能正文的触发加载 `storycraft-long-writing` 的 references；短篇、剧本各读 `storycraft-short-writing` / `storycraft-script-writing`；方法技能只给判断依据，不产出提交内容，也不替代角色技能的输出契约；
 - 委派子代理通过 `story_submit` 提交结构化结果；预设作用域的守卫拒绝它调用 `write`、`edit`、`pwsh`、`bash` 与写动作（`story_write`、`story_review`、`story_revise`、`story_delegate` 等），落库一律由宿主/主编完成；
 - 委派深度固定为 1，子代理不能再派发。
@@ -120,7 +120,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 
 - 没有章纲不能写正文（`plan-not-found`）；
 - 没有审稿清单不能定稿（`review-required`）；没有摘要返回 `summary-required`，摘要过期返回 `summary-stale`；`story_state` 在写库前做确定性预检：重复 fact 三元组按投影去重，未知 hookId、非法转移、无可失效 fact 与二次归档直接拒绝；
-- 定稿优先用 `story_settle` 自动结算：settler 抽取 `factOps`/`hookOps`/`newHooks`，确定性预检 + `story_state_check`，major/确定性差异带反馈重算一次；整个结算默认 8 分钟总预算，超时返回 `settled:false` + `state-settle-timeout`（不重试、不写库），回执带 `attempts` 与 `trace.perAttempt`（每次 child 阶段/耗时/最后错误）；首次空 payload 可定稿，但被 major 拒绝后的第二次空 payload 仍视为未解决；
+- 结算用 `story_settle` 产草案：settler 抽取 `factOps`/`hookOps`/`newHooks`，确定性预检 + `story_state_check`，major/确定性差异带反馈重算一次；默认 8 分钟总预算，超时返回 `settled:false` + `state-settle-timeout`（不重试、不写库），回执带 `attempts` 与 `trace.perAttempt`；零 ops 章也产空草案，定稿写零事件；
 - 手动修正仍用 `story_state`，payload 与 settler 同形；`story_state_check` 可在写前只读核对 payload，findings 只作建议，不阻断 `story_state`；
 - 定稿要求当前正文版本的审稿没有 `issue` observation；修订后必须再跑一次审稿（新一轮用 `resolved` 指向上一轮 id），清稿审稿直接放行；
 - 审稿只对「它记录的那个正文版本」有效：改过正文后要重新审稿才能再修订；定稿只认当前正文版本的 review artifact，且其中没有 `issue`；`reviews` 表已删除；
@@ -139,8 +139,8 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 | `story_review` | 写一轮 observation（逐字引文/问题/修法；轮次按章独立编号；空数组合法=清稿） | 正文不存在；已定稿；引文不在正文或章纲；**不改正文** |
 | `story_revise` | 生成新版本正文，回执列出本轮处理（resolved）的 observation id | 没有未处理审稿；未指定条目；条目不存在；正文与当前版本相同；模式与改动幅度不符 |
 | `story_state_check` | 只读语义对账：把拟写入的 `factOps`/`hookOps`/`newHooks` 交给 validator 子代理核对正文，返回最多 8 条建议性 findings 与正文引文校验；不写库 | 子代理调用 `state-check-parent-denied`；空 payload `empty-state`；缺正文 `chapter-not-written`；已定稿 `chapter-settled`；服务缺失/超时/无提交/正文改版分别返回错误，不返回干净结果 |
-| `story_settle` | 自动结算：settler 从正文抽取 v2 操作，确定性预检 + 语义检查；major/确定性差异带反馈重算一次；成功写事件并定稿，未解决返回 `settled:false`、proposed 与 findings，不写库；总预算 8 分钟，超时返回 `state-settle-timeout` 并带 `trace.perAttempt` | 子代理调用 `subagent-cannot-land`；闸门同 `story_state`，另要求章已有正文（`chapter-not-written`）；服务缺失/无提交/正文改版分别返回 `state-settle-*`；超时不重试，不产生半成品 |
-| `story_state` | 手动追加 v2 hook/fact 操作，返回 `counts.facts`/`counts.hooks`/`counts.newHooks`（实际写入的事件数）与 `warnings` | 作品或章不存在；未知 hookId `hook-not-found`；非法转移 `hook-transition-invalid`；无可失效 fact `fact-not-found`；空 payload `empty-state`；已定稿重复归档 `chapter-settled`；未修订完成或未清稿；无摘要 `summary-required`；摘要过期 `summary-stale` |
+| `story_settle` | 结算：settler 从正文抽取 v2 操作，确定性预检 + 语义检查；成功只写状态草案（`state:draft`，不写事件、不定稿），未解决返回 `settled:false`、proposed 与 findings；总预算 8 分钟，超时返回 `state-settle-timeout` | 子代理调用 `subagent-cannot-land`；闸门同 `story_state`，另要求章已有正文（`chapter-not-written`）；服务缺失/无提交/正文改版分别返回 `state-settle-*`；超时不重试，不产生半成品 |
+| `story_state` | 把作者 ops 合并进状态草案（可创建草案），不写事件、不定稿 | 作品或章不存在；未知 hookId `hook-not-found`；非法转移 `hook-transition-invalid`；无可失效 fact `fact-not-found`；空 payload `empty-state`；已定稿重复归档 `chapter-settled`；未修订完成或未清稿；无摘要 `summary-required`；摘要过期 `summary-stale` |
 | `story_status` | 只读汇总进度、阶段、版本、未处理问题、未解伏笔；每章带 `hasSummary` / `summaryRevision` / `summaryStale` | 作品不存在；作品库升级失败 `schema-migration-failed` |
 | `story_delegate` | 宿主侧跑一个角色（writer/reviewer/reviser/summarizer/architect/planner）：预检、装配上下文、启动子代理、消费 `story_submit`、落库，返回紧凑回执 | 预检/阶段错误按原码返回；服务缺失 `delegation-unavailable`；无合格提交 `delegation-no-submission`；当前版本已有摘要 `summary-exists` |
 | `story_submit` | 仅子代理调用：提交结构化角色结果，宿主校验字数/mode，失败可重提 | 父代理/非委派 `submit-parent-denied`；超 3 次 `submit-attempts-exhausted` |

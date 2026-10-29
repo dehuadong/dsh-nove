@@ -44,7 +44,7 @@ export const STORE_DIR = '.storycraft'
 export const CATALOG_SCHEMA_VERSION = 1
 
 /** Schema version of one work database. */
-export const WORK_SCHEMA_VERSION = 12
+export const WORK_SCHEMA_VERSION = 13
 
 /** Final material table with purpose, used by new databases. */
 const MATERIALS_SCHEMA_V4 = `
@@ -152,6 +152,7 @@ CREATE TABLE IF NOT EXISTS chapters (
   plan_approved_reason TEXT,
   provenance TEXT NOT NULL DEFAULT 'generated' CHECK (provenance IN ('generated', 'imported', 'edited')),
   last_revise_mode TEXT,
+  state_ready_revision INTEGER NOT NULL DEFAULT 0,
   updated_at TEXT NOT NULL
 );
 
@@ -347,7 +348,7 @@ export function openCatalog(root: string, options: { create?: boolean, busyTimeo
 
 /** Columns the current shape needs; a file without them predates the A0 schema. */
 const WORK_SCHEMA_REQUIRED_COLUMNS = Object.freeze({
-  chapters: ['plan_revision', 'plan_approved_source', 'plan_approved_reason', 'provenance'],
+  chapters: ['plan_revision', 'plan_approved_source', 'plan_approved_reason', 'state_ready_revision', 'provenance'],
   meta: ['outline_approved_revision', 'outline_approved_source', 'outline_approved_reason', 'foundation_approved_revision', 'foundation_approved_source', 'foundation_approved_reason'],
   artifacts: ['input_revision'],
 })

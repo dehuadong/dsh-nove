@@ -15,7 +15,7 @@ export const ARTIFACT_CONTRACT_VERSION = 2
 export const ARTIFACT_KINDS = [
   'outline', 'plan', 'chapter', 'summary', 'review', 'state', 'context', 'trace',
   'world', 'style', 'intent', 'current_focus', 'story_frame', 'volume_map', 'book_rules',
-  'role_index', 'role_card', 'volume', 'material', 'export', 'backup',
+  'role_index', 'role_card', 'state_draft', 'volume', 'material', 'export', 'backup',
   'short_story', 'script', 'storyboard', 'interactive_film', 'play_world', 'cover', 'translation',
 ]
 
@@ -437,6 +437,24 @@ export function validateContextPackage(value: ArtifactRecord): ArtifactRecord {
   return input
 }
 
+/** Validate a state draft: the pre-finalize state proposal of one revision. */
+export function validateStateDraft(value: ArtifactRecord): ArtifactRecord {
+  const input = object(value, 'state_draft')
+  keys(input, ['chapter', 'revision', 'factOps', 'hookOps', 'newHooks', 'findings', 'ready', 'resolvedBy', 'createdAt'], 'state_draft')
+  integer(input.chapter, 'state_draft.chapter', 1)
+  integer(input.revision, 'state_draft.revision', 1)
+  object(input.factOps ?? {}, 'state_draft.factOps')
+  object(input.hookOps ?? {}, 'state_draft.hookOps')
+  if (input.newHooks !== undefined && !Array.isArray(input.newHooks)) invalid('state_draft.newHooks 必须是数组')
+  if (input.findings !== undefined && !Array.isArray(input.findings)) invalid('state_draft.findings 必须是数组')
+  if (typeof input.ready !== 'boolean') invalid('state_draft.ready 必须是布尔值')
+  if (input.resolvedBy !== null && input.resolvedBy !== undefined && input.resolvedBy !== 'author') {
+    invalid('state_draft.resolvedBy 只能是 author 或 null')
+  }
+  text(input.createdAt, 'state_draft.createdAt')
+  return input
+}
+
 /** Validate a chapter trace. */
 export function validateChapterTrace(value: ArtifactRecord): ArtifactRecord {
   const input = object(value, 'trace')
@@ -613,6 +631,7 @@ export const ARTIFACT_CONTENT_VALIDATORS = {
   book_rules: validateBookRules,
   role_index: validateRolesIndex,
   role_card: validateRoleCard,
+  state_draft: validateStateDraft,
   review: validateReviewObservations,
   trace: validateChapterTrace,
   short_story: validateShortStory,
@@ -626,6 +645,7 @@ export const ARTIFACT_IDENTITY = {
   book_rules: { artifactId: 'bible:book_rules' },
   role_index: { artifactId: 'roles:index' },
   role_card: { pattern: /^role:[^\s:]+$/u },
+  state_draft: { pattern: /^state:draft:([1-9]\d*):r([1-9]\d*)$/u, chapterScoped: true },
   plan: { pattern: /^plan:([1-9]\d*)$/u, chapterScoped: true },
   summary: { pattern: /^summary:([1-9]\d*)$/u, chapterScoped: true },
   review: { pattern: /^review:([1-9]\d*):r([1-9]\d*):([1-9]\d*)$/u, chapterScoped: true },
@@ -670,6 +690,12 @@ export function validateArtifactRecord(value: ArtifactRecord): ArtifactRecord {
   }
   if (envelope.kind === 'role_card' && content.slug !== envelope.artifactId.slice('role:'.length)) {
     invalid('role_card 的 slug 必须等于 artifactId 的 role 段')
+  }
+  if (envelope.kind === 'state_draft') {
+    const match = /^state:draft:([1-9]\d*):r([1-9]\d*)$/u.exec(envelope.artifactId)
+    if (match === null || Number(match[1]) !== content.chapter || Number(match[2]) !== content.revision) {
+      invalid('state_draft 的 artifactId 必须与 content.chapter/revision 一致')
+    }
   }
   return { ...envelope, content }
 }

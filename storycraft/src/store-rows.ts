@@ -69,6 +69,7 @@ export interface ChapterRow {
   plan_approved_at: string | null
   plan_revision: string | null
   plan_approved_source: string | null
+  state_ready_revision: number
   plan_approved_reason: string | null
   provenance: 'generated' | 'imported' | 'edited'
   last_revise_mode: string | null

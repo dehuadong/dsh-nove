@@ -99,9 +99,14 @@ try {
     && success.revision === 1 && success.counts.facts === 1 && success.counts.hooks === 0, JSON.stringify(success))
   check('automatic settlement reports attempts', success.attempts.settler === 1
     && success.attempts.validator === 1, JSON.stringify(success.attempts))
-  check('automatic settlement settles the chapter',
+  check('automatic settlement writes a draft without finalizing',
+    success.draft?.artifactId === 'state:draft:1:r1'
+    && s.readManifest(root, successWork).chapters[0].stage === 'reviewed'
+    && s.readEvents(root, successWork).length === 0, JSON.stringify(success))
+  s.finalizeChapter(root, { work: successWork, chapter: 1 })
+  check('finalize applies the draft and settles',
     s.readManifest(root, successWork).chapters[0].stage === 'settled'
-    && s.readEvents(root, successWork).length === 2, JSON.stringify(s.readManifest(root, successWork).chapters[0]))
+    && s.readEvents(root, successWork).length === 2)
 
   const emptyWork = makeWork('空状态')
   makeChapter(emptyWork)
@@ -109,9 +114,11 @@ try {
   const empty = await settleChapterState(root, { work: emptyWork, chapter: 1 }, {
     service: emptyService, agent, signal,
   })
-  check('an empty settler delta still settles', empty.settled === true
+  check('an empty settler delta still produces a draft', empty.settled === true
     && empty.counts.facts === 0 && empty.attempts.validator === 0
-    && s.readEvents(root, emptyWork).length === 1, JSON.stringify(empty))
+    && s.readEvents(root, emptyWork).length === 0, JSON.stringify(empty))
+  s.finalizeChapter(root, { work: emptyWork, chapter: 1 })
+  check('an empty draft finalizes without events', s.readEvents(root, emptyWork).length === 1)
 
   const minorWork = makeWork('次要发现')
   makeChapter(minorWork)

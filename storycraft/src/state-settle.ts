@@ -9,7 +9,7 @@
 
 import { StoryError, chapterNumber } from './storage.ts'
 import {
-  previewState, readChapter, readEvents, readFoldedState, readManifest, readPlan, readSummary, settleState, statePreflight,
+  chapterStageOf, previewState, readChapter, readEvents, readFoldedState, readManifest, readPlan, readSummary, writeStateDraft, statePreflight,
 } from './storage.ts'
 import { readCards } from './facts.ts'
 import { closeSubmission, consumeSubmission, openSubmission } from './submission.ts'
@@ -176,6 +176,7 @@ interface SettleReceipt {
   attempts: { settler: number; validator: number }
   trace: ReceiptTrace
   counts?: Record<string, number>
+  draft?: { artifactId: string; revisionId: string; revision: number; ready: boolean }
   artifact?: { workId: string; artifactId: string; revisionId: string; kind: string }
 }
 
@@ -349,6 +350,9 @@ export async function settleChapterState(
   }
   const pre = statePreflight(root, { work, chapter, requireBody: true })
   const manifest: ManifestView = readManifest(root, work)
+  if (chapterStageOf(root, work, chapter) === 'settled') {
+    throw new StoryError('chapter-settled', `第 ${chapter} 章已定稿：先 reopen 再结算`)
+  }
   const bodyRead = readChapter(root, { work, chapter })
   const revision = bodyRead.revision
   const seq = lastSeq(root, work)
@@ -505,25 +509,33 @@ function land(root: string, input: LandInput): SettleReceipt {
     || lastSeq(root, input.work) !== input.seq) {
     throw new StoryError('state-settle-stale', `第 ${input.chapter} 章在结算期间发生变化：请对当前版本重跑`)
   }
-  const settled = settleState(root, {
+  const preview = previewState(root, {
     work: input.work,
     chapter: input.chapter,
     ...input.payload,
     allowEmpty: true,
   })
+  const draft = writeStateDraft(root, {
+    work: input.work,
+    chapter: input.chapter,
+    ...input.payload,
+    findings: input.items,
+    ready: true,
+  })
   const minor = input.items.map(item => `${item.code}: ${item.where} — ${item.problem}`)
-  const warnings = [...new Set([...input.warnings, ...settled.warnings, ...minor])]
+  const warnings = [...new Set([...input.warnings, ...minor])]
   return {
     ok: true,
     settled: true,
     workId: input.work,
     chapter: input.chapter,
     revision: input.revision,
-    counts: settled.counts,
+    counts: preview.counts,
     warnings,
     items: input.items,
     attempts: { settler: input.settlerAttempts, validator: input.validatorAttempts },
     trace: { durationMs: Date.now() - input.started },
-    artifact: { workId: input.work, artifactId: 'state', revisionId: `seq:${settled.seq}`, kind: 'state' },
+    draft: { artifactId: draft.artifactId, revisionId: draft.revisionId, revision: draft.revision, ready: draft.ready },
+    artifact: { workId: input.work, artifactId: draft.artifactId, revisionId: draft.revisionId, kind: 'state_draft' },
   }
 }

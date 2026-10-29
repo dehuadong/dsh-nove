@@ -645,6 +645,7 @@ export function readManifest(root: string, work: unknown): any {
     ...(chapter.plan_approved_reason === null ? {} : { planApprovedReason: chapter.plan_approved_reason }),
             ...(chapter.plan_revision == null ? {} : { planRevision: chapter.plan_revision }),
             provenance: chapter.provenance ?? 'generated',
+            stateReadyRevision: Number(chapter.state_ready_revision ?? 0),
             ...(chapter.last_revise_mode === null ? {} : { lastReviseMode: chapter.last_revise_mode }),
             updatedAt: chapter.updated_at,
           }
@@ -939,6 +940,7 @@ export function readWork(root: string, work: unknown): any {
         hasSummary: summary.state === 'current',
         summaryRevision: summary.revision,
         summaryStale: summary.state === 'stale',
+        stateReadyRevision: Number(chapter.state_ready_revision ?? 0),
         reviewRound: review?.round ?? 0,
         openProblems: openObservations(review).length,
         updatedAt: chapter.updatedAt,
@@ -1376,7 +1378,17 @@ export function nextStep(root: any, work: any) {
       const stage = stageOf(last)
       const hasBody = last.currentRevision > 0
       if (stage === 'settled') {
-        const summary = summaryOf(last.number)
+        const draftRow = db.prepare("SELECT content FROM artifacts WHERE kind = 'state_draft' AND scope_chapter = ? ORDER BY rowid DESC LIMIT 1").get(last.number)
+      const draft = draftRow === undefined ? undefined : JSON.parse(String(draftRow.content))
+      const draftCurrent = draft !== undefined && Number(draft.revision) === Number(last.currentRevision)
+      if (draftCurrent && draft.ready !== true) {
+        return {
+          chapter: last.number, stage, action: 'story_apply_draft',
+          reason: `第 ${last.number} 章的状态草案等作者确认：接受草案或先改状态`,
+          missing: [],
+        }
+      }
+      const summary = summaryOf(last.number)
         if (summary.state !== 'current') {
           return {
             chapter: last.number, stage, action: 'story_summarize',
@@ -1472,6 +1484,16 @@ export function nextStep(root: any, work: any) {
           reason: `第 ${last.number} 章还有 ${open.length} 条未处理审稿`, missing: open.map((item: any) => item.id), ...blocked,
         }
       }
+      const draftRow = db.prepare("SELECT content FROM artifacts WHERE kind = 'state_draft' AND scope_chapter = ? ORDER BY rowid DESC LIMIT 1").get(last.number)
+      const draft = draftRow === undefined ? undefined : JSON.parse(String(draftRow.content))
+      const draftCurrent = draft !== undefined && Number(draft.revision) === Number(last.currentRevision)
+      if (draftCurrent && draft.ready !== true) {
+        return {
+          chapter: last.number, stage, action: 'story_apply_draft',
+          reason: `第 ${last.number} 章的状态草案等作者确认：接受草案或先改状态`,
+          missing: [],
+        }
+      }
       const summary = summaryOf(last.number)
       if (summary.state !== 'current') {
         return {
@@ -1484,7 +1506,14 @@ export function nextStep(root: any, work: any) {
           missing: ['summary'],
         }
       }
-      return { chapter: last.number, stage, action: 'story_settle', reason: isCleanReview(candidate) ? `第 ${last.number} 章清稿审稿无问题，自动结算` : `第 ${last.number} 章已修订，自动结算`, missing: [] }
+      if (draftCurrent && draft.ready === true) {
+        return {
+          chapter: last.number, stage, action: 'story_finalize',
+          reason: `第 ${last.number} 章状态已就绪：定稿（应用草案并入账）`,
+          missing: [],
+        }
+      }
+      return { chapter: last.number, stage, action: 'story_settle', reason: isCleanReview(candidate) ? `第 ${last.number} 章清稿审稿无问题：结算状态` : `第 ${last.number} 章已修订：结算状态`, missing: [] }
     })()
     const delegate = delegateOf(step, last, candidate)
     const method = methodFor(step, formOf(manifest))
@@ -1931,6 +1960,7 @@ export function writeChapter(root: string, input: WriteChapterInput): any {
       db.prepare(`UPDATE chapters SET title = ?, status = 'written', stage = 'written',
         current_revision = ?, words = ?, updated_at = ? WHERE number = ?`)
         .run(String(input.title ?? entry.title), revision, words, at, number)
+      invalidateStateDraftOnDb(db, number)
       dropSearchDoc(db, `chapter:${number}:r${revision - 1}`)
       syncSearchDoc(db, `chapter:${number}:r${revision}`, 'chapter', `chapters/${chapterStem(number)}`, number, body)
       if (settled) {
@@ -2263,6 +2293,7 @@ export function reviseChapter(root: string, input: ReviseChapterInput): any {
       db.prepare(`UPDATE chapters SET status = 'revised', stage = 'revised',
         current_revision = ?, words = ?, provenance = 'edited', last_revise_mode = ?, updated_at = ? WHERE number = ?`)
         .run(revision, words, mode, at, number)
+      invalidateStateDraftOnDb(db, number)
       dropSearchDoc(db, `chapter:${number}:r${revision - 1}`)
       syncSearchDoc(db, `chapter:${number}:r${revision}`, 'chapter', `chapters/${chapterStem(number)}`, number, body)
       touchMeta(db, at)
@@ -2648,60 +2679,262 @@ export function previewState(root: any, input: any) {
  * @param {{work: string, chapter: number|string, factOps?: object, hookOps?: object, newHooks?: object[], allowEmpty?: boolean, requireBody?: boolean}} input - settlement payload.
  * @returns {object} counts, active projection and the appended sequence number.
  */
-export function settleState(root: string, input: any): any {
+/** The artifact kind of a pre-finalize state proposal. */
+const STATE_DRAFT_KIND = 'state_draft'
+
+/** Remove every state draft of one chapter, plus its search documents. */
+function dropStateDraftOnDb(db: any, number: number): void {
+  for (const row of db.prepare("SELECT artifact_id FROM artifacts WHERE kind = 'state_draft' AND scope_chapter = ?").all(number)) {
+    dropSearchDoc(db, String(row.artifact_id))
+  }
+  db.prepare("DELETE FROM artifacts WHERE kind = 'state_draft' AND scope_chapter = ?").run(number)
+}
+
+/** Invalidate draft state after the body revision changes or the chapter moves. */
+export function invalidateStateDraftOnDb(db: any, number: number): void {
+  dropStateDraftOnDb(db, number)
+  db.prepare('UPDATE chapters SET state_ready_revision = 0, updated_at = ? WHERE number = ?').run(now(), number)
+}
+
+/** Write one state draft for the chapter's current revision. */
+function writeStateDraftOnDb(db: any, root: string, workId: string, number: number, input: any) {
+  const entry = chapterRow(db, number)
+  if (entry === undefined || Number(entry.current_revision) === 0) {
+    throw new StoryError('body-not-found', `第 ${number} 章还没有正文，不能结算`)
+  }
+  const revision = Number(entry.current_revision)
+  const artifactId = `state:draft:${number}:r${revision}`
+  dropStateDraftOnDb(db, number)
+  const content = {
+    chapter: number,
+    revision,
+    factOps: input.factOps ?? {},
+    hookOps: input.hookOps ?? {},
+    newHooks: Array.isArray(input.newHooks) ? input.newHooks : [],
+    findings: Array.isArray(input.findings) ? input.findings : [],
+    ready: input.ready === true,
+    resolvedBy: input.resolvedBy === 'author' ? 'author' : null,
+    createdAt: now(),
+  }
+  const at = now()
+  const envelope = validateArtifactRecord({
+    workId,
+    artifactId,
+    kind: STATE_DRAFT_KIND,
+    scope: { chapter: number },
+    revisionId: contentVersion(content),
+    content,
+    provenance: 'generated',
+    createdAt: at,
+  })
+  putArtifactOnDb(db, envelope, {
+    search: { docId: artifactId, kind: STATE_DRAFT_KIND, source: `state/draft/${number}`, text: JSON.stringify(content) },
+  })
+  db.prepare('UPDATE chapters SET state_ready_revision = ?, updated_at = ? WHERE number = ?').run(revision, at, number)
+  return { artifactId, revisionId: envelope.revisionId, revision, ready: content.ready }
+}
+
+/** The newest draft of one chapter, with its readiness and body revision. */
+export function readStateDraft(root: any, input: any) {
+  const number = chapterNumber(input.chapter)
+  const workId = String(input.work)
+  const db = openWork(root, workId)
+  try {
+    const row = db.prepare("SELECT artifact_id, revision_id, content FROM artifacts WHERE kind = 'state_draft' AND scope_chapter = ? ORDER BY rowid DESC LIMIT 1").get(number)
+    if (row === undefined) return undefined
+    const content = JSON.parse(String(row.content))
+    return {
+      artifactId: String(row.artifact_id),
+      revisionId: String(row.revision_id),
+      revision: Number(content.revision),
+      ready: content.ready === true,
+      findings: Array.isArray(content.findings) ? content.findings : [],
+      content,
+    }
+  } finally {
+    db.close()
+  }
+}
+
+/** Write a draft produced by the settlement chain (no state events). */
+export function writeStateDraft(root: any, input: any) {
+  const number = chapterNumber(input.chapter)
+  const workId = String(input.work)
+  const db = openWork(root, workId)
+  try {
+    return transaction(db, () => writeStateDraftOnDb(db, root, workId, number, input))
+  } finally {
+    db.close()
+  }
+}
+
+/** The author accepts the current draft as-is. */
+export function markStateDraftReady(root: any, input: any) {
   const number = chapterNumber(input.chapter)
   const workId = String(input.work)
   const db = openWork(root, workId)
   try {
     return transaction(db, () => {
-      // A reopened chapter may be re-settled without new state changes: the author
-      // reopened it and changed nothing, and settle is the way back.
-      const latestMark = db.prepare("SELECT kind, payload FROM events WHERE chapter = ? AND kind IN ('reopen', 'settle') ORDER BY seq DESC LIMIT 1").get(number)
-      const reopenRevision = latestMark?.kind === 'reopen' ? JSON.parse(String(latestMark.payload ?? '{}')).revision : undefined
-      // Empty is allowed only when the reveal changed nothing: the revision now is
-      // the one the reopen recorded. A reopened chapter that got a new body still
-      // has to explain its state changes.
-      const wasReopened = reopenRevision !== undefined && Number(reopenRevision) === Number(chapterRow(db, number)?.current_revision)
-      const { counts, appended, projection } = planSettlement(db, number, { ...input, allowEmpty: input.allowEmpty === true || wasReopened }, {
-        beforeApply: () => assertStateGate(db, number, { requireBody: input.requireBody === true }),
-      })
-      let seq = db.prepare('SELECT max(seq) AS n FROM events').get()?.n ?? 0
-      const at = now()
-      for (const event of appended) {
-        seq = Number(seq) + 1
-        const { kind, ...payload } = event
-        db.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
-          .run(seq, at, number, kind, JSON.stringify(payload))
-        syncSearchDoc(db, `event:${seq}`, kind, 'state/events', number, JSON.stringify(payload))
-      }
-      seq = Number(seq) + 1
-      db.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
-        .run(seq, at, number, 'settle', JSON.stringify({ kind: 'settle' }))
-      db.prepare("UPDATE chapters SET stage = 'settled', status = 'settled', updated_at = ? WHERE number = ?").run(at, number)
-      touchMeta(db, at)
-      return {
-        workId,
-        chapter: number,
-        appended: appended.length,
-        seq,
-        warnings: [],
-        counts,
-        hooks: projection.hooks,
-        facts: projection.facts.filter(fact => fact.validUntilChapter === null),
-        artifact: { path: virtualPath(workId, 'state/events.jsonl') },
-      }
+      const row = db.prepare("SELECT content FROM artifacts WHERE kind = 'state_draft' AND scope_chapter = ? ORDER BY rowid DESC LIMIT 1").get(number)
+      if (row === undefined) throw new StoryError('draft-not-found', `第 ${number} 章没有状态草案：先结算`)
+      const content = JSON.parse(String(row.content))
+      return writeStateDraftOnDb(db, root, workId, number, { ...content, ready: true })
     })
   } finally {
     db.close()
   }
 }
 
-/**
- * Read-only settlement gate for callers that must validate before writing.
- * @param {string} root - workspace directory.
- * @param {{work: string, chapter: number|string}} input - work/chapter.
- * @returns {{entry: object, review: object, summaryState: object}} gate context.
- */
+/** Merge the author's ops into the current draft (creating it when absent). */
+export function mergeStateDraft(root: any, input: any) {
+  const number = chapterNumber(input.chapter)
+  const workId = String(input.work)
+  const db = openWork(root, workId)
+  try {
+    return transaction(db, () => {
+      const entry = chapterRow(db, number)
+      if (entry === undefined || Number(entry.current_revision) === 0) {
+        throw new StoryError('body-not-found', `第 ${number} 章还没有正文，不能结算`)
+      }
+      const revision = Number(entry.current_revision)
+      const row = db.prepare("SELECT content FROM artifacts WHERE kind = 'state_draft' AND scope_chapter = ? ORDER BY rowid DESC LIMIT 1").get(number)
+      const previous = row === undefined ? { revision, factOps: {}, hookOps: {}, newHooks: [], findings: [] } : JSON.parse(String(row.content))
+      const hasOps = (input.factOps !== undefined && Object.keys(input.factOps ?? {}).length > 0)
+        || (input.hookOps !== undefined && Object.keys(input.hookOps ?? {}).length > 0)
+        || (Array.isArray(input.newHooks) && input.newHooks.length > 0)
+      if (row === undefined && !hasOps) {
+        throw new StoryError('empty-state', '定稿归档至少要给出一条人物事实或伏笔变化')
+      }
+      const factOps = { ...(previous.factOps ?? {}) }
+      if (input.factOps !== undefined) {
+        const upsert = new Map<string, any>()
+        for (const item of [...(factOps.upsert ?? []), ...(input.factOps.upsert ?? [])]) {
+          upsert.set(`${String(item?.subject ?? '')}|${String(item?.predicate ?? '')}`, item)
+        }
+        factOps.upsert = [...upsert.values()]
+        if (Array.isArray(input.factOps.expire) && input.factOps.expire.length > 0) {
+          factOps.expire = [...(factOps.expire ?? []), ...input.factOps.expire]
+        }
+      }
+      const hookOps = { ...(previous.hookOps ?? {}) }
+      if (input.hookOps !== undefined) {
+        for (const [key, value] of Object.entries(input.hookOps)) {
+          if (!Array.isArray(value)) continue
+          hookOps[key] = [...new Set([...(hookOps[key] ?? []), ...value])]
+        }
+      }
+      return writeStateDraftOnDb(db, root, workId, number, {
+        factOps,
+        hookOps,
+        newHooks: [...(previous.newHooks ?? []), ...(Array.isArray(input.newHooks) ? input.newHooks : [])],
+        findings: [],
+        ready: true,
+        resolvedBy: 'author',
+      })
+    })
+  } finally {
+    db.close()
+  }
+}
+
+/** Apply a settled draft: write the state events, the settle marker and lock. */
+export function finalizeChapter(root: any, input: any) {
+  const number = chapterNumber(input.chapter)
+  const workId = String(input.work)
+  const db = openWork(root, workId)
+  try {
+    return transaction(db, () => {
+      const entry = chapterRow(db, number)
+      if (entry === undefined || Number(entry.current_revision) === 0) {
+        throw new StoryError('body-not-found', `第 ${number} 章还没有正文，不能定稿`)
+      }
+      if (stageOf(entry) === 'settled') throw new StoryError('chapter-settled', `第 ${number} 章已定稿`)
+      const row = db.prepare("SELECT artifact_id, content FROM artifacts WHERE kind = 'state_draft' AND scope_chapter = ? ORDER BY rowid DESC LIMIT 1").get(number)
+      if (row === undefined) throw new StoryError('state-not-ready', `第 ${number} 章没有状态草案：先结算`)
+      const draft = JSON.parse(String(row.content))
+      if (draft.ready !== true) throw new StoryError('state-not-ready', `第 ${number} 章的状态草案还没被接受：先应用草案`)
+      if (Number(draft.revision) !== Number(entry.current_revision) || Number(entry.state_ready_revision) !== Number(entry.current_revision)) {
+        throw new StoryError('state-not-ready', `第 ${number} 章的状态草案不是当前版本：先重新结算`)
+      }
+      const result = applySettlementOnDb(db, number, {
+        work: workId,
+        chapter: number,
+        factOps: draft.factOps,
+        hookOps: draft.hookOps,
+        newHooks: draft.newHooks,
+        allowEmpty: true,
+      })
+      dropStateDraftOnDb(db, number)
+      return { ...result, draftArtifactId: String(row.artifact_id) }
+    })
+  } finally {
+    db.close()
+  }
+}
+
+/** Apply one settlement payload inside an open transaction. */
+function applySettlementOnDb(db: any, number: number, input: any) {
+  const latestMark = db.prepare("SELECT kind, payload FROM events WHERE chapter = ? AND kind IN ('reopen', 'settle') ORDER BY seq DESC LIMIT 1").get(number)
+  const reopenRevision = latestMark?.kind === 'reopen' ? JSON.parse(String(latestMark.payload ?? '{}')).revision : undefined
+  const wasReopened = reopenRevision !== undefined && Number(reopenRevision) === Number(chapterRow(db, number)?.current_revision)
+  const { counts, appended, projection } = planSettlement(db, number, { ...input, allowEmpty: input.allowEmpty === true || wasReopened }, {
+    beforeApply: () => assertStateGate(db, number, { requireBody: input.requireBody === true }),
+  })
+  let seq = db.prepare('SELECT max(seq) AS n FROM events').get()?.n ?? 0
+  const at = now()
+  for (const event of appended) {
+    seq = Number(seq) + 1
+    const { kind, ...payload } = event
+    db.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
+      .run(seq, at, number, kind, JSON.stringify(payload))
+    syncSearchDoc(db, `event:${seq}`, kind, 'state/events', number, JSON.stringify(payload))
+  }
+  seq = Number(seq) + 1
+  db.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
+    .run(seq, at, number, 'settle', JSON.stringify({ kind: 'settle' }))
+  db.prepare("UPDATE chapters SET stage = 'settled', status = 'settled', state_ready_revision = current_revision, updated_at = ? WHERE number = ?").run(at, number)
+  touchMeta(db, at)
+  return {
+    workId: String(input.work),
+    chapter: number,
+    appended: appended.length,
+    seq,
+    warnings: [],
+    counts,
+    hooks: projection.hooks,
+    facts: projection.facts.filter((fact: any) => fact.validUntilChapter === null),
+    artifact: { path: virtualPath(String(input.work), 'state/events.jsonl') },
+  }
+}
+
+/** Low-level settlement writer: applies ops directly and locks the chapter. */
+/** The stage of one chapter, or undefined when it does not exist. */
+export function chapterStageOf(root: any, work: any, chapter: any) {
+  const number = chapterNumber(chapter)
+  const db = openWork(root, String(work))
+  try {
+    const entry = chapterRow(db, number)
+    return entry === undefined ? undefined : stageOf(entry)
+  } finally {
+    db.close()
+  }
+}
+
+export function settleState(root: string, input: any): any {
+  const number = chapterNumber(input.chapter)
+  const workId = String(input.work)
+  const db = openWork(root, workId)
+  try {
+    return transaction(db, () => {
+      const result = applySettlementOnDb(db, number, input)
+      dropStateDraftOnDb(db, number)
+      return result
+    })
+  } finally {
+    db.close()
+  }
+}
+
 export function statePreflight(root: any, input: any) {
   const number = chapterNumber(input.chapter)
   const db = openWork(root, String(input.work))
@@ -3011,6 +3244,7 @@ export function reopenChapter(root: any, input: any) {
       db.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
         .run(seq, at, number, 'reopen', JSON.stringify({ kind: 'reopen', revision: entry.current_revision }))
       db.prepare("UPDATE chapters SET stage = 'written', status = 'written', updated_at = ? WHERE number = ?").run(at, number)
+      invalidateStateDraftOnDb(db, number)
       touchMeta(db, at)
       return { workId, chapter: number, stage: 'written', artifact: { path: virtualPath(workId, 'state/events.jsonl') } }
     })
@@ -3298,6 +3532,15 @@ function chapterKeys(db: any) {
  * @param {{confirm?: boolean, beforeCommit?: Function}} [options] - confirmation/test seam.
  * @returns {Promise<object>} edit receipt.
  */
+/** Drop every draft after a chapter reorder: identities and readiness both move. */
+function dropAllStateDraftsOnDb(db: any): void {
+  for (const row of db.prepare("SELECT artifact_id FROM artifacts WHERE kind = 'state_draft'").all()) {
+    dropSearchDoc(db, String(row.artifact_id))
+  }
+  db.prepare("DELETE FROM artifacts WHERE kind = 'state_draft'").run()
+  db.prepare('UPDATE chapters SET state_ready_revision = 0').run()
+}
+
 export async function deleteChapter(root: any, work: any, chapter: any, options: any = {}) {
   const number = chapterNumber(chapter)
   if (options.confirm !== true) throw new StoryError('chapter-delete-unconfirmed', '删除章节需要确认')
@@ -3325,6 +3568,7 @@ export async function deleteChapter(root: any, work: any, chapter: any, options:
       db.prepare("DELETE FROM search_docs WHERE doc_id LIKE 'event:%' AND chapter = ?").run(number)
       applyChapterMapping(db, mapping)
       remapChapterArtifacts(db, { mapping, deleted: [number] })
+      dropAllStateDraftsOnDb(db)
       rewriteChapterDocs(db, mapping)
       const survivors = chapterKeys(db)
       db.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
@@ -3373,6 +3617,7 @@ export async function moveChapter(root: any, work: any, from: any, to: any, opti
     return transaction(db, () => {
       applyChapterMapping(db, mapping)
       remapChapterArtifacts(db, { mapping })
+      dropAllStateDraftsOnDb(db)
       rewriteChapterDocs(db, mapping)
       touchMeta(db)
       if (typeof options.beforeCommit === 'function') options.beforeCommit(db)

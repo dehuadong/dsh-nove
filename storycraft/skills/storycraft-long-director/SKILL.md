@@ -57,7 +57,7 @@ description: 长篇小说生产线的调度手册：现在在哪个节点、该�
 
 ## 定稿前
 
-写 `story_state` 前只读 `storycraft-long-settle`；定稿优先 `story_settle`，它先做确定性预检，再用 `story_state_check` 语义核对；返回 `settled:false` 时把 proposed 与 findings 原样报给作者。
+写 `story_state` 前只读 `storycraft-long-settle`；结算用 `story_settle` 产草案（不写事件），它先做确定性预检，再用 `story_state_check` 语义核对；作者接受草案后 `story_finalize` 应用并锁定。返回 findings 时把 proposed 与 findings 原样报给作者。
 
 ## 参考
 

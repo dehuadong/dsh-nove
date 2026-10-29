@@ -36,7 +36,7 @@ description: 长篇小说单章流程与闸门：章纲到定稿的动作顺序�
    - `deslop` 专治腔调词，必须减少命中（原文零命中时可用）。
    模式与幅度不符由 `story_submit` 拒绝，子代理最多修正 3 次；主编不重试、不换 mode、不手动搬运正文。
 7. **摘要**：修订完成或清稿审稿后，先调 `story_next`；有 `delegate.role: summarizer` 时用 `story_delegate`，子代理通过 `story_submit` 提交摘要（上限 400 字，只写事实与状态变化）。没有 delegate（当前版本已有摘要或阶段不满足）时不读正文，报告并停手；摘要针对旧版本时 `story_next` 仍会给 summarizer，重写后自动绑定当前正文版本。只有作者显式要求时才用 `story_summarize` 手动写。下一章的滚动窗口靠它。
-8. **定稿**：`story_next` 说可以定稿、且阶段是「已修订」或清稿审稿时，优先用 `story_settle` 自动抽取并校验；返回 `settled:false` 时把 proposed 与 findings 报给作者，按作者决定用 `story_state` 手动修正。`story_state` 只写变化，不重抄设定。
+8. **定稿**：`story_next` 说可结算时先 `story_settle` 抽状态草案（不写事件）；作者接受草案或 `story_state` 改状态后，用 `story_finalize` 定稿。草案返回 findings 时把 proposed 报给作者。
 
 ## 输出契约
 

@@ -333,7 +333,9 @@ try {
     const args = { work, chapter, factOps: { upsert: [{ subject: '甲', predicate: '状态', object }] } }
     const settled = await call('story_state', args)
     record(`ch${chapter} settle`, 'story_state', args, settled, { state: chapterState(root, work, chapter) })
-    check(`ch${chapter} settled`, settled.ok === true && chapterState(root, work, chapter).stage === 'settled', JSON.stringify(settled).slice(0, 200))
+    const finalized = await call('story_finalize', { work, chapter })
+    check(`ch${chapter} settled`, settled.ok === true && finalized.ok === true
+      && chapterState(root, work, chapter).stage === 'settled', JSON.stringify(finalized).slice(0, 200))
   }
   /** Run one action that must fail, and prove nothing changed. */
   const failedWithoutChange = async (name, step, args, code) => {

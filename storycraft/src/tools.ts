@@ -19,7 +19,7 @@
 import { createHash } from 'node:crypto'
 import {
   StoryError, backupWork, deleteWork, exportWork, initWork, nextStep as nextStepFor, settleState,
-  approveFoundation, approveOutline, approveChapterPlan,
+  approveFoundation, approveOutline, approveChapterPlan, finalizeChapter, markStateDraftReady, mergeStateDraft,
   planApprovalPolicy,
   latestReview, readBibleEntry, readChapter, readEvents, readEventsText, readManifest, readPlan, readSessionCurrent,
   readSummaryState,
@@ -1891,7 +1891,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
       mutates: true,
       description: '自动结算本章状态：settler 从正文抽取事实与伏笔 delta，先做确定性预检，再用 R9b 语义检查；'
         + 'major/确定性 error 带反馈重算一次，仍不一致则返回 settled:false 且不写库。'
-        + '成功时写入 events 并定稿；手动修正仍用 story_state。只允许主会话调用。',
+        + '成功时只写状态草案（state:draft），不写事实/伏笔事件、不定稿；作者接受草案或改状态后再 story_finalize。只允许主会话调用。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -1916,7 +1916,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
     action({
       name: 'story_state',
       mutates: true,
-      description: '把本章产生的 hook/fact 变化定稿进作品状态，并返回投影后的计数。'
+      description: '修改本章状态草案（定稿前）：作者 ops 合并进草案，不写事件、不定稿。'
         + ' 只写变化：已有伏笔用 hookOps 引 hookId，新伏笔放 newHooks（宿主铸 id）；fact 用三元组 + 有效期。'
         + ' 当前正文版本没有摘要返回 summary-required，摘要过期返回 summary-stale；钩子 id 不存在返回 hook-not-found，非法转移返回 hook-transition-invalid，无可失效 fact 返回 fact-not-found；已定稿再次归档返回 chapter-settled。',
       parameters: {
@@ -1940,14 +1940,58 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
           throw new StoryError('summary-stale',
             `第 ${args.chapter} 章摘要针对旧版本 r${summary.revision ?? '?'}：先重写摘要，再定稿`)
         }
-        const result = await settleState(root, args)
+        const draft = mergeStateDraft(root, args)
         return {
           ok: true,
           workId: args.work,
-          counts: result.counts,
-          warnings: result.warnings,
-          artifact: { workId: args.work, artifactId: 'state', revisionId: `seq:${result.seq}`, kind: 'state' },
+          artifact: { workId: args.work, artifactId: draft.artifactId, revisionId: draft.revisionId, kind: 'state_draft' },
         }
+      },
+    }),
+
+    action({
+      name: 'story_apply_draft',
+      mutates: true,
+      description: '接受本章当前的状态草案（作者确认“按这个来”）：只把草案标记为 ready，不写事件、不定稿。'
+        + '没有草案返回 draft-not-found；草案不是当前正文版本返回 draft-stale。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+          chapter: { type: 'integer', description: '章号。' },
+        },
+        required: ['work', 'chapter'],
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const draft = markStateDraftReady(root, args)
+        return {
+          ok: true,
+          workId: args.work,
+          artifact: { workId: args.work, artifactId: draft.artifactId, revisionId: draft.revisionId, kind: 'state_draft' },
+        }
+      },
+    }),
+
+    action({
+      name: 'story_finalize',
+      mutates: true,
+      description: '定稿本章：应用当前 ready 草案（写事实/伏笔事件与 settle 标记），锁定章节并删除草案。'
+        + '没有 ready 草案返回 state-not-ready；摘要/审稿不满足沿用 summary-required / review-required。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+          chapter: { type: 'integer', description: '章号。' },
+        },
+        required: ['work', 'chapter'],
+      },
+      output: STATE_SETTLE_OUTPUT,
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        return { ok: true, ...finalizeChapter(root, args) }
       },
     }),
 

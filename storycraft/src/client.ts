@@ -906,7 +906,9 @@ window.__ModuleLoader__.load({
           story_write: '写本章正文',
           story_review: '审本章',
           story_revise: '按清单修订本章',
-          story_settle: '自动结算：抽取事实并定稿',
+          story_settle: '结算：抽取状态草案（不写事件）',
+          story_apply_draft: '接受状态草案（作者确认）',
+          story_finalize: '定稿：应用草案并入账',
           story_state: '手动定稿：写入本章事实',
           story_summarize: '写本章摘要',
           story_volume: '补本卷摘要',
@@ -2148,6 +2150,8 @@ window.__ModuleLoader__.load({
           case 'revise': compose(INSTRUCTIONS.revise(workId, chapter, reviseMode)); return
           case 'summarize': compose(INSTRUCTIONS.step(workId, chapter, 'story_summarize')); return
           case 'settle': compose(INSTRUCTIONS.step(workId, chapter, 'story_settle')); return
+          case 'apply-draft': compose(INSTRUCTIONS.step(workId, chapter, 'story_apply_draft')); return
+          case 'finalize': compose(INSTRUCTIONS.step(workId, chapter, 'story_finalize')); return
           case 'volume-summary': compose(INSTRUCTIONS.step(workId, chapter, 'story_volume')); return
           default: onNotice({ kind: 'error', text: `面板不认识这个动作：${id}` })
         }
