@@ -1,14 +1,15 @@
 ---
 title: 故事工坊：角色模型对齐参考
-status: proposed
+status: implemented
 created: 2026-10-29
 updated: 2026-10-29
+verification: 真实链路（四阶段 foundation、minor 卡清理、story_read 删除）通过；CI 79 单元 + 27 E2E。
 ---
 
 # Agent Note：故事工坊：角色模型对齐参考
 
 > 承接工作项 #83；本设计取代 #81 的两条前提：minor 卡也要清理（不再是“只清 major”）、cards 不再允许部分提交（改为 1:1 覆盖）。#81 的其余行为（按 name 清理、删全部 revision、同事务删检索文档、物理删除、`artifact-not-found`）不变。产品行为与验收归工作项；本 Note 拥有技术设计与实现边界。
-> 关联：[parity-matrix 角色卡行 & 运行时整改](../pipeline/2026-10-18-storycraft-parity-matrix.md)、[foundation 生产](../../implemented/pipeline/2026-10-24-storycraft-foundation-production.md)（其角色上限条目由本 Note 取代）。
+> 关联：[parity-matrix 角色卡行 & 运行时整改](../../proposed/pipeline/2026-10-18-storycraft-parity-matrix.md)、[foundation 生产](2026-10-24-storycraft-foundation-production.md)（其角色上限条目由本 Note 取代）。
 
 ## 问题
 
@@ -48,7 +49,7 @@ updated: 2026-10-29
 - architect 提交提示：`delegate.ts:569-575`；技能：`skills/storycraft-architect/SKILL.md:41-52`（:41 上限、:42 索引、:50-52 卡）；
 - 测试夹具/断言：`artifact-contract.test.mjs:93-100`、`foundation-production.test.mjs:125-128`（minor 拒收断言反转）、`acceptance-multichapter.test.mjs:262-269`、`bible-artifacts.test.mjs:102`、`foundation-orphan.test.mjs:26/:64-89`、`foundation-consumers.test.mjs:25-28/:77-78/:112/:130-131`（:130 用 want 文本检索索引，需改）、`foundation-chapter-artifacts.test.mjs:51-54`、`story-read-role.test.mjs:72`、`context.test.mjs:114`（“语气”断言）；README:113；`submission.ts` 的 12/20 上限删除后补一条 30/30 派发测试。
 
-## 提案
+## 决定
 
 ### 数据合同
 
@@ -113,6 +114,10 @@ updated: 2026-10-29
 - **B. 六字段搬到卡上，索引保留六字段**：与参考薄索引不一致，且重复内容。**不采用**。
 - **C. 薄索引 + 一人一卡 1:1 + major/minor + 去上限 + 消费迁移（本设计）**。**采用**。
 
+## 后果
+
+角色模型与参考结构一致：索引薄化为 name+tier，一人一卡 1:1，major/minor 均可，数量上限全部移除；消费端读卡并保留短篇/剧本回退；后续实现不再需要旧六字段索引或迁移。
+
 ## 风险
 
 - 上下文角色段内容变化（六字段 → 卡文本，voice 行消失），writer/reviewer 提示与测试会变；
@@ -122,7 +127,7 @@ updated: 2026-10-29
 - `context`/`bible` 为三形态共用：若只在有卡时切读卡、忘记回退，短篇/剧本 writer 会触发 `bible-missing`；
 - 面板基础设定预览与 `story_read role:` 需回归（client.ts 未直接读 rolesIndex，实现时确认）。
 
-## 验收条件
+## 验证
 
 - **AC1**：索引只接受 `name`+`tier`；≥1；姓名唯一；无数量上限；多余字段拒绝。
 - **AC2**：卡接受 `major`/`minor`；来自索引且 tier 一致；以 name 为身份，同名旧卡（含旧 slug）整体替换，slug 被其他姓名占用时拒绝；名字/slug 唯一；无数量上限。

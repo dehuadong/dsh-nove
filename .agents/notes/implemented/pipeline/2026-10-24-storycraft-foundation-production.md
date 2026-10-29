@@ -8,7 +8,7 @@ verification: architect 四阶段生产已落地，真实会话跑通 frame/rule
 
 # Agent Note：故事工坊：L-R10b foundation 生产
 
-> **2026-10-29 修正**：`roles ≤20`、`cards ≤12`、卡仅 major 三条与参考实现不符，作者已裁决移除。角色模型按 [parity-matrix 角色卡行](../../proposed/pipeline/2026-10-18-storycraft-parity-matrix.md) 与 [角色模型对齐参考](../../proposed/pipeline/2026-10-29-storycraft-role-model-parity.md) 对齐：薄索引（name+tier）+ 每人 Markdown 卡（动机/知识/关系压力/边界），major/minor 均可建卡，不设数量上限。本 Note 的对应描述、`store-db.ts` 校验、`storycraft-architect` SKILL 与测试需在同一后续工作项里同步；同步前以矩阵裁决为准。
+> **2026-10-29 修正**：`roles ≤20`、`cards ≤12`、卡仅 major 三条与参考实现不符，作者已裁决移除。角色模型按 [parity-matrix 角色卡行](../../proposed/pipeline/2026-10-18-storycraft-parity-matrix.md) 与 [角色模型对齐参考](2026-10-29-storycraft-role-model-parity.md) 对齐：薄索引（name+tier）+ 每人 Markdown 卡（动机/知识/关系压力/边界），major/minor 均可建卡，不设数量上限。本 Note 的对应描述、`store-db.ts` 校验、`storycraft-architect` SKILL 与测试需在同一后续工作项里同步；同步前以矩阵裁决为准。
 
 ## 问题
 
