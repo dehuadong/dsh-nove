@@ -34,7 +34,7 @@ const ctx = {
 tools.apply(ctx, { mode: 'longform' })
 
 const names = registered.map(definition => definition.name).sort()
-check('registers thirty-two actions', names.length === 34, names.join(','))
+check('registers thirty-four actions', names.length === 34, names.join(','))
 check('action names', names.join(',') === [
   'story_apply_draft', 'story_approve', 'story_backup', 'story_bible', 'story_bible_write', 'story_brief', 'story_context',
   'story_critique', 'story_current', 'story_delegate', 'story_delete', 'story_export', 'story_finalize', 'story_init', 'story_next', 'story_outline',
