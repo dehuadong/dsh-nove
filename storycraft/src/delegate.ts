@@ -567,7 +567,7 @@ function architectPrompt({ work, stage, instruction, delegationId, manifest, fou
     frame: 'payload 格式：{"storyFrame":"# 故事框架…（含 ## 前提/## 核心冲突/## 主角动机/## 约束/## 因果解决）","volumeMap":"## 第一卷\\n- 卷目标：…\\n- 起止章：…\\n- 关键节拍：…\\n- 卷末承诺：…","currentFocus":"# 当前焦点\\n…"}。',
     rules: 'payload 格式：{"bookRules":{"version":"2","narrativePerson":"…","prohibitions":["…"],"protagonist":{"name":"…","personalityLock":["…"],"behavioralConstraints":["…"]},"genreLock":{"primary":"…","forbidden":["…"]},"enableFullCastTracking":false,"allowedDeviations":["…"],"markdown":"# 作品规则\\n…"}}。',
     roles: 'payload 格式：{"rolesIndex":{"roles":[{"name":"…","tier":"major|minor"}]}}；只列影响开篇冲突的具名人物，≥1，无数量上限。',
-    cards: 'payload 格式：{"roleCards":[{"slug":"…","name":"…","tier":"major|minor","motivation":"…","knowledge":"…","relationshipPressure":"…","limits":"…","arc":"可选","markdown":"# …"}]}；索引里每人一张卡（1:1），tier 与索引一致，无数量上限。',
+    cards: 'payload 格式：{"roleCards":[{"slug":"…","name":"…","tier":"major|minor","motivation":"…","knowledge":"…","relationshipPressure":"…","limits":"…","arc":"可选","markdown":"# …"}]}；按 storycraft-architect 的 cards 合同逐人提交。',
   }
   const context = []
   if (stage !== 'frame' && foundation.storyFrame !== undefined) context.push(`## 故事框架\n${foundation.storyFrame}`)

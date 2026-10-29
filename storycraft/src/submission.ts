@@ -178,12 +178,7 @@ const VALIDATOR_LIMITS: Record<string, number> = { where: 120, problem: 160, evi
  * The payload is model-produced JSON, so it arrives as `any` and every field
  * is probed at runtime; only the checks below give it a shape.
  */
-/** Validate one architect payload shape before dispatch (no count caps). */
-export function validateArchitectShape(role: string, payload: any, stage: string | undefined): string | undefined {
-  return validateShape(role, payload, stage)
-}
-
-function validateShape(role: string, payload: any, stage: string | undefined): string | undefined {
+export function validateSubmissionShape(role: string, payload: any, stage: string | undefined): string | undefined {
   if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
     return 'payload 必须是对象'
   }
@@ -391,7 +386,7 @@ export async function submitPayload(input: SubmitInput): Promise<FailureEnvelope
   if (entry.attempts > MAX_ATTEMPTS) return failure('submit-attempts-exhausted', `提交尝试超过 ${MAX_ATTEMPTS} 次`)
 
   const payload = input.payload
-  const shapeError = validateShape(entry.role, payload, entry.stage)
+  const shapeError = validateSubmissionShape(entry.role, payload, entry.stage)
   if (shapeError !== undefined) {
     return entry.attempts >= MAX_ATTEMPTS
       ? failure('submit-attempts-exhausted', `提交尝试超过 ${MAX_ATTEMPTS} 次：${shapeError}`)

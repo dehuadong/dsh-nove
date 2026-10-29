@@ -34,22 +34,22 @@ description: 长篇基础设定（architect）：分四阶段产出故事框架/
 
 ### roles
 
-\`\`\`json
+```json
 { "rolesIndex": { "roles": [ { "name": "…", "tier": "major|minor" } ] } }
-\`\`\`
+```
 
 - 只列影响开篇冲突的具名人物；姓名不重复；无数量上限。
-- 索引不写小传；写法见 \`storycraft-long-foundation\` 的 foundation-design 参考。
+- 写法见 `storycraft-long-foundation` 的 foundation-design 参考。
 
 ### cards
 
-\`\`\`json
+```json
 { "roleCards": [ { "slug": "…", "name": "…", "tier": "major|minor", "motivation": "…", "knowledge": "…", "relationshipPressure": "…", "limits": "…", "arc": "可选", "markdown": "# …" } ] }
-\`\`\`
+```
 
-- 索引里每人一张卡（1:1）；\`tier\` 与索引一致；无数量上限。
-- \`slug\` 稳定、不能含空白、冒号、斜杠或 \`.\`/\`..\`；同名重跑会替换旧卡。
-- 写法见 \`storycraft-long-foundation\` 的 foundation-design 参考；\`markdown\` 是可读小传。
+- 索引里每人一张卡（1:1）；`tier` 与索引一致；无数量上限。
+- `slug` 稳定、不能含空白、冒号、斜杠或 `.`/`..`；同名重跑会替换旧卡。
+- 写法见 `storycraft-long-foundation` 的 foundation-design 参考；`markdown` 是可读小传。
 
 ## 失败与重试
 

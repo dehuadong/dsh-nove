@@ -253,7 +253,7 @@ export function validateRolesIndex(value: ArtifactRecord): ArtifactRecord {
   return input
 }
 
-/** Validate a role card; it does not duplicate the index's six fields. */
+/** Validate a role card; the index only carries name/tier. */
 export function validateRoleCard(value: ArtifactRecord): ArtifactRecord {
   const input = object(value, 'role_card')
   keys(input, ['slug', 'name', 'tier', 'motivation', 'knowledge', 'relationshipPressure', 'limits', 'arc', 'markdown'], 'role_card')

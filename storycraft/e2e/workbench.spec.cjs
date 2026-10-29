@@ -540,6 +540,7 @@ test.describe('故事工坊工作台', () => {
     await expect(page.getByText(/不是「故事工坊」模式/)).toBeVisible({ timeout: 10_000 })
   })
 
+
   test('详情在 focus 后刷新且不重复写当前指针', async ({ page }) => {
     const store = await import('../src/storage.ts')
     const title = `焦点探针${Date.now()}`

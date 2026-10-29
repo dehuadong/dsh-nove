@@ -90,7 +90,7 @@ import {
 import { assertRevisionMode } from './revision.ts'
 import { validateArtifactRecord } from './artifact-contract.ts'
 import {
-  artifactRevision, dropRoleCardsOnDb, FOUNDATION_DOCUMENTS, indexTiersOf, putArtifactOnDb, remapChapterArtifacts, renderChapterMemo, renderFoundationContent,
+  artifactRevision, deleteArtifactOnDb, dropRoleCardsOnDb, FOUNDATION_DOCUMENTS, indexTiersOf, latestRoleCardsOnDb, putArtifactOnDb, remapChapterArtifacts, renderChapterMemo, renderFoundationContent,
   writeChapterMemoOnDb, writeChapterObservationsOnDb, writeChapterSummaryOnDb, writeTextArtifactOnDb, readTextArtifactOnDb,
 } from './artifact-store.ts'
 import { reviewInputOf } from './review-binding.ts'
@@ -1094,11 +1094,8 @@ function foundationCardsComplete(db: any): boolean {
   if (index === undefined) return false
   const tiers = indexTiersOf(JSON.parse(String(index.content)))
   if (tiers.size === 0) return false
-  const rows = db.prepare(`SELECT a.content FROM artifacts a
-    JOIN (SELECT artifact_id, max(rowid) AS rowid FROM artifacts WHERE kind = 'role_card' GROUP BY artifact_id) latest
-    ON a.rowid = latest.rowid`).all()
   const seen = new Map<string, string>()
-  for (const row of rows) {
+  for (const row of latestRoleCardsOnDb(db)) {
     const card = JSON.parse(String(row.content))
     const name = String(card?.name ?? '')
     if (seen.has(name)) return false
@@ -1301,29 +1298,22 @@ export function writeFoundationStage(root: any, input: any) {
         for (const [name] of tiers) {
           if (!names.has(name)) throw new StoryError('artifact-invalid', `角色卡缺少索引人物：${name}`)
         }
-        if (names.size !== tiers.size) throw new StoryError('artifact-invalid', '角色卡数量与索引人物数量不一致')
         // Name is the identity; a rerun with a new slug replaces the old card in
         // the same transaction so one person never has two cards.
-        const existingCards = db.prepare(`SELECT a.artifact_id, a.content FROM artifacts a
-          JOIN (SELECT artifact_id, max(rowid) AS rowid FROM artifacts WHERE kind = 'role_card' GROUP BY artifact_id) latest
-          ON a.rowid = latest.rowid`).all()
+        const existingCards = latestRoleCardsOnDb(db)
         const slugByName = new Map<string, string>(cards.map((item: any) => [String(item?.name ?? ''), String(item?.slug ?? '').trim()]))
+        const nameBySlug = new Map<string, string>(cards.map((item: any) => [String(item?.slug ?? '').trim(), String(item?.name ?? '')]))
         for (const row of existingCards) {
           let old: any
           try { old = JSON.parse(String(row.content)) } catch { continue }
           const oldName = String(old?.name ?? '')
           const oldSlug = String(old?.slug ?? '')
-          const oldTier = String(old?.tier ?? '')
-          if (names.has(oldName)) {
-            // Same person: keep only the submitted slug; a changed tier is stale.
-            if (String(row.artifact_id) !== `role:${slugByName.get(oldName) ?? ''}` || oldTier !== String(tiers.get(oldName) ?? '')) {
-              dropSearchDoc(db, String(row.artifact_id))
-              db.prepare('DELETE FROM artifacts WHERE artifact_id = ?').run(String(row.artifact_id))
-            }
-            continue
-          }
-          if (slugs.has(oldSlug)) {
+          if (slugs.has(oldSlug) && nameBySlug.get(oldSlug) !== oldName) {
             throw new StoryError('artifact-invalid', `slug 已被其他姓名占用：${oldSlug}`)
+          }
+          if (names.has(oldName) && String(row.artifact_id) !== `role:${slugByName.get(oldName) ?? ''}`) {
+            // Same person moved to a new slug: the old card is replaced.
+            deleteArtifactOnDb(db, String(row.artifact_id))
           }
         }
       }

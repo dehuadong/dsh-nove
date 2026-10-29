@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../src/storage.ts'
 import { readRoleCard } from '../src/artifact-store.ts'
-import { validateArchitectShape } from '../src/submission.ts'
+import { validateSubmissionShape } from '../src/submission.ts'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -33,11 +33,11 @@ try {
   s.writeFoundationStage(root, { work, stage: 'frame', payload: frame })
   const many = Array.from({ length: 30 }, (_, index) => ({ name: `角色${index + 1}`, tier: index % 2 === 0 ? 'major' : 'minor' }))
   const manyCards = many.map((role, index) => card(`role${index + 1}`, role.name, role.tier))
-  check('dispatch accepts 30 roles', validateArchitectShape('architect', { rolesIndex: { roles: many } }, 'roles') === undefined)
-  check('dispatch accepts 30 cards', validateArchitectShape('architect', { roleCards: manyCards }, 'cards') === undefined)
+  check('dispatch accepts 30 roles', validateSubmissionShape('architect', { rolesIndex: { roles: many } }, 'roles') === undefined)
+  check('dispatch accepts 30 cards', validateSubmissionShape('architect', { roleCards: manyCards }, 'cards') === undefined)
   s.writeFoundationStage(root, { work, stage: 'roles', payload: { rolesIndex: { roles: many } } })
   const landed = s.writeFoundationStage(root, { work, stage: 'cards', payload: { roleCards: manyCards } })
-  check('30 roles and 30 cards land', landed.foundation.stages.cards === true && manyCards.length === 30, JSON.stringify(landed.foundation.stages))
+  check('30 roles and 30 cards land', landed.foundation.stages.cards === true && landed.artifacts.length === 30, JSON.stringify(landed.foundation.stages))
   check('a 30/13 card set is refused as incomplete', codeOf(() => s.writeFoundationStage(root, {
     work, stage: 'cards', payload: { roleCards: manyCards.slice(0, 13) },
   })) === 'artifact-invalid')
@@ -50,6 +50,20 @@ try {
   s.writeFoundationStage(root, { work: second, stage: 'cards', payload: { roleCards: [card('jia2', '甲')] } })
   check('a new slug replaces the old card', codeOf(() => readRoleCard(root, { work: second, slug: 'jia' })) === 'artifact-not-found'
     && readRoleCard(root, { work: second, slug: 'jia2' }).artifact.content.name === '甲')
+
+  // A batch may not hand one person's current slug to another name.
+  const conflict = s.initWork(root, { title: 'slug 冲突' }).workId
+  s.writeFoundationStage(root, { work: conflict, stage: 'frame', payload: frame })
+  s.writeFoundationStage(root, { work: conflict, stage: 'roles', payload: { rolesIndex: { roles: [{ name: '甲', tier: 'major' }, { name: '乙', tier: 'major' }] } } })
+  s.writeFoundationStage(root, { work: conflict, stage: 'cards', payload: { roleCards: [card('jia', '甲'), card('yi', '乙')] } })
+  check('a slug owned by another name is refused',
+    codeOf(() => s.writeFoundationStage(root, { work: conflict, stage: 'cards', payload: { roleCards: [card('yi', '甲'), card('yi2', '乙')] } })) === 'artifact-invalid')
+
+  // Extra people and tier mismatches are refused.
+  check('a card for a name outside the index is refused',
+    codeOf(() => s.writeFoundationStage(root, { work: conflict, stage: 'cards', payload: { roleCards: [card('jia', '甲'), card('yi', '乙'), card('bing', '丙')] } })) === 'artifact-invalid')
+  check('a card whose tier differs from the index is refused',
+    codeOf(() => s.writeFoundationStage(root, { work: conflict, stage: 'cards', payload: { roleCards: [card('jia', '甲', 'minor'), card('yi', '乙')] } })) === 'artifact-invalid')
 
   // Tier follows the index: a changed tier drops the stale card and blocks approval.
   const third = s.initWork(root, { title: '层级变更' }).workId

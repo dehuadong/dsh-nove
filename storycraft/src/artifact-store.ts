@@ -321,6 +321,19 @@ export function indexTiersOf(rolesIndex: any): Map<string, string> {
   return new Map<string, string>(roles.map((role: any) => [String(role?.name ?? ''), String(role?.tier ?? '')]))
 }
 
+/** Latest revision of every role card in one work database. */
+export function latestRoleCardsOnDb(db: any): any[] {
+  return db.prepare(`SELECT a.artifact_id, a.content_type, a.content FROM artifacts a
+    JOIN (SELECT artifact_id, max(rowid) AS rowid FROM artifacts WHERE kind = 'role_card' GROUP BY artifact_id) latest
+    ON a.rowid = latest.rowid`).all()
+}
+
+/** Delete one artifact with every revision and its search document. */
+export function deleteArtifactOnDb(db: any, artifactId: string): void {
+  dropSearchDoc(db, artifactId)
+  db.prepare('DELETE FROM artifacts WHERE artifact_id = ?').run(artifactId)
+}
+
 /**
  * Drop role cards whose name left the index or whose tier changed.
  *
@@ -331,21 +344,15 @@ export function indexTiersOf(rolesIndex: any): Map<string, string> {
  * @param keep - current index name→tier map.
  */
 export function dropRoleCardsOnDb(db: any, keep: Map<string, string>): void {
-  const rows = db.prepare(`SELECT a.artifact_id, a.content_type, a.content FROM artifacts a
-    JOIN (SELECT artifact_id, max(rowid) AS rowid FROM artifacts
-      WHERE kind = 'role_card' GROUP BY artifact_id) latest ON a.rowid = latest.rowid`).all()
   const doomed: string[] = []
-  for (const row of rows) {
+  for (const row of latestRoleCardsOnDb(db)) {
     if (row.content_type !== 'json') continue
     const card = JSON.parse(String(row.content))
     const name = String(card?.name ?? '')
     if (keep.get(name) === String(card?.tier ?? '')) continue
     doomed.push(String(row.artifact_id))
   }
-  for (const artifactId of doomed) {
-    dropSearchDoc(db, artifactId)
-    db.prepare('DELETE FROM artifacts WHERE artifact_id = ?').run(artifactId)
-  }
+  for (const artifactId of doomed) deleteArtifactOnDb(db, artifactId)
 }
 
 /** Latest role cards of one work, ascending by artifact id. */

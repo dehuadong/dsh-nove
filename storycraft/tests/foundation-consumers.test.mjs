@@ -118,6 +118,18 @@ try {
     plannerCharacters?.content.includes('甲') && plannerCharacters.source.endsWith('foundation/roles'),
     JSON.stringify(plannerCharacters))
 
+  const writerCards = await assembleRoleContext({ root, work, chapter: 1, role: 'writer', task: '写第一章' })
+  const writerConstraints = writerCards.sections.find(section => section.name === 'constraints')
+  check('writer constraints read the lead card (name + limits)',
+    writerConstraints?.content.includes('主角：甲') && writerConstraints.content.includes('行为边界：不杀人')
+    && !writerConstraints.content.includes('语气：'),
+    JSON.stringify(writerConstraints?.content?.slice(0, 240)))
+  s.writePlan(root, { work, chapter: 2, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't', body: '乙先出现，甲后到。' })
+  s.approveChapterPlan(root, { work, chapter: 2 })
+  const plannerNamed = await assembleRoleContext({ root, work, chapter: 2, role: 'planner', task: '规划第二章' })
+  const plannerNamedCards = plannerNamed.sections.find(section => section.name === 'characters')
+  check('planner picks plan-named cards', plannerNamedCards?.content.includes('乙')
+    && plannerNamedCards.content.includes('甲'), JSON.stringify(plannerNamedCards?.content?.slice(0, 240)))
   s.writeChapter(root, { work, chapter: 1, body: '甲在荒原上立起第一根梁。'.repeat(20) })
   for (const role of ['reviewer', 'reviser']) {
     const context = await assembleRoleContext({ root, work, chapter: 1, role, task: `以${role}身份检查第一章`, body: '甲在荒原上立起第一根梁。'.repeat(20) })
@@ -133,7 +145,7 @@ try {
   check('book_rules is searchable', rulesHits.some(item => item.kind === 'book_rules'), JSON.stringify(rulesHits.map(item => item.kind)))
   const mapHits = s.searchMemory(root, work, '搭棚')
   check('volume_map is searchable', mapHits.some(item => item.kind === 'volume_map'), JSON.stringify(mapHits.map(item => item.kind)))
-  const indexHits = s.searchMemory(root, work, 'tier')
+  const indexHits = s.searchMemory(root, work, 'roles')
   check('roles index is searchable', indexHits.some(item => item.kind === 'role_index'), JSON.stringify(indexHits.map(item => item.kind)))
   const roleHits = s.searchMemory(root, work, '学会求助')
   check('role cards are searchable', roleHits.some(item => item.kind === 'role_card'), JSON.stringify(roleHits.map(item => item.kind)))

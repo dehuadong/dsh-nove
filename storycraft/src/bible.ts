@@ -7,7 +7,7 @@
  * always assemble the same brief byte for byte.
  */
 
-import { StoryError, chapterNumber, chapterStem, contentVersion, sourceIdOf } from './domain.ts'
+import { StoryError, chapterNumber, chapterStem, contentVersion, formOf, sourceIdOf } from './domain.ts'
 import { accountOf } from './accounting.ts'
 import { buildQuery, select } from './retrieval.ts'
 import { mergeBlock, styleBlock, styleProfile, type StyleMetrics } from './style.ts'
@@ -479,7 +479,7 @@ export async function assembleBrief(root: string, workId: unknown, chapter: numb
   const foundation = readFoundationDocuments(root, work)
 
   const cardRows = listRoleCards(root, work)
-  const useRoleCards = cardRows.length > 0
+  const useRoleCards = formOf(manifest) === 'longform' && cardRows.length > 0
   const cards = cardRows.map((row: any) => row.content).filter((card: any) => card !== null && typeof card === 'object') as any[]
   const characters: any[] = useRoleCards ? cards : parseCharacters(raw.characters)
   const planText: string = plan ?? ''

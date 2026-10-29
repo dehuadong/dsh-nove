@@ -203,7 +203,7 @@ interface RoleContext {
 }
 
 /** Character view this module renders: a role card in long-form, else bible.characters. */
-interface CharacterCard {
+interface CharacterView {
   name?: string
   tier?: string
   role?: string
@@ -310,7 +310,7 @@ export async function assembleRoleContext(
   const foundation = readFoundationDocuments(root, work)
   const cardRows = listRoleCards(root, work)
   const useRoleCards = formOf(manifest) === 'longform' && cardRows.length > 0
-  const characters: CharacterCard[] = useRoleCards
+  const characters: CharacterView[] = useRoleCards
     ? cardRows.map(row => row.content).filter(card => card !== null && typeof card === 'object').map((card: any) => ({
       name: String(card.name ?? ''),
       tier: String(card.tier ?? ''),

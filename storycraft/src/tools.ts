@@ -2057,7 +2057,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
 
     action({
       name: 'story_read',
-      description: '只读：按 artifactId 读取已登记的作品内容（chapter/plan/review/summary/state/bible/outline/volume/role:<slug>/trace）。宿主校验作品与当前章作用域；不返回文件路径。角色卡按 slug 读，字段是卡合同（不含索引六字段）。',
+      description: '只读：按 artifactId 读取已登记的作品内容（chapter/plan/review/summary/state/bible/outline/volume/role:<slug>/trace）。宿主校验作品与当前章作用域；不返回文件路径。角色卡按 slug 读，字段是卡合同。',
       parameters: {
         type: 'object',
         additionalProperties: false,
