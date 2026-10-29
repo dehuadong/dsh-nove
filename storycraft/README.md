@@ -120,7 +120,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 
 - 没有章纲不能写正文（`plan-not-found`）；
 - 没有审稿清单不能定稿（`review-required`）；没有摘要返回 `summary-required`，摘要过期返回 `summary-stale`；`story_state` 在写库前做确定性预检：重复 fact 三元组按投影去重，未知 hookId、非法转移、无可失效 fact 与二次归档直接拒绝；
-- 结算用 `story_settle` 产草案：settler 抽取 `factOps`/`hookOps`/`newHooks`，确定性预检 + `story_state_check`，major/确定性差异带反馈重算一次；默认 8 分钟总预算，超时返回 `settled:false` + `state-settle-timeout`（不重试、不写库），回执带 `attempts` 与 `trace.perAttempt`；零 ops 章也产空草案，定稿写零事件；
+- 结算用 `story_settle` 产草案：settler 抽取 `factOps`/`hookOps`/`newHooks`，确定性预检 + `story_state_check`，major/确定性差异带反馈重算一次；默认 8 分钟总预算，超时返回 `settled:false` + `state-settle-timeout`（不重试；有可用 ops 时写未就绪草案，否则不写库），回执带 `attempts` 与 `trace.perAttempt`；零 ops 章也产空草案，定稿写零事件；
 - 手动修正仍用 `story_state`，payload 与 settler 同形；`story_state_check` 可在写前只读核对 payload，findings 只作建议，不阻断 `story_state`；
 - 定稿要求当前正文版本的审稿没有 `issue` observation；修订后必须再跑一次审稿（新一轮用 `resolved` 指向上一轮 id），清稿审稿直接放行；
 - 审稿只对「它记录的那个正文版本」有效：改过正文后要重新审稿才能再修订；定稿只认当前正文版本的 review artifact，且其中没有 `issue`；`reviews` 表已删除；

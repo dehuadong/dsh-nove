@@ -497,11 +497,13 @@ test.describe('故事工坊工作台', () => {
       store.writeChapter(runtime.fixtureWorkspace, { work, chapter: 1, title: '第1章', body: '甲把账本收好。'.repeat(20) })
       store.writeReview(runtime.fixtureWorkspace, { work, chapter: 1, observations: [] })
       store.writeSummary(runtime.fixtureWorkspace, { work, chapter: 1, text: '甲收好账本。' })
-      store.writeStateDraft(runtime.fixtureWorkspace, {
-        work, chapter: 1,
-        factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '收好账本' }] },
-        ready,
-      })
+      if (ready !== undefined) {
+        store.writeStateDraft(runtime.fixtureWorkspace, {
+          work, chapter: 1,
+          factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '收好账本' }] },
+          ready,
+        })
+      }
       return work
     }
 
@@ -522,7 +524,17 @@ test.describe('故事工坊工作台', () => {
     await expect(page.getByRole('button', { name: new RegExp(pendingTitle) })).toBeVisible({ timeout: 15_000 })
     await page.getByRole('button', { name: new RegExp(pendingTitle) }).evaluate(node => node.click())
     await expect(page.getByRole('heading', { name: pendingTitle })).toBeVisible({ timeout: 15_000 })
-    const settle = page.getByRole('button', { name: /结算第 1 章/ })
+    const acceptDraft = page.getByRole('button', { name: /接受第 1 章状态草案/ })
+    await expect(acceptDraft).toBeVisible({ timeout: 15_000 })
+    await acceptDraft.evaluate(node => node.click())
+    await expect(page.getByText(/不是「故事工坊」模式/)).toBeVisible({ timeout: 10_000 })
+
+    const bareTitle = `结算探针${Date.now() + 1}`
+    build(bareTitle, undefined)
+    await openWorkbench(page, url)
+    await page.getByRole('button', { name: new RegExp(bareTitle) }).evaluate(node => node.click())
+    await expect(page.getByRole('heading', { name: bareTitle })).toBeVisible({ timeout: 15_000 })
+    const settle = page.getByRole('button', { name: /结算第 1 章状态/ })
     await expect(settle).toBeVisible({ timeout: 15_000 })
     await settle.evaluate(node => node.click())
     await expect(page.getByText(/不是「故事工坊」模式/)).toBeVisible({ timeout: 10_000 })
