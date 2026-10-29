@@ -222,7 +222,9 @@ function unresolved(input: UnresolvedInput): SettleReceipt {
   // A reconcile or timeout receipt with usable ops is material for the author:
   // store it as an unaccepted draft so story_apply_draft has something to accept.
   let draft: { artifactId: string; revisionId: string; revision: number; ready: boolean } | undefined
-  if (hasProposedOps(input.proposed) && input.revision > 0) {
+  // state-invalid means the ops cannot be applied as written: storing a draft would
+  // only dead-end at finalize.
+  if (input.reason !== 'state-invalid' && hasProposedOps(input.proposed) && input.revision > 0) {
     try {
       const entry = readManifest(input.root, input.work).chapters.find((chapter: ManifestChapter) => chapter.number === input.chapter)
       if (entry !== undefined && entry.currentRevision === input.revision) {

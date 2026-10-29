@@ -198,6 +198,7 @@ try {
   const invalid = await settleChapterState(root, { work: invalidWork, chapter: 1 }, {
     service: invalidService, agent, signal,
   })
+  check('an invalid delta stores no draft', s.readStateDraft(root, { work: invalidWork, chapter: 1 }) === undefined)
   check('two deterministic-invalid deltas stay unsettled', invalid.settled === false
     && invalid.reason === 'state-invalid' && s.readEvents(root, invalidWork).length === 0
     && s.readManifest(root, invalidWork).chapters[0].currentRevision === 1

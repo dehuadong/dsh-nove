@@ -485,6 +485,49 @@ test.describe('故事工坊工作台', () => {
     expect(await composer.evaluate(node => String(node.value ?? node.textContent ?? ''))).toBe(before)
   })
 
+
+  test('章节按钮按状态草案就绪切换结算与定稿', async ({ page }) => {
+    const store = await import('../src/storage.ts')
+    const build = (title, ready) => {
+      const work = store.initWork(runtime.fixtureWorkspace, { title, wordRange: { min: 10, max: 5000 } }).workId
+      store.writeOutline(runtime.fixtureWorkspace, { work, mainline: '一条主线' })
+      store.approveOutline(runtime.fixtureWorkspace, { work })
+      store.writePlan(runtime.fixtureWorkspace, { work, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+      store.approveChapterPlan(runtime.fixtureWorkspace, { work, chapter: 1 })
+      store.writeChapter(runtime.fixtureWorkspace, { work, chapter: 1, title: '第1章', body: '甲把账本收好。'.repeat(20) })
+      store.writeReview(runtime.fixtureWorkspace, { work, chapter: 1, observations: [] })
+      store.writeSummary(runtime.fixtureWorkspace, { work, chapter: 1, text: '甲收好账本。' })
+      store.writeStateDraft(runtime.fixtureWorkspace, {
+        work, chapter: 1,
+        factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '收好账本' }] },
+        ready,
+      })
+      return work
+    }
+
+    const readyTitle = `定稿探针${Date.now()}`
+    build(readyTitle, true)
+    await openWorkbench(page, url)
+    await expect(page.getByRole('button', { name: new RegExp(readyTitle) })).toBeVisible({ timeout: 15_000 })
+    await page.getByRole('button', { name: new RegExp(readyTitle) }).evaluate(node => node.click())
+    await expect(page.getByRole('heading', { name: readyTitle })).toBeVisible({ timeout: 15_000 })
+    const finalize = page.getByRole('button', { name: /定稿第 1 章/ })
+    await expect(finalize).toBeVisible({ timeout: 15_000 })
+    await finalize.evaluate(node => node.click())
+    await expect(page.getByText(/不是「故事工坊」模式/)).toBeVisible({ timeout: 10_000 })
+
+    const pendingTitle = `结算探针${Date.now()}`
+    build(pendingTitle, false)
+    await openWorkbench(page, url)
+    await expect(page.getByRole('button', { name: new RegExp(pendingTitle) })).toBeVisible({ timeout: 15_000 })
+    await page.getByRole('button', { name: new RegExp(pendingTitle) }).evaluate(node => node.click())
+    await expect(page.getByRole('heading', { name: pendingTitle })).toBeVisible({ timeout: 15_000 })
+    const settle = page.getByRole('button', { name: /结算第 1 章/ })
+    await expect(settle).toBeVisible({ timeout: 15_000 })
+    await settle.evaluate(node => node.click())
+    await expect(page.getByText(/不是「故事工坊」模式/)).toBeVisible({ timeout: 10_000 })
+  })
+
   test('详情在 focus 后刷新且不重复写当前指针', async ({ page }) => {
     const store = await import('../src/storage.ts')
     const title = `焦点探针${Date.now()}`
