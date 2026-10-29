@@ -266,6 +266,32 @@ function chapterOf(query: URLSearchParams): number {
  * Register the read-only routes.
  * @param ctx - host plugin context (service: webServer).
  */
+/** The panel foundation route payload: state plus rendered documents and cards. */
+export function readFoundationPreview(root: string, workId: string) {
+  const foundation = readFoundationState(root, workId)
+  const documents = readFoundationDocuments(root, workId)
+  const rows: Array<[string, FoundationDocument | undefined]> = [
+    ['story_frame', documents.storyFrame],
+    ['volume_map', documents.volumeMap],
+    ['book_rules', documents.bookRules],
+    ['roles_index', documents.rolesIndex],
+    ['current_focus', documents.currentFocus],
+  ]
+  return {
+    workId,
+    foundation,
+    documents: rows.filter(([, entry]) => entry !== undefined).map(([name, entry]) => ({
+      name,
+      revisionId: entry!.version,
+      content: renderFoundationContent(entry!.content),
+    })).concat(listRoleCards(root, workId).map(card => ({
+      name: (card.artifactId as string).slice('role:'.length),
+      revisionId: card.revisionId,
+      content: renderFoundationContent(card.content),
+    }))),
+  }
+}
+
 export function apply(ctx: DshContext): void {
   // Reconcile the catalog against the files at startup, for every workspace the
   // host already knows. A workspace registered later is reconciled on first use.
@@ -414,32 +440,9 @@ export function apply(ctx: DshContext): void {
       path: `${BASE}/foundation`,
       handler: (req, res) => readRoute(req, res, async (query) => {
         const root = await rootOf(ctx, query)
-        const workId = typeof query.get('id') === 'string' ? query.get('id') : ''
+        const workId = String(query.get('id') ?? '')
         if (workId === '') throw new StoryError('invalid-query', '读取基础设定需要 id')
-        const foundation = readFoundationState(root, workId)
-        const documents = readFoundationDocuments(root, workId)
-        const foundationRows: Array<[string, FoundationDocument | undefined]> = [
-          ['story_frame', documents.storyFrame],
-          ['volume_map', documents.volumeMap],
-          ['book_rules', documents.bookRules],
-          ['roles_index', documents.rolesIndex],
-          ['current_focus', documents.currentFocus],
-        ]
-        return {
-          workId,
-          foundation,
-          documents: foundationRows.filter(([, entry]) => entry !== undefined).map(([name, entry]) => ({
-            name,
-            // The filter above drops documents this work has not written yet.
-            revisionId: entry!.version,
-            content: renderFoundationContent(entry!.content),
-          })).concat(listRoleCards(root, workId).map(card => ({
-            // Artifact ids are stored as TEXT; the store read types the column dynamically.
-            name: (card.artifactId as string).slice('role:'.length),
-            revisionId: card.revisionId,
-            content: renderFoundationContent(card.content),
-          }))),
-        }
+        return readFoundationPreview(root, workId)
       }),
     }),
     ctx.webServer.register({

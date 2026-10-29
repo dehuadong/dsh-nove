@@ -49,7 +49,7 @@ check('over-cap glob sampling is explicit', /name: '@deepseek-ai\/dsh-tool-fs-se
 // upgrade that renames a plugin, adds a required config field, or reorders the
 // standard list therefore fails this check instead of silently breaking mount.
 const rowBlocks = (text) => {
-  const lines = text.split('\n')
+  const lines = text.split(/\r?\n/u)
   const plugins = lines.findIndex(line => /^\s*plugins:\s*$/.test(line))
   if (plugins === -1) return []
   const first = lines.slice(plugins + 1).find(line => /^\s+- id: \S+$/.test(line))

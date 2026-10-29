@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import * as s from '../src/storage.ts'
-import { approveFoundationFromPanel, parseRequestBody } from '../src/index.ts'
+import { approveFoundationFromPanel, parseRequestBody, readFoundationPreview } from '../src/index.ts'
 import { setCurrent } from '../src/current.ts'
 
 let failures = 0
@@ -40,6 +40,13 @@ try {
   setCurrent('panel-session', work)
   const approved = approveFoundationFromPanel(root, { sessionId: 'panel-session', workId: work })
   check('the panel path records the approval', typeof approved.foundation?.approvedAt === 'string', JSON.stringify(approved))
+  const preview = readFoundationPreview(root, work)
+  const roles = preview.documents.find(item => item.name === 'roles_index')
+  const cards = preview.documents.filter(item => item.name === 'jia' || item.name === '甲')
+  check('the foundation preview carries the thin index and the card',
+    roles?.content.includes('"tier"') && !roles.content.includes('"want"')
+    && cards.length === 1 && cards[0].content.includes('甲'),
+    JSON.stringify(preview.documents.map(item => item.name)))
   check('the panel path records its source', approved.foundation?.approvedSource === 'panel', JSON.stringify(approved.foundation))
 
   let mismatch = ''
