@@ -24,8 +24,8 @@ try {
   s.approveOutline(root, { work })
   const rolesIndex = {
     roles: [
-      { name: '甲', tier: 'major', role: '主角', want: '救父', fear: '失去', limit: '不杀人', voice: '短句' },
-      { name: '乙', tier: 'minor', role: '对手', want: '守住铺子', fear: '旧案', limit: '不亲自动手', voice: '慢' },
+      { name: '甲', tier: 'major' },
+      { name: '乙', tier: 'minor' },
     ],
   }
   writeFoundationDocument(root, {
@@ -52,6 +52,12 @@ try {
       relationshipPressure: '欠人情', limits: '不杀人', arc: '学会求助', markdown: '# 甲\n\n主角；弧光：学会求助。\n',
     },
   })
+  writeRoleCard(root, {
+    work, content: {
+      slug: 'yi', name: '乙', tier: 'minor', motivation: '守铺', knowledge: '旧案', relationshipPressure: '欠账',
+      limits: '不亲自动手', markdown: '# 乙\n\n对手。\n',
+    },
+  })
   putArtifact(root, {
     workId: work, artifactId: 'bible:current_focus', kind: 'current_focus',
     revisionId: contentVersion('# 当前焦点\n\n先立第一根梁。\n'),
@@ -75,7 +81,7 @@ try {
     && volumeMap?.content.includes('立住脚') && focus?.content.includes('第一根梁'),
     JSON.stringify({ storyFrame, bookRules, volumeMap, focus }))
   check('characters come from the roles index when present',
-    characters?.content.includes('甲（主角）') && characters.source.endsWith('foundation/roles/index.json'),
+    characters?.content.includes('甲（major）') && characters.source.endsWith('foundation/roles'),
     JSON.stringify(characters))
 
   writeFoundationDocument(root, {
@@ -109,7 +115,7 @@ try {
     constraints?.content.includes('故事框架') && constraints.content.includes('作品规则'), JSON.stringify(constraints?.content?.slice(0, 200)))
   const plannerCharacters = planner.sections.find(section => section.name === 'characters')
   check('planner characters come from roles',
-    plannerCharacters?.content.includes('甲') && plannerCharacters.source.endsWith('foundation/roles/index.json'),
+    plannerCharacters?.content.includes('甲') && plannerCharacters.source.endsWith('foundation/roles'),
     JSON.stringify(plannerCharacters))
 
   s.writeChapter(root, { work, chapter: 1, body: '甲在荒原上立起第一根梁。'.repeat(20) })
@@ -127,7 +133,7 @@ try {
   check('book_rules is searchable', rulesHits.some(item => item.kind === 'book_rules'), JSON.stringify(rulesHits.map(item => item.kind)))
   const mapHits = s.searchMemory(root, work, '搭棚')
   check('volume_map is searchable', mapHits.some(item => item.kind === 'volume_map'), JSON.stringify(mapHits.map(item => item.kind)))
-  const indexHits = s.searchMemory(root, work, '守住铺子')
+  const indexHits = s.searchMemory(root, work, 'tier')
   check('roles index is searchable', indexHits.some(item => item.kind === 'role_index'), JSON.stringify(indexHits.map(item => item.kind)))
   const roleHits = s.searchMemory(root, work, '学会求助')
   check('role cards are searchable', roleHits.some(item => item.kind === 'role_card'), JSON.stringify(roleHits.map(item => item.kind)))

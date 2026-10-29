@@ -259,8 +259,8 @@ try {
     name: 'roles_index',
     content: {
       roles: [
-        { name: '甲', tier: 'major', role: '主视角', want: '守住城', fear: '塌方', limit: '不拿人命换速度', voice: '短句' },
-        { name: '乙', tier: 'major', role: '副手', want: '查清账', fear: '算错', limit: '没有数据不签字', voice: '反问' },
+        { name: '甲', tier: 'major' },
+        { name: '乙', tier: 'major' },
       ],
     },
   })

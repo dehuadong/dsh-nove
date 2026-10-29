@@ -50,8 +50,8 @@ const bookRules = {
 }
 const rolesIndex = {
   roles: [
-    { name: '甲', tier: 'major', role: '主角', want: '救父', fear: '失去', limit: '不杀人', voice: '短句' },
-    { name: '掌柜', tier: 'minor', role: '对手', want: '守住当铺', fear: '旧案翻出', limit: '不亲自动手', voice: '慢' },
+    { name: '甲', tier: 'major' },
+    { name: '掌柜', tier: 'minor' },
   ],
 }
 const roleCard = {

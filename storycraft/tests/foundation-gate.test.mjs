@@ -30,8 +30,8 @@ try {
     seed(db, 'bible:volume_map', 'volume_map', '卷一')
     seed(db, 'bible:current_focus', 'current_focus', '焦点')
     seed(db, 'bible:book_rules', 'book_rules', '{}')
-    seed(db, 'roles:index', 'role_index', '[]')
-    seed(db, 'role:甲', 'role_card', '{}')
+    seed(db, 'roles:index', 'role_index', JSON.stringify({ roles: [{ name: '甲', tier: 'major' }] }))
+    seed(db, 'role:甲', 'role_card', JSON.stringify({ slug: 'jia', name: '甲', tier: 'major', motivation: 'm', knowledge: 'k', relationshipPressure: 'r', limits: 'l', markdown: '# 甲' }))
   } finally {
     db.close()
   }

@@ -110,7 +110,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 
 ## 基础设定（architect）
 
-新作品在写全书计划前，先由 `architect` 子代理分四阶段生成基础设定：`frame`（故事框架 / 卷图 / 当前焦点）→ `rules`（作品规则）→ `roles`（角色索引）→ `cards`（major 角色卡）。`story_next` 给出下一阶段与 `delegate:{role:'architect',stage}`；每个阶段用 `story_delegate` 执行，宿主校验后写入 artifact（非法 payload 整批不落）。
+新作品在写全书计划前，先由 `architect` 子代理分四阶段生成基础设定：`frame`（故事框架 / 卷图 / 当前焦点）→ `rules`（作品规则）→ `roles`（姓名 + 层级索引）→ `cards`（每人一张角色卡，major/minor）。`story_next` 给出下一阶段与 `delegate:{role:'architect',stage}`；每个阶段用 `story_delegate` 执行，宿主校验后写入 artifact（非法 payload 整批不落）。
 
 四个阶段完成后 `story_next` 返回 `blocked:['foundation-approval']`，作者在面板「基础设定」里查看并点「确认基础设定」；确认只由面板触发，不通知模型自动继续。`story_outline` 仍可手动调用（architect 不可用时的回退），已写全书计划的作品不再提示基础设定。基础设定会进入 `story_brief`、`story_context`、检索、审稿/结算约束与导出；初始 hooks 不在这里生成。
 

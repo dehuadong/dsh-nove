@@ -69,7 +69,7 @@ try {
   })
   writeFoundationDocument(root, {
     work, name: 'roles_index',
-    content: { roles: [{ name: '甲', tier: 'major', role: '主角', want: '救父', fear: '失去', limit: '不杀人', voice: '短句' }] },
+    content: { roles: [{ name: '甲', tier: 'major' }] },
   })
   const card = {
     slug: 'jia', name: '甲', tier: 'major', motivation: '救父', knowledge: '知道账本',
@@ -90,7 +90,7 @@ try {
   check('a role card is readable by slug', read.ok === true, JSON.stringify(read).slice(0, 200))
   const after = (await b.assembleBrief(root, work, 1)).sections.find(section => section.name === 'characters')
   check('reading a card leaves the brief characters unchanged',
-    before?.content === after?.content && after?.content.includes('甲（主角）'), JSON.stringify({ before: before?.content, after: after?.content }))
+    before?.content === after?.content && after?.content.includes('甲（major）'), JSON.stringify({ before: before?.content, after: after?.content }))
 
   // AC1: card fields only, never the index six fields.
   const content = JSON.parse(read.content)

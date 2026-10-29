@@ -90,12 +90,18 @@ const rules = {
 check('book rules valid', validateBookRules(rules).version === '2')
 rejects('book rules reject version 1', 'artifact-invalid', () => validateBookRules({ ...rules, version: '1' }))
 
-const roles = { roles: [{ name: '甲', tier: 'major', role: '主角', want: '救父', fear: '失去', limit: '不杀人', voice: '短句' }] }
+const roles = { roles: [{ name: '甲', tier: 'major' }] }
 check('roles index valid', validateRolesIndex(roles).roles.length === 1)
 rejects('roles index rejects duplicate names', 'artifact-invalid',
   () => validateRolesIndex({ roles: [...roles.roles, ...roles.roles] }))
+rejects('roles index rejects six-field entries', 'artifact-invalid',
+  () => validateRolesIndex({ roles: [{ name: '甲', tier: 'major', role: '主角' }] }))
+rejects('roles index needs at least one entry', 'artifact-invalid', () => validateRolesIndex({ roles: [] }))
+check('roles index has no count cap',
+  validateRolesIndex({ roles: Array.from({ length: 30 }, (_, index) => ({ name: '角色' + (index + 1), tier: 'minor' })) }).roles.length === 30)
 const card = { slug: 'jia', name: '甲', tier: 'major', motivation: '救父', knowledge: '知道账本存在', relationshipPressure: '掌柜欠人情', limits: '不杀人', arc: '学会求助', markdown: '# 甲\n' }
 check('role card valid', validateRoleCard(card).slug === 'jia')
+check('role card accepts minor', validateRoleCard({ ...card, tier: 'minor' }).tier === 'minor')
 rejects('role card does not duplicate six fields', 'artifact-invalid',
   () => validateRoleCard({ ...card, want: '救父' }))
 rejects('role card needs a slug', 'artifact-invalid', () => validateRoleCard({ ...card, slug: '' }))

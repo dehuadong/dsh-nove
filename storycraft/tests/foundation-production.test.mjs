@@ -58,13 +58,17 @@ const bookRules = {
 }
 const rolesIndex = {
   roles: [
-    { name: '甲', tier: 'major', role: '主角', want: '救父', fear: '失去', limit: '不杀人', voice: '短句' },
-    { name: '乙', tier: 'minor', role: '对手', want: '守铺', fear: '旧案', limit: '不亲自动手', voice: '慢' },
+    { name: '甲', tier: 'major' },
+    { name: '乙', tier: 'minor' },
   ],
 }
 const card = {
   slug: 'jia', name: '甲', tier: 'major', motivation: '救父', knowledge: '知道账本',
   relationshipPressure: '欠人情', limits: '不杀人', arc: '学会求助', markdown: '# 甲\n\n主角。\n',
+}
+const minorCard = {
+  slug: 'yi', name: '乙', tier: 'minor', motivation: '守账', knowledge: '旧案', relationshipPressure: '欠人情',
+  limits: '不亲自动手', markdown: '# 乙\n\n对手。\n',
 }
 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-foundation-production-'))
@@ -122,13 +126,13 @@ try {
   await delegateRole(root, { work, role: 'architect', stage: 'roles' }, {
     service: fakeService([{ payload: { rolesIndex } }]), agent, signal,
   })
-  await rejects('a card for a non-major role lands nothing', 'artifact-invalid', () => delegateRole(root, {
+  await rejects('a partial card set lands nothing', 'artifact-invalid', () => delegateRole(root, {
     work, role: 'architect', stage: 'cards',
-  }, { service: fakeService([{ payload: { roleCards: [{ ...card, name: '乙', slug: 'yi' }] } }]), agent, signal }))
+  }, { service: fakeService([{ payload: { roleCards: [card] } }]), agent, signal }))
   check('a rejected card keeps the stage incomplete', s.readFoundationState(root, work).stages.cards === false)
 
   const cards = await delegateRole(root, { work, role: 'architect', stage: 'cards' }, {
-    service: fakeService([{ payload: { roleCards: [card] } }]), agent, signal,
+    service: fakeService([{ payload: { roleCards: [card, minorCard] } }]), agent, signal,
   })
   check('cards complete the foundation', cards.foundation.complete === true && cards.foundation.nextStage === undefined,
     JSON.stringify(cards.foundation))

@@ -315,23 +315,22 @@ export function readFoundationDocuments(root: any, work: any) {
   }
 }
 
-/** Names of the index's major roles: the one definition of "major". */
-export function majorNamesOf(rolesIndex: any): Set<string> {
+/** The index as a name→tier map: the one definition of role tier. */
+export function indexTiersOf(rolesIndex: any): Map<string, string> {
   const roles = Array.isArray(rolesIndex?.roles) ? rolesIndex.roles : []
-  return new Set<string>(roles.filter((role: any) => role?.tier === 'major').map((role: any) => String(role?.name ?? '')))
+  return new Map<string, string>(roles.map((role: any) => [String(role?.name ?? ''), String(role?.tier ?? '')]))
 }
 
 /**
- * Drop major role cards whose name is no longer in the roles index.
+ * Drop role cards whose name left the index or whose tier changed.
  *
  * Runs inside the caller's transaction. Every revision of a removed artifact is
  * deleted together with its search document, so an old revisionId cannot read it
- * back. Minor cards are left alone: the foundation cards stage never writes them.
+ * back. Both tiers are covered; the index is the single authority for tier.
  * @param db - work database inside a transaction.
- * @param keep - names that remain in the index major set.
- * @returns how many artifacts were removed.
+ * @param keep - current index name→tier map.
  */
-export function dropRoleCardsOnDb(db: any, keep: Set<string>): void {
+export function dropRoleCardsOnDb(db: any, keep: Map<string, string>): void {
   const rows = db.prepare(`SELECT a.artifact_id, a.content_type, a.content FROM artifacts a
     JOIN (SELECT artifact_id, max(rowid) AS rowid FROM artifacts
       WHERE kind = 'role_card' GROUP BY artifact_id) latest ON a.rowid = latest.rowid`).all()
@@ -339,8 +338,8 @@ export function dropRoleCardsOnDb(db: any, keep: Set<string>): void {
   for (const row of rows) {
     if (row.content_type !== 'json') continue
     const card = JSON.parse(String(row.content))
-    if (card?.tier !== 'major') continue
-    if (keep.has(String(card?.name ?? ''))) continue
+    const name = String(card?.name ?? '')
+    if (keep.get(name) === String(card?.tier ?? '')) continue
     doomed.push(String(row.artifact_id))
   }
   for (const artifactId of doomed) {

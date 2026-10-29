@@ -16,7 +16,7 @@ import {
   readManifest, readPlan, readSummary as readSummaryRow, readSummaryState, readVolumes, searchMemory, virtualPath,
   writeBible as writeBibleRow, writeSummary as writeSummaryRow,
 } from './store-db.ts'
-import { readFoundationDocuments, renderFoundationContent } from './artifact-store.ts'
+import { listRoleCards, readFoundationDocuments, renderFoundationContent } from './artifact-store.ts'
 
 /** How one truth file's content is validated. */
 interface BibleFileSpec {
@@ -478,18 +478,22 @@ export async function assembleBrief(root: string, workId: unknown, chapter: numb
   if (plan === undefined) missing.push('outline')
   const foundation = readFoundationDocuments(root, work)
 
-  const indexRoles = Array.isArray(foundation.rolesIndex?.content?.roles) ? foundation.rolesIndex.content.roles : undefined
-  const characters: CharacterRecord[] = indexRoles !== undefined && indexRoles.length > 0 ? indexRoles : parseCharacters(raw.characters)
+  const cardRows = listRoleCards(root, work)
+  const useRoleCards = cardRows.length > 0
+  const cards = cardRows.map((row: any) => row.content).filter((card: any) => card !== null && typeof card === 'object') as any[]
+  const characters: any[] = useRoleCards ? cards : parseCharacters(raw.characters)
   const planText: string = plan ?? ''
   const matched = characters
-    .filter(record => planText.includes(record.name))
+    .filter(record => typeof record?.name === 'string' && planText.includes(record.name))
     .sort((left, right) => planText.indexOf(left.name) - planText.indexOf(right.name))
   const chosen = matched.length > 0 ? matched : characters
   const characterText = chosen
-    .map(record => `- ${record.name}（${record.role}）：想要 ${record.want}；害怕 ${record.fear}；底线 ${record.limit}；口吻 ${record.voice}`)
+    .map(record => useRoleCards
+      ? `- ${record.name}（${record.tier}）：动机 ${record.motivation}；已知 ${record.knowledge}；关系压力 ${record.relationshipPressure}；边界 ${record.limits}`
+      : `- ${record.name}（${record.role}）：想要 ${record.want}；害怕 ${record.fear}；底线 ${record.limit}；口吻 ${record.voice}`)
     .join('\n')
-  const characterSource = indexRoles !== undefined && indexRoles.length > 0
-    ? virtualPath(work, 'foundation/roles/index.json')
+  const characterSource = useRoleCards
+    ? virtualPath(work, 'foundation/roles')
     : biblePath(work, 'characters')
 
   const folded = readFoldedState(root, work)

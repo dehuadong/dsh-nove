@@ -34,22 +34,22 @@ description: 长篇基础设定（architect）：分四阶段产出故事框架/
 
 ### roles
 
-```json
-{ "rolesIndex": { "roles": [ { "name": "…", "tier": "major|minor", "role": "…", "want": "…", "fear": "…", "limit": "…", "voice": "…" } ] } }
-```
+\`\`\`json
+{ "rolesIndex": { "roles": [ { "name": "…", "tier": "major|minor" } ] } }
+\`\`\`
 
-- 最多 20 人，姓名不重复；`tier` 只有 `major`/`minor`。
-- 六字段齐全且互相咬合：`want` 与 `fear` 冲突、`limit` 是会被剧情压到的底线、`voice` 可辨。
+- 只列影响开篇冲突的具名人物；姓名不重复；无数量上限。
+- 索引不写小传；写法见 \`storycraft-long-foundation\` 的 foundation-design 参考。
 
 ### cards
 
-```json
-{ "roleCards": [ { "slug": "…", "name": "…", "tier": "major", "motivation": "…", "knowledge": "…", "relationshipPressure": "…", "limits": "…", "arc": "可选", "markdown": "# …" } ] }
-```
+\`\`\`json
+{ "roleCards": [ { "slug": "…", "name": "…", "tier": "major|minor", "motivation": "…", "knowledge": "…", "relationshipPressure": "…", "limits": "…", "arc": "可选", "markdown": "# …" } ] }
+\`\`\`
 
-- 只为 roles 索引里的 **major** 角色写卡，最多 12 张；`slug` 稳定、不能含空白、冒号、斜杠或 `.`/`..`。
-- `markdown` 是可读小传（姓名、定位、动机、已知信息、关系压力、边界、可选弧光），不要复述 want/fear/limit/voice 六字段。
-- 卡的内容必须与索引一致；改名不改 slug。
+- 索引里每人一张卡（1:1）；\`tier\` 与索引一致；无数量上限。
+- \`slug\` 稳定、不能含空白、冒号、斜杠或 \`.\`/\`..\`；同名重跑会替换旧卡。
+- 写法见 \`storycraft-long-foundation\` 的 foundation-design 参考；\`markdown\` 是可读小传。
 
 ## 失败与重试
 

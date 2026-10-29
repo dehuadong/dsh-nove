@@ -90,7 +90,7 @@ import {
 import { assertRevisionMode } from './revision.ts'
 import { validateArtifactRecord } from './artifact-contract.ts'
 import {
-  artifactRevision, dropRoleCardsOnDb, FOUNDATION_DOCUMENTS, majorNamesOf, putArtifactOnDb, remapChapterArtifacts, renderChapterMemo, renderFoundationContent,
+  artifactRevision, dropRoleCardsOnDb, FOUNDATION_DOCUMENTS, indexTiersOf, putArtifactOnDb, remapChapterArtifacts, renderChapterMemo, renderFoundationContent,
   writeChapterMemoOnDb, writeChapterObservationsOnDb, writeChapterSummaryOnDb, writeTextArtifactOnDb, readTextArtifactOnDb,
 } from './artifact-store.ts'
 import { reviewInputOf } from './review-binding.ts'
@@ -1088,6 +1088,29 @@ const FOUNDATION_STAGE_ARTIFACTS = {
   cards: null,
 }
 
+/** Every index person has exactly one card, and the card tier matches. */
+function foundationCardsComplete(db: any): boolean {
+  const index = db.prepare("SELECT content FROM artifacts WHERE artifact_id = 'roles:index' ORDER BY rowid DESC LIMIT 1").get()
+  if (index === undefined) return false
+  const tiers = indexTiersOf(JSON.parse(String(index.content)))
+  if (tiers.size === 0) return false
+  const rows = db.prepare(`SELECT a.content FROM artifacts a
+    JOIN (SELECT artifact_id, max(rowid) AS rowid FROM artifacts WHERE kind = 'role_card' GROUP BY artifact_id) latest
+    ON a.rowid = latest.rowid`).all()
+  const seen = new Map<string, string>()
+  for (const row of rows) {
+    const card = JSON.parse(String(row.content))
+    const name = String(card?.name ?? '')
+    if (seen.has(name)) return false
+    seen.set(name, String(card?.tier ?? ''))
+  }
+  if (seen.size !== tiers.size) return false
+  for (const [name, tier] of tiers) {
+    if (seen.get(name) !== tier) return false
+  }
+  return true
+}
+
 /** Derived foundation state of one open work. */
 function foundationStateOf(db: any) {
   const has = (artifactId: any) => db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ? LIMIT 1').get(artifactId) !== undefined
@@ -1095,7 +1118,7 @@ function foundationStateOf(db: any) {
     frame: FOUNDATION_STAGE_ARTIFACTS.frame.every(has),
     rules: FOUNDATION_STAGE_ARTIFACTS.rules.every(has),
     roles: FOUNDATION_STAGE_ARTIFACTS.roles.every(has),
-    cards: db.prepare("SELECT 1 FROM artifacts WHERE kind = 'role_card' LIMIT 1").get() !== undefined,
+    cards: foundationCardsComplete(db),
   }
   const complete = FOUNDATION_STAGES.every(stage => (stages as Record<string, boolean>)[stage] === true)
   const nextStage = FOUNDATION_STAGES.find(stage => (stages as Record<string, boolean>)[stage] !== true)
@@ -1250,34 +1273,58 @@ export function writeFoundationStage(root: any, input: any) {
         }
         records = [record('bible:book_rules', 'book_rules', payload.bookRules, 'foundation/book_rules')]
       } else if (stage === 'roles') {
-        const roles = Array.isArray(payload.rolesIndex?.roles) ? payload.rolesIndex.roles : []
-        if (roles.length > 20) throw new StoryError('artifact-invalid', 'roles 索引最多 20 人')
         records = [record('roles:index', 'role_index', payload.rolesIndex, 'foundation/roles/index')]
       } else {
         const cards = Array.isArray(payload.roleCards) ? payload.roleCards : []
         if (cards.length === 0) throw new StoryError('artifact-invalid', '角色卡至少需要一张')
-        if (cards.length > 12) throw new StoryError('artifact-invalid', '角色卡最多 12 张')
         const index = db.prepare("SELECT content FROM artifacts WHERE artifact_id = 'roles:index' ORDER BY rowid DESC LIMIT 1").get()
-        const majorNames = index === undefined ? new Set<string>() : majorNamesOf(JSON.parse(String(index.content)))
+        const tiers = index === undefined ? new Map<string, string>() : indexTiersOf(JSON.parse(String(index.content)))
+        if (tiers.size === 0) throw new StoryError('artifact-invalid', '还没有 roles 索引：先跑 roles 阶段')
         const names = new Set()
         const slugs = new Set()
         records = cards.map((card: any) => {
-          if (!majorNames.has(card?.name)) {
-            throw new StoryError('artifact-invalid', `角色卡 ${String(card?.name)} 不在 roles 索引的 major 条目里`)
+          const name = String(card?.name ?? '')
+          if (!tiers.has(name)) {
+            throw new StoryError('artifact-invalid', `角色卡 ${name} 不在 roles 索引里`)
           }
-          if (card?.tier !== 'major') {
-            throw new StoryError('artifact-invalid', `角色卡 ${String(card?.name)} 的 tier 必须是 major`)
+          if (card?.tier !== tiers.get(name)) {
+            throw new StoryError('artifact-invalid', `角色卡 ${name} 的 tier 必须等于索引里的 ${tiers.get(name)}`)
           }
           const slug = String(card?.slug ?? '').trim()
-          if (names.has(card.name) || slugs.has(slug)) {
-            throw new StoryError('artifact-invalid', `角色卡重复：${String(card.name)}/${slug}`)
+          if (names.has(name) || slugs.has(slug)) {
+            throw new StoryError('artifact-invalid', `角色卡重复：${name}/${slug}`)
           }
-          names.add(card.name)
+          names.add(name)
           slugs.add(slug)
           return record(`role:${slug}`, 'role_card', card, `foundation/roles/${slug}`)
         })
-        if (cards.length > majorNames.size) {
-          throw new StoryError('artifact-invalid', `角色卡数量 ${cards.length} 超过 major 角色数 ${majorNames.size}`)
+        for (const [name] of tiers) {
+          if (!names.has(name)) throw new StoryError('artifact-invalid', `角色卡缺少索引人物：${name}`)
+        }
+        if (names.size !== tiers.size) throw new StoryError('artifact-invalid', '角色卡数量与索引人物数量不一致')
+        // Name is the identity; a rerun with a new slug replaces the old card in
+        // the same transaction so one person never has two cards.
+        const existingCards = db.prepare(`SELECT a.artifact_id, a.content FROM artifacts a
+          JOIN (SELECT artifact_id, max(rowid) AS rowid FROM artifacts WHERE kind = 'role_card' GROUP BY artifact_id) latest
+          ON a.rowid = latest.rowid`).all()
+        const slugByName = new Map<string, string>(cards.map((item: any) => [String(item?.name ?? ''), String(item?.slug ?? '').trim()]))
+        for (const row of existingCards) {
+          let old: any
+          try { old = JSON.parse(String(row.content)) } catch { continue }
+          const oldName = String(old?.name ?? '')
+          const oldSlug = String(old?.slug ?? '')
+          const oldTier = String(old?.tier ?? '')
+          if (names.has(oldName)) {
+            // Same person: keep only the submitted slug; a changed tier is stale.
+            if (String(row.artifact_id) !== `role:${slugByName.get(oldName) ?? ''}` || oldTier !== String(tiers.get(oldName) ?? '')) {
+              dropSearchDoc(db, String(row.artifact_id))
+              db.prepare('DELETE FROM artifacts WHERE artifact_id = ?').run(String(row.artifact_id))
+            }
+            continue
+          }
+          if (slugs.has(oldSlug)) {
+            throw new StoryError('artifact-invalid', `slug 已被其他姓名占用：${oldSlug}`)
+          }
         }
       }
       let anyWritten = false
@@ -1291,11 +1338,8 @@ export function writeFoundationStage(root: any, input: any) {
         return { artifactId: envelope.artifactId, revisionId: envelope.revisionId, kind: envelope.kind }
       })
       if (stage === 'roles') {
-        // The index is the person list; a card whose name left the major set is stale.
-        const roles = Array.isArray(payload.rolesIndex?.roles) ? payload.rolesIndex.roles : []
-        const keep = majorNamesOf(payload.rolesIndex)
-        // An index with no major role is ambiguous; do not purge every card on it.
-        if (keep.size > 0) dropRoleCardsOnDb(db, keep)
+        // The index is the person list and the tier authority; stale cards go.
+        dropRoleCardsOnDb(db, indexTiersOf(payload.rolesIndex))
       }
       return { workId, stage, artifacts, foundation: foundationStateOf(db) }
     })

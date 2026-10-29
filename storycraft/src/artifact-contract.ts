@@ -238,17 +238,16 @@ export function validateBookRules(value: ArtifactRecord): ArtifactRecord {
   return input
 }
 
-/** Validate roles index; six display fields live only here. */
+/** Validate the thin roles index: name + tier, at least one, no count cap. */
 export function validateRolesIndex(value: ArtifactRecord): ArtifactRecord {
   const input = object(value, 'roles')
   keys(input, ['roles'], 'roles')
   list(input.roles, 'roles.roles', (role, label) => {
-    keys(role, ['name', 'tier', 'role', 'want', 'fear', 'limit', 'voice'], label)
+    keys(role, ['name', 'tier'], label)
     text(role.name, `${label}.name`)
     oneOf(role.tier, ['major', 'minor'], `${label}.tier`)
-    for (const field of ['role', 'want', 'fear', 'limit', 'voice']) text(role[field], `${label}.${field}`)
     return role
-  })
+  }, { min: 1 })
   const names = new Set(input.roles.map((role: any) => role.name))
   if (names.size !== input.roles.length) invalid('roles.roles 姓名重复')
   return input

@@ -178,6 +178,11 @@ const VALIDATOR_LIMITS: Record<string, number> = { where: 120, problem: 160, evi
  * The payload is model-produced JSON, so it arrives as `any` and every field
  * is probed at runtime; only the checks below give it a shape.
  */
+/** Validate one architect payload shape before dispatch (no count caps). */
+export function validateArchitectShape(role: string, payload: any, stage: string | undefined): string | undefined {
+  return validateShape(role, payload, stage)
+}
+
 function validateShape(role: string, payload: any, stage: string | undefined): string | undefined {
   if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
     return 'payload 必须是对象'
@@ -205,10 +210,6 @@ function validateShape(role: string, payload: any, stage: string | undefined): s
     }
     if (stage === 'cards') {
       if (!Array.isArray(payload.roleCards) || payload.roleCards.length === 0) return 'architect cards 的 roleCards 必须是非空数组'
-      if (payload.roleCards.length > 12) return 'architect cards 最多 12 张'
-    }
-    if (stage === 'roles' && Array.isArray(payload.rolesIndex?.roles) && payload.rolesIndex.roles.length > 20) {
-      return 'architect roles 最多 20 人'
     }
     try {
       if (stage === 'frame') {
