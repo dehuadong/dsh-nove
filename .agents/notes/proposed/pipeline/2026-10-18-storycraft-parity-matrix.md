@@ -13,7 +13,7 @@ updated: 2026-10-23
 
 角色化提案只说了「主编 + 工作子代理」，没有写清**对拍范围**：参考实现里哪些角色、哪份文档要采纳，哪些只借结构、哪些暂不做。缺少这张表，切片只能按我当下的理解实现，容易漏、也容易重复造。
 
-对拍口径：**角色与文档可采纳；脚本、命令与动作名按我们的来**。
+对拍口径：**参考实现的产物结构是规格；角色与文档可采纳；脚本、命令与动作名按我们的来**。结构差异必须写成偏差行并经作者裁决，未登记的偏差视为越界。运行时（Provider、Agent 循环、CLI、存储、调度）不移植，用 DSH 的 Skill/Preset/Plugin/Subagent/文件状态等价实现。不得自创参考没有的产品限制（数量上限、白名单、格式限制）；工程预算只能在消费层解决。
 
 > 2026-10-19：角色不再各自成预设。派发由主编用官方 `subagent` 完成，角色由任务提示与技能区分；上下文由只读动作 `story_context` 交付（见 [#12](https://github.com/dehuadong/dsh-nove/issues/12)）。
 
@@ -139,7 +139,7 @@ updated: 2026-10-23
 | story_frame | 独立可读 Markdown | 压在 `world` + `plan.mainline` | 框架/世界职责混用 | 待合同 | A0 |
 | volume_map | 独立可读 Markdown | `plan` 的卷划分文字 | 无独立身份；与结构化卷易双源 | 待合同 | A0 |
 | book_rules | 可读 + JSON（人称/主角锁/禁区等） | 无，规则散在 world | writer/settler 无机器可读规则 | 待合同 | A0 |
-| 角色卡 | 每人 Markdown（动机/知识/关系压力/边界） | 六字段 JSON | 缺知识/关系压力/边界 | 待合同 | A0 |
+| 角色卡 | 每人 Markdown（动机/知识/关系压力/边界）；索引只含 name+tier；major/minor 均可建卡；无数量上限 | 六字段 JSON 索引；卡仅 major；索引 ≤20 人、卡 ≤12 张 | 索引重复卡内容；minor 无卡；数量上限无参考依据 | 已裁决 2026-10-29：按参考对齐（去上限、薄索引、允许 minor）；实现待排期 | A0 后续 |
 | 章节摘要 | 结构化 7 字段 | 纯文本 ≤400 字 | 无法按 hookActivity/mood 检索 | 待合同 | P1 |
 | hooks | hookId + 生命周期/预期兑现/依赖 | text + 三态 | 改写即新伏笔；无 defer/superseded | 待合同 | P0 |
 | facts | subject/predicate/object + 有效期 | 字符串数组 | 无法 expire/覆盖 | 待合同 | P2 |

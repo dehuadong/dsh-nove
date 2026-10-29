@@ -8,6 +8,8 @@ verification: architect 四阶段生产已落地，真实会话跑通 frame/rule
 
 # Agent Note：故事工坊：L-R10b foundation 生产
 
+> **2026-10-29 修正**：`roles ≤20`、`cards ≤12`、卡仅 major 三条与参考实现不符，作者已裁决移除。角色模型按 [parity-matrix 角色卡行](../../proposed/pipeline/2026-10-18-storycraft-parity-matrix.md) 对齐：薄索引（name+tier）+ 每人 Markdown 卡（动机/知识/关系压力/边界），major/minor 均可建卡，不设数量上限。本 Note 的对应描述、`store-db.ts` 校验、`storycraft-architect` SKILL 与测试需在同一后续工作项里同步；同步前以矩阵裁决为准。
+
 ## 问题
 
 A0 定义了 `story_frame`/`volume_map`/`book_rules`/`roles:index`/`role:<slug>`/`current_focus` 的合同与读写 API，S4b 已把消费接到 brief/context/检索/审稿/结算/导出。但**没有生产者**：没有任何动作或委派角色会生成这些 artifact，作者只能手工写；`roles` 索引与角色卡也没有 UI/委派入口。#44 的目标是 architect 生成 foundation，现在需要把它落成可执行、可确认、可重跑的流程。
