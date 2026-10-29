@@ -18,7 +18,7 @@ updated: 2026-10-27
 - 参考工程 `inkos-master` 2.0.0 的三形态组织、artifact 产物与角色交接，见 `docs/report/inkos/2026-10-23-full-project-parity-audit.md`、`2026-10-23-artifact-and-resource-parity-audit.md` 与 `2.0-harness-delta.md`。
 - 采纳：A0 产物合同 → L 长篇 → S 短篇 → D 剧本的顺序；三种形态独立流水线，共享存储与合同。
 - 不采纳：参考实现的 capability/profile 注入层；本项目用 DSH 的预设、作者闸门与委派回执等价实现。
-- 边界：参考的产物结构是规格（差异必须登记并裁决）；运行时机制不移植，用 DSH 原语等价实现；不得自创参考没有的产品限制。详见 [parity-matrix 对拍口径](../pipeline/2026-10-18-storycraft-parity-matrix.md)。
+- 边界：inkos 的产品结构与行为是规格；运行时逐项整改为 DSH 机制（Provider→宿主模型、Agent 循环→Subagent + `story_submit`、CLI→`story_*`/面板/会话、文件状态→工作区 + SQLite + artifact、调度→`story_next`/会话、server→面板 Slot）；DSH 缺的能力等价实现并登记，不删能力、不自创限制。详见 [parity-matrix 运行时整改](../pipeline/2026-10-18-storycraft-parity-matrix.md)。
 
 ## 提案
 

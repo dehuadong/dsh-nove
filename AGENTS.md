@@ -107,7 +107,7 @@
 ### 对拍工作法
 - InkOS 仓库分析研究文档 `docs\report\inkos\readme.md`；全量对拍证据见 `docs/report/inkos/2026-10-23-full-project-parity-audit.md`，产物专项见 `docs/report/inkos/2026-10-23-artifact-and-resource-parity-audit.md`；三形态执行计划归 `.agents/notes/proposed/workspace/2026-10-19-storycraft-roadmap.md`，报告不拥有排期。
 - 只使用本 Harness 的 Skill、Preset、Plugin、Subagent 与文件状态；不引入 LLM Provider、独立 Harness/SDK、资源管理服务或额外子 Agent 运行时。
-- **参考是规格，不是参考资料**：参考实现的产物、字段、角色、阶段、错误码与消费者是结构规格；结构差异必须写进对照表并裁决，未登记的偏差视为越界。运行时（Provider、Agent 循环、CLI、存储、调度）不移植，用本 Harness 的 Skill/Preset/Plugin/Subagent/文件状态等价实现。
+- **参考是目标产品的规格**：`inkos-master` 的产品结构与行为按它复现；结构差异必须写进对照表并裁决，未登记的偏差视为越界。其运行时机制（Provider、Agent 循环、CLI、存储、调度）逐项整改为 DSH 的运行机制，用 Skill/Preset/Plugin/Subagent/文件状态等价实现；不 import、不运行 inkos 的代码，也不引入它自带的运行时。DSH 缺少的机制不得删能力，必须给出等价实现并逐项登记验证（对照表见 parity-matrix 的「运行时整改」）。
 - **不得自创产品限制**：数量上限、白名单、格式限制等，参考实现没有、作者也未裁决的，不得写进合同或校验；工程预算问题只能在消费层（选择、截断）解决。
 - 本项目代码、内容与注释不标注来源、不建立关联，以独立项目口径命名与改写。
 - 对拍的记忆不靠对话：规则记在本文件，能力对照与差距记在 `.agents/notes/proposed/pipeline/2026-10-18-storycraft-parity-matrix.md`，决定记在对应 Issue/Note，验证记在 tests/CI。

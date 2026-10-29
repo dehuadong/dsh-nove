@@ -13,7 +13,7 @@ updated: 2026-10-23
 
 角色化提案只说了「主编 + 工作子代理」，没有写清**对拍范围**：参考实现里哪些角色、哪份文档要采纳，哪些只借结构、哪些暂不做。缺少这张表，切片只能按我当下的理解实现，容易漏、也容易重复造。
 
-对拍口径：**参考实现的产物结构是规格；角色与文档可采纳；脚本、命令与动作名按我们的来**。结构差异必须写成偏差行并经作者裁决，未登记的偏差视为越界。运行时（Provider、Agent 循环、CLI、存储、调度）不移植，用 DSH 的 Skill/Preset/Plugin/Subagent/文件状态等价实现。不得自创参考没有的产品限制（数量上限、白名单、格式限制）；工程预算只能在消费层解决。
+对拍口径：**参考实现的产物结构是规格；角色与文档可采纳；脚本、命令与动作名按我们的来**。结构差异必须写成偏差行并经作者裁决，未登记的偏差视为越界。`inkos-master` 是本项目的目标产品：产品结构与行为按它复现，运行时机制（Provider、Agent 循环、CLI、存储、调度）逐项整改为 DSH 的运行机制；不 import、不运行 inkos 代码，也不引入它自带的运行时。DSH 缺少的机制不得删能力，必须给出等价实现并逐项登记验证。不得自创参考没有的产品限制（数量上限、白名单、格式限制）；工程预算只能在消费层解决。
 
 > 2026-10-19：角色不再各自成预设。派发由主编用官方 `subagent` 完成，角色由任务提示与技能区分；上下文由只读动作 `story_context` 交付（见 [#12](https://github.com/dehuadong/dsh-nove/issues/12)）。
 
@@ -27,6 +27,19 @@ updated: 2026-10-23
   3. writer 委派硬编码「长篇小说」和长篇技能，短篇/剧本子代理拿不到形态技能。
 - **Skill 不是数量问题，是资源深度与路由问题**：11 个技能覆盖主干；长篇三份方法参考（foundation / 读者承诺 / 状态投影）已在 `storycraft-longform-method`；分析与市场研究仍没有 lens/rubric。
 - **不复制 InkOS 的权限层**：capability gating、`propose_action`、Profile 注入、`skills-applied` 证据是它 2.0 的宿主模型；DSH 已有自己的动作、作者闸门与委派回执，只借方法与资源组织。
+
+### 运行时整改（逐项）
+
+每一行都要有参考位置、DSH 落点、差异与验证；缺一行的整改不算完成。
+
+| 参考运行时 | 参考位置 | DSH 落点 | 差异 / 约束 | 验证 |
+| --- | --- | --- | --- | --- |
+| Provider / 模型配置 | `packages/core/src/llm/provider.ts`、`secrets.ts` | 宿主模型与会话配置；插件不持有 provider | 不 import inkos 的 provider；模型由宿主选择 | 插件 runtime dependencies 无 provider SDK；模型调用只经子代理 |
+| Agent 循环、`submitStructured`、工具调用 | `packages/core/src/agent/agent-session.ts`、`agents/architect.ts` | Subagent 回合 + `story_submit` 校验 + Plugin tool 分发 | 不复制 agent loop；结构化提交换成 `story_submit` schema | 子代理只调 `story_*`；非法 payload 被 `story_submit` 拒绝 |
+| CLI 命令（outline/write/…） | `packages/cli/src/program.ts` | `story_*` 工具、面板动作、会话指令 | 不提供 inkos CLI；同等能力走工具/面板 | 每个 CLI 能力都能指到对应工具或面板动作 |
+| 文件状态（`story/*.md`、runtime state） | `packages/core/src/state`、`utils/outline-paths.ts` | 工作区文件 + SQLite + artifact 注册表 | 文件布局不同；identity 与生命周期按我们的合同 | 旧 schema 拒绝；产物可读、可导出、有消费者 |
+| 调度 / 队列 | `packages/core/src/pipeline/scheduler.ts` | `story_next` 推进 + 会话/工具驱动；不引入 daemon | 无后台队列；推进由会话触发 | 无常驻进程；`story_next` 每一步可解释 |
+| server / Web UI | `packages/studio/src` | DSH Web 面板 Plugin Slot | 不复刻 studio server；面板走 Host/Client plugin | E2E 面板 spec 覆盖动作、刷新与不自动发送 |
 
 ## 提案
 
