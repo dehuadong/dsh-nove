@@ -152,7 +152,7 @@ updated: 2026-10-29
 | story_frame | 独立可读 Markdown | 压在 `world` + `plan.mainline` | 框架/世界职责混用 | 待合同 | A0 |
 | volume_map | 独立可读 Markdown | `plan` 的卷划分文字 | 无独立身份；与结构化卷易双源 | 待合同 | A0 |
 | book_rules | 可读 + JSON（人称/主角锁/禁区等） | 无，规则散在 world | writer/settler 无机器可读规则 | 待合同 | A0 |
-| 角色卡 | 每人 Markdown（动机/知识/关系压力/边界）；索引只含 name+tier；major/minor 均可建卡；一人一卡；无数量上限 | 六字段 JSON 索引；卡仅 major；索引 ≤20 人、卡 ≤12 张 | 索引重复卡内容；minor 无卡；无 1:1 覆盖；数量上限无参考依据 | 已裁决 2026-10-29；设计与验收见 [角色模型对齐参考](2026-10-29-storycraft-role-model-parity.md)；实现待 #83 | A0 后续 |
+| 角色卡 | 每人 Markdown（动机/知识/关系压力/边界）；索引只含 name+tier；major/minor 均可建卡；一人一卡；无数量上限 | 六字段 JSON 索引；卡仅 major；索引 ≤20 人、卡 ≤12 张 | 索引重复卡内容；minor 无卡；无 1:1 覆盖；数量上限无参考依据 | 已实现 #83（2026-10-29）；设计与验收见 [角色模型对齐参考](2026-10-29-storycraft-role-model-parity.md)；待真实链路验收 | A0 后续 |
 | 章节摘要 | 结构化 7 字段 | 纯文本 ≤400 字 | 无法按 hookActivity/mood 检索 | 待合同 | P1 |
 | hooks | hookId + 生命周期/预期兑现/依赖 | text + 三态 | 改写即新伏笔；无 defer/superseded | 待合同 | P0 |
 | facts | subject/predicate/object + 有效期 | 字符串数组 | 无法 expire/覆盖 | 待合同 | P2 |
