@@ -14,8 +14,8 @@ Status: implemented
 
 - 第一次 `writeReview` 因引文不可核对失败时，不写任何 review；
 - 用新的 delegationId 重新开一次提交通道，并把旧 prompt 里的 delegationId 替换成新的，追加“上次提交被拒绝”的反馈（第几条、哪条 sourceRef、逐字引文要求）；
-- 重试成功才写 review、推进阶段，回执 `submissionAttempts` 为 2；
-- 重试仍失败则返回 `observation-source-unverified`，不写 review、不改阶段；
+- 重试成功才写 review、推进阶段；回执 `submissionAttempts` 只在真正重试时累加（一次通过=1，重试成功=2）；
+- 重试仍因引文不可核对失败 → 返回 `observation-source-unverified`；重试未提交/未正常完成 → 返回 `delegation-no-submission`；两种情况都不写 review、不改阶段；
 - 只对该错误码、只对 reviewer 生效，其他失败不触发。
 
 ## 对拍参考
@@ -32,10 +32,10 @@ Status: implemented
 
 ## Testing
 
-`storycraft/tests/reviewer-retry.test.mjs` 覆盖：首次引文失败 → 自动重试一次且只落一份 review（`submissionAttempts=2`，重试 prompt 含拒绝反馈）；两次都失败 → 返回 `observation-source-unverified`、只派发两次、不写 review。全量 `node storycraft/scripts/ci.mjs` 为 81 单元 + 27 E2E。
+`storycraft/tests/reviewer-retry.test.mjs` 覆盖：首次引文失败 → 自动重试一次且只落一份 review（`submissionAttempts=2`，重试 prompt 含拒绝反馈）；两次都失败 → 返回 `observation-source-unverified`、只派发两次、不写 review、stage/revision 不变；非引文的提交失败（items 超限）→ 不重试、`delegation-no-submission`、stage 不变。全量 `node storycraft/scripts/ci.mjs` 为 81 单元 + 27 E2E。
 
 ## Consequences
 
 - reviewer 的引文错误不再直接阻塞章节，父会话少写一轮手工重试；失败仍可观察，不会静默吞掉证据问题。
-- 每次引文失败多一次 reviewer 子代理调用，延迟与成本上升；上限为一次，不无限重试。
+- 每次引文失败多一次 reviewer 子代理调用，延迟与成本上升；上限为一次，不无限重试；`submissionAttempts` 不因重试逻辑影响一次通过的回执。
 - 重试逻辑只收窄到 `observation-source-unverified` 与 reviewer 角色，其他角色的失败处理保持原样。

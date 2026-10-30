@@ -50,7 +50,19 @@ try {
   await writeBible(root, work, 'characters', JSON.stringify([{ name: '甲', role: '主角', want: '收好账本', fear: '丢', limit: '不伤人', voice: '短句' }]))
   await writeBible(root, work, 'style', '# 文风\n短句。')
 
-  const service = fakeService([
+  async function makeChapterWork(title) {
+  const { workId: work } = s.initWork(root, { title, wordRange: { min: 10, max: 5000 } })
+  s.writeOutline(root, { work, mainline: '主线' })
+  s.approveOutline(root, { work })
+  s.writePlan(root, { work, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+  s.approveChapterPlan(root, { work, chapter: 1 })
+  s.writeChapter(root, { work, chapter: 1, title: '第1章', body: '甲把账本收好，雨停了。'.repeat(10) })
+  await writeBible(root, work, 'characters', JSON.stringify([{ name: '甲', role: '主角', want: '收好账本', fear: '丢', limit: '不伤人', voice: '短句' }]))
+  await writeBible(root, work, 'style', '# 文风\n短句。')
+  return work
+}
+
+const service = fakeService([
     { payload: { items: [item('账本在桌上', '引文不存在')] } },
     { payload: { items: [item('甲把账本收好', '引文存在')] } },
   ])
@@ -62,14 +74,12 @@ try {
     service.specs[1].request.prompt[0].text.slice(-300))
   check('only the accepted review lands', receipt.problems.total === 1 && receipt.reviewRound === 1, JSON.stringify(receipt))
 
-  const { workId: failing } = s.initWork(root, { title: '审稿双击失败', wordRange: { min: 10, max: 5000 } })
-  s.writeOutline(root, { work: failing, mainline: '主线' })
-  s.approveOutline(root, { work: failing })
-  s.writePlan(root, { work: failing, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
-  s.approveChapterPlan(root, { work: failing, chapter: 1 })
-  s.writeChapter(root, { work: failing, chapter: 1, title: '第1章', body: '甲把账本收好，雨停了。'.repeat(10) })
-  await writeBible(root, failing, 'characters', JSON.stringify([{ name: '甲', role: '主角', want: '收好账本', fear: '丢', limit: '不伤人', voice: '短句' }]))
-  await writeBible(root, failing, 'style', '# 文风\n短句。')
+  const clean = await makeChapterWork('一次通过')
+  const cleanService = fakeService([{ payload: { items: [item('甲把账本收好', '一次通过')] } }])
+  const cleanReceipt = await delegateRole(root, { work: clean, chapter: 1, role: 'reviewer' }, { service: cleanService, agent, signal })
+  check('a clean first submission reports one attempt', cleanReceipt.submissionAttempts === 1 && cleanService.specs.length === 1, JSON.stringify(cleanReceipt))
+
+  const failing = await makeChapterWork('审稿双击失败')
   const badService = fakeService([
     { payload: { items: [item('账本在桌上', '引文不存在一')] } },
     { payload: { items: [item('账本在手里', '引文不存在二')] } },
@@ -83,6 +93,24 @@ try {
   let reviewRound = 0
   try { reviewRound = s.latestReview(root, failing, 1)?.round ?? 0 } catch { reviewRound = 0 }
   check('no review lands after two bad submissions', reviewRound === 0, String(reviewRound))
+  const failedEntry = s.readManifest(root, failing).chapters[0]
+  check('a failed retry leaves the stage and revision unchanged',
+    failedEntry.stage === 'written' && failedEntry.currentRevision === 1,
+    JSON.stringify({ stage: failedEntry.stage, revision: failedEntry.currentRevision }))
+
+  const shape = await makeChapterWork('形状错误不重试')
+  const nineItems = Array.from({ length: 9 }, (_, index) => item('甲把账本收好', `第 ${index + 1} 条`))
+  const shapeService = fakeService([{ payload: { items: nineItems } }])
+  let shapeCode = ''
+  try {
+    await delegateRole(root, { work: shape, chapter: 1, role: 'reviewer' }, { service: shapeService, agent, signal })
+  } catch (error) { shapeCode = error?.code ?? String(error) }
+  check('a non-quote submission failure is not retried',
+    shapeCode === 'delegation-no-submission' && shapeService.specs.length === 1,
+    JSON.stringify({ code: shapeCode, dispatches: shapeService.specs.length }))
+  check('a non-quote failure leaves the stage unchanged',
+    s.readManifest(root, shape).chapters[0].stage === 'written',
+    s.readManifest(root, shape).chapters[0].stage)
 } finally {
   await rm(root, { recursive: true, force: true })
 }
