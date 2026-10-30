@@ -35,6 +35,8 @@ try {
     dbFixture.prepare("INSERT INTO materials (id, title, format, origin, bytes, hash, created_at, content, purpose) VALUES ('mat-test', '标题', 'txt', 'test', 4, 'hash-test', '2026-10-30T00:00:00.000Z', '素材正文', 'reference')").run()
     syncSearchDoc(dbFixture, 'material:mat-test', 'material', 'materials/mat-test', 0, '素材正文', '标题 素材正文')
     syncSearchDoc(dbFixture, 'custom:1', 'custom_kind', 'custom/source', 0, '自定义投影')
+    dbFixture.prepare("INSERT INTO artifacts (artifact_id, revision_id, kind, scope_chapter, content_type, content, input_revision, provenance, created_at) VALUES ('bible:current_focus', 'cf1', 'current_focus', NULL, 'text', '当前焦点', NULL, 'generated', '2026-10-30T00:00:00.000Z')").run()
+    syncSearchDoc(dbFixture, 'bible:current_focus', 'current_focus', 'foundation/current_focus', 0, '当前焦点')
   } finally { dbFixture.close() }
 
   const clean = scanWork(root, work)
@@ -47,6 +49,7 @@ try {
   check('missing index documents are reported', codes(broken).some(code => code === 'search-index-missing' || code === 'search-index-drift'), JSON.stringify(codes(broken)))
   const rebuilt = rebuildSearchIndex(root, work)
   check('rebuild reports indexed documents', (rebuilt.counts.chapter ?? 0) > 0 && (rebuilt.counts.summary ?? 0) > 0, JSON.stringify(rebuilt.counts))
+  check('rebuild includes current_focus', (rebuilt.counts.current_focus ?? 0) === 1, JSON.stringify(rebuilt.counts))
   check('rebuild preserves an unknown kind', rebuilt.unknownKinds.includes('custom_kind'), JSON.stringify(rebuilt.unknownKinds))
   const after = scanWork(root, work)
   check('rebuild makes the work scan clean again', after.issues.length === 0, JSON.stringify(after.issues))
