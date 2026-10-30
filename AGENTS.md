@@ -171,7 +171,7 @@ DeepSeek Harness 包工作区：packages文档地址 `E:\dsh-nove\deepseek-harne
 
 ## 重要改动必须留笔记
 
-1. 非平凡改动（改了行为、架构、跨文件契约、流程与工具链、测试策略、落盘/网络/配置格式）前，遵循 `write-agent-notes` Skill 写或更新笔记；机械性小改（样式、格式化、打标、不改行为的补丁）直接提交。
+1. 非平凡改动（改了行为、架构、跨文件契约、流程与工具链、测试策略、落盘/网络/配置格式）前，遵循 `.agents/skills/write-notes-like-deepseek/SKILL.md` 写或更新笔记；机械性小改（样式、格式化、打标、不改行为的补丁）直接提交。
 2. 写之前先检索 .agents/notes/ 里的同主题旧笔记：有归属就地更新；新想法先放 proposed/，落地随同代码改动转 implemented/；新方案彻底取代旧决策时，同批归档旧篇并标明被谁取代。
 3. 被放弃的方案先写它最强的理由，再解释为什么不用。
 4. 提交前跑 npm run verify-notes，红了先修再交。
