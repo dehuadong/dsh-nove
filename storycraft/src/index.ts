@@ -15,7 +15,7 @@ import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/pro
 import { isAbsolute, join, resolve } from 'node:path'
 import { deriveWorkbench } from './workbench.ts'
 import { rebuildSearchIndex } from './recovery.ts'
-import { acceptChapter, approveChapterPlan, approveFoundation, approveOutline, createBackup, deleteBackup, deleteChapter, deleteMaterial, ensureReconciled, exportWorkAtomic, importMaterial, moveChapter, listMaterials, listTrash, listWorks, nextStep, purgeTrash, readFoundationState, readManifest, restoreBackup, listBackups, readChapter, readReview, readWork, renameMaterial, restoreWork, setMaterialPurpose, status as readStatus, StoryError } from './storage.ts'
+import { acceptChapter, adoptChapterRevision, approveChapterPlan, approveFoundation, approveOutline, createBackup, deleteBackup, deleteChapter, deleteMaterial, readChapterHistory, ensureReconciled, exportWorkAtomic, importMaterial, moveChapter, listMaterials, listTrash, listWorks, nextStep, purgeTrash, readFoundationState, readManifest, restoreBackup, listBackups, readChapter, readReview, readWork, renameMaterial, restoreWork, setMaterialPurpose, status as readStatus, StoryError } from './storage.ts'
 import { critique } from './critique.ts'
 import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent } from './current.ts'
 import { readVolumes } from './volumes.ts'
@@ -557,6 +557,30 @@ export function apply(ctx: DshContext): void {
         void postRoute(req, res, async (body) => {
           const { root, workId } = await writeWorkTarget(body)
           return extractStyleSamples(root, workId)
+        }, { maxBytes: 32 * 1024, requireJson: true })
+      },
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/chapter/history`,
+      handler: (req, res) => {
+        void postRoute(req, res, async (body) => {
+          const { root, workId } = await targetWork(body)
+          return readChapterHistory(root, { work: workId, chapter: body?.chapter })
+        }, { maxBytes: 32 * 1024, requireJson: true })
+      },
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/chapter/adopt`,
+      handler: (req, res) => {
+        void postRoute(req, res, async (body) => {
+          const { root, workId } = await targetWork(body)
+          if (body?.confirm !== true) throw new StoryError('revision-adopt-unconfirmed', '回滚需要确认')
+          return adoptChapterRevision(root, {
+            work: workId, chapter: body?.chapter, target: body?.target,
+            revision: body?.revision, expectedCurrent: body?.expectedCurrent,
+          })
         }, { maxBytes: 32 * 1024, requireJson: true })
       },
     }),

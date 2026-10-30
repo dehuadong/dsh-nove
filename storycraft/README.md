@@ -1,6 +1,6 @@
 # 故事工坊（see-storycraft）
 
-DSH 里的长篇创作编排：三十五个动作把立项、章纲、正文、审稿、修订、定稿归档与导出备份落到**一作品一库**的 SQLite 存储，一个**工作台**以只读方式看作品与章节，并按键把固定指令投给当前会话。故事工坊是**一个工作模式**（一个 Agent 预设），以标准预设为基线再挂自己的动作、技能与人设。
+DSH 里的长篇创作编排：三十六个动作把立项、章纲、正文、审稿、修订、定稿归档与导出备份落到**一作品一库**的 SQLite 存储，一个**工作台**以只读方式看作品与章节，并按键把固定指令投给当前会话。故事工坊是**一个工作模式**（一个 Agent 预设），以标准预设为基线再挂自己的动作、技能与人设。
 
 ## 现状
 
@@ -146,6 +146,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 | `story_submit` | 仅子代理调用：提交结构化角色结果，宿主校验字数/mode，失败可重提 | 父代理/非委派 `submit-parent-denied`；超 3 次 `submit-attempts-exhausted` |
 | `story_read` | 只读：按 `artifactId`/`revisionId` 读取当前章可读内容；`plan:<n>` 返回 memo JSON，可读旧 memo revision；越界返回 `artifact-not-readable` | 作品不存在；旧章/旧审稿版本 |
 | `story_context` | 只读按角色装配上下文；回执带 token 预算 trace（默认 8000，可用 `budget` 覆盖），正文 ≥3 章时 trace 带合同形状的 `retrieval` | 缺章 `chapter-not-found`；缺章纲 `plan-not-found`；缺人物卡 `bible-missing` |
+| `story_history` | 只读：正文与章纲版本、当前标记、章纲批准状态 | 作品/章节不存在 |
 | `story_next` | 只读：下一步动作、章号、原因、缺什么、`blocked`；可委派时带 `delegate.role`（architect 带 `stage`） | 作品不存在 |
 | `story_export` / `story_backup` | 见「作品操作与导出」 | 作品不存在 |
 
@@ -158,7 +159,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 侧栏入口「故事工坊」打开一个面板：
 
 - 左侧：「作品 / 回收站」视图与类型筛选；作品列表显示标题、形态、已写/总章数、最新章号、最近更新时间、未处理问题数；底部显示工作区路径与会话状态。回收站可恢复或彻底删除，彻底删除不可撤销。
-- 右侧：作品详情——顶部作品栏 + 六个标签「章节 / 真值 / 写前上下文 / 素材 / 导出 / 备份」；章节列表倒序、20 章/页，可翻页，选中旧章自动跳页；章节行可「前移/后移」；章节点开后可切「正文 / 章纲」两视图、看审稿 observation（id/评估/证据/修法）。
+- 右侧：作品详情——顶部作品栏 + 六个标签「章节 / 真值 / 写前上下文 / 素材 / 导出 / 备份」；章节点开后可在「正文 / 章纲 / 摘要 / 版本」间切换；章节列表倒序、20 章/页，可翻页，选中旧章自动跳页；章节行可「前移/后移」；看审稿 observation（id/评估/证据/修法）。
 - 作品栏下方是「下一步」状态卡：每个状态只有一个主按钮（确认基础设定 / 确认全书计划 / 确认章纲 / 写正文 / 审稿 / 修订 / 摘要 / 定稿 / 补卷摘要），次按钮在被禁用时给出原因；导出、抽取文风、基础设定、字数范围等管理入口仍在同一栏。
 - 「真值」：五张中文卡片（世界观/人物档案/文风基准/全书计划/作者意图），world/characters/style/intent 用右侧抽屉编辑保存，plan 只读；写前上下文是独立标签，选择目标章后装配。
 - 「备份」：创建、恢复、删除、保留最近 N 份；恢复前自动备份当前版本；「重建检索索引」从章节、摘要、事件与素材重建派生索引。导出仍是覆盖快照，备份是历史副本。
@@ -203,6 +204,8 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 | `POST /api/see-storycraft/export` | 面板直接导出（原子替换，返回目录与文件数） |
 | `GET /api/see-storycraft/exports?root=&id=` | 作者导出目录状态（只读） |
 | `GET /api/see-storycraft/backups?root=&id=` | 作者备份文件列表（只读） |
+| `POST /api/see-storycraft/chapter/history` | 作者读取章节正文/章纲版本与当前标记（只读） |
+| `POST /api/see-storycraft/chapter/adopt` | 作者回滚到正文/章纲历史版本（需确认） |
 | `POST /api/see-storycraft/recover/rebuild-index` | 作者触发：重建检索索引（需确认，不改正文） |
 | `GET /api/see-storycraft/roster` | 预设名册（含装载失败原因） |
 | `GET /api/see-storycraft/document?id=` | 某预设的完整声明 |
@@ -246,7 +249,7 @@ storycraft/
   Get-ChildItem storycraft/tests -Filter *.test.mjs | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { exit 1 } }
   ```
 
-- 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑 28 条页面 spec——侧栏入口、加载契约（无 `pageerror`、`/api/see-storycraft/works` 200）、页面读数、作者确认、摘要徽标、素材导入/重命名/删除、面板导出、章节倒序分页/前移后移、文风样例、真值抽屉、备份恢复、指令门禁、预设声明与刷新。不调用模型，零额度；Playwright 是本包 devDependency（首次 `npm install && npx playwright install chromium`），`node storycraft/e2e/run.mjs --list` 可只看清单。
+- 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑 29 条页面 spec——侧栏入口、加载契约（无 `pageerror`、`/api/see-storycraft/works` 200）、页面读数、作者确认、摘要徽标、素材导入/重命名/删除、面板导出、章节倒序分页/前移后移、文风样例、真值抽屉、备份恢复、指令门禁、预设声明与刷新。不调用模型，零额度；Playwright 是本包 devDependency（首次 `npm install && npx playwright install chromium`），`node storycraft/e2e/run.mjs --list` 可只看清单。
 - `node storycraft/scripts/ci.mjs` 依次跑：Host 与 Client 类型检查（`tsc -p`，`--noEmit`）、全部单元文件（直接 import `src/*.ts`，靠 Node 类型擦除，不先构建）、`scripts/build.mjs`（tsdown 出 Host 入口 + esbuild 出 `client.js`）、pack-check，最后二选一：默认跑复制安装的页面 spec，`--smoke` 跑 tarball 安装 smoke（`npm pack` → `dsh plugin add <tgz>` → 冷启动 → 加载契约）。
 - 端到端验收、评审与证据记录在 issue `dehuadong/dsh-nove#18`。
 

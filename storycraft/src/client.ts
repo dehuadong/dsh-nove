@@ -209,6 +209,16 @@ window.__ModuleLoader__.load({
       revision: number
     }
 
+    interface HistoryPayload {
+      workId: string
+      chapter: number
+      stage: string
+      currentRevision: string
+      planApproval: string
+      body: Array<{ revision: number, words: number, createdAt: string, current: boolean }>
+      plan: Array<{ revisionId: string, createdAt: string, current: boolean, approved: boolean }>
+    }
+
     /** One review observation as the panel renders it. */
     interface ReviewItem {
       id: string
@@ -428,6 +438,16 @@ window.__ModuleLoader__.load({
         view: string,
         revision: number | undefined,
       ): Promise<ChapterPayload>
+      history(root: string | undefined, sessionId: string | undefined, workId: string, chapter: number): Promise<HistoryPayload>
+      adoptRevision(
+        root: string | undefined,
+        sessionId: string | undefined,
+        workId: string,
+        chapter: number,
+        target: string,
+        revision: string,
+        expectedCurrent: string,
+      ): Promise<{ newRevision: string }>
       approveChapterPlan(
         root: string | undefined,
         sessionId: string | undefined,
@@ -636,6 +656,7 @@ window.__ModuleLoader__.load({
       workId: string
       sessionId: string | undefined
       chapter: ChapterSummary
+      latestChapter?: number
       unit: string
       onNotice(notice: Notice): void
       onApproved(): void
@@ -1031,6 +1052,10 @@ window.__ModuleLoader__.load({
         approveOutline: (root, sessionId, workId) => post(ROUTE.outlineApprove, { root, sessionId, workId }),
         foundation: (root, id) => route(ROUTE.foundation, { root, id }),
         approveFoundation: (root, sessionId, workId) => post(ROUTE.foundationApprove, { root, sessionId, workId }),
+        history: (root, sessionId, workId, chapter) => post('/api/see-storycraft/chapter/history', { root, sessionId, workId, chapter }),
+        adoptRevision: (root, sessionId, workId, chapter, target, revision, expectedCurrent) => post('/api/see-storycraft/chapter/adopt', {
+          root, sessionId, workId, chapter, target, revision, expectedCurrent, confirm: true,
+        }),
         review: (root, id, chapter) => route(ROUTE.review, { root, id, chapter }),
         bible: (root, id) => route(ROUTE.bible, { root, id }),
         writeBible: (root, sessionId, workId, file, content, expectedVersion) => post('/api/see-storycraft/bible/write', {
@@ -1358,18 +1383,21 @@ window.__ModuleLoader__.load({
     /** One chapter reader with plan/body tabs, review list and state. */
     /** Inline editor: shows the canned instruction, lets the author add specifics. */
     function ChapterPanel({
-      face, root, workId, sessionId, chapter, unit, onNotice, onApproved, canSend, compose, hideActions,
+      face, root, workId, sessionId, chapter, latestChapter, unit, onNotice, onApproved, canSend, compose, hideActions,
     }: ChapterPanelProps) {
       const [view, setView] = useState('body')
       const [metrics, setMetrics] = useState<CritiqueMetrics | undefined>(undefined)
       const [reviseMode, setReviseMode] = useState('patch')
       const [revision, setRevision] = useState(0)
+      const [history, setHistory] = useState<HistoryPayload | undefined>(undefined)
+      const isLatest = latestChapter === undefined || chapter.number === latestChapter
 
       useEffect(() => { setRevision(0) }, [chapter.number])
       const [content, setContent] = useState<ContentState>({ status: 'loading' })
       const [review, setReview] = useState<ReviewState>({ status: 'loading' })
 
       const load = useCallback(async () => {
+        if (view === 'versions') return
         setContent({ status: 'loading' })
         try {
           const target = view === 'body' ? (revision === 0 ? chapter.revision : revision) : undefined
@@ -1381,6 +1409,31 @@ window.__ModuleLoader__.load({
       }, [face, root, workId, chapter.number, chapter.revision, view, revision])
 
       useEffect(() => { void load() }, [load])
+
+      const loadHistory = useCallback(async () => {
+        if (sessionId === undefined) return
+        try { setHistory(await face.history(root, sessionId, workId, chapter.number)) } catch (error) {
+          onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
+        }
+      }, [face, root, workId, chapter.number, onNotice])
+
+      useEffect(() => { if (view === 'versions') void loadHistory() }, [view, loadHistory])
+
+      const adoptRevision = async (target: string, targetRevision: string, expected: string) => {
+        if (sessionId === undefined) return
+        if (!window.confirm(`回滚到 ${targetRevision}？这会生成一个新版本并把该章带回可重审状态。`)) return
+        try {
+          const result = await face.adoptRevision(root, sessionId, workId, chapter.number, target, targetRevision, expected)
+          onNotice({ kind: 'ok', text: `已回滚，新版本 ${result.newRevision}；请重新审稿。` })
+          setHistory(undefined)
+          setView('body')
+          setRevision(0)
+          onApproved?.()
+          await loadHistory()
+        } catch (error) {
+          onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
+        }
+      }
 
       useEffect(() => {
         let cancelled = false
@@ -1517,6 +1570,7 @@ window.__ModuleLoader__.load({
           h('button', { type: 'button', className: 'sc-tab', 'aria-selected': view === 'body' ? 'true' : 'false', onClick: () => setView('body') }, '正文'),
           h('button', { type: 'button', className: 'sc-tab', 'aria-selected': view === 'plan' ? 'true' : 'false', onClick: () => setView('plan') }, '章纲'),
           h('button', { type: 'button', className: 'sc-tab', 'aria-selected': view === 'summary' ? 'true' : 'false', onClick: () => setView('summary') }, '摘要'),
+          h('button', { type: 'button', className: 'sc-tab', 'aria-selected': view === 'versions' ? 'true' : 'false', onClick: () => setView('versions') }, '版本'),
         ),
         view === 'plan'
           ? h('div', { className: 'sc-row' },
@@ -1540,6 +1594,44 @@ window.__ModuleLoader__.load({
               }, '确认章纲'),
           )
           : null,
+        view === 'versions'
+          ? h('div', { className: 'sc-section' },
+            h('h3', { className: 'sc-section-title' }, '正文版本'),
+            history === undefined
+              ? h('p', { className: 'sc-muted' }, '读取中…')
+              : h('div', null, ...history.body.map(row => h('div', { className: 'sc-item', key: row.revision },
+                h('div', { className: 'sc-item-head' },
+                  h('span', { className: 'sc-badge' }, `r${row.revision}`),
+                  h('span', { className: 'sc-item-body' }, `${row.words} 字 · ${String(row.createdAt).slice(0, 16)}`),
+                  row.current ? h('span', { className: 'sc-badge sc-badge-ok' }, '当前') : null,
+                ),
+                row.current ? null : h('button', {
+                  type: 'button', className: 'sc-btn sc-btn-small',
+                  disabled: chapter.stage === 'settled' || !isLatest,
+                  title: chapter.stage === 'settled' ? '本章已定稿：先撤回定稿再回滚正文' : !isLatest ? '只能回滚当前章；旧章先切回' : undefined,
+                  onClick: () => { void adoptRevision('body', `r${row.revision}`, history.currentRevision) },
+                }, '回滚到这一版'),
+              ))),
+            h('h3', { className: 'sc-section-title' }, '章纲版本'),
+            history === undefined
+              ? h('p', { className: 'sc-muted' }, '读取中…')
+              : h('div', null, ...history.plan.map(row => h('div', { className: 'sc-item', key: row.revisionId },
+                h('div', { className: 'sc-item-head' },
+                  h('span', { className: 'sc-item-id' }, row.revisionId),
+                  h('span', { className: 'sc-item-body' }, String(row.createdAt).slice(0, 16)),
+                  row.current ? h('span', { className: 'sc-badge sc-badge-ok' }, '当前') : null,
+                  row.approved ? h('span', { className: 'sc-badge' }, '已确认') : null,
+                  history.planApproval === 'off' ? h('span', { className: 'sc-badge' }, '无需确认') : null,
+                ),
+                row.current ? null : h('button', {
+                  type: 'button', className: 'sc-btn sc-btn-small',
+                  disabled: chapter.stage !== 'planned' || !isLatest,
+                  title: chapter.stage !== 'planned' ? '章纲回滚只允许未写正文的章节' : !isLatest ? '只能回滚当前章；旧章先切回' : undefined,
+                  onClick: () => { void adoptRevision('plan', row.revisionId, history.plan.find(item => item.current)?.revisionId ?? '') },
+                }, '回滚到这一版'),
+              ))),
+          )
+          : null,
         view === 'body' && chapter.revision > 1
           ? h('div', { className: 'sc-tabs' },
             ...Array.from({ length: chapter.revision }, (_, index) => index + 1).map(version => h('button', {
@@ -1551,16 +1643,16 @@ window.__ModuleLoader__.load({
             }, `r${version}`)),
           )
           : null,
-        content.status === 'loading' ? h('p', { className: 'sc-muted' }, '读取中…') : null,
-        content.status === 'error' ? h('p', { className: 'sc-notice sc-notice-info' }, content.error) : null,
-        content.status === 'ready'
-          ? h('div', { className: 'sc-prose' }, ...renderMarkdown(content.content))
-          : null,
-        content.status === 'ready'
-          ? h('p', { className: 'sc-item-body', style: { marginTop: 8 } }, `${content.path}${view === 'body' ? `（r${content.revision}）` : ''}`)
-          : null,
+        view === 'versions' ? null : content.status === 'loading' ? h('p', { className: 'sc-muted' }, '读取中…') : null,
+        view === 'versions' ? null : content.status === 'error' ? h('p', { className: 'sc-notice sc-notice-info' }, content.error) : null,
+        view === 'versions' || content.status !== 'ready'
+          ? null
+          : h('div', { className: 'sc-prose' }, ...renderMarkdown(content.content)),
+        view === 'versions' || content.status !== 'ready'
+          ? null
+          : h('p', { className: 'sc-item-body', style: { marginTop: 8 } }, `${content.path}${view === 'body' ? `（r${content.revision}）` : ''}`),
 
-        h('div', { className: 'sc-section' },
+        view === 'versions' ? null : h('div', { className: 'sc-section' },
           h('h3', { className: 'sc-section-title' }, '审稿清单'),
           review.status === 'loading' ? h('p', { className: 'sc-muted' }, '读取中…') : null,
           review.status === 'error' ? h('p', { className: 'sc-notice sc-notice-info' }, review.error) : null,
@@ -2596,6 +2688,7 @@ window.__ModuleLoader__.load({
                 sessionId,
                 onApproved: () => { void load() },
                 chapter,
+                latestChapter: chapters.at(-1)?.number,
                 unit: unitOf(manifest.form),
                 onNotice,
                 canSend,

@@ -24,7 +24,7 @@ Status: proposed
 
 | 类别 | 判定者 | 动作 | 交互 | 违反时 |
 | --- | --- | --- | --- | --- |
-| 只读 | 无 | `story_next` `story_status` `story_read` `story_brief` `story_context` `story_state_check` `story_current` | 随时调用 | — |
+| 只读 | 无 | `story_next` `story_status` `story_read` `story_brief` `story_context` `story_state_check` `story_current` `story_history` | 随时调用 | — |
 | 协议闸门 | 宿主 | `story_write` `story_review` `story_revise` `story_summarize` `story_settle` `story_plan` `story_outline` | 无 | `not-next-action` / 既有前置错误码 / `revision-limit` |
 | 判断点 | 作者（对话） | 提案、基础设定、全书计划、章纲、**审稿取舍、修订范围与 mode、正文验收、结算失败处理、章间是否继续** | 主编摆材料 → 作者实质决定 | 不得自动推进 |
 | 面板操作 | 作者（界面） | 导出、备份/恢复、重命名、删除作品、章节上移/下移/删除、真值编辑、素材导入、刷新 | 作者自己点 | 主编不代劳、不在对话里请示 |

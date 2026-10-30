@@ -21,7 +21,7 @@ import {
   StoryError, backupWork, deleteWork, exportWork, initWork, nextStep as nextStepFor, 
   approveFoundation, approveOutline, approveChapterPlan, finalizeChapter, markStateDraftReady, mergeStateDraft,
   planApprovalPolicy,
-  latestReview, readBibleEntry, readChapter, readEvents, readEventsText, readManifest, readPlan, readSessionCurrent,
+  latestReview, readBibleEntry, readChapter, readChapterHistory, readEvents, readEventsText, readManifest, readPlan, readSessionCurrent,
   readStateDraft, readSummaryState,
   reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter, setSessionCurrent,
   status as readStatus, updateSettings, workIdOf, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
@@ -2490,6 +2490,37 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
         const work = resolveWork(session, explicit)
         if (work === undefined) throw new StoryError('work-not-selected', '本会话还没有当前作品：先在面板进入一个作品，或传入 workspace:true')
         return { ok: true, report: scanWork(root, work) }
+      },
+    }),
+
+    action({
+      name: 'story_history',
+      description: '只读：列出一章的正文与章纲版本，标记当前版本与章纲批准状态。'
+        + ' 回滚由作者在面板「版本」页操作，模型不要自行改版本。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          work: { type: 'string', description: '作品 id。' },
+          chapter: { type: 'integer', description: '章号。' },
+        },
+        required: ['work', 'chapter'],
+      },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: true,
+          required: ['ok', 'history'],
+          properties: {
+            ok: { type: 'boolean' },
+            history: { type: 'object', additionalProperties: true },
+          },
+        },
+        render: OUTPUT.render,
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        return { ok: true, history: readChapterHistory(root, { work: args.work, chapter: args.chapter }) }
       },
     }),
 

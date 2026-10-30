@@ -34,11 +34,11 @@ const ctx = {
 tools.apply(ctx, { mode: 'longform' })
 
 const names = registered.map(definition => definition.name).sort()
-check('registers thirty-five actions', names.length === 35, names.join(','))
+check('registers thirty-six actions', names.length === 36, names.join(','))
 check('action names', names.join(',') === [
   'story_apply_draft', 'story_approve', 'story_backup', 'story_bible', 'story_bible_write', 'story_brief', 'story_context',
   'story_critique', 'story_current', 'story_delegate', 'story_delete', 'story_export', 'story_finalize', 'story_init', 'story_next', 'story_outline',
-  'story_plan', 'story_propose', 'story_read', 'story_recover', 'story_rename', 'story_reopen', 'story_restore', 'story_review', 'story_revise', 'story_settings', 'story_settle', 'story_state', 'story_state_check', 'story_status', 'story_submit', 'story_summarize', 'story_volume', 'story_volumes', 'story_write',
+  'story_history', 'story_plan', 'story_propose', 'story_read', 'story_recover', 'story_rename', 'story_reopen', 'story_restore', 'story_review', 'story_revise', 'story_settings', 'story_settle', 'story_state', 'story_state_check', 'story_status', 'story_submit', 'story_summarize', 'story_volume', 'story_volumes', 'story_write',
 ].sort().join(','), names.join(','))
 check('the delegation and scope guards are registered', guards.length === 2, String(guards.length))
 check('every action declares output schema', registered.every(definition => definition.output?.schema && typeof definition.output?.render === 'function'))

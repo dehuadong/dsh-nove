@@ -1955,6 +1955,107 @@ export function approveChapterPlan(root: any, input: any) {
   }
 }
 
+/** Read every body and plan revision of one chapter, with current markers. */
+export function readChapterHistory(root: string, input: any, _options: any = {}) {
+  const number = chapterNumber(input.chapter)
+  const workId = String(input.work)
+  const db = openWork(root, workId)
+  try {
+    const entry = chapterRow(db, number)
+    if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
+    const body = (db.prepare('SELECT revision, words, created_at AS createdAt FROM chapter_versions WHERE number = ? ORDER BY revision DESC').all(number) as any[])
+      .map(row => ({ revision: row.revision, words: row.words, createdAt: row.createdAt, current: row.revision === entry.current_revision }))
+    const planRows = db.prepare('SELECT revision_id AS revisionId, created_at AS createdAt FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC').all(`plan:${number}`) as any[]
+    const latestPlan = planRows[0]?.revisionId
+    const plan = planRows.map(row => ({
+      revisionId: row.revisionId,
+      createdAt: row.createdAt,
+      current: row.revisionId === latestPlan,
+      approved: entry.plan_approved_at !== null && entry.plan_revision === row.revisionId,
+    }))
+    return {
+      workId, chapter: number, stage: stageOf(entry), currentRevision: `r${entry.current_revision}`,
+      planApproval: metaOf(db).plan_approval,
+      body, plan,
+    }
+  } finally {
+    db.close()
+  }
+}
+
+/** Append a historical body or plan revision as the new current revision. */
+export function adoptChapterRevision(root: string, input: any) {
+  const number = chapterNumber(input.chapter)
+  const workId = String(input.work)
+  const target = input.target === 'plan' ? 'plan' : input.target === 'body' ? 'body' : undefined
+  if (target === undefined) throw new StoryError('revision-target-invalid', 'target 只能是 body 或 plan')
+  const expected = String(input.expectedCurrent ?? '')
+  const wanted = String(input.revision ?? '')
+  const db = openWork(root, workId)
+  try {
+    return transaction(db, () => {
+      const entry = chapterRow(db, number)
+      if (entry === undefined) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
+      const latest = Number((db.prepare('SELECT max(number) AS number FROM chapters').get() as any)?.number ?? 0)
+      if (number !== latest) throw new StoryError('chapter-not-current', `只能回滚当前章 ${latest}；旧章先切回或另立工作项`)
+      const at = now()
+      const event = (payload: any) => {
+        const seq = Number((db.prepare('SELECT max(seq) AS seq FROM events').get() as any)?.seq ?? 0) + 1
+        db.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
+          .run(seq, at, number, 'revision-adopt', JSON.stringify(payload))
+      }
+
+      if (target === 'body') {
+        const current = Number(entry.current_revision)
+        if (expected !== `r${current}`) throw new StoryError('revision-conflict', `当前正文已是 r${current}，请刷新后重试`)
+        const match = /^r([1-9]\d*)$/u.exec(wanted)
+        if (match === null) throw new StoryError('revision-not-found', `正文版本形如 r1：收到 ${wanted}`)
+        const targetRevision = Number(match[1])
+        if (targetRevision === current) throw new StoryError('revision-current', `r${current} 已是当前正文`)
+        if (stageOf(entry) === 'settled') throw new StoryError('chapter-settled', `第 ${number} 章已定稿：先 reopen 再回滚正文`)
+        const row = db.prepare('SELECT body FROM chapter_versions WHERE number = ? AND revision = ?').get(number, targetRevision) as any
+        if (row === undefined) throw new StoryError('revision-not-found', `没有正文版本 r${targetRevision}`)
+        if (metaOf(db).plan_approval === 'required' && planApprovalState(db, number).blocked) {
+          throw new StoryError('plan-not-approved', `第 ${number} 章章纲还没经作者确认：先确认章纲`)
+        }
+        const body = String(row.body)
+        const revision = current + 1
+        const words = countWords(body)
+        db.prepare('INSERT INTO chapter_versions (number, revision, body, words, created_at) VALUES (?, ?, ?, ?, ?)')
+          .run(number, revision, body, words, at)
+        db.prepare(`UPDATE chapters SET status = 'written', stage = 'written', current_revision = ?, words = ?, updated_at = ? WHERE number = ?`)
+          .run(revision, words, at, number)
+        invalidateStateDraftOnDb(db, number)
+        dropSearchDoc(db, `chapter:${number}:r${current}`)
+        syncSearchDoc(db, `chapter:${number}:r${revision}`, 'chapter', `chapters/${chapterStem(number)}`, number, body)
+        event({ kind: 'revision-adopt', target, fromRevision: `r${targetRevision}`, newRevision: `r${revision}` })
+        touchMeta(db, at)
+        return { workId, chapter: number, target, fromRevision: `r${targetRevision}`, newRevision: `r${revision}`, stage: 'written' }
+      }
+
+      const planRows = db.prepare('SELECT revision_id AS revisionId, content FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC').all(`plan:${number}`) as any[]
+      const latestPlan = planRows[0]?.revisionId
+      if (latestPlan === undefined) throw new StoryError('revision-not-found', `第 ${number} 章还没有章纲`)
+      if (stageOf(entry) !== 'planned') throw new StoryError('chapter-exists', `第 ${number} 章已有正文：章纲回滚只允许未写正文的章节`)
+      if (expected !== latestPlan) throw new StoryError('revision-conflict', `当前章纲已是 ${latestPlan}，请刷新后重试`)
+      const row = planRows.find(item => item.revisionId === wanted)
+      if (row === undefined) throw new StoryError('revision-not-found', `没有章纲版本 ${wanted}`)
+      if (wanted === latestPlan) throw new StoryError('revision-current', `${wanted} 已是当前章纲`)
+      const content = JSON.parse(String(row.content))
+      const revisionId = `adopt:${wanted}:${at}`
+      putArtifactOnDb(db, {
+        workId, artifactId: `plan:${number}`, kind: 'plan', scope: { chapter: number }, revisionId,
+        content, provenance: 'edited', createdAt: at,
+      })
+      event({ kind: 'revision-adopt', target, fromRevision: wanted, newRevision: revisionId })
+      touchMeta(db, at)
+      return { workId, chapter: number, target, fromRevision: wanted, newRevision: revisionId, stage: stageOf(entry) }
+    })
+  } finally {
+    db.close()
+  }
+}
+
 /**
  * Write a chapter body: first version, or a new revision when asked to rewrite.
  * @param {string} root - workspace directory.

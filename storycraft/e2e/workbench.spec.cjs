@@ -569,6 +569,28 @@ test.describe('故事工坊工作台', () => {
     await expect(page.getByText(/刷新失败：/)).toHaveCount(0, { timeout: 5_000 })
   })
 
+  test('章节版本页可以回滚正文', async ({ page }) => {
+    const store = await import('../src/storage.ts')
+    const title = `版本探针${Date.now()}`
+    const work = store.initWork(runtime.fixtureWorkspace, { title, wordRange: { min: 10, max: 5000 } }).workId
+    store.writeOutline(runtime.fixtureWorkspace, { work, mainline: '一条主线' })
+    store.approveOutline(runtime.fixtureWorkspace, { work })
+    store.writePlan(runtime.fixtureWorkspace, { work, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+    store.approveChapterPlan(runtime.fixtureWorkspace, { work, chapter: 1 })
+    store.writeChapter(runtime.fixtureWorkspace, { work, chapter: 1, title: '第1章', body: '甲把账本收好。'.repeat(20) })
+    store.writeChapter(runtime.fixtureWorkspace, { work, chapter: 1, title: '第1章', body: '乙把钥匙收好。'.repeat(20), rewrite: true })
+
+    await openWorkbench(page, url)
+    await page.getByRole('button', { name: new RegExp(title) }).evaluate(node => node.click())
+    await page.locator('.sc-chapter').filter({ hasText: '第 1 章' }).first().evaluate(node => node.click())
+    await page.getByRole('button', { name: '版本', exact: true }).evaluate(node => node.click())
+    await expect(page.getByText('正文版本')).toBeVisible({ timeout: 10_000 })
+    page.on('dialog', dialog => { void dialog.accept() })
+    await page.getByRole('button', { name: '回滚到这一版' }).first().evaluate(node => node.click())
+    await expect(page.getByText(/已回滚，新版本/)).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText(/当前版本 r3/)).toBeVisible({ timeout: 10_000 })
+  })
+
   test('备份页可以重建检索索引', async ({ page }) => {
     await openWorkbench(page, url)
     await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())
