@@ -568,4 +568,15 @@ test.describe('故事工坊工作台', () => {
     await page.evaluate(() => window.dispatchEvent(new Event('focus')))
     await expect(page.getByText(/刷新失败：/)).toHaveCount(0, { timeout: 5_000 })
   })
+
+  test('备份页可以重建检索索引', async ({ page }) => {
+    await openWorkbench(page, url)
+    await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())
+    await page.getByRole('tab', { name: '备份' }).evaluate(node => node.click())
+    let confirmed = false
+    page.on('dialog', dialog => { confirmed = true; void dialog.accept() })
+    await page.getByRole('button', { name: '重建检索索引' }).evaluate(node => node.click())
+    await expect(page.getByText(/已重建检索索引/)).toBeVisible({ timeout: 15_000 })
+    expect(confirmed).toBe(true)
+  })
 })

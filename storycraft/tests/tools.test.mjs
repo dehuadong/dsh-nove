@@ -34,11 +34,11 @@ const ctx = {
 tools.apply(ctx, { mode: 'longform' })
 
 const names = registered.map(definition => definition.name).sort()
-check('registers thirty-four actions', names.length === 34, names.join(','))
+check('registers thirty-five actions', names.length === 35, names.join(','))
 check('action names', names.join(',') === [
   'story_apply_draft', 'story_approve', 'story_backup', 'story_bible', 'story_bible_write', 'story_brief', 'story_context',
   'story_critique', 'story_current', 'story_delegate', 'story_delete', 'story_export', 'story_finalize', 'story_init', 'story_next', 'story_outline',
-  'story_plan', 'story_propose', 'story_read', 'story_rename', 'story_reopen', 'story_restore', 'story_review', 'story_revise', 'story_settings', 'story_settle', 'story_state', 'story_state_check', 'story_status', 'story_submit', 'story_summarize', 'story_volume', 'story_volumes', 'story_write',
+  'story_plan', 'story_propose', 'story_read', 'story_recover', 'story_rename', 'story_reopen', 'story_restore', 'story_review', 'story_revise', 'story_settings', 'story_settle', 'story_state', 'story_state_check', 'story_status', 'story_submit', 'story_summarize', 'story_volume', 'story_volumes', 'story_write',
 ].sort().join(','), names.join(','))
 check('the delegation and scope guards are registered', guards.length === 2, String(guards.length))
 check('every action declares output schema', registered.every(definition => definition.output?.schema && typeof definition.output?.render === 'function'))
@@ -170,6 +170,14 @@ try {
     earlyReview.ok === false && earlyReview.error.code === 'not-next-action', JSON.stringify(earlyReview))
   // From here the session is pointed at that work, as the panel would.
   setCurrent('test-session', work)
+
+  const recoverAction = byName.get('story_recover')
+  const recoverWorkspace = await recoverAction.execute({ workspace: true }, exec)
+  check('story_recover scans the workspace without a current work', recoverWorkspace.ok === true && recoverWorkspace.report.mode === 'workspace', JSON.stringify(recoverWorkspace))
+  const conflict = await recoverAction.execute({ workspace: true, work }, exec)
+  check('story_recover refuses workspace plus work', conflict.ok === false && conflict.error?.code === 'recover-arguments-invalid', JSON.stringify(conflict))
+  const mismatch = await recoverAction.execute({ work: '另一个作品' }, exec)
+  check('story_recover keeps the current-work boundary', mismatch.ok === false && mismatch.error?.code === 'work-mismatch', JSON.stringify(mismatch))
 
   const earlyPlan = await byName.get('story_plan').execute({
     work, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't', body: 'g', threadRefs: [],

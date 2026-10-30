@@ -276,10 +276,10 @@ function mapDatabaseError(error: any, message: string): any {
   if (error instanceof StoryError) return error
   if (error?.code === 'SQLITE_BUSY' || error?.code === 'EBUSY'
     || /database is locked|SQLITE_BUSY|resource busy or locked|EBUSY/iu.test(String(error?.message))) {
-    return new StoryError('work-busy', '作品库正被另一个动作写入，请稍后重试')
+    return new StoryError('work-busy', '作品库正被另一个动作写入，请稍后重试', '稍后重试；若持续出现，先在面板确认没有另一个操作正在写这部作品', true)
   }
   if (/not a database|file is not a database|SQLITE_NOTADB|malformed/iu.test(String(error?.message))) {
-    return new StoryError('db-corrupt', `${message}：${error.message}`)
+    return new StoryError('db-corrupt', `${message}：${error.message}`, '让作者在面板备份页选择一个备份恢复；可先运行 story_recover 查看扫描结果，不要自动覆盖')
   }
   return error
 }

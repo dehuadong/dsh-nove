@@ -14,6 +14,7 @@
 import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, resolve } from 'node:path'
 import { deriveWorkbench } from './workbench.ts'
+import { rebuildSearchIndex } from './recovery.ts'
 import { acceptChapter, approveChapterPlan, approveFoundation, approveOutline, createBackup, deleteBackup, deleteChapter, deleteMaterial, ensureReconciled, exportWorkAtomic, importMaterial, moveChapter, listMaterials, listTrash, listWorks, nextStep, purgeTrash, readFoundationState, readManifest, restoreBackup, listBackups, readChapter, readReview, readWork, renameMaterial, restoreWork, setMaterialPurpose, status as readStatus, StoryError } from './storage.ts'
 import { critique } from './critique.ts'
 import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent } from './current.ts'
@@ -389,6 +390,17 @@ export function apply(ctx: DshContext): void {
           const { root, workId } = await targetWork(body)
           if (body?.confirm !== true) throw new StoryError('backup-restore-unconfirmed', '恢复备份需要确认')
           return restoreBackup(root, workId, String(body?.backupId ?? ''))
+        }, { maxBytes: 32 * 1024, requireJson: true })
+      },
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/recover/rebuild-index`,
+      handler: (req, res) => {
+        void postRoute(req, res, async (body) => {
+          const { root, workId } = await targetWork(body)
+          if (body?.confirm !== true) throw new StoryError('recover-unconfirmed', '重建索引需要确认')
+          return rebuildSearchIndex(root, workId)
         }, { maxBytes: 32 * 1024, requireJson: true })
       },
     }),

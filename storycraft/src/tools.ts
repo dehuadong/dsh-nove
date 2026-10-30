@@ -40,6 +40,7 @@ import { settleChapterState } from './state-settle.ts'
 import { submitPayload } from './submission.ts'
 import { checkDraft } from './landing.ts'
 import { clearCurrent, getCurrent, hydrate as hydrateCurrent, markHydrated, resolveWork, setCurrent, shouldHydrate } from './current.ts'
+import { scanWork, scanWorkspace } from './recovery.ts'
 import { join } from 'node:path'
 import { createProposal, markProposalUsed, readProposal } from './proposals.ts'
 import { SCOPE_MESSAGES, scopeDenial } from './scope.ts'
@@ -2445,6 +2446,54 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
     }),
 
     action({
+      name: 'story_recover',
+      description: '只读：扫描作品库健康状态。workspace:true 检查 catalog/孤儿库/失效会话/临时残留；'
+        + ' 指定 work（或使用当前作品）检查完整性、检索索引与 FTS。只报告，不修改内容、索引或 catalog；'
+        + ' 修复索引与备份恢复由作者在面板操作。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          workspace: { type: 'boolean', description: '扫描整个工作区的元数据；与 work 不能同时给。' },
+          work: { type: 'string', description: '作品 id；省略时用当前作品。' },
+        },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: true,
+          required: ['ok', 'report'],
+          properties: {
+            ok: { type: 'boolean' },
+            report: { type: 'object', additionalProperties: true },
+          },
+        },
+        render: OUTPUT.render,
+      },
+      async execute(args, exec) {
+        const root = workspaceOf(exec)
+        const session = sessionOf(exec)
+        if (args?.workspace === true) {
+          if (typeof args.work === 'string' && args.work.trim() !== '') {
+            throw new StoryError('recover-arguments-invalid', 'workspace:true 与 work 不能同时给：工作区扫描不针对单部作品')
+          }
+          return { ok: true, report: scanWorkspace(root) }
+        }
+        const current = sessionCurrentOf(root, session)
+        const explicit = typeof args?.work === 'string' && args.work.trim() !== '' ? args.work.trim() : undefined
+        if (explicit !== undefined && current === undefined) {
+          throw new StoryError('work-not-selected', '本会话还没有进入任何作品：先在面板进入一个作品，再扫描它')
+        }
+        if (explicit !== undefined && current !== undefined && explicit !== current) {
+          throw new StoryError('work-mismatch', `本会话当前作品是 ${current}，不能直接扫描 ${explicit}`)
+        }
+        const work = resolveWork(session, explicit)
+        if (work === undefined) throw new StoryError('work-not-selected', '本会话还没有当前作品：先在面板进入一个作品，或传入 workspace:true')
+        return { ok: true, report: scanWork(root, work) }
+      },
+    }),
+
+    action({
       name: 'story_critique',
       description: '给一章做只读质检：字数是否在该作品范围内、句子长度、重复句、AI 腔词命中、对话占比。'
         + ' 只打分、不写文件、不阻断定稿；把发现交给 story_review 才会变成清单。',
@@ -2717,7 +2766,7 @@ function definitions(ctx: DshContext): ActionDefinition[] {
 function withCurrentWork(definition: ActionDefinition): ActionDefinition {
   // story_current reports the pointer itself; resolving it first would throw
   // exactly when the author still has no work.
-  if (definition.name === 'story_current') return definition
+  if (definition.name === 'story_current' || definition.name === 'story_recover') return definition
   const parameters = definition.parameters
   const hasWork = parameters?.properties !== undefined && 'work' in parameters.properties
   if (!hasWork) return definition

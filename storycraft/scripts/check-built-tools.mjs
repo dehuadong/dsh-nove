@@ -17,8 +17,8 @@ apply(ctx, { mode: 'longform' })
 
 const names = registered.map(definition => definition.name)
 const failures = []
-if (names.length !== 34) failures.push(`expected 34 actions, built package has ${names.length}`)
-for (const required of ['story_approve', 'story_apply_draft', 'story_finalize', 'story_next', 'story_delegate', 'story_critique']) {
+if (names.length !== 35) failures.push(`expected 35 actions, built package has ${names.length}`)
+for (const required of ['story_approve', 'story_apply_draft', 'story_finalize', 'story_next', 'story_delegate', 'story_critique', 'story_recover']) {
   if (!names.includes(required)) failures.push(`built package is missing ${required}`)
 }
 const approve = registered.find(definition => definition.name === 'story_approve')

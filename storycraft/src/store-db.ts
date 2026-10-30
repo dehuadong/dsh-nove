@@ -2404,7 +2404,7 @@ export function writeSummary(root: string, input: WriteSummaryInput): any {
 }
 
 /** Search document text of one summary: raw text plus the structured fields. */
-function summarySearchText(content: any) {
+export function summarySearchText(content: any) {
   const structure = SUMMARY_FIELDS
     .map(field => (typeof content[field] === 'string' ? content[field].trim() : ''))
     .filter(text => text !== '')
@@ -3131,7 +3131,10 @@ export function writeBible(root: any, input: any) {
         ON CONFLICT(name) DO UPDATE SET content = excluded.content, version = excluded.version, updated_at = excluded.updated_at`)
         .run(name, content, version, at)
       dropSearchDoc(db, 'card:characters')
-      syncSearchDoc(db, 'card:characters', 'card', 'bible/characters', 0, content)
+      const cardText = String(content).trim()
+      if (cardText !== '' && cardText !== '[]') {
+        syncSearchDoc(db, 'card:characters', 'card', 'bible/characters', 0, content)
+      }
       touchMeta(db, at)
       return { workId, name, version }
     })
@@ -3602,8 +3605,9 @@ export async function deleteChapter(root: any, work: any, chapter: any, options:
       const oldMax = Number(db.prepare('SELECT max(seq) AS seq FROM events').get()?.seq ?? 0)
       db.prepare('DELETE FROM chapters WHERE number = ?').run(number)
       db.prepare('DELETE FROM events WHERE chapter = ?').run(number)
-      db.prepare("DELETE FROM search_docs WHERE (kind IN ('chapter', 'summary')) AND chapter = ?").run(number)
-      db.prepare("DELETE FROM search_docs WHERE doc_id LIKE 'event:%' AND chapter = ?").run(number)
+      for (const row of db.prepare("SELECT doc_id AS docId FROM search_docs WHERE (kind IN ('chapter', 'summary') AND chapter = ?) OR (doc_id LIKE 'event:%' AND chapter = ?)").all(number, number) as { docId: string }[]) {
+        dropSearchDoc(db, row.docId)
+      }
       applyChapterMapping(db, mapping)
       remapChapterArtifacts(db, { mapping, deleted: [number] })
       const movedPairs = [...mapping.entries()].filter(([oldNumber, newNumber]) => newNumber !== undefined && oldNumber !== newNumber)

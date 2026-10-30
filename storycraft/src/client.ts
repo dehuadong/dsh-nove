@@ -412,6 +412,7 @@ window.__ModuleLoader__.load({
       restoreTrash(root: string | undefined, workId: string): Promise<{ workId: string }>
       purgeTrash(root: string | undefined, workId: string): Promise<{ workId: string }>
       createBackup(root: string | undefined, sessionId: string, workId: string, keep: number): Promise<{ pruned?: number }>
+      rebuildIndex(root: string | undefined, sessionId: string, workId: string): Promise<{ counts: Record<string, number> }>
       restoreBackup(root: string | undefined, sessionId: string, workId: string, backupId: string): Promise<unknown>
       deleteBackup(root: string | undefined, sessionId: string, workId: string, backupId: string): Promise<unknown>
       volumes(root: string | undefined, id: string): Promise<VolumePayload>
@@ -1015,6 +1016,7 @@ window.__ModuleLoader__.load({
         restoreTrash: (root, workId) => post('/api/see-storycraft/trash/restore', { root, workId }),
         purgeTrash: (root, workId) => post('/api/see-storycraft/trash/purge', { root, workId, confirm: true }),
         createBackup: (root, sessionId, workId, keep) => post('/api/see-storycraft/backups/create', { root, sessionId, workId, keep }),
+        rebuildIndex: (root, sessionId, workId) => post('/api/see-storycraft/recover/rebuild-index', { root, sessionId, workId, confirm: true }),
         restoreBackup: (root, sessionId, workId, backupId) => post('/api/see-storycraft/backups/restore', { root, sessionId, workId, backupId, confirm: true }),
         deleteBackup: (root, sessionId, workId, backupId) => post('/api/see-storycraft/backups/delete', { root, sessionId, workId, backupId, confirm: true }),
         volumes: (root, id) => route(ROUTE.volumes, { root, id }),
@@ -1719,6 +1721,18 @@ window.__ModuleLoader__.load({
           const result = await face.createBackup(root, sessionId, workId, backupKeep)
           onNotice({ kind: 'ok', text: `已备份；按策略清理 ${result.pruned ?? 0} 份旧备份` })
           await refreshBackups()
+        } catch (error) {
+          onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
+        }
+      }
+
+      const rebuildSearchNow = async () => {
+        if (sessionId === undefined) return
+        if (!window.confirm('重建检索索引会用作品库里的章节、摘要、事件和素材重新生成索引；不改正文。继续？')) return
+        try {
+          const result = await face.rebuildIndex(root, sessionId, workId)
+          const total = Object.values(result.counts ?? {}).reduce((sum, count) => sum + Number(count ?? 0), 0)
+          onNotice({ kind: 'ok', text: `已重建检索索引：${total} 条文档` })
         } catch (error) {
           onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
         }
@@ -2901,6 +2915,12 @@ window.__ModuleLoader__.load({
               disabled: sessionId === undefined,
               onClick: () => { void createBackupNow() },
             }, '立即备份'),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn',
+              disabled: sessionId === undefined,
+              onClick: () => { void rebuildSearchNow() },
+            }, '重建检索索引'),
             h('select', {
               className: 'sc-input sc-narrow',
               'aria-label': '备份保留策略',
