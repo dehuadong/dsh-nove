@@ -731,6 +731,22 @@ interface ReviewerItem {
 /**
  * Run one role through the subagents service and land its result.
  */
+/** Reviewer payload items → review observations bound to one body revision. */
+function reviewerObservations(items: ReviewerItem[], chapter: number, revision: number) {
+  return items.map((item, index) => ({
+    id: `O${index + 1}`,
+    summary: item.problem,
+    evidence: typeof item.impact === 'string' && item.impact.trim() === '' ? [] : [item.impact],
+    category: 'quality',
+    assessment: item.resolves === undefined ? 'issue' : 'resolved',
+    ...(item.resolves === undefined ? {} : { resolves: item.resolves }),
+    ...(item.severity === undefined ? {} : { severity: item.severity === 'blocker' ? 'blocking' : item.severity }),
+    ...(item.fix === undefined ? {} : { fix: item.fix }),
+    ...(item.mode === undefined ? {} : { mode: item.mode }),
+    sourceRefs: [{ sourceId: `chapter:${chapter}:r${revision}`, quote: item.quote }],
+  }))
+}
+
 export async function delegateRole(root: string, input: DelegateInput, host: DelegateHost): Promise<Receipt> {
   const work = String(input.work)
   const role = String(input.role)
@@ -867,21 +883,43 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
 
     if (role === 'reviewer') {
       const entry = chapterEntryOf(manifest, chapter)
-      const items = payload.items as ReviewerItem[]
-      const observations = items.map((item, index) => ({
-        id: `O${index + 1}`,
-        summary: item.problem,
-        evidence: typeof item.impact === 'string' && item.impact.trim() === '' ? [] : [item.impact],
-        category: 'quality',
-        assessment: item.resolves === undefined ? 'issue' : 'resolved',
-        ...(item.resolves === undefined ? {} : { resolves: item.resolves }),
-        ...(item.severity === undefined ? {} : { severity: item.severity === 'blocker' ? 'blocking' : item.severity }),
-        ...(item.fix === undefined ? {} : { fix: item.fix }),
-        ...(item.mode === undefined ? {} : { mode: item.mode }),
-        // Preflight guarantees a written chapter for the reviewer role.
-        sourceRefs: [{ sourceId: `chapter:${chapter}:r${entry!.currentRevision}`, quote: item.quote }],
-      }))
-      const written = writeReview(root, { work, chapter, observations })
+      const revision = entry!.currentRevision
+      let written: any
+      try {
+        written = writeReview(root, { work, chapter, observations: reviewerObservations(payload.items, chapter, revision) })
+      } catch (error: any) {
+        if ((error as { code?: unknown } | null)?.code !== 'observation-source-unverified') throw error
+        // One bounded repair: give the reviewer the rejected evidence and let it
+        // resubmit once; the host still verifies every quote.
+        const feedback = `上一次提交被拒绝：${String(error.message ?? error)}。重新提交前逐条核对：quote 必须是当前正文 r${revision} 中连续存在的原文；核对不过就删除该条 observation，不得改写引文。`
+        const retryOpened = openSubmission({
+          role,
+          workId: work,
+          chapter,
+          ...(loaded.manifest.wordRange === undefined ? {} : { wordRange: loaded.manifest.wordRange }),
+        })
+        let retryChild: ChildRun | undefined
+        try {
+          retryChild = await runChild({
+            service: host?.service,
+            agent: host?.agent,
+            cwd: root,
+            prompt: `${prompt.replaceAll(opened.delegationId, retryOpened.delegationId)}\n\n## 上次提交被拒绝\n${feedback}`,
+            label: `故事工坊-${ROLE_META[role].label}`,
+            signal: host.signal,
+            timeoutMs,
+            availability: false,
+          })
+          const retrySubmission = consumeSubmission(retryOpened.delegationId)
+          if (retryChild.result?.stopReason !== 'completed' || retrySubmission?.consumed !== true || retrySubmission.payload === undefined) {
+            throw new StoryError('delegation-no-submission', `引文被拒后的重试仍未提交通过校验的角色结果（尝试 ${retrySubmission?.attempts ?? 0} 次）`)
+          }
+          written = writeReview(root, { work, chapter, observations: reviewerObservations(retrySubmission.payload.items, chapter, revision) })
+        } finally {
+          closeSubmission(retryOpened.delegationId)
+          if (retryChild !== undefined) await retryChild.dispose()
+        }
+      }
       return fitReceipt({
         ok: true,
         workId: work,
@@ -894,7 +932,7 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
           total: written.observations.length,
           open: written.observations.filter((observation: { assessment?: string }) => observation.assessment === 'issue').length,
         },
-        submissionAttempts: attempts,
+        submissionAttempts: attempts + 1,
       })
     }
 
