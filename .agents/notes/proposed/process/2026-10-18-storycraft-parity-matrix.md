@@ -33,7 +33,7 @@ Status: proposed
 | Provider / 模型配置 | `packages/core/src/llm/provider.ts`、`secrets.ts` | 宿主模型与会话配置；插件不持有 provider | 不 import inkos 的 provider；模型由宿主选择 | 插件 runtime dependencies 无 provider SDK；模型调用只经子代理 |
 | Agent 循环、`submitStructured`、工具调用 | `packages/core/src/agent/agent-session.ts`、`agents/architect.ts` | Subagent 回合 + `story_submit` 校验 + Plugin tool 分发 | 不复制 agent loop；结构化提交换成 `story_submit` schema | 子代理只调 `story_*`；非法 payload 被 `story_submit` 拒绝 |
 | CLI 命令（outline/write/…） | `packages/cli/src/program.ts` | `story_*` 工具、面板动作、会话指令 | 不提供 inkos CLI；同等能力走工具/面板 | 每个 CLI 能力都能指到对应工具或面板动作 |
-| 文件状态（`story/*.md`、runtime state） | `packages/core/src/state`、`utils/outline-paths.ts` | 工作区文件 + SQLite + artifact 注册表 | 文件布局不同；identity 与生命周期按我们的合同 | 旧 schema 拒绝；产物可读、可导出、有消费者 |
+| 文件状态（`story/*.md`、runtime state）与检索库 | `packages/core/src/state`、`utils/outline-paths.ts`、`retrieval/local-search.ts:24-28` | **每部作品一个 SQLite 作品库**：chapters/artifacts/events/materials 与 `search_docs`/FTS 同库；catalog 另库 | 参考以工作区文件为权威，SQLite 只是可重建的 FTS 投影；我们的 SQLite 是权威存储，检索是其内部投影。不复制“源文件权威”假设；恢复靠 WAL+备份（#85），索引重建靠 #85；F13 预算测我们的存储读路径，不与参考的 retrieval-only 数字对比 | 旧 schema 拒绝；A10 重建索引；备份恢复；export/backup 一致性 |
 | 调度 / 队列 | `packages/core/src/pipeline/scheduler.ts` | `story_next` 推进 + 会话/工具驱动；不引入 daemon | 无后台队列；推进由会话触发 | 无常驻进程；`story_next` 每一步可解释 |
 | server / Web UI | `packages/studio/src` | DSH Web 面板 Plugin Slot | 不复刻 studio server；面板走 Host/Client plugin | E2E 面板 spec 覆盖动作、刷新与不自动发送 |
 
