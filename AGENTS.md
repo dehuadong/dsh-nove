@@ -4,6 +4,14 @@
 
 > inkos-master项目是参考复刻对象。具体见 &对拍工作法
 
+## 文档与约定
+
+仓库管理根是本文件所在目录，下文路径都从该根解析。
+
+- 文档类型、属主与写作标准：[docs/AGENTS.md](docs/AGENTS.md)。
+- 长期技术提案与决定的记录范围、生命周期和格式：`.agents/notes/`；规则由 `write-agent-notes` Skill 拥有，根范围与校验入口见 [.agents/notes/AGENTS.md](.agents/notes/AGENTS.md)。
+- 重要改动必须留笔记 见 &Agent Notes 
+
 ## 文件安全
 
 工作区指本文件所在目录。下面四条是硬约束，不因任务紧急、验收需要或“只是测试”而放宽：
@@ -159,19 +167,10 @@ DeepSeek Harness 包工作区：packages文档地址 `E:\dsh-nove\deepseek-harne
 - 安装或修改插件与预设走 `plugin_manager`（`install_bundle`、`set_bundle`），不手改 profile 文件。
 - 外部参考工程只作功能性参考，先核对其声明的 DSH 版本；
 
-## 文档与约定
 
-仓库管理根是本文件所在目录，下文路径都从该根解析。
+## Agent Notes 
 
-- 文档类型、属主与写作标准：[docs/AGENTS.md](docs/AGENTS.md)。
-- 工作项（Proposal / Issue）的位置、状态、评审与批准证据：GitHub Issues `dehuadong/dsh-nove`，约定见 [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md)。
-- 分诊角色到标签字符串的映射：[docs/agents/triage-labels.md](docs/agents/triage-labels.md)。
-- 领域文档：单上下文，根目录 `GLOSSARY.md`；读取规则见 [docs/agents/domain.md](docs/agents/domain.md)。
-- 长期技术提案与决定的记录范围、生命周期和格式：`.agents/notes/`；规则由 `write-agent-notes` Skill 拥有，根范围与校验入口见 [.agents/notes/AGENTS.md](.agents/notes/AGENTS.md)。
-
-## 重要改动必须留笔记
-
-1. 非平凡改动（改了行为、架构、跨文件契约、流程与工具链、测试策略、落盘/网络/配置格式）前，遵循 `.agents/skills/write-notes-like-deepseek/SKILL.md` 写或更新笔记；机械性小改（样式、格式化、打标、不改行为的补丁）直接提交。
+1. 非平凡改动（改了行为、架构、跨文件契约、流程与工具链、测试策略、落盘/网络/配置格式）前，遵循 `write-agent-notes` 写或更新笔记；机械性小改（样式、格式化、打标、不改行为的补丁）直接提交。
 2. 写之前先检索 .agents/notes/ 里的同主题旧笔记：有归属就地更新；新想法先放 proposed/，落地随同代码改动转 implemented/；新方案彻底取代旧决策时，同批归档旧篇并标明被谁取代。
 3. 被放弃的方案先写它最强的理由，再解释为什么不用。
 4. 提交前跑 npm run verify-notes，红了先修再交。

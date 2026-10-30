@@ -21,6 +21,7 @@ Status: implemented
 - 旧 `README.md`、`config.json`、`templates/`、`scripts/decisions/` 经 `node scripts/trash.mjs` 移入 `.trash`，不保留兼容检查器或双格式规则。
 - 根 `package.json` 增加 `verify-notes`：用 `node` 直跑 Skill 的三条校验脚本（`--root .agents/notes`）；根 `AGENTS.md` 增加“重要改动必须留笔记”；`.agents/notes/AGENTS.md` 改为单根说明。
 - 笔记间链接与根 `AGENTS.md`、`docs/AGENTS.md`、`docs/agents/domain.md`、`storycraft/README.md`、两份对拍报告的引用改到新路径；2026-10-24 的历史核验报告保留旧目录名与旧命令，并加迁移说明。
+- 开放的 6 个提案 issue 正文同步到新路径（#80 的行号锚点按迁移后位置刷新）；已关闭 issue 与评论保留为历史记录。
 
 ## 备选方案
 
