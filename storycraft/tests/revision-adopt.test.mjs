@@ -1,4 +1,5 @@
 // A12: chapter body/plan history and adoption-by-new-revision.
+import { readFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -51,6 +52,9 @@ try {
   check('adoption sends the chapter back to review', s.nextStep(root, work).action === 'story_review', s.nextStep(root, work).action)
   check('adoption removes the old body from search', s.search(root, work, '钥匙').length === 0, JSON.stringify(s.search(root, work, '钥匙')))
   check('adoption indexes the restored body', s.search(root, work, '账本').some(hit => hit.id === 'chapter:1:r3'), JSON.stringify(s.search(root, work, '账本')))
+  const exported = s.exportWork(root, work, join(root, 'adopt-export'))
+  const exportedManifest = JSON.parse(readFileSync(join(exported.directory, 'manifest.json'), 'utf8'))
+  check('export manifest follows the adopted current revision', Number(exportedManifest.chapters?.find(chapter => chapter.number === 1)?.currentRevision) === 3, JSON.stringify(exportedManifest.chapters))
   const events = s.readEvents(root, work)
   check('adoption records a revision-adopt event', events.some(event => event.kind === 'revision-adopt' && event.chapter === 1), JSON.stringify(events.map(event => event.kind)))
 
