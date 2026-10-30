@@ -22,7 +22,7 @@ import {
   approveFoundation, approveOutline, approveChapterPlan, finalizeChapter, markStateDraftReady, mergeStateDraft,
   planApprovalPolicy,
   latestReview, readBibleEntry, readChapter, readEvents, readEventsText, readManifest, readPlan, readSessionCurrent,
-  readSummaryState,
+  readStateDraft, readSummaryState,
   reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter, setSessionCurrent,
   status as readStatus, updateSettings, workIdOf, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
 } from './storage.ts'
@@ -2057,7 +2057,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
 
     action({
       name: 'story_read',
-      description: '只读：按 artifactId 读取已登记的作品内容（chapter/plan/review/summary/state/bible/outline/volume/role:<slug>/trace）。宿主校验作品与当前章作用域；不返回文件路径。角色卡按 slug 读，字段是卡合同。',
+      description: '只读：按 artifactId 读取已登记的作品内容（chapter/plan/review/summary/state/state:draft:<章>:r<版本>/bible/outline/volume/role:<slug>/trace）。宿主校验作品与当前章作用域；不返回文件路径。角色卡按 slug 读，字段是卡合同。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -2198,9 +2198,26 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
             )
           }
         } else if (kind === 'state') {
-          content = readEventsText(root, workId)
-          const events = readEvents(root, workId)
-          ref = { ...ref, artifactId: 'state', revisionId: `seq:${events.length === 0 ? 0 : events[events.length - 1].seq}`, kind: 'state' }
+          if (id === 'state') {
+            content = readEventsText(root, workId)
+            const events = readEvents(root, workId)
+            ref = { ...ref, artifactId: 'state', revisionId: `seq:${events.length === 0 ? 0 : events[events.length - 1].seq}`, kind: 'state' }
+          } else if (parts[0] === 'draft') {
+            const draftChapter = Number(parts[1])
+            const draftRevision = /^r([1-9]\d*)$/u.exec(String(parts[2] ?? ''))?.[1]
+            if (parts.length !== 3 || !Number.isInteger(draftChapter) || draftChapter < 1 || draftRevision === undefined) {
+              throw new StoryError('artifact-not-readable', 'state:draft 的 artifactId 形如 state:draft:<章>:r<版本>')
+            }
+            const draft = readStateDraft(root, { work: workId, chapter: draftChapter })
+            if (draft === undefined) throw new StoryError('artifact-not-found', `第 ${draftChapter} 章没有状态草案`)
+            if (Number(draftRevision) !== Number(draft.revision)) {
+              throw new StoryError('revision-not-found', `状态草案的 revision 不是 r${String(draftRevision)}`)
+            }
+            content = JSON.stringify(draft.content, null, 2)
+            ref = { ...ref, artifactId: id, revisionId: draft.revisionId, kind: 'state_draft' }
+          } else {
+            throw new StoryError('artifact-not-readable', `不认识的 state artifactId：${id}`)
+          }
         } else if (kind === 'volume') {
           const volume = (await readVolumes(root, workId)).find(item => String(item.id) === parts.join(':'))
           if (volume === undefined) throw new StoryError('artifact-not-readable', `没有卷：${parts.join(':')}`)
