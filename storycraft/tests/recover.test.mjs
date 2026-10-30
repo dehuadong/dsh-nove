@@ -82,6 +82,30 @@ try {
   } finally { catalog.close() }
   check('a stale session is reported', codes(scanWorkspace(root)).includes('stale-session'))
 
+  const emptyRoot = await mkdtemp(join(tmpdir(), 'storycraft-empty-'))
+  try {
+    check('a missing catalog is reported', codes(scanWorkspace(emptyRoot)).includes('catalog-missing'))
+  } finally { await rm(emptyRoot, { recursive: true, force: true }) }
+  mkdirSync(join(root, '.storycraft', 'backups'), { recursive: true })
+  writeFileSync(join(root, '.storycraft', 'backups', '.safety-test.db'), '')
+  check('backup staging is reported as a warning', codes(scanWorkspace(root)).includes('backup-temp'))
+
+  const brokenWork = s.initWork(root, { title: '损坏作品' }).workId
+  const brokenFile = workFile(root, brokenWork)
+  renameSync(brokenFile, `${brokenFile}.bak`)
+  writeFileSync(brokenFile, 'not a database')
+  check('a corrupt work DB is reported as an issue', codes(scanWork(root, brokenWork)).includes('db-corrupt'))
+  let corruptNext = ''
+  try { openWork(root, brokenWork) } catch (error) { corruptNext = String(error?.next ?? '') }
+  check('db-corrupt carries recovery next', corruptNext.includes('备份'), corruptNext)
+  renameSync(`${brokenFile}.bak`, brokenFile)
+
+  const ftsWork = s.initWork(root, { title: '索引损坏作品' }).workId
+  check('a fresh work scans clean before the FTS probe', scanWork(root, ftsWork).issues.length === 0)
+  const ftsDb = openWork(root, ftsWork)
+  try { ftsDb.prepare('DROP TABLE search_fts').run() } finally { ftsDb.close() }
+  check('a dropped FTS table is reported', codes(scanWork(root, ftsWork)).includes('search-fts-corrupt'))
+
   // A child process dies inside an open transaction; WAL must roll it back.
   const file = workFile(root, work)
   const script = `const { DatabaseSync } = require('node:sqlite')
