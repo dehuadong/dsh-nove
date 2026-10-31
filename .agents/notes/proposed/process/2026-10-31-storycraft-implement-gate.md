@@ -90,7 +90,7 @@ work: active | blocked
 
 - `authorize`：走审批模式；不可用时返回 `approval-unavailable`，命令模式无需调用；
 - `block`：`work='blocked'`，源码写全部拒绝；
-- `complete`：Verify PASS 后清除授权；
+- `complete`：Verify PASS 且 Note/roadmap 迁移完成后清除授权；`complete` 之后文档写仍放行，源码写恢复拒绝；
 - `status`：只读返回当前 authorization/work/task。
 
 该工具自身不受写守卫限制；`plugin_manager` 仍可禁用整个插件，这是本方案的残余风险（见 Risks）。
@@ -102,9 +102,12 @@ work: active | blocked
 | 工具 | 无 implement 时 | 有 implement 时 |
 | --- | --- | --- |
 | `write`/`edit` | 目标在 `.agents/notes/**`、`docs/**` 放行；源码/测试/脚本/配置拒绝 | 放行 |
-| `pwsh`/`bash` | 只读命令放行；含写文件、`git add/commit`、构建、安装、`trash.mjs` 等写动作拒绝 | 放行 |
+| `trash.mjs` | 目标在 `.agents/notes/**`、`docs/**` 时放行（Note 生命周期迁移）；目标为源码则拒绝 | 放行 |
+| `pwsh`/`bash` 其他写命令 | 含写文件、`git add/commit`、构建、安装等写动作拒绝 | 放行 |
 | 读取/搜索/`git status`/测试 | 放行 | 放行 |
 | 工作区外写入 | 始终拒绝 | 始终拒绝 |
+
+Agent Notes 的 `proposed → implemented` 迁移是路径级例外：`write` 新文件、`edit` 状态/标题、`trash.mjs` 旧 Note 都不需要 implement 授权，也不会被 `complete` 之后误拦。`.trash/` 作为这些文档移动的目的地同样放行；只有源码/测试/脚本/配置路径受授权约束。
 
 拒绝原因固定写明：
 
