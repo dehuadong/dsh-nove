@@ -272,6 +272,25 @@ window.__ModuleLoader__.load({
       | { status: 'error', error: string }
       | { status: 'ready', analysis: AnalysisPayload }
 
+    interface SelfCheckIssue {
+      code: string
+      severity: 'error' | 'warning'
+      message: string
+      chapter?: number
+    }
+
+    interface SelfCheckReport {
+      ok: boolean
+      checked: number
+      issues: SelfCheckIssue[]
+    }
+
+    type SelfCheckState =
+      | { status: 'idle' }
+      | { status: 'loading' }
+      | { status: 'error', error: string }
+      | { status: 'ready', report: SelfCheckReport }
+
     interface ChapterPayload {
       view: string
       path: string
@@ -533,6 +552,7 @@ window.__ModuleLoader__.load({
       approveOutline(root: string | undefined, sessionId: string | undefined, workId: string): Promise<unknown>
       dashboard(root: string | undefined, id: string): Promise<{ dashboard: DashboardPayload }>
       analysis(root: string | undefined, id: string): Promise<{ analysis: AnalysisPayload }>
+      selfCheck(root: string | undefined, id: string): Promise<{ report: SelfCheckReport }>
       transitionHook(
         root: string | undefined, sessionId: string | undefined, workId: string, hookId: string, op: 'progress' | 'resolve',
       ): Promise<{ dashboard: DashboardPayload }>
@@ -780,6 +800,7 @@ window.__ModuleLoader__.load({
       outlineApprove: '/api/see-storycraft/outline/approve',
       dashboard: '/api/see-storycraft/dashboard',
       analysis: '/api/see-storycraft/analysis',
+      selfCheck: '/api/see-storycraft/self-check',
       hookTransition: '/api/see-storycraft/hooks/transition',
       foundation: '/api/see-storycraft/foundation',
       foundationApprove: '/api/see-storycraft/foundation/approve',
@@ -955,6 +976,9 @@ function hookStatusLabel(status: string): string {
 .sc-analysis-block{display:flex;flex-direction:column;gap:5px;padding:10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2)}
 .sc-analysis-row{display:flex;justify-content:space-between;gap:8px;font-size:12px}
 .sc-rhythm{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-top:8px;border-top:1px solid var(--dsw-alias-border-l1)}
+.sc-self-check-list{display:flex;flex-direction:column;gap:6px;margin:8px 0 0;padding:0;list-style:none}
+.sc-self-check-list li{display:flex;gap:8px;align-items:flex-start}
+.sc-self-check-fallback{display:flex;flex-direction:column;gap:10px}
 .sc-bible-card{display:flex;flex-direction:column;gap:6px;margin:0}
 .sc-bible-card .sc-item-id{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sc-bible-card .sc-yaml{max-height:150px;overflow:auto;margin:0;padding:8px 10px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);font-size:11px;overscroll-behavior:contain}
@@ -1183,6 +1207,7 @@ function hookStatusLabel(status: string): string {
         approveOutline: (root, sessionId, workId) => post(ROUTE.outlineApprove, { root, sessionId, workId }),
         dashboard: (root, id) => route(ROUTE.dashboard, { root, id }),
         analysis: (root, id) => route(ROUTE.analysis, { root, id }),
+        selfCheck: (root, id) => route(ROUTE.selfCheck, { root, id }),
         transitionHook: (root, sessionId, workId, hookId, op) => post(ROUTE.hookTransition, { root, sessionId, workId, hookId, op }),
         foundation: (root, id) => route(ROUTE.foundation, { root, id }),
         approveFoundation: (root, sessionId, workId) => post(ROUTE.foundationApprove, { root, sessionId, workId }),
@@ -1445,7 +1470,6 @@ function hookStatusLabel(status: string): string {
               key: work.workId,
               type: 'button',
               className: 'sc-project',
-              disabled: work.degraded === true,
               onClick: () => onOpen(work.workId),
             },
               h('span', { className: 'sc-project-title' }, work.title),
@@ -1808,6 +1832,81 @@ function hookStatusLabel(status: string): string {
             ))
             : null,
         ),
+      )
+    }
+
+    /** Read-only self-check shared by the dashboard and the detail error branch. */
+    function SelfCheckPanel({ face, root, workId }: { face: Face, root: string | undefined, workId: string }) {
+      const [state, setState] = useState<SelfCheckState>({ status: 'idle' })
+      const [open, setOpen] = useState(false)
+      const request = useRef(0)
+
+      useEffect(() => {
+        request.current += 1
+        setState({ status: 'idle' })
+        setOpen(false)
+      }, [workId])
+
+      const run = async () => {
+        const ticket = ++request.current
+        setState({ status: 'loading' })
+        try {
+          const payload = await face.selfCheck(root, workId)
+          if (ticket !== request.current) return
+          setState({ status: 'ready', report: payload.report })
+        } catch (error) {
+          if (ticket !== request.current) return
+          setState({ status: 'error', error: error instanceof Error ? error.message : String(error) })
+        }
+      }
+
+      const label = state.status === 'loading' ? '检查中…' : state.status === 'ready' ? '重新自检' : '运行自检'
+      return h('section', { className: 'sc-dash-section sc-self-check', 'aria-label': '自检' },
+        h('div', { className: 'sc-item-head' },
+          h('h3', { className: 'sc-section-title' }, '自检'),
+          h('button', {
+            type: 'button', className: 'sc-btn sc-btn-small',
+            onClick: () => setOpen(value => !value),
+          }, open ? '收起自检' : '展开自检'),
+        ),
+        open
+          ? h('div', { className: 'sc-self-check-body' },
+            h('div', { className: 'sc-actions' },
+              h('button', {
+                type: 'button', className: 'sc-btn sc-btn-small',
+                disabled: state.status === 'loading',
+                onClick: () => { void run() },
+              }, label),
+            ),
+            state.status === 'idle'
+              ? h('p', { className: 'sc-muted' }, '运行自检检查库完整性、检索索引、章节版本与状态草案；只读，不自动修复。')
+              : state.status === 'loading'
+                ? h('p', { className: 'sc-muted' }, '读取自检…')
+                : state.status === 'error'
+                  ? h('div', null,
+                    h('p', { className: 'sc-notice sc-notice-error' }, state.error),
+                    h('button', { type: 'button', className: 'sc-btn sc-btn-small', onClick: () => { void run() } }, '重试'),
+                  )
+                  : h('div', { className: 'sc-self-check-result', 'aria-live': 'polite' },
+                    h('p', {
+                      className: state.report.ok
+                        ? (state.report.issues.length === 0 ? 'sc-badge sc-badge-ok' : 'sc-badge sc-badge-warn')
+                        : 'sc-badge sc-badge-error',
+                    },
+                      state.report.ok
+                        ? (state.report.issues.length === 0 ? '未发现问题' : '无错误 · ' + state.report.issues.length + ' 条提醒')
+                        : '发现 ' + state.report.issues.filter(item => item.severity === 'error').length + ' 个错误'),
+                    h('p', { className: 'sc-muted' }, '检查 ' + state.report.checked + ' 组 · ' + state.report.issues.length + ' 条结果'),
+                    state.report.issues.length === 0
+                      ? null
+                      : h('ul', { className: 'sc-self-check-list' },
+                        ...state.report.issues.map((item, index) => h('li', { key: item.code + '-' + index },
+                          h('span', { className: item.severity === 'error' ? 'sc-badge sc-badge-error' : 'sc-badge sc-badge-warn' }, item.severity),
+                          h('span', null, (item.chapter === undefined ? '' : '第 ' + item.chapter + ' 章 · ') + item.message + '（' + item.code + '）'),
+                        ))),
+                  ),
+          )
+          : null,
       )
     }
 
@@ -2390,7 +2489,15 @@ function hookStatusLabel(status: string): string {
       }
 
       if (detail.status === 'loading') return h('p', { className: 'sc-muted' }, '读取作品…')
-      if (detail.status === 'error') return h('p', { className: 'sc-notice sc-notice-error' }, detail.error)
+      if (detail.status === 'error') {
+        return h('div', { className: 'sc-self-check-fallback' },
+          h('div', { className: 'sc-actions' },
+            h('button', { type: 'button', className: 'sc-btn', onClick: onBack }, '← 全部作品'),
+          ),
+          h('p', { className: 'sc-notice sc-notice-error' }, detail.error),
+          h(SelfCheckPanel, { face, root, workId }),
+        )
+      }
 
       const manifest = detail.manifest
       const chapters = detail.chapters
@@ -3135,6 +3242,7 @@ function hookStatusLabel(status: string): string {
                               : null
                         : h('p', { className: 'sc-muted' }, '展开查看审稿分布、调用成本与节奏。'),
                     ),
+                    h(SelfCheckPanel, { face, root, workId }),
                     summaryView === undefined
                       ? null
                       : h('div', { className: 'sc-drawer-mask', onClick: () => setSummaryView(undefined) },

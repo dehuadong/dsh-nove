@@ -12,6 +12,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { reviewFixture } from '../tests/review-fixture.mjs'
 import { recordCall } from '../src/telemetry.ts'
+import { openWork } from '../src/db.ts'
 
 const projectRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
 
@@ -108,6 +109,12 @@ export async function buildFixture(workspaceDir) {
       work: w, chapter: 1, kind: 'hook',
       payload: { op: 'upsert', hook: { hookId: 'h-2', startChapter: 2, type: '悬念', status: 'open', lastAdvancedChapter: 1, expectedPayoff: '第二真相', notes: '', dependsOn: [], paysOffInArc: '', text: '第二把钥匙' } },
     })
+  })
+  await stateWork('状态-自检坏库', 'short', async (w) => {
+    await boardSetup(w)
+    const db = openWork(workspaceDir, w)
+    db.exec('PRAGMA user_version = 999')
+    db.close()
   })
   await stateWork('状态-分析', 'short', async (w) => {
     await boardSetup(w)

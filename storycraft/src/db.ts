@@ -420,6 +420,26 @@ export function openWork(root: string, workId: unknown): Database {
   return db
 }
 
+/** Open an existing work database for diagnostics without any write pragma. */
+export function openWorkReadOnly(root: string, workId: unknown): Database {
+  assertSqlite()
+  const file = workFile(root, workId)
+  if (!existsSync(file)) throw new StoryError('work-not-found', `没有作品：${String(workId)}`)
+  const db = openDatabase(file, '作品库无法打开', { readOnly: true })
+  try {
+    const version = userVersion(db)
+    if (version !== WORK_SCHEMA_VERSION) {
+      throw new StoryError('schema-version-mismatch',
+        `作品 ${workId} 的库版本 ${version} 不是支持的 ${WORK_SCHEMA_VERSION}：测试作品请删除重建，不做兼容迁移`)
+    }
+    assertWorkShape(db, String(workId))
+  } catch (error) {
+    db.close()
+    throw error
+  }
+  return db
+}
+
 /**
  * Create one work database with its schema and metadata row.
  */

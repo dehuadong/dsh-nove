@@ -9,6 +9,7 @@ import * as store from '../src/store-db.ts'
 import { exportsDir } from '../src/db.ts'
 import { select } from '../src/retrieval.ts'
 import { readAnalysis } from '../src/analysis.ts'
+import { selfCheck } from '../src/self-check.ts'
 import { buildPerfFixture } from './perf-fixture.mjs'
 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-perf-'))
@@ -46,6 +47,11 @@ try {
   await budget('250-chapter readManifest', () => store.readManifest(root, work), 100)
   await budget('250-chapter readWork', () => store.readWork(root, work), 150)
   await budget('250-chapter status', () => store.status(root, work), 300)
+  const selfCheckStarted = performance.now()
+  const selfCheckReport = selfCheck(root, work)
+  const selfCheckMs = performance.now() - selfCheckStarted
+  check('250-chapter self-check under 1000ms', selfCheckMs < 1000, selfCheckMs.toFixed(1) + 'ms')
+  check('250-chapter self-check has no body text', !JSON.stringify(selfCheckReport).includes('周砚'))
   const analysisStarted = performance.now()
   const analysis = await readAnalysis(root, work)
   const analysisMs = performance.now() - analysisStarted

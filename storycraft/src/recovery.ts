@@ -4,7 +4,7 @@ import { existsSync, readdirSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import type { Database } from './db.ts'
 import {
-  backupsDir, exportsDir, integrityCheck, openCatalog, openWork, transaction, trashDir, workFile, worksDir,
+  backupsDir, exportsDir, integrityCheck, openCatalog, openWork, openWorkReadOnly, transaction, trashDir, workFile, worksDir,
 } from './db.ts'
 import { chapterStem } from './domain.ts'
 import { materialIndexText } from './search-text.ts'
@@ -16,6 +16,7 @@ export type RecoveryCode =
   | 'catalog-missing' | 'db-missing' | 'orphan-db' | 'stale-session'
   | 'export-temp' | 'backup-temp' | 'integrity-failed' | 'search-index-missing'
   | 'search-index-drift' | 'search-fts-corrupt' | 'busy' | 'db-corrupt'
+  | 'schema-version-mismatch'
 
 export interface RecoveryIssue {
   code: RecoveryCode
@@ -190,8 +191,13 @@ export function scanWorkspace(root: string): ScanReport {
   return { mode: 'workspace', issues, staging, wal: false, projection: 'event-log', unknownKinds: [] }
 }
 
+export interface ScanWorkOptions {
+  readOnly?: boolean
+  inspect?: (db: Database) => void
+}
+
 /** Work-level scan: integrity, search projection and WAL state of one work. */
-export function scanWork(root: string, workId: string): ScanReport {
+export function scanWork(root: string, workId: string, options: ScanWorkOptions = {}): ScanReport {
   const issues: RecoveryIssue[] = []
   const file = workFile(root, workId)
   if (!existsSync(file)) {
@@ -199,7 +205,7 @@ export function scanWork(root: string, workId: string): ScanReport {
   }
   let db: Database | undefined
   try {
-    db = openWork(root, workId)
+    db = options.readOnly === true ? openWorkReadOnly(root, workId) : openWork(root, workId)
   } catch (error) {
     const code = (error as { code?: string } | null)?.code
     if (code === 'db-corrupt') {
@@ -208,14 +214,19 @@ export function scanWork(root: string, workId: string): ScanReport {
     if (code === 'work-busy') {
       return { mode: 'work', workId, issues: [issue('busy', `作品 ${workId} 正被另一个动作写入`, workId)], staging: [], wal: false, projection: 'event-log' }
     }
+    if (code === 'schema-version-mismatch') {
+      return { mode: 'work', workId, issues: [issue('schema-version-mismatch', error instanceof Error ? error.message : `作品 ${workId} 的库版本不匹配`, workId)], staging: [], wal: false, projection: 'event-log' }
+    }
     throw error
   }
   try {
     if (integrityCheck(db) !== 'ok') issues.push(issue('integrity-failed', `作品 ${workId} 的库完整性检查失败`, workId))
-    try {
-      db.prepare("INSERT INTO search_fts(search_fts) VALUES('integrity-check')").run()
-    } catch {
-      issues.push(issue('search-fts-corrupt', `作品 ${workId} 的检索索引损坏`, workId))
+    if (options.readOnly !== true) {
+      try {
+        db.prepare("INSERT INTO search_fts(search_fts) VALUES('integrity-check')").run()
+      } catch {
+        issues.push(issue('search-fts-corrupt', `作品 ${workId} 的检索索引损坏`, workId))
+      }
     }
     const expected = new Map<string, number>()
     for (const row of sourceRows(db)) expected.set(row.kind, (expected.get(row.kind) ?? 0) + 1)
@@ -236,6 +247,7 @@ export function scanWork(root: string, workId: string): ScanReport {
     if (missing) issues.push(issue('search-index-missing', `作品 ${workId} 的检索索引缺少整类文档`, workId))
     if (drift) issues.push(issue('search-index-drift', `作品 ${workId} 的检索索引与来源计数不一致`, workId))
     const unknownKinds = [...indexed.keys()].filter(kind => !(KNOWN_KINDS as readonly string[]).includes(kind))
+    options.inspect?.(db)
     return {
       mode: 'work', workId, issues, staging: [],
       wal: existsSync(`${file}-wal`) || existsSync(`${file}-shm`),
