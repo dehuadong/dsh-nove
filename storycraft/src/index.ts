@@ -14,6 +14,7 @@
 import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, resolve } from 'node:path'
 import { deriveWorkbench } from './workbench.ts'
+import { readDashboard, transitionHook } from './dashboard.ts'
 import { rebuildSearchIndex } from './recovery.ts'
 import { acceptChapter, adoptChapterRevision, approveChapterPlan, approveFoundation, approveOutline, createBackup, deleteBackup, deleteChapter, deleteMaterial, readChapterHistory, ensureReconciled, exportWorkAtomic, importMaterial, moveChapter, listMaterials, listTrash, listWorks, nextStep, purgeTrash, readFoundationState, readManifest, restoreBackup, listBackups, readChapter, readReview, readWork, renameMaterial, restoreWork, setMaterialPurpose, status as readStatus, StoryError } from './storage.ts'
 import { critique } from './critique.ts'
@@ -752,6 +753,26 @@ export function apply(ctx: DshContext): void {
       handler: (req, res) => readRoute(req, res, async (query) => ({
         state: readStatus(await rootOf(ctx, query), workOf(query)),
       })),
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/dashboard`,
+      handler: (req, res) => readRoute(req, res, async (query) => ({
+        dashboard: readDashboard(await rootOf(ctx, query), workOf(query)),
+      })),
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/hooks/transition`,
+      handler: (req, res) => {
+        void postRoute(req, res, async (body) => {
+          const { root, workId } = await writeWorkTarget(body)
+          if (typeof body?.hookId !== 'string' || body.hookId === '') {
+            throw new StoryError('invalid-body', '标记伏笔需要 hookId')
+          }
+          return { dashboard: transitionHook(root, { work: workId, hookId: body.hookId, op: body.op }) }
+        }, { maxBytes: 8 * 1024, requireJson: true })
+      },
     }),
     ctx.webServer.register({
       kind: 'exact',

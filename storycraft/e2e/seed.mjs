@@ -89,6 +89,32 @@ export async function buildFixture(workspaceDir) {
     await store.approveChapterPlan(workspaceDir, { work: w, chapter: 1 })
     await store.writeChapter(workspaceDir, { work: w, chapter: 1, title: '一', body: '灰旗在风里翻了一夜。'.repeat(20) })
   })
+  const boardSetup = async (w) => {
+    await store.writeOutline(workspaceDir, { work: w, mainline: '一条主线' })
+    await store.approveOutline(workspaceDir, { work: w })
+    await plan(w, 1)
+    await store.approveChapterPlan(workspaceDir, { work: w, chapter: 1 })
+    await store.writeChapter(workspaceDir, { work: w, chapter: 1, title: '一', body: '灰旗在风里翻了一夜。'.repeat(20) })
+  }
+  await stateWork('状态-看板', 'short', async (w) => {
+    await boardSetup(w)
+    await store.appendStateEvent(workspaceDir, {
+      work: w, chapter: 1, kind: 'hook',
+      payload: { op: 'upsert', hook: { hookId: 'h-1', startChapter: 1, type: '物件', status: 'open', lastAdvancedChapter: 1, expectedPayoff: '真相', notes: '', dependsOn: [], paysOffInArc: '', text: '旧钥匙' } },
+    })
+    await store.appendStateEvent(workspaceDir, {
+      work: w, chapter: 1, kind: 'hook',
+      payload: { op: 'upsert', hook: { hookId: 'h-2', startChapter: 2, type: '悬念', status: 'open', lastAdvancedChapter: 1, expectedPayoff: '第二真相', notes: '', dependsOn: [], paysOffInArc: '', text: '第二把钥匙' } },
+    })
+  })
+  await stateWork('状态-看板草案', 'short', async (w) => {
+    await boardSetup(w)
+    await store.appendStateEvent(workspaceDir, {
+      work: w, chapter: 1, kind: 'hook',
+      payload: { op: 'upsert', hook: { hookId: 'h-1', startChapter: 1, type: '物件', status: 'open', lastAdvancedChapter: 1, expectedPayoff: '真相', notes: '', dependsOn: [], paysOffInArc: '', text: '旧钥匙' } },
+    })
+    await store.writeStateDraft(workspaceDir, { work: w, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '收好钥匙' }] }, ready: false })
+  })
   // An unapproved book plan: the page must offer its confirmation button.
   await store.writeOutline(workspaceDir, { work, mainline: '一条主线', volumes: '第一卷', ending: '开放' })
   const status = await store.status(workspaceDir, work)

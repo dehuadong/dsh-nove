@@ -202,6 +202,46 @@ window.__ModuleLoader__.load({
       state: WorkState
     }
 
+    interface DashboardChapter {
+      number: number
+      status: string
+      stage: string
+      revision: number
+      words: number
+      hasSummary: boolean
+      summaryRevision: number | null
+      summaryStale: boolean
+    }
+
+    interface DashboardHook {
+      hookId: string
+      text: string
+      status: string
+      type?: string
+      startChapter?: number
+      lastAdvancedChapter?: number
+      expectedPayoff?: string
+    }
+
+    interface DashboardPayload {
+      status: {
+        writtenChapters: number
+        latestChapter: number
+        openProblems: number
+        chapters: DashboardChapter[]
+        hooks: { unresolved: number }
+        calls?: { count: number, totalTokens: number | null }
+      }
+      hooks: DashboardHook[]
+      transitionChapter: number | null
+    }
+
+    type DashboardLoadState =
+      | { status: 'idle' }
+      | { status: 'loading' }
+      | { status: 'error', error: string }
+      | { status: 'ready', dashboard: DashboardPayload }
+
     interface ChapterPayload {
       view: string
       path: string
@@ -461,6 +501,10 @@ window.__ModuleLoader__.load({
         chapter: number,
       ): Promise<{ accepted: number }>
       approveOutline(root: string | undefined, sessionId: string | undefined, workId: string): Promise<unknown>
+      dashboard(root: string | undefined, id: string): Promise<{ dashboard: DashboardPayload }>
+      transitionHook(
+        root: string | undefined, sessionId: string | undefined, workId: string, hookId: string, op: 'progress' | 'resolve',
+      ): Promise<{ dashboard: DashboardPayload }>
       foundation(root: string | undefined, id: string): Promise<FoundationPayload>
       approveFoundation(root: string | undefined, sessionId: string | undefined, workId: string): Promise<unknown>
       review(root: string | undefined, id: string, chapter: number): Promise<ReviewPayload>
@@ -703,6 +747,8 @@ window.__ModuleLoader__.load({
       approve: '/api/see-storycraft/chapter/approve',
       accept: '/api/see-storycraft/chapter/accept',
       outlineApprove: '/api/see-storycraft/outline/approve',
+      dashboard: '/api/see-storycraft/dashboard',
+      hookTransition: '/api/see-storycraft/hooks/transition',
       foundation: '/api/see-storycraft/foundation',
       foundationApprove: '/api/see-storycraft/foundation/approve',
       review: '/api/see-storycraft/review',
@@ -723,6 +769,21 @@ window.__ModuleLoader__.load({
     }
 
     const BIBLE_LABELS: Record<string, string> = { world: '世界观', characters: '人物档案', style: '文风基准', plan: '全书计划', intent: '作者意图' }
+const FOUNDATION_STAGE_LABELS: Record<string, string> = { frame: '故事框架', rules: '作品规则', roles: '角色索引', cards: '角色卡' }
+const FOUNDATION_DOC_LABELS: Record<string, string> = { story_frame: '故事框架', volume_map: '卷图', book_rules: '作品规则', roles_index: '角色索引' }
+function foundationDocLabel(name: string): string {
+  if (name === 'current_focus') return '当前焦点'
+  if (FOUNDATION_DOC_LABELS[name] !== undefined) return FOUNDATION_DOC_LABELS[name]
+  if (name.startsWith('role:')) return '角色卡 · ' + name.slice('role:'.length)
+  return '角色卡 · ' + name
+}
+function hookStatusLabel(status: string): string {
+  if (status === 'progressing') return '推进中'
+  if (status === 'deferred') return '搁置'
+  if (status === 'resolved') return '已解'
+  if (status === 'superseded') return '已替换'
+  return '未解'
+}
     const CHAPTER_PAGE_SIZE = 20
 
     /** How long one Host answer may take before the page stops waiting. */
@@ -828,6 +889,35 @@ window.__ModuleLoader__.load({
 .sc-page[hidden]{display:none}
 .sc-page{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:10px 0 4px;padding-top:8px;border-top:1px solid var(--dsw-alias-border-l1)}
 .sc-bible-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}
+.sc-foundation{display:flex;flex-direction:column;gap:12px;padding:14px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1)}
+.sc-foundation-head{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:10px}
+.sc-foundation-head .sc-section-title{margin:0 0 2px}
+.sc-foundation-stages{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.sc-stage{display:flex;flex-direction:column;gap:3px;padding:9px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2)}
+.sc-stage-done{border-color:var(--dsw-alias-brand-primary)}
+.sc-stage-mark{font-weight:700;color:var(--dsw-alias-label-secondary)}
+.sc-stage-done .sc-stage-mark{color:var(--dsw-alias-brand-primary)}
+.sc-stage-label{font-weight:600}
+.sc-stage-state{color:var(--dsw-alias-label-secondary);font-size:12px}
+.sc-foundation-docs{margin-top:0}
+.sc-foundation-doc summary{cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sc-dashboard{display:flex;flex-direction:column;gap:14px}
+.sc-dash-cards{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+.sc-dash-card{display:flex;flex-direction:column;gap:3px;padding:10px 12px;border:1px solid var(--dsw-alias-border-l1);border-radius:9px;background:var(--dsw-alias-bg-layer-1)}
+.sc-dash-card strong{font-size:18px}
+.sc-dash-section{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px}
+.sc-dash-section h3{margin:0}
+.sc-word-row{display:grid;grid-template-columns:52px minmax(0,1fr) 70px;align-items:center;gap:8px}
+.sc-word-bar{height:8px;border-radius:4px;background:var(--dsw-alias-bg-layer-2);overflow:hidden}
+.sc-word-bar span{display:block;height:100%;background:var(--dsw-alias-brand-primary)}
+.sc-hook-group{display:flex;flex-direction:column;gap:6px;padding-top:8px;border-top:1px solid var(--dsw-alias-border-l1)}
+.sc-hook-group-head{font-weight:600;font-size:12px;color:var(--dsw-alias-label-secondary)}
+.sc-hook{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:7px 0}
+.sc-hook-main{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;min-width:0}
+.sc-hook-actions{display:flex;gap:6px}
+.sc-summary-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:5px 0;border-top:1px solid var(--dsw-alias-border-l1)}
+.sc-summary-view{margin-top:8px;padding:10px;border:1px solid var(--dsw-alias-border-l1);border-radius:9px;background:var(--dsw-alias-bg-layer-2)}
+.sc-summary-body{max-height:260px;overflow:auto;white-space:pre-wrap;margin:8px 0 0}
 .sc-bible-card{display:flex;flex-direction:column;gap:6px;margin:0}
 .sc-bible-card .sc-item-id{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sc-bible-card .sc-yaml{max-height:150px;overflow:auto;margin:0;padding:8px 10px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);font-size:11px;overscroll-behavior:contain}
@@ -837,7 +927,7 @@ window.__ModuleLoader__.load({
 .sc-drawer-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .sc-drawer-input{flex:1;min-height:280px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 .sc-drawer-foot{display:flex;justify-content:flex-end;gap:8px;position:sticky;bottom:0;padding-top:10px;background:var(--dsw-alias-bg-base)}
-@container (max-width:600px){.sc-two-col{grid-template-columns:minmax(0,1fr)}.sc-bible-grid{grid-template-columns:minmax(0,1fr)}.sc-header-actions{flex-wrap:wrap}}.sc-help li{margin:3px 0}
+@container (max-width:600px){.sc-two-col{grid-template-columns:minmax(0,1fr)}.sc-bible-grid{grid-template-columns:minmax(0,1fr)}.sc-foundation-stages{grid-template-columns:repeat(2,minmax(0,1fr))}.sc-dash-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.sc-header-actions{flex-wrap:wrap}}.sc-help li{margin:3px 0}
 .sc-help code{padding:1px 5px;border-radius:4px;background:var(--dsw-alias-bg-layer-2);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 @media (max-width:760px){.sc-body{grid-template-columns:minmax(0,1fr)}.sc-list{border-right:none;border-bottom:1px solid var(--dsw-alias-border-l1);max-height:34vh}}
 `
@@ -1027,7 +1117,11 @@ window.__ModuleLoader__.load({
           body: JSON.stringify(body),
         })
         const payload = await response.json()
-        if (payload?.ok !== true) throw new Error(payload?.error?.message ?? `请求失败：${response.status}`)
+        if (payload?.ok !== true) {
+          const failure = new Error(payload?.error?.message ?? `请求失败：${response.status}`)
+          ;(failure as Error & { code?: string }).code = payload?.error?.code
+          throw failure
+        }
         return payload
       }
       return {
@@ -1050,6 +1144,8 @@ window.__ModuleLoader__.load({
         approveChapterPlan: (root, sessionId, workId, chapter) => post(ROUTE.approve, { root, sessionId, workId, chapter }),
         acceptChapter: (root, sessionId, workId, chapter) => post(ROUTE.accept, { root, sessionId, workId, chapter }),
         approveOutline: (root, sessionId, workId) => post(ROUTE.outlineApprove, { root, sessionId, workId }),
+        dashboard: (root, id) => route(ROUTE.dashboard, { root, id }),
+        transitionHook: (root, sessionId, workId, hookId, op) => post(ROUTE.hookTransition, { root, sessionId, workId, hookId, op }),
         foundation: (root, id) => route(ROUTE.foundation, { root, id }),
         approveFoundation: (root, sessionId, workId) => post(ROUTE.foundationApprove, { root, sessionId, workId }),
         history: (root, sessionId, workId, chapter) => post('/api/see-storycraft/chapter/history', { root, sessionId, workId, chapter }),
@@ -1686,6 +1782,8 @@ window.__ModuleLoader__.load({
       const [stateOpen, setStateOpen] = useState(false)
       const [bible, setBible] = useState<BibleState>({ status: 'idle' })
       const [foundation, setFoundation] = useState<FoundationLoadState>({ status: 'idle' })
+      const [dashboard, setDashboard] = useState<DashboardLoadState>({ status: 'idle' })
+      const [summaryView, setSummaryView] = useState<{ chapter: number, content: string } | undefined>(undefined)
       const [bibleEditor, setBibleEditor] = useState<BibleEditor | undefined>(undefined)
       const bibleTextareaRef = useRef<HTMLTextAreaElement | null | undefined>(undefined)
       const bibleTriggerRef = useRef<HTMLElement | null | undefined>(undefined)
@@ -1897,6 +1995,56 @@ window.__ModuleLoader__.load({
         }
       }
 
+      const loadDashboard = async () => {
+        setDashboard({ status: 'loading' })
+        try {
+          const payload = await face.dashboard(root, workId)
+          setDashboard({ status: 'ready', dashboard: payload.dashboard })
+        } catch (error) {
+          setDashboard({ status: 'error', error: error instanceof Error ? error.message : String(error) })
+        }
+      }
+
+      const transitionHook = async (hookId: string, op: 'progress' | 'resolve') => {
+        if (sessionId === undefined) {
+          onNotice({ kind: 'error', text: '先打开一个会话再标记伏笔' })
+          return
+        }
+        try {
+          const payload = await face.transitionHook(root, sessionId, workId, hookId, op)
+          setDashboard({ status: 'ready', dashboard: payload.dashboard })
+          setSummaryView(undefined)
+          onNotice({ kind: 'ok', text: op === 'progress' ? '已标记为已用（推进）' : '已标记为已解' })
+          void load()
+        } catch (error) {
+          const code = (error as Error & { code?: string }).code
+          const text = code === 'chapter-settled'
+            ? '当前没有未定稿的已写章：先撤回定稿或写正文，再标记伏笔。'
+            : code === 'state-draft-pending'
+              ? '本章还有状态草案：先接受或丢弃草案，再标记伏笔。'
+              : error instanceof Error ? error.message : String(error)
+          onNotice({ kind: 'error', text })
+        }
+      }
+
+      const openSummary = async (chapter: number) => {
+        try {
+          const payload = await face.chapter(root, workId, chapter, 'summary', undefined)
+          setSummaryView({ chapter, content: payload.content })
+        } catch (error) {
+          onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
+        }
+      }
+
+      useEffect(() => {
+        if (summaryView === undefined) return undefined
+        const onKey = (event: KeyboardEvent) => {
+          if (event.key === 'Escape') setSummaryView(undefined)
+        }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+      }, [summaryView])
+
       const loadBible = async () => {
         setBible({ status: 'loading' })
         try {
@@ -2022,6 +2170,7 @@ window.__ModuleLoader__.load({
         }
         setTab(next)
         if (next === 'truth' && bible.status === 'idle') void loadBible()
+        if (next === 'dashboard') void loadDashboard()
         return true
       }
 
@@ -2183,7 +2332,10 @@ window.__ModuleLoader__.load({
 
       const cardChapter = next === undefined ? nextNumber : next.chapter
       const confirmFoundationNow = async () => {
-        if (sessionId === undefined) return
+        if (sessionId === undefined) {
+          onNotice({ kind: 'error', text: '先打开一个会话再确认基础设定' })
+          return
+        }
         try {
           await face.approveFoundation(root, sessionId, manifest.workId)
           const failure = await face.send(approvalMessage('基础设定'))
@@ -2326,16 +2478,19 @@ window.__ModuleLoader__.load({
             h('button', {
               type: 'button',
               className: 'sc-btn',
-              disabled: sessionId === undefined,
               title: '查看基础设定（故事框架/卷图/规则/角色）与确认状态',
-              onClick: () => { void loadFoundation() },
+              onClick: () => {
+                if (tab !== 'truth' && !switchTab('truth')) return
+                void loadFoundation()
+              },
             }, foundation.status === 'loading' ? '读取基础设定…' : '基础设定'),
             foundation.status === 'ready' && foundation.foundation?.complete === true && foundation.foundation?.approvedAt === undefined
               && workbench?.primary.id !== 'confirm-foundation'
               ? h('button', {
                 type: 'button',
                 className: 'sc-btn sc-btn-primary',
-                title: '确认基础设定后，再写全书计划',
+                disabled: sessionId === undefined,
+                title: sessionId === undefined ? '先打开一个会话再确认基础设定' : '确认基础设定后，再写全书计划',
                 onClick: async () => {
                   try {
                     await face.approveFoundation(root, sessionId, manifest.workId)
@@ -2526,7 +2681,7 @@ window.__ModuleLoader__.load({
           h('span', { className: 'sc-badge' }, `伏笔 未解 ${detail.state.hooks.filter(hook => ['open', 'progressing', 'deferred'].includes(hook.status)).length}`),
         ),
         h('div', { className: 'sc-main-tabs', role: 'tablist', 'aria-label': '作品面板' },
-          ...['chapters', 'truth', 'context', 'materials', 'exports', 'backups'].map((name, index) => h('button', {
+          ...['dashboard', 'chapters', 'truth', 'context', 'materials', 'exports', 'backups'].map((name, index) => h('button', {
             key: name,
             type: 'button',
             role: 'tab',
@@ -2537,13 +2692,13 @@ window.__ModuleLoader__.load({
             className: 'sc-main-tab',
             onClick: () => switchTab(name),
             onKeyDown: event => {
-              const order = ['chapters', 'truth', 'context', 'materials', 'exports', 'backups']
+              const order = ['dashboard', 'chapters', 'truth', 'context', 'materials', 'exports', 'backups']
               if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
               event.preventDefault()
               const next = event.key === 'Home' ? 0 : event.key === 'End' ? order.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + order.length) % order.length
               if (switchTab(order[next])) document.getElementById(`sc-tab-${order[next]}`)?.focus()
             },
-          }, name === 'chapters' ? '章节' : name === 'truth' ? '真值' : name === 'context' ? '写前上下文' : name === 'materials' ? '素材' : name === 'exports' ? '导出' : '备份')),
+          }, name === 'dashboard' ? '看板' : name === 'chapters' ? '章节' : name === 'truth' ? '真值' : name === 'context' ? '写前上下文' : name === 'materials' ? '素材' : name === 'exports' ? '导出' : '备份')),
         ),
         notice === undefined ? null : h('p', { className: `sc-notice sc-notice-${notice.kind}`, style: { marginTop: 12 } }, notice.text),
 
@@ -2698,6 +2853,124 @@ window.__ModuleLoader__.load({
           ),
         ),
 
+        h('div', {
+          className: 'sc-section sc-tab-panel',
+          id: 'sc-panel-dashboard',
+          role: 'tabpanel',
+          'aria-labelledby': 'sc-tab-dashboard',
+          hidden: tab !== 'dashboard',
+        },
+          dashboard.status === 'loading'
+            ? h('p', { className: 'sc-muted' }, '读取看板…')
+            : dashboard.status === 'error'
+              ? h('p', { className: 'sc-notice sc-notice-info' }, dashboard.error)
+              : dashboard.status === 'ready'
+                ? (() => {
+                  const dash = dashboard.dashboard
+                  const list = dash.status.chapters
+                  const maxWords = Math.max(1, ...list.map(chapter => chapter.words))
+                  const groups = new Map<number, typeof dash.hooks>()
+                  for (const hook of dash.hooks) {
+                    const key = hook.startChapter ?? 0
+                    groups.set(key, [...(groups.get(key) ?? []), hook])
+                  }
+                  const disabledReason = sessionId === undefined
+                    ? '先打开一个会话再标记伏笔'
+                    : dash.transitionChapter === null ? '当前没有未定稿的已写章：先写正文或撤回定稿' : undefined
+                  return h('div', { className: 'sc-dashboard' },
+                    h('div', { className: 'sc-actions' },
+                      h('button', { type: 'button', className: 'sc-btn sc-btn-small', onClick: () => { void loadDashboard() } }, '刷新看板'),
+                    ),
+                    h('div', { className: 'sc-dash-cards' },
+                      ...[
+                        ['已写章', String(dash.status.writtenChapters)],
+                        ['已审', String(list.filter(chapter => ['reviewed', 'revised'].includes(chapter.stage)).length)],
+                        ['已定稿', String(list.filter(chapter => chapter.stage === 'settled').length)],
+                        ['未处理审稿', String(dash.status.openProblems)],
+                        ['未解伏笔', String(dash.status.hooks.unresolved)],
+                        ['调用/token', dash.status.calls === undefined ? '—' : String(dash.status.calls.count) + ' 次' + (dash.status.calls.totalTokens === null ? '' : ' · ' + String(dash.status.calls.totalTokens) + ' tokens')],
+                      ].map(([label, value]) => h('div', { className: 'sc-dash-card', key: label },
+                        h('span', { className: 'sc-muted' }, label),
+                        h('strong', null, value),
+                      )),
+                    ),
+                    h('section', { className: 'sc-dash-section' },
+                      h('h3', { className: 'sc-section-title' }, '章节进度'),
+                      list.length === 0
+                        ? h('p', { className: 'sc-muted' }, '还没有章节。')
+                        : h('div', null, ...list.map(chapter => h('div', { className: 'sc-word-row', key: chapter.number },
+                          h('span', null, '第 ' + chapter.number + ' 章'),
+                          h('div', { className: 'sc-word-bar' }, h('span', { style: { width: Math.round(chapter.words / maxWords * 100) + '%' } })),
+                          h('span', { className: 'sc-muted' }, stageLabel(chapter.stage) + ' · ' + chapter.words + ' 字'),
+                        ))),
+                    ),
+                    h('section', { className: 'sc-dash-section' },
+                      h('h3', { className: 'sc-section-title' }, '待处理伏笔'),
+                      groups.size === 0
+                        ? h('p', { className: 'sc-muted' }, '没有未解伏笔。')
+                        : h('div', null, ...[...groups.entries()].map(([start, hooks]) => h('div', { className: 'sc-hook-group', key: String(start) },
+                          h('div', { className: 'sc-hook-group-head' }, '第 ' + start + ' 章起的伏笔'),
+                          ...hooks.map(hook => h('div', { className: 'sc-hook', key: hook.hookId },
+                            h('div', { className: 'sc-hook-main' },
+                              h('span', { className: 'sc-item-name' }, hook.text),
+                              h('span', { className: 'sc-badge' }, hookStatusLabel(hook.status)),
+                              hook.lastAdvancedChapter === undefined
+                                ? null
+                                : h('span', { className: 'sc-muted' }, '最近推进第 ' + hook.lastAdvancedChapter + ' 章'),
+                            ),
+                            h('div', { className: 'sc-hook-actions' },
+                              h('button', {
+                                type: 'button', className: 'sc-btn sc-btn-small', disabled: disabledReason !== undefined,
+                                title: disabledReason ?? '把伏笔推进到当前章',
+                                onClick: () => { void transitionHook(hook.hookId, 'progress') },
+                              }, '已用（推进）'),
+                              h('button', {
+                                type: 'button', className: 'sc-btn sc-btn-small', disabled: disabledReason !== undefined,
+                                title: disabledReason ?? '把伏笔标记为已解',
+                                onClick: () => { void transitionHook(hook.hookId, 'resolve') },
+                              }, '已解'),
+                            ),
+                          )),
+                        ))),
+                    ),
+                    h('section', { className: 'sc-dash-section' },
+                      h('h3', { className: 'sc-section-title' }, '摘要'),
+                      list.length === 0
+                        ? h('p', { className: 'sc-muted' }, '还没有章节摘要。')
+                        : h('div', null, ...list.map(chapter => h('div', { className: 'sc-summary-row', key: chapter.number },
+                          h('span', { className: 'sc-item-name' }, '第 ' + chapter.number + ' 章'),
+                          h('span', { className: chapter.hasSummary || chapter.summaryStale ? 'sc-badge sc-badge-ok' : 'sc-badge' },
+                            chapter.summaryStale ? '摘要过期' : chapter.hasSummary ? '摘要已就绪' : '无摘要'),
+                          h('span', { className: 'sc-muted' }, chapter.words + ' 字'),
+                          h('button', {
+                            type: 'button', className: 'sc-btn sc-btn-small',
+                            disabled: !chapter.hasSummary && !chapter.summaryStale,
+                            onClick: () => { void openSummary(chapter.number) },
+                          }, '查看摘要'),
+                        ))),
+                    ),
+                    summaryView === undefined
+                      ? null
+                      : h('div', { className: 'sc-drawer-mask', onClick: () => setSummaryView(undefined) },
+                        h('div', {
+                          className: 'sc-drawer', role: 'dialog', 'aria-modal': 'true', 'aria-label': '章节摘要',
+                          onClick: (event: MouseEvent) => event.stopPropagation(),
+                        },
+                          h('div', { className: 'sc-drawer-head' },
+                            h('h3', { className: 'sc-section-title' }, '第 ' + summaryView.chapter + ' 章摘要'),
+                            h('button', {
+                              type: 'button', className: 'sc-btn sc-btn-small', autoFocus: true,
+                              onClick: () => setSummaryView(undefined),
+                            }, '关闭'),
+                          ),
+                          h('pre', { className: 'sc-summary-body' }, summaryView.content),
+                        ),
+                      ),
+                  )
+                })()
+                : h('p', { className: 'sc-muted' }, '打开看板读取进度。'),
+        ),
+
         h('div', { className: 'sc-page', hidden: tab !== 'chapters' },
           h('button', {
             type: 'button',
@@ -2734,24 +3007,52 @@ window.__ModuleLoader__.load({
               },
             }, '刷新真值'),
           ),
-          foundation.status === 'error' ? h('p', { className: 'sc-notice sc-notice-info' }, foundation.error) : null,
-          foundation.status === 'ready'
-            ? h('div', { className: 'sc-item' },
-              h('div', { className: 'sc-item-head' },
-                h('span', { className: 'sc-item-name' }, '基础设定'),
-                h('span', { className: 'sc-badge' }, foundation.foundation?.complete === true ? '已生成' : '未完成'),
-                foundation.foundation?.approvedAt !== undefined ? h('span', { className: 'sc-badge sc-badge-ok' }, '已确认') : null,
-              ),
-              h('p', { className: 'sc-item-body' },
-                `阶段：frame ${foundation.foundation?.stages?.frame === true ? '✓' : '—'}；rules ${foundation.foundation?.stages?.rules === true ? '✓' : '—'}；`
-                + `roles ${foundation.foundation?.stages?.roles === true ? '✓' : '—'}；cards ${foundation.foundation?.stages?.cards === true ? '✓' : '—'}。`
-                + '这些产物由 architect 生成，brief/上下文/审稿会读取；作者确认后再写全书计划。'),
-              ...(foundation.documents ?? []).map(document => h('details', { className: 'sc-item', key: document.name },
-                h('summary', null, `${document.name}（v${String(document.revisionId).slice(0, 8)}）`),
-                h('pre', { className: 'sc-yaml' }, document.content),
-              )),
-            )
-            : null,          bible.status === 'loading' ? h('p', { className: 'sc-muted' }, '读取真值…') : null,
+          foundation.status === 'loading'
+            ? h('p', { className: 'sc-muted' }, '读取基础设定…')
+            : foundation.status === 'error'
+              ? h('p', { className: 'sc-notice sc-notice-info' }, foundation.error)
+              : foundation.status === 'ready'
+                ? h('section', { className: 'sc-foundation', 'aria-label': '基础设定' },
+                  h('div', { className: 'sc-foundation-head' },
+                    h('div', null,
+                      h('h3', { className: 'sc-section-title' }, '基础设定'),
+                      h('p', { className: 'sc-muted' }, 'architect 生成的故事框架、卷图、规则与角色；brief/上下文/审稿会读取。'),
+                    ),
+                    h('div', { className: 'sc-badges' },
+                      h('span', { className: foundation.foundation?.complete === true ? 'sc-badge sc-badge-ok' : 'sc-badge' },
+                        foundation.foundation?.complete === true ? '已生成' : '未完成'),
+                      foundation.foundation?.approvedAt === undefined
+                        ? null
+                        : h('span', { className: 'sc-badge sc-badge-ok' }, '已确认'),
+                    ),
+                  ),
+                  h('div', { className: 'sc-foundation-stages' },
+                    ...Object.entries(FOUNDATION_STAGE_LABELS).map(([key, label]) => {
+                      const done = foundation.foundation?.stages?.[key as keyof NonNullable<FoundationState['stages']>] === true
+                      return h('div', { className: done ? 'sc-stage sc-stage-done' : 'sc-stage', key },
+                        h('span', { className: 'sc-stage-mark' }, done ? '✓' : '—'),
+                        h('span', { className: 'sc-stage-label' }, label),
+                        h('span', { className: 'sc-stage-state' }, done ? '已生成' : '待生成'),
+                      )
+                    }),
+                  ),
+                  (foundation.documents ?? []).length === 0
+                    ? h('p', { className: 'sc-muted' },
+                      foundation.foundation?.complete === true
+                        ? '没有可读的基础设定文档。'
+                        : '尚未生成。让主编委派 architect 生成基础设定。')
+                    : h('div', { className: 'sc-bible-grid sc-foundation-docs' },
+                      ...(foundation.documents ?? []).map(document => h('details', { className: 'sc-item sc-foundation-doc', key: document.name },
+                        h('summary', null,
+                          h('span', { className: 'sc-item-name' }, foundationDocLabel(document.name)),
+                          h('span', { className: 'sc-badge' }, 'v' + String(document.revisionId).slice(0, 8)),
+                        ),
+                        h('pre', { className: 'sc-yaml' }, document.content),
+                      )),
+                    ),
+                )
+                : h('p', { className: 'sc-muted' }, '点上方「基础设定」读取状态。'),
+          bible.status === 'loading' ? h('p', { className: 'sc-muted' }, '读取真值…') : null,
           bible.status === 'error' ? h('p', { className: 'sc-notice sc-notice-info' }, bible.error) : null,
           bible.status === 'ready'
             ? h('div', { className: 'sc-bible-grid' },
@@ -3084,7 +3385,7 @@ window.__ModuleLoader__.load({
         h('details', { className: 'sc-help' },
           h('summary', null, '这一页怎么工作'),
           h('ol', null,
-            h('li', null, '顶部有「章节 / 真值 / 写前上下文 / 素材 / 导出 / 备份」六个标签；章节默认倒序、20 章/页。'),
+            h('li', null, '顶部有「看板 / 章节 / 真值 / 写前上下文 / 素材 / 导出 / 备份」七个标签；章节默认倒序、20 章/页。'),
             h('li', null, '页面只读：作品、章节、审稿与状态都从作品目录读取，不另存一份。'),
             h('li', null, '按钮不写文件：它把一条固定指令投递给当前会话，由模型调用 story_init / story_plan / story_write / story_review / story_revise / story_state 落盘。'),
             h('li', null, '所以写完一章后点「刷新」，或重新进入本页，就能看到新章节与新字数。'),

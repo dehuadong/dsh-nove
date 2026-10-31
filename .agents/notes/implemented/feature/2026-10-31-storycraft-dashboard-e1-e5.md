@@ -1,6 +1,6 @@
 # Agent Note: 故事工坊：E1/E4/E5 看板
 
-Status: proposed
+Status: implemented
 
 工作项：当前任务 E1/E4/E5（不新建 GitHub issue）。产品范围与验收归本 Note。
 
@@ -30,7 +30,7 @@ E1 要求“进度、待处理伏笔、未处理审稿的聚合视图”，E4 �
 | 无独立 Web 看板 | 新增一个“看板”主标签，内含进度/伏笔/摘要三段 | 六标签已有信息架构，不扩成九标签 | 新增 | E2E |
 | 无作者标记入口 | 看板 POST `/hooks/transition`，作者直接推进/解决 | 作者操作不经过模型回合 | 新增 | 路由测试 |
 
-## Proposal
+## Decision
 
 ### 一个看板标签
 
@@ -77,7 +77,7 @@ E1 的“未处理审稿”只显示计数与跳到章节；条目留在章节�
 
 ### 客户端
 
-- `client.ts` 没有 `MAIN_TABS` 常量；实现时同步四处：默认 tab（`client.ts:1692`）、tab 顺序（`:2529/2540`）、标签映射（`:2546`）、帮助文案（`:3087`），新增 `dashboard`/“看板”作为第一个；
+- `client.ts` 没有 `MAIN_TABS` 常量；实现时同步 tab 顺序、标签映射、帮助文案三处，新增 `dashboard`/“看板”作为第一个；**默认 tab 保持 `chapters`**，不改变现有进入作品的行为；
 - 进度卡 + 章节字数条形；伏笔按章分组；摘要行展开时请求现有 `chapter?view=summary`，用抽屉展示并限制可视高度，不把摘要正文塞进看板 DTO；
 - `post` 的错误对象补充 `code`（`client.ts:1023-1031`），面板用 `chapter-settled`/`state-draft-pending` 显示具体提示，不只显示 message；
 - 现有六标签和它们的动作不变；更新 `workbench.spec.cjs:327` 的六标签断言与 `README.md:162` 的六标签说明；不引入前端框架或新构建步骤。
@@ -90,18 +90,14 @@ E1 的“未处理审稿”只显示计数与跳到章节；条目留在章节�
 
 **C. 伏笔标记也走模型 `story_state` 草案。** 最强理由是与既有状态写入同一条链。否决原因：作者点一个按钮不应启动模型回合；且当前章定稿后 `story_state` 也要求 reopen，语义不更简单。
 
-## Acceptance criteria
+## Testing
 
-1. 看板是第一个主标签；空作品、只有计划、已写多章都能渲染，不调用模型；
-2. 进度段显示已写/已审/已定稿、未处理审稿、未解伏笔、每章字数与成本摘要；数字与 `story_status` 一致；
-3. 伏笔段只列未解，按 `startChapter` 分组；标记“已用”写入 `progress`、“已解”写入 `resolve`，投影立即更新；最新“已写且未定稿”章缺失返回 `chapter-settled` 并给出 reopen 提示；有状态草案返回 `state-draft-pending`；重复点击同章同目标状态时 no-op；`progress` 在新章仍推进 `lastAdvancedChapter`；
-4. 摘要段显示 current/stale/missing 与字数；展开时读取现有摘要正文，摘要正文不进入 `/dashboard`，抽屉限制可视高度；
-5. `/dashboard` 是按 work 查询的只读面板数据（与 `/state` 相同，不强制 session 当前作品）；`/hooks/transition` 用 `writeWorkTarget` 只允许面板当前作品，并拒绝未知 hook/非法转移；
-6. 原有六标签全部保留，加上看板共七个；动作、键盘/窄屏布局不回归；新增看板 E2E（计数、分组、标记后刷新/徽标、空状态、定稿拒绝、草案拒绝）；
-7. 真值页“基础设定”按钮从章节标签点击后切到真值并显示基础设定卡；无 session 也能打开只读卡；四阶段网格与文档卡可见，未生成时说明由 architect 生成且不提供生成按钮；“确认基础设定”按钮在无 session 时显式禁用；
-8. 不改 schema、不新增模型工具、不扩大 `story_status`。
+- `tests/dashboard.test.mjs`：未解伏笔、最新已写未定稿章、status 聚合、progress/resolve、同章 no-op、未知 hook、非法 op、无正文拒绝、状态草案拒绝。
+- `e2e/dashboard.spec.cjs`：首标签与计数、按章分组、标记后推进中、草案拒绝、空状态、基础设定切真值 + 四阶段卡。
+- `e2e/workbench.spec.cjs`：七标签与窄面板不回归。
+- 完整 CI：87 单元 + 34 E2E。
 
-## Risks
+## Consequences
 
 - 伏笔操作依赖最新“已写且未定稿”章；全书定稿后作者需先 reopen 才能标记，这是状态冻结的代价；
 - 有状态草案时拒绝标记，作者必须先处理草案；这避免了 finalize 重放冲突，但多一步；

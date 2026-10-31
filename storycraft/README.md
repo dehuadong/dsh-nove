@@ -166,7 +166,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 
 `style` 真值里的 `<!-- storycraft:style-samples:start -->` / `<!-- storycraft:style-samples:end -->` 是「抽取文风」的受管区块：重新抽取会替换整块，作者不要把保留标记写进正文；块外文字保留。若 style 编辑器里有未保存内容，重新抽取会覆盖它；先保存或取消。
 
-页面读取作品内容；写操作只有作者直接触发的管理动作：章纲/全书计划确认（`POST /chapter/approve`、`POST /outline/approve`）、章节删除/上下移（`POST /chapter/delete|move`）、文风样例抽取（`POST /style/extract`）、真值编辑（`POST /bible/write`）、素材库的导入/重命名/删除（`POST /api/see-storycraft/materials/*`），以及面板导出（`POST /api/see-storycraft/export`）。它们不改正文或只做章号重排，也不会自动发送写正文指令；确认后由作者点动作按钮，把指令填入输入框，补充信息后发送。指令按钮在被点击时才校验——没有会话、或当前会话不是故事工坊时只显示原因不投递；故事工坊预设装载失败时，页面顶部直接显示宿主给出的失败原因。
+页面读取作品内容；写操作只有作者直接触发的管理动作：章纲/全书计划确认（`POST /chapter/approve`、`POST /outline/approve`）、章节删除/上下移（`POST /chapter/delete|move`）、文风样例抽取（`POST /style/extract`）、真值编辑（`POST /bible/write`）、素材库的导入/重命名/删除（`POST /api/see-storycraft/materials/*`），面板导出（`POST /api/see-storycraft/export`），以及看板的伏笔标记（`POST /api/see-storycraft/hooks/transition`）。它们不改正文或只做章号重排，也不会自动发送写正文指令；确认后由作者点动作按钮，把指令填入输入框，补充信息后发送。指令按钮在被点击时才校验——没有会话、或当前会话不是故事工坊时只显示原因不投递；故事工坊预设装载失败时，页面顶部直接显示宿主给出的失败原因。
 
 ## 读取作用域
 
@@ -249,7 +249,7 @@ storycraft/
   Get-ChildItem storycraft/tests -Filter *.test.mjs | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { exit 1 } }
   ```
 
-- 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑 29 条页面 spec——侧栏入口、加载契约（无 `pageerror`、`/api/see-storycraft/works` 200）、页面读数、作者确认、摘要徽标、素材导入/重命名/删除、面板导出、章节倒序分页/前移后移、文风样例、真值抽屉、备份恢复、指令门禁、预设声明与刷新。不调用模型，零额度；Playwright 是本包 devDependency（首次 `npm install && npx playwright install chromium`），`node storycraft/e2e/run.mjs --list` 可只看清单。
+- 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑 34 条页面 spec——侧栏入口、加载契约（无 `pageerror`、`/api/see-storycraft/works` 200）、页面读数、作者确认、摘要徽标、素材导入/重命名/删除、面板导出、章节倒序分页/前移后移、文风样例、真值抽屉、备份恢复、指令门禁、预设声明与刷新。不调用模型，零额度；Playwright 是本包 devDependency（首次 `npm install && npx playwright install chromium`），`node storycraft/e2e/run.mjs --list` 可只看清单。
 - `node storycraft/scripts/ci.mjs` 依次跑：Host 与 Client 类型检查（`tsc -p`，`--noEmit`）、全部单元文件（直接 import `src/*.ts`，靠 Node 类型擦除，不先构建）、`scripts/build.mjs`（tsdown 出 Host 入口 + esbuild 出 `client.js`）、pack-check，最后二选一：默认跑复制安装的页面 spec，`--smoke` 跑 tarball 安装 smoke（`npm pack` → `dsh plugin add <tgz>` → 冷启动 → 加载契约）。
 - 端到端验收、评审与证据记录在 issue `dehuadong/dsh-nove#18`。
 

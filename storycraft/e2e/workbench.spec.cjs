@@ -324,7 +324,7 @@ test.describe('故事工坊工作台', () => {
     await page.setViewportSize({ width: 900, height: 900 })
     await openWorkbench(page, url)
     await page.getByRole('button', { name: /示例短篇/ }).evaluate(node => node.click())
-    await expect(page.locator('.sc-main-tab')).toHaveCount(6, { timeout: 15_000 })
+    await expect(page.locator('.sc-main-tab')).toHaveCount(7, { timeout: 15_000 })
     const widths = await page.locator('.sc-detail').evaluate(node => ({
       client: node.clientWidth,
       scroll: node.scrollWidth,
