@@ -52,7 +52,7 @@ Status: proposed
 | 长篇 | F8 成本与调用观测 | **已交付**（#88） |
 | 长篇 | A9 创作方法库/加载证据 | **已交付**；[A9 Note](../../implemented/feature/2026-10-31-storycraft-a9-skill-evidence.md)，阶段技能 + 技能加载证据 |
 | 长篇 | F14 失败重试与成本上限 | **已交付**（启动重试 + 可选单章 token 上限）；[F14 Note](../../implemented/architecture/2026-10-31-storycraft-f14-retry-budget.md) |
-| 长篇 | E1/E4/E5/E6/E7/E13 面板 | 待开/未排期；E2 阅读器未排期 |
+| 长篇 | E1/E4/E5/E6/E7/E13 面板 | E1/E4/E5 规划中：[看板 Note](../feature/2026-10-31-storycraft-dashboard-e1-e5.md)；E6/E7/E13、E2 阅读器未排期 |
 | 长篇 | B1 epub/pdf 素材、B2 技能参考检索 | 部分：txt/md 与故事记忆已交付；epub/pdf、技能参考未做 |
 | 长篇 | A1b 单次调用产章、F5 快照 | 未排期；F5 现有备份是作品级基础 |
 | 长篇 | R5-a/b/c/d 检索后续 | 未排期，触发条件见 #4 历史表 |
