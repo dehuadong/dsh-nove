@@ -71,7 +71,7 @@ function stagedDocsOnly(root) {
 
 /** Split a compound shell line into independently classified segments. */
 function segments(text) {
-  return String(text).split(/&&|\|\||;|\r?\n/u).map(part => part.trim()).filter(Boolean)
+  return String(text).split(/&&|\|\||\||;|\r?\n/u).map(part => part.trim()).filter(Boolean)
 }
 
 /** Decide one shell segment; `write` means it mutates the workspace. */

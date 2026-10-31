@@ -99,5 +99,7 @@ check('compound shell outside is detected', shellOutside('Set-Content C:\\outsid
 check('relative ./path is not outside', shellOutside('node -e "./tools/x"', root) === false)
 check('parent escape is outside', shellOutside('Set-Content ..\\x.txt x', root) === true)
 
+check('piped docs trash keeps docs classification', shellAccess('node scripts/trash.mjs .agents/notes/x | Select-Object -Last 1', root).docsOnly === true)
+
 if (failures > 0) { console.error(`\n${failures} CHECK(S) FAILED`); process.exit(1) }
 console.log('\nALL CHECKS PASSED')
