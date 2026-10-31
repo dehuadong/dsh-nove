@@ -57,6 +57,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
+    "install:local": "node scripts/install-local.mjs",
     "prepack": "node scripts/build.mjs",
     "prepublishOnly": "node scripts/build.mjs && node scripts/pack-check.mjs",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.client.json"
