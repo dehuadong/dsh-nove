@@ -119,6 +119,86 @@ export function assertChapterBudget(root: string, work: string, chapter: number 
   }
 }
 
+/** One call-log row; no prompt/output text. */
+export interface CallLogRow {
+  id: number
+  chapter: number | null
+  role: string
+  scope: string
+  attempt: number
+  submissionAttempts: number | null
+  trigger: string
+  stopReason: string | null
+  outcome: string
+  errorCode: string | null
+  durationMs: number
+  promptChars: number
+  outputChars: number
+  totalTokens: number | null
+  usageSource: string
+  model: string | null
+  provider: string | null
+  startedAt: string
+}
+
+export interface CallLogPage {
+  rows: CallLogRow[]
+  nextBefore: number | null
+}
+
+/** Read one page of call logs, newest first, optionally failures only. */
+export function readCallLogs(root: string, work: string, options: { before?: number, limit?: number, failed?: boolean } = {}): CallLogPage {
+  const limit = options.limit ?? 20
+  if (!Number.isInteger(limit) || limit < 1) throw new StoryError('invalid-query', 'limit 必须是正整数')
+  if (options.before !== undefined && (!Number.isInteger(options.before) || options.before < 1)) {
+    throw new StoryError('invalid-query', 'before 必须是正整数')
+  }
+  const db = openWork(root, work)
+  try {
+    const conditions: string[] = []
+    const params: any[] = []
+    if (options.before !== undefined) {
+      conditions.push('id < ?')
+      params.push(options.before)
+    }
+    if (options.failed === true) conditions.push("outcome <> 'accepted'")
+    const where = conditions.length === 0 ? '' : ' WHERE ' + conditions.join(' AND ')
+    params.push(limit + 1)
+    const rows = db.prepare(`SELECT id, chapter, role, scope, attempt, submission_attempts AS submissionAttempts,
+      trigger, stop_reason AS stopReason, outcome, error_code AS errorCode, duration_ms AS durationMs,
+      prompt_chars AS promptChars, output_chars AS outputChars, total_tokens AS totalTokens,
+      usage_source AS usageSource, model, provider, started_at AS startedAt
+      FROM model_calls${where} ORDER BY id DESC LIMIT ?`).all(...params) as any[]
+    const hasMore = rows.length > limit
+    const page = hasMore ? rows.slice(0, limit) : rows
+    return {
+      rows: page.map(row => ({
+        id: Number(row.id),
+        chapter: row.chapter === null ? null : Number(row.chapter),
+        role: String(row.role),
+        scope: String(row.scope),
+        attempt: Number(row.attempt),
+        submissionAttempts: row.submissionAttempts === null ? null : Number(row.submissionAttempts),
+        trigger: String(row.trigger),
+        stopReason: row.stopReason === null ? null : String(row.stopReason),
+        outcome: String(row.outcome),
+        errorCode: row.errorCode === null ? null : String(row.errorCode),
+        durationMs: Number(row.durationMs),
+        promptChars: Number(row.promptChars),
+        outputChars: Number(row.outputChars),
+        totalTokens: row.totalTokens === null ? null : Number(row.totalTokens),
+        usageSource: String(row.usageSource),
+        model: row.model === null ? null : String(row.model),
+        provider: row.provider === null ? null : String(row.provider),
+        startedAt: String(row.startedAt),
+      })),
+      nextBefore: hasMore ? Number(page[page.length - 1].id) : null,
+    }
+  } finally {
+    db.close()
+  }
+}
+
 /** Aggregate call telemetry for one work; optionally grouped by role/model. */
 export function callSummary(root: string, work: string, since?: string, grouped = false) {
   const db = openWork(root, work)

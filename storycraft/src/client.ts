@@ -291,6 +291,38 @@ window.__ModuleLoader__.load({
       | { status: 'error', error: string }
       | { status: 'ready', report: SelfCheckReport }
 
+    interface CallLogRow {
+      id: number
+      chapter: number | null
+      role: string
+      scope: string
+      attempt: number
+      submissionAttempts: number | null
+      trigger: string
+      stopReason: string | null
+      outcome: string
+      errorCode: string | null
+      durationMs: number
+      promptChars: number
+      outputChars: number
+      totalTokens: number | null
+      usageSource: string
+      model: string | null
+      provider: string | null
+      startedAt: string
+    }
+
+    interface CallLogPage {
+      rows: CallLogRow[]
+      nextBefore: number | null
+    }
+
+    type LogsState =
+      | { status: 'idle' }
+      | { status: 'loading' }
+      | { status: 'error', error: string }
+      | { status: 'ready', rows: CallLogRow[], nextBefore: number | null }
+
     interface ChapterPayload {
       view: string
       path: string
@@ -553,6 +585,9 @@ window.__ModuleLoader__.load({
       dashboard(root: string | undefined, id: string): Promise<{ dashboard: DashboardPayload }>
       analysis(root: string | undefined, id: string): Promise<{ analysis: AnalysisPayload }>
       selfCheck(root: string | undefined, id: string): Promise<{ report: SelfCheckReport }>
+      logs(
+        root: string | undefined, id: string, options?: { before?: number, failed?: boolean },
+      ): Promise<{ logs: CallLogPage }>
       transitionHook(
         root: string | undefined, sessionId: string | undefined, workId: string, hookId: string, op: 'progress' | 'resolve',
       ): Promise<{ dashboard: DashboardPayload }>
@@ -801,6 +836,7 @@ window.__ModuleLoader__.load({
       dashboard: '/api/see-storycraft/dashboard',
       analysis: '/api/see-storycraft/analysis',
       selfCheck: '/api/see-storycraft/self-check',
+      logs: '/api/see-storycraft/logs',
       hookTransition: '/api/see-storycraft/hooks/transition',
       foundation: '/api/see-storycraft/foundation',
       foundationApprove: '/api/see-storycraft/foundation/approve',
@@ -829,6 +865,15 @@ function foundationDocLabel(name: string): string {
   if (FOUNDATION_DOC_LABELS[name] !== undefined) return FOUNDATION_DOC_LABELS[name]
   if (name.startsWith('role:')) return '角色卡 · ' + name.slice('role:'.length)
   return '角色卡 · ' + name
+}
+function callOutcomeLabel(outcome: string): string {
+  if (outcome === 'accepted') return '成功'
+  if (outcome === 'completed') return '未接受'
+  if (outcome === 'rejected') return '拒绝'
+  if (outcome === 'cancelled') return '取消'
+  if (outcome === 'timeout') return '超时'
+  if (outcome === 'error') return '错误'
+  return outcome
 }
 function hookStatusLabel(status: string): string {
   if (status === 'progressing') return '推进中'
@@ -979,6 +1024,11 @@ function hookStatusLabel(status: string): string {
 .sc-self-check-list{display:flex;flex-direction:column;gap:6px;margin:8px 0 0;padding:0;list-style:none}
 .sc-self-check-list li{display:flex;gap:8px;align-items:flex-start}
 .sc-self-check-fallback{display:flex;flex-direction:column;gap:10px}
+.sc-logs-body{display:flex;flex-direction:column;gap:8px}
+.sc-log-list{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.sc-log-row{display:flex;flex-direction:column;gap:3px;padding:7px 0;border-top:1px solid var(--dsw-alias-border-l1)}
+.sc-log-line{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.sc-log-meta{display:flex;flex-wrap:wrap;gap:8px;font-size:11px;color:var(--dsw-alias-label-secondary)}
 .sc-bible-card{display:flex;flex-direction:column;gap:6px;margin:0}
 .sc-bible-card .sc-item-id{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sc-bible-card .sc-yaml{max-height:150px;overflow:auto;margin:0;padding:8px 10px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);font-size:11px;overscroll-behavior:contain}
@@ -1208,6 +1258,7 @@ function hookStatusLabel(status: string): string {
         dashboard: (root, id) => route(ROUTE.dashboard, { root, id }),
         analysis: (root, id) => route(ROUTE.analysis, { root, id }),
         selfCheck: (root, id) => route(ROUTE.selfCheck, { root, id }),
+        logs: (root, id, options: { before?: number, failed?: boolean } = {}) => route(ROUTE.logs, { root, id, ...options }),
         transitionHook: (root, sessionId, workId, hookId, op) => post(ROUTE.hookTransition, { root, sessionId, workId, hookId, op }),
         foundation: (root, id) => route(ROUTE.foundation, { root, id }),
         approveFoundation: (root, sessionId, workId) => post(ROUTE.foundationApprove, { root, sessionId, workId }),
@@ -1905,6 +1956,131 @@ function hookStatusLabel(status: string): string {
                           h('span', null, (item.chapter === undefined ? '' : '第 ' + item.chapter + ' 章 · ') + item.message + '（' + item.code + '）'),
                         ))),
                   ),
+          )
+          : null,
+      )
+    }
+
+    /** Lazy call log for the current work; no prompt or output text. */
+    function LogsPanel({ face, root, workId }: { face: Face, root: string | undefined, workId: string }) {
+      const [logs, setLogs] = useState<LogsState>({ status: 'idle' })
+      const [open, setOpen] = useState(false)
+      const [failedOnly, setFailedOnly] = useState(false)
+      const request = useRef(0)
+
+      useEffect(() => {
+        request.current += 1
+        setLogs({ status: 'idle' })
+        setOpen(false)
+        setFailedOnly(false)
+      }, [workId])
+
+      const load = async (append: boolean, failed: boolean, before?: number) => {
+        const ticket = ++request.current
+        const previous = append && logs.status === 'ready' ? logs.rows : []
+        setLogs({ status: 'loading' })
+        try {
+          const payload = await face.logs(root, workId, {
+            ...(before === undefined ? {} : { before }),
+            ...(failed ? { failed: true } : {}),
+          })
+          if (ticket !== request.current) return
+          setLogs({
+            status: 'ready',
+            rows: append ? [...previous, ...payload.logs.rows] : payload.logs.rows,
+            nextBefore: payload.logs.nextBefore,
+          })
+        } catch (error) {
+          if (ticket !== request.current) return
+          setLogs({ status: 'error', error: error instanceof Error ? error.message : String(error) })
+        }
+      }
+
+      const toggle = () => {
+        const next = !open
+        setOpen(next)
+        if (next && logs.status === 'idle') void load(false, failedOnly)
+      }
+
+      return h('section', { className: 'sc-dash-section sc-logs', 'aria-label': '日志' },
+        h('div', { className: 'sc-item-head' },
+          h('h3', { className: 'sc-section-title' }, '日志'),
+          h('button', {
+            type: 'button', className: 'sc-btn sc-btn-small',
+            onClick: toggle,
+          }, open ? '收起日志' : '展开日志'),
+        ),
+        open
+          ? h('div', { className: 'sc-logs-body' },
+            h('div', { className: 'sc-actions' },
+              h('button', {
+                type: 'button', className: failedOnly ? 'sc-btn sc-btn-small' : 'sc-btn sc-btn-small sc-btn-primary',
+                'aria-pressed': !failedOnly,
+                onClick: () => {
+                  if (failedOnly) {
+                    setFailedOnly(false)
+                    void load(false, false)
+                  }
+                },
+              }, '全部'),
+              h('button', {
+                type: 'button', className: failedOnly ? 'sc-btn sc-btn-small sc-btn-primary' : 'sc-btn sc-btn-small',
+                'aria-pressed': failedOnly,
+                onClick: () => {
+                  if (!failedOnly) {
+                    setFailedOnly(true)
+                    void load(false, true)
+                  }
+                },
+              }, '仅失败'),
+              h('button', {
+                type: 'button', className: 'sc-btn sc-btn-small',
+                disabled: logs.status === 'loading',
+                onClick: () => { void load(false, failedOnly) },
+              }, '刷新'),
+            ),
+            logs.status === 'idle'
+              ? h('p', { className: 'sc-muted' }, '展开后读取调用记录。')
+              : logs.status === 'loading'
+                ? h('p', { className: 'sc-muted' }, '读取日志…')
+                : logs.status === 'error'
+                  ? h('div', null,
+                    h('p', { className: 'sc-notice sc-notice-error' }, logs.error),
+                    h('button', { type: 'button', className: 'sc-btn sc-btn-small', onClick: () => { void load(false, failedOnly) } }, '重新加载'),
+                  )
+                  : logs.rows.length === 0
+                    ? h('p', { className: 'sc-muted' }, failedOnly ? '没有失败调用。' : '还没有调用记录。')
+                    : h('div', { className: 'sc-log-list', role: 'list' },
+                      ...logs.rows.map(row => h('div', { className: 'sc-log-row', key: row.id, role: 'listitem' },
+                        h('div', { className: 'sc-log-line' },
+                          h('span', {
+                            className: row.outcome === 'accepted'
+                              ? 'sc-badge sc-badge-ok'
+                              : row.outcome === 'completed' || row.outcome === 'cancelled'
+                                ? 'sc-badge sc-badge-warn' : 'sc-badge sc-badge-error',
+                          }, callOutcomeLabel(row.outcome)),
+                          h('span', { className: 'sc-item-name' }, row.role + (row.chapter === null ? '' : ' · 第 ' + row.chapter + ' 章')),
+                          h('span', { className: 'sc-muted' }, '第 ' + row.attempt + ' 次' + (row.submissionAttempts === null ? '' : ' · 提交 ' + row.submissionAttempts)),
+                        ),
+                        h('div', { className: 'sc-log-meta' },
+                          h('span', null, row.trigger),
+                          h('span', null, row.durationMs + 'ms'),
+                          h('span', null, row.totalTokens === null ? 'token 未知' : row.totalTokens + ' tokens'),
+                          h('span', null, row.usageSource),
+                          h('span', null, row.model ?? '模型未记录'),
+                          h('span', null, row.provider ?? 'provider 未记录'),
+                          h('span', null, new Date(row.startedAt).toLocaleString()),
+                          row.errorCode === null ? null : h('span', { className: 'sc-badge sc-badge-error' }, row.errorCode),
+                          row.stopReason === null ? null : h('span', { className: 'sc-muted' }, row.stopReason),
+                        ),
+                      )),
+                      logs.nextBefore === null
+                        ? null
+                        : h('button', {
+                          type: 'button', className: 'sc-btn sc-btn-small',
+                          onClick: () => { void load(true, failedOnly, logs.nextBefore as number) },
+                        }, '更早'),
+                    ),
           )
           : null,
       )
@@ -3243,6 +3419,7 @@ function hookStatusLabel(status: string): string {
                         : h('p', { className: 'sc-muted' }, '展开查看审稿分布、调用成本与节奏。'),
                     ),
                     h(SelfCheckPanel, { face, root, workId }),
+                    h(LogsPanel, { key: workId, face, root, workId }),
                     summaryView === undefined
                       ? null
                       : h('div', { className: 'sc-drawer-mask', onClick: () => setSummaryView(undefined) },

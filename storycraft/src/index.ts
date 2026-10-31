@@ -16,6 +16,7 @@ import { isAbsolute, join, resolve } from 'node:path'
 import { deriveWorkbench } from './workbench.ts'
 import { readDashboard, transitionHook } from './dashboard.ts'
 import { readAnalysis } from './analysis.ts'
+import { readCallLogs } from './telemetry.ts'
 import { selfCheck } from './self-check.ts'
 import { rebuildSearchIndex } from './recovery.ts'
 import { acceptChapter, adoptChapterRevision, approveChapterPlan, approveFoundation, approveOutline, createBackup, deleteBackup, deleteChapter, deleteMaterial, readChapterHistory, ensureReconciled, exportWorkAtomic, importMaterial, moveChapter, listMaterials, listTrash, listWorks, nextStep, purgeTrash, readFoundationState, readManifest, restoreBackup, listBackups, readChapter, readReview, readWork, renameMaterial, restoreWork, setMaterialPurpose, status as readStatus, StoryError } from './storage.ts'
@@ -762,6 +763,25 @@ export function apply(ctx: DshContext): void {
       handler: (req, res) => readRoute(req, res, async (query) => ({
         report: selfCheck(await rootOf(ctx, query), workOf(query)),
       })),
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/logs`,
+      handler: (req, res) => readRoute(req, res, async (query) => {
+        const beforeRaw = query.get('before')
+        const limitRaw = query.get('limit')
+        const failedRaw = query.get('failed')
+        if (failedRaw !== null && failedRaw !== 'true' && failedRaw !== 'false') {
+          throw new StoryError('invalid-query', 'failed 只支持 true/false')
+        }
+        return {
+          logs: readCallLogs(await rootOf(ctx, query), workOf(query), {
+            ...(beforeRaw === null ? {} : { before: Number(beforeRaw) }),
+            ...(limitRaw === null ? {} : { limit: Number(limitRaw) }),
+            failed: failedRaw === 'true',
+          }),
+        }
+      }),
     }),
     ctx.webServer.register({
       kind: 'exact',

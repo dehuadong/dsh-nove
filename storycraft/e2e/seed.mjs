@@ -110,6 +110,32 @@ export async function buildFixture(workspaceDir) {
       payload: { op: 'upsert', hook: { hookId: 'h-2', startChapter: 2, type: '悬念', status: 'open', lastAdvancedChapter: 1, expectedPayoff: '第二真相', notes: '', dependsOn: [], paysOffInArc: '', text: '第二把钥匙' } },
     })
   })
+  await stateWork('状态-日志', 'short', async (w) => {
+    await boardSetup(w)
+    for (let index = 1; index <= 25; index += 1) {
+      const failed = index % 3 === 0
+      const outcome = failed ? (index % 6 === 0 ? 'rejected' : 'error') : 'accepted'
+      recordCall(workspaceDir, w, {
+        chapter: 1, role: index % 2 === 0 ? 'reviewer' : 'writer', scope: 'log:' + index, attempt: 1,
+        trigger: index % 4 === 0 ? 'transient-retry' : 'first',
+        startedAt: '2026-10-31T00:00:' + String(index).padStart(2, '0') + '.000Z',
+        endedAt: '2026-10-31T00:00:' + String(index).padStart(2, '0') + '.500Z',
+        durationMs: 500, outcome, promptChars: 10, outputChars: 20,
+        usageSource: index % 5 === 0 ? 'unavailable' : 'session',
+        ...(index % 5 === 0 ? {} : { totalTokens: index * 10 }),
+        model: 'model-a', provider: 'p', errorCode: failed ? 'fixture-failure' : null,
+      })
+    }
+  })
+  await stateWork('状态-日志完成', 'short', async (w) => {
+    await boardSetup(w)
+    recordCall(workspaceDir, w, {
+      chapter: 1, role: 'architect', scope: 'log:completed', attempt: 1, trigger: 'first',
+      startedAt: '2026-10-31T00:01:00.000Z', endedAt: '2026-10-31T00:01:01.000Z',
+      durationMs: 1000, outcome: 'completed', promptChars: 10, outputChars: 20,
+      usageSource: 'session', totalTokens: 50, model: 'model-a', provider: 'p',
+    })
+  })
   await stateWork('状态-自检坏库', 'short', async (w) => {
     await boardSetup(w)
     const db = openWork(workspaceDir, w)
