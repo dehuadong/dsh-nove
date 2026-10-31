@@ -3,7 +3,7 @@
 .tmp-smoke/
 test-results/
 playwright-report/
-
+.tmp-tools/
 node_modules/
 
 # 构建产物（tsdown 出 Host 入口，esbuild 出 Client）

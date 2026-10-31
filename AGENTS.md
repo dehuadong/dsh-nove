@@ -11,6 +11,7 @@
 - 文档类型、属主与写作标准：[docs/AGENTS.md](docs/AGENTS.md)。
 - 长期技术提案与决定的记录范围、生命周期和格式：`.agents/notes/`；规则由 `write-agent-notes` Skill 拥有，根范围与校验入口见 [.agents/notes/AGENTS.md](.agents/notes/AGENTS.md)。
 - 重要改动必须留笔记 见 &Agent Notes 
+- 工作区开发临时目录 `.artifacts`
 
 ## 文件安全
 
@@ -152,7 +153,7 @@
 
 ## DSH 插件与预设
 
-DeepSeek Harness 包工作区：packages文档地址 `E:\dsh-nove\deepseek-harness\packages`
+在开发deepseek-harness 插件时遇到问题可参阅deepseek-harness官方源码工程包 `E:\workspace\DSH\deepseek-harness\packages`
 
 改插件或预设前，按顺序读：包内流程技能 → 目标包 README → 源码。不要凭记忆写 Loader 行或 Config 字段。
 
