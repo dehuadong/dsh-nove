@@ -16,6 +16,7 @@ import { isAbsolute, join, resolve } from 'node:path'
 import { deriveWorkbench } from './workbench.ts'
 import { readDashboard, transitionHook } from './dashboard.ts'
 import { readAnalysis } from './analysis.ts'
+import { searchUnified } from './search.ts'
 import { readCallLogs } from './telemetry.ts'
 import { selfCheck } from './self-check.ts'
 import { rebuildSearchIndex } from './recovery.ts'
@@ -762,6 +763,13 @@ export function apply(ctx: DshContext): void {
       path: `${BASE}/self-check`,
       handler: (req, res) => readRoute(req, res, async (query) => ({
         report: selfCheck(await rootOf(ctx, query), workOf(query)),
+      })),
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/search`,
+      handler: (req, res) => readRoute(req, res, async (query) => ({
+        search: searchUnified(await rootOf(ctx, query), workOf(query), query.get('q') ?? ''),
       })),
     }),
     ctx.webServer.register({

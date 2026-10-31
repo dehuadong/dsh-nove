@@ -323,6 +323,27 @@ window.__ModuleLoader__.load({
       | { status: 'error', error: string }
       | { status: 'ready', rows: CallLogRow[], nextBefore: number | null }
 
+    interface SearchHit {
+      id: string
+      kind: string
+      source: string
+      location?: string
+      snippet: string
+      score: number
+      chapter: number | null
+    }
+
+    interface SearchGroup {
+      kind: 'memory' | 'material' | 'skill'
+      hits: SearchHit[]
+    }
+
+    type SearchState =
+      | { status: 'idle' }
+      | { status: 'loading' }
+      | { status: 'error', error: string }
+      | { status: 'ready', groups: SearchGroup[] }
+
     interface ChapterPayload {
       view: string
       path: string
@@ -586,6 +607,7 @@ window.__ModuleLoader__.load({
       dashboard(root: string | undefined, id: string): Promise<{ dashboard: DashboardPayload }>
       analysis(root: string | undefined, id: string): Promise<{ analysis: AnalysisPayload }>
       selfCheck(root: string | undefined, id: string): Promise<{ report: SelfCheckReport }>
+      search(root: string | undefined, id: string, query: string): Promise<{ search: { groups: SearchGroup[] } }>
       logs(
         root: string | undefined, id: string, options?: { before?: number, failed?: boolean },
       ): Promise<{ logs: CallLogPage }>
@@ -837,6 +859,7 @@ window.__ModuleLoader__.load({
       dashboard: '/api/see-storycraft/dashboard',
       analysis: '/api/see-storycraft/analysis',
       selfCheck: '/api/see-storycraft/self-check',
+      search: '/api/see-storycraft/search',
       logs: '/api/see-storycraft/logs',
       hookTransition: '/api/see-storycraft/hooks/transition',
       foundation: '/api/see-storycraft/foundation',
@@ -1030,6 +1053,16 @@ function hookStatusLabel(status: string): string {
 .sc-log-row{display:flex;flex-direction:column;gap:3px;padding:7px 0;border-top:1px solid var(--dsw-alias-border-l1)}
 .sc-log-line{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .sc-log-meta{display:flex;flex-wrap:wrap;gap:8px;font-size:11px;color:var(--dsw-alias-label-secondary)}
+.sc-search-body{display:flex;flex-direction:column;gap:8px}
+.sc-search-form{display:flex;gap:8px;align-items:center}
+.sc-search-form .sc-input{flex:1}
+.sc-search-groups{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+.sc-search-group{display:flex;flex-direction:column;gap:5px;padding-top:8px;border-top:1px solid var(--dsw-alias-border-l1)}
+.sc-search-group-head{font-weight:600;font-size:12px;color:var(--dsw-alias-label-secondary)}
+.sc-search-hits{display:flex;flex-direction:column;gap:6px}
+.sc-search-hit{display:flex;flex-direction:column;gap:3px}
+.sc-search-hit-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px}
+.sc-search-snippet{margin:0;font-size:12px;color:var(--dsw-alias-label-secondary);white-space:pre-wrap}
 .sc-bible-card{display:flex;flex-direction:column;gap:6px;margin:0}
 .sc-bible-card .sc-item-id{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sc-bible-card .sc-yaml{max-height:150px;overflow:auto;margin:0;padding:8px 10px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);font-size:11px;overscroll-behavior:contain}
@@ -1259,6 +1292,7 @@ function hookStatusLabel(status: string): string {
         dashboard: (root, id) => route(ROUTE.dashboard, { root, id }),
         analysis: (root, id) => route(ROUTE.analysis, { root, id }),
         selfCheck: (root, id) => route(ROUTE.selfCheck, { root, id }),
+        search: (root, id, query) => route(ROUTE.search, { root, id, q: query }),
         logs: (root, id, options: { before?: number, failed?: boolean } = {}) => route(ROUTE.logs, { root, id, ...options }),
         transitionHook: (root, sessionId, workId, hookId, op) => post(ROUTE.hookTransition, { root, sessionId, workId, hookId, op }),
         foundation: (root, id) => route(ROUTE.foundation, { root, id }),
@@ -2082,6 +2116,90 @@ function hookStatusLabel(status: string): string {
                           onClick: () => { void load(true, failedOnly, logs.nextBefore as number) },
                         }, '更早'),
                     ),
+          )
+          : null,
+      )
+    }
+
+    /** Unified read-only search: memory, materials and skill references. */
+    function SearchPanel({ face, root, workId }: { face: Face, root: string | undefined, workId: string }) {
+      const [state, setState] = useState<SearchState>({ status: 'idle' })
+      const [open, setOpen] = useState(false)
+      const [query, setQuery] = useState('')
+      const request = useRef(0)
+
+      useEffect(() => {
+        request.current += 1
+        setState({ status: 'idle' })
+        setOpen(false)
+        setQuery('')
+      }, [workId])
+
+      const run = async () => {
+        const text = query.trim()
+        if (text === '') {
+          setState({ status: 'ready', groups: [] })
+          return
+        }
+        const ticket = ++request.current
+        setState({ status: 'loading' })
+        try {
+          const payload = await face.search(root, workId, text)
+          if (ticket !== request.current) return
+          setState({ status: 'ready', groups: payload.search.groups })
+        } catch (error) {
+          if (ticket !== request.current) return
+          setState({ status: 'error', error: error instanceof Error ? error.message : String(error) })
+        }
+      }
+
+      const labels: Record<string, string> = { memory: '记忆', material: '素材', skill: '技能' }
+      let content: any
+      if (state.status === 'loading') content = h('p', { className: 'sc-muted' }, '检索中…')
+      else if (state.status === 'error') content = h('p', { className: 'sc-notice sc-notice-error' }, state.error)
+      else if (state.status === 'ready' && state.groups.length === 0) {
+        content = h('p', { className: 'sc-muted' }, query.trim() === '' ? '输入关键词后检索。' : '没有命中。')
+      } else if (state.status === 'ready') {
+        content = h('div', { className: 'sc-search-groups' },
+          ...state.groups.map(group => h('div', { className: 'sc-search-group', key: group.kind, 'data-search-kind': group.kind },
+            h('div', { className: 'sc-search-group-head' }, labels[group.kind] ?? group.kind),
+            group.hits.length === 0
+              ? h('p', { className: 'sc-muted' }, '没有命中。')
+              : h('div', { className: 'sc-search-hits' },
+                ...group.hits.map(hit => h('div', { className: 'sc-search-hit', key: hit.id },
+                  h('div', { className: 'sc-search-hit-head' },
+                    h('span', { className: 'sc-badge' }, hit.kind),
+                    h('span', null, hit.source),
+                    hit.location === undefined ? null : h('span', { className: 'sc-muted' }, hit.location),
+                  ),
+                  h('p', { className: 'sc-search-snippet' }, hit.snippet),
+                ))),
+          )));
+      } else {
+        content = h('p', { className: 'sc-muted' }, '输入关键词检索记忆、素材与技能参考。')
+      }
+      return h('section', { className: 'sc-dash-section sc-search', 'aria-label': '检索' },
+        h('div', { className: 'sc-item-head' },
+          h('h3', { className: 'sc-section-title' }, '检索'),
+          h('button', {
+            type: 'button', className: 'sc-btn sc-btn-small',
+            onClick: () => setOpen(value => !value),
+          }, open ? '收起检索' : '展开检索'),
+        ),
+        open
+          ? h('div', { className: 'sc-search-body' },
+            h('div', { className: 'sc-search-form' },
+              h('input', {
+                className: 'sc-input', 'aria-label': '检索关键词', placeholder: '查记忆、素材或技能参考',
+                value: query,
+                onChange: (event: Event) => setQuery((event.target as HTMLInputElement).value),
+                onKeyDown: (event: KeyboardEvent) => {
+                  if (event.key === 'Enter') { event.preventDefault(); void run() }
+                },
+              }),
+              h('button', { type: 'button', className: 'sc-btn sc-btn-small', onClick: () => { void run() } }, '检索'),
+            ),
+            content,
           )
           : null,
       )
@@ -3421,6 +3539,7 @@ function hookStatusLabel(status: string): string {
                     ),
                     h(SelfCheckPanel, { face, root, workId }),
                     h(LogsPanel, { key: workId, face, root, workId }),
+                    h(SearchPanel, { key: workId, face, root, workId }),
                     summaryView === undefined
                       ? null
                       : h('div', { className: 'sc-drawer-mask', onClick: () => setSummaryView(undefined) },

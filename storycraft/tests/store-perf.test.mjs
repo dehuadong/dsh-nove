@@ -10,6 +10,7 @@ import { exportsDir } from '../src/db.ts'
 import { select } from '../src/retrieval.ts'
 import { readAnalysis } from '../src/analysis.ts'
 import { selfCheck } from '../src/self-check.ts'
+import { searchUnified } from '../src/search.ts'
 import { buildPerfFixture } from './perf-fixture.mjs'
 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-perf-'))
@@ -61,6 +62,11 @@ try {
   await budget('250-chapter listWorks (21 works)', () => store.listWorks(root), 500)
   await budget('chapter-250 assembleBrief', () => bible.assembleBrief(root, work, 250), 400)
 
+  const searchStarted = performance.now()
+  const searchResult = searchUnified(root, work, '场景')
+  const searchMs = performance.now() - searchStarted
+  check('250-chapter unified search under 500ms', searchMs < 500, searchMs.toFixed(1) + 'ms')
+  check('unified search returns groups without full text', searchResult.groups.length === 3 && !JSON.stringify(searchResult).includes('"text":'), JSON.stringify(searchResult).slice(0, 120))
   check('bulk append 250 chapters stays reasonable', fixture.bulkAppendMs < 5000, `${fixture.bulkAppendMs.toFixed(0)}ms`)
 
   let appendOne = Number.POSITIVE_INFINITY
