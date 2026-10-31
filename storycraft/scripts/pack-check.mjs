@@ -65,12 +65,17 @@ if (paths.length === 0) {
 
 // Entry files plus every relative chunk they import.
 const allowedLib = new Set(entries)
-for (const entry of entries) {
-  const file = join(root, entry)
+const queue = [...entries]
+while (queue.length > 0) {
+  const entry = queue.shift()
+  const file = join(root, String(entry))
   if (!existsSync(file)) continue
   // Bundlers minify: `from"./chunk.js"` with no space and either quote style.
-  for (const match of readFileSync(file, 'utf8').matchAll(/(?:from|import)\s*["']\.\/([^"']+\.js)["']/gu)) {
-    allowedLib.add(`lib/${match[1]}`)
+  for (const match of readFileSync(file, 'utf8').matchAll(/(?:from|import)\s*(?:\(\s*)?["']\.\/([^"']+\.js)["']/gu)) {
+    const chunk = `lib/${match[1]}`
+    if (allowedLib.has(chunk)) continue
+    allowedLib.add(chunk)
+    queue.push(chunk)
   }
 }
 

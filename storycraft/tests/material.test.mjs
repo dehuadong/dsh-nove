@@ -181,7 +181,7 @@ try {
   }
   check('managed copy write failure is reported', writeFailure === 'material-write-failed', String(writeFailure))
   await rm(materialsDir(root), { force: true })
-  const prepared = (await import('../src/materials.ts')).prepareMaterial({ name: 'fail.md', contentBase64: b64('x') })
+  const prepared = await (await import('../src/materials.ts')).prepareMaterial({ name: 'fail.md', contentBase64: b64('x') })
   let partialFailure
   try {
     (await import('../src/store-db.ts')).writeManagedCopy(root, prepared, () => { throw new Error('disk full') })

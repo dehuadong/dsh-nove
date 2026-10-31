@@ -449,6 +449,7 @@ window.__ModuleLoader__.load({
       bytes: number
       createdAt: string
       hashPrefix?: string
+      sourceName?: string
     }
 
     interface MaterialPayload {
@@ -3633,7 +3634,7 @@ function hookStatusLabel(status: string): string {
             }, ...Object.entries(MATERIAL_PURPOSE_LABELS).map(([value, label]) => h('option', { value }, label))),
             h('input', {
               type: 'file',
-              accept: '.txt,.md',
+              accept: '.txt,.md,.epub,.pdf',
               'aria-label': '导入素材文件',
               ref: materialFileRef,
               style: { display: 'none' },
@@ -3656,7 +3657,8 @@ function hookStatusLabel(status: string): string {
             : h('div', { style: { marginTop: 10 } }, ...materials.map(material => h('div', { className: 'sc-item', key: material.id },
               h('div', { className: 'sc-item-head' },
                 h('span', { className: 'sc-item-name' }, material.title),
-                h('span', { className: 'sc-badge' }, material.format),
+                h('span', { className: 'sc-badge', 'data-material-format': material.format }, material.format),
+                material.sourceName === undefined ? null : h('span', { className: 'sc-muted' }, material.sourceName),
                 h('select', {
                   className: 'sc-input',
                   'aria-label': `素材「${material.title}」的用途`,

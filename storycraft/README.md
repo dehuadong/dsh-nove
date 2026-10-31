@@ -82,7 +82,7 @@ bible/style       文风基准：人称、时态、句长节奏、禁用词与�
 outline/plan.md   全书计划：主线、卷划分、结局方向
 bible/intent      作者意图与当前焦点
 summaries         章节摘要（摘要 artifact `summary:<n>` 的虚拟路径；rawText 上限 400 字；bodyRevision 绑定正文版本）
-materials         作者素材（txt/md；用途 setting/character/scene/style/reference；FTS5 索引；元数据表格 + .storycraft/materials 副本）
+materials         作者素材（txt/md/epub/pdf；用途 setting/character/scene/style/reference；FTS5 索引；元数据表格 + .storycraft/materials 副本）
 ```
 
 - `story_bible`：读真值（可指定一份），缺失时指出缺哪几份。
@@ -94,7 +94,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 
 ## 素材库
 
-面板“素材”区由宿主直接管理，不经过 LLM：文件选择器导入 `.txt` / `.md`，列表、重命名、删除；单文件 ≤512 KB、UTF-8。素材写入作品库 `materials` 表并同步 FTS5，副本放 `.storycraft/materials/`（模型不可读）；每份素材有用途（设定/人物/场景/文风/参考，默认参考），导入时可选、列表可改、可按用途筛选。删除只移除库与索引，保留副本。B2 起素材正文进入 `story_context` 检索段（标题前缀 + ≤400 片段）；B3 起 `story_brief` 只取设定/人物/场景，文风/参考仍可被 `story_context` 命中；标题与正文都参与 FTS。
+面板“素材”区由宿主直接管理，不经过 LLM：文件选择器导入 `.txt` / `.md` / `.epub` / `.pdf`，列表、重命名、删除；文本 ≤512 KB 且 UTF-8，epub/pdf 源文件 ≤18 MB，抽取文本 ≤2,000,000 字符；扫描版/加密 spine 拒绝，不做 OCR。素材写入作品库 `materials` 表并同步 FTS5，原文件副本放 `.storycraft/materials/`（模型不可读）；每份素材有用途（设定/人物/场景/文风/参考，默认参考），导入时可选、列表可改、可按用途筛选。删除只移除库与索引，保留副本。备份只含作品库，不含 `.storycraft/materials` 原文件；恢复后检索仍可用，但导出原 pdf/epub 会报 `material-origin-missing`。B2 起素材正文进入 `story_context` 检索段（标题前缀 + ≤400 片段）；B3 起 `story_brief` 只取设定/人物/场景，文风/参考仍可被 `story_context` 命中；标题与正文都参与 FTS。
 
 ## 作品操作与导出
 
@@ -200,7 +200,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 | `GET /api/see-storycraft/bible?root=&id=&file=` | 真值文件与内容版本 |
 | `GET /api/see-storycraft/brief?root=&id=&chapter=` | 写前上下文装配结果 |
 | `GET /api/see-storycraft/materials?root=&workId=&purpose=` | 素材元数据列表（可按用途过滤） |
-| `POST /api/see-storycraft/materials/import` | 上传 txt/md 导入（JSON + base64；可选 purpose） |
+| `POST /api/see-storycraft/materials/import` | 上传 txt/md/epub/pdf 导入（JSON + base64；可选 purpose；epub/pdf 抽文本并保留原文件） |
 | `POST /api/see-storycraft/materials/rename` | 重命名素材标题 |
 | `POST /api/see-storycraft/materials/purpose` | 修改素材用途 |
 | `POST /api/see-storycraft/materials/delete` | 删除素材库记录与索引（保留副本） |
@@ -252,7 +252,7 @@ storycraft/
   Get-ChildItem storycraft/tests -Filter *.test.mjs | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { exit 1 } }
   ```
 
-- 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑 44 条页面 spec——侧栏入口、加载契约（无 `pageerror`、`/api/see-storycraft/works` 200）、页面读数、作者确认、摘要徽标、素材导入/重命名/删除、面板导出、章节倒序分页/前移后移、文风样例、看板分析/自检/日志、真值抽屉、备份恢复、指令门禁、预设声明与刷新。不调用模型，零额度；Playwright 是本包 devDependency（首次 `npm install && npx playwright install chromium`），`node storycraft/e2e/run.mjs --list` 可只看清单。
+- 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑 45 条页面 spec——侧栏入口、加载契约（无 `pageerror`、`/api/see-storycraft/works` 200）、页面读数、作者确认、摘要徽标、素材导入/重命名/删除/PDF-EPUB、面板导出、章节倒序分页/前移后移、文风样例、看板分析/自检/日志、真值抽屉、备份恢复、指令门禁、预设声明与刷新。不调用模型，零额度；Playwright 是本包 devDependency（首次 `npm install && npx playwright install chromium`），`node storycraft/e2e/run.mjs --list` 可只看清单。
 - `node storycraft/scripts/ci.mjs` 依次跑：Host 与 Client 类型检查（`tsc -p`，`--noEmit`）、全部单元文件（直接 import `src/*.ts`，靠 Node 类型擦除，不先构建）、`scripts/build.mjs`（tsdown 出 Host 入口 + esbuild 出 `client.js`）、pack-check，最后二选一：默认跑复制安装的页面 spec，`--smoke` 跑 tarball 安装 smoke（`npm pack` → `dsh plugin add <tgz>` → 冷启动 → 加载契约）。
 - 端到端验收、评审与证据记录在 issue `dehuadong/dsh-nove#18`。
 

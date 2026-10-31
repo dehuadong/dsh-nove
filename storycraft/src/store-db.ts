@@ -3510,13 +3510,27 @@ function materialTitle(value: any) {
  * @param {{name: string, contentBase64: string, title?: string}} input - upload.
  * @returns {{material: object, duplicate: boolean}} metadata.
  */
-export function importMaterial(root: any, work: any, input: any) {
-  const prepared = prepareMaterial(input)
+export async function importMaterial(root: any, work: any, input: any) {
+  const prepared = await prepareMaterial(input)
   const db = openWork(root, work)
   try {
     return transaction(db, () => {
       const existing = db.prepare('SELECT * FROM materials WHERE hash = ?').get(prepared.hash) as unknown as MaterialRow | undefined
-      if (existing !== undefined) return { material: materialMetadata(existing), duplicate: true }
+      if (existing !== undefined) {
+        const originPath = join(root, '.storycraft', existing.origin)
+        let valid = false
+        try {
+          valid = existsSync(originPath) && createHash('sha256').update(readFileSync(originPath)).digest('hex') === prepared.hash
+        } catch {
+          valid = false
+        }
+        if (!valid) {
+          const copy = writeManagedCopy(root, prepared)
+          db.prepare('UPDATE materials SET origin = ? WHERE id = ?').run(copy.origin, existing.id)
+          existing.origin = copy.origin
+        }
+        return { material: materialMetadata(existing), duplicate: true }
+      }
       const copy = writeManagedCopy(root, prepared)
       try {
         const id = `mat-${prepared.hash.slice(0, 16)}`
@@ -4209,7 +4223,17 @@ export function exportWork(root: string, work: unknown, destination?: string): a
         .map(event => JSON.stringify({ seq: event.seq, at: event.at, chapter: event.chapter, kind: event.kind, ...JSON.parse(String(event.payload)) }))
         .join('\n')}\n`)
       for (const material of db.prepare('SELECT * FROM materials ORDER BY created_at, id').all()) {
-        put(join('materials', `${material.id}.${material.format}`), String(material.content))
+        if (material.format === 'epub' || material.format === 'pdf') {
+          const source = join(root, '.storycraft', String(material.origin))
+          if (!existsSync(source)) throw new StoryError('material-origin-missing', `素材 ${material.id} 的原文件不存在：${material.origin}`)
+          const data = readFileSync(source)
+          if (createHash('sha256').update(data).digest('hex') !== String(material.hash)) {
+            throw new StoryError('material-origin-corrupt', `素材 ${material.id} 的原文件校验失败`)
+          }
+          put(join('materials', `${material.id}.${material.format}`), data)
+        } else {
+          put(join('materials', `${material.id}.${material.format}`), String(material.content))
+        }
       }
       for (const proposal of catalog.prepare('SELECT * FROM proposals WHERE used_work_id = ? ORDER BY created_at').all(row.work_id)) {
         put(join('proposals', `${proposal.id}.json`), `${JSON.stringify({

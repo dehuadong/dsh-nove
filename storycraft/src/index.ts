@@ -657,7 +657,7 @@ export function apply(ctx: DshContext): void {
             ...(typeof body?.title === 'string' ? { title: body.title } : {}),
             ...(body?.purpose === undefined ? {} : { purpose: body.purpose }),
           })
-        }, { maxBytes: 1024 * 1024, requireJson: true })
+        }, { maxBytes: 28 * 1024 * 1024, requireJson: true })
       },
     }),
     ctx.webServer.register({

@@ -136,7 +136,7 @@ test.describe('故事工坊工作台', () => {
     await expect(page.getByText('素材测试', { exact: true })).toHaveCount(1)
 
     await input.setInputFiles({ name: '坏文件.exe', mimeType: 'application/octet-stream', buffer: Buffer.from('x') })
-    await expect(page.getByText(/只支持 \.txt \/ \.md/)).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText(/只支持 \.txt \/ \.md \/ \.epub \/ \.pdf/)).toBeVisible({ timeout: 15_000 })
     await expect(page.getByText('素材库：1 份')).toBeVisible()
 
     const notice = page.getByRole('button', { name: 'Continue' })

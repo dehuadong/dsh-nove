@@ -2,6 +2,7 @@
 
 Status: implemented
 
+> 2026-10-31 部分被 B1 取代：[epub/pdf 素材入库](2026-10-31-storycraft-b1-epub-pdf-materials.md)。`.txt/.md` 流程仍有效；格式白名单、大小上限、错误表、`accept` 与 “已有 origin 优先” 段落由 B1 的当前合同覆盖。
 
 > 2026-10-22 部分修订（#30 B3）：作品库升 v4，materials 增加 purpose（默认 reference），导出 manifest 升 v6（TXT + EPUB）；B1 的导入/管理/托管副本边界不变；#31 再升 v5（标题索引）。
 

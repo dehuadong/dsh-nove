@@ -8,9 +8,16 @@
 
 import { createHash } from 'node:crypto'
 import { StoryError } from './domain.ts'
+import { extractEpub, extractPdf } from './material-extract.ts'
 
-/** Maximum accepted material size, in bytes. */
+/** Maximum text material size, in bytes. */
 export const MATERIAL_MAX_BYTES = 512 * 1024
+
+/** Maximum EPUB/PDF source size, in bytes. */
+export const MATERIAL_BINARY_MAX_BYTES = 18 * 1024 * 1024
+
+/** Accepted material extensions. */
+const MATERIAL_FORMATS = ['txt', 'md', 'epub', 'pdf'] as const
 
 /** Maximum title length, in code points. */
 export const MATERIAL_TITLE_MAX = 200
@@ -63,8 +70,8 @@ export function safeMaterialName(name: unknown): string {
     throw new StoryError('material-name-invalid', '素材文件名过长')
   }
   const ext = /\.([^.]+)$/u.exec(trimmed)?.[1]?.toLowerCase()
-  if (ext !== 'txt' && ext !== 'md') {
-    throw new StoryError('material-format-unsupported', '素材只支持 .txt / .md')
+  if (ext === undefined || !(MATERIAL_FORMATS as readonly string[]).includes(ext)) {
+    throw new StoryError('material-format-unsupported', '素材只支持 .txt / .md / .epub / .pdf')
   }
   return trimmed
 }
@@ -72,7 +79,7 @@ export function safeMaterialName(name: unknown): string {
 /**
  * Validate uploaded bytes and build the metadata used by the store.
  */
-export function prepareMaterial(input: { name?: unknown, contentBase64?: unknown, title?: unknown, purpose?: unknown }): { content: string, buffer: Buffer, hash: string, bytes: number, format: string, title: string, fileName: string, purpose: string } {
+export async function prepareMaterial(input: { name?: unknown, contentBase64?: unknown, title?: unknown, purpose?: unknown }): Promise<{ content: string, buffer: Buffer, hash: string, bytes: number, format: string, title: string, fileName: string, purpose: string }> {
   const fileName = safeMaterialName(input?.name)
   const encoded = String(input?.contentBase64 ?? '').replace(/\s+/gu, '')
   if (encoded === '') throw new StoryError('material-empty', '素材内容为空')
@@ -81,22 +88,34 @@ export function prepareMaterial(input: { name?: unknown, contentBase64?: unknown
   }
   const buffer = Buffer.from(encoded, 'base64')
   if (buffer.length === 0) throw new StoryError('material-empty', '素材内容为空')
-  if (buffer.length > MATERIAL_MAX_BYTES) {
-    throw new StoryError('material-too-large', `素材超过 ${MATERIAL_MAX_BYTES} 字节`)
+  const format = fileName.slice(fileName.lastIndexOf('.') + 1).toLowerCase()
+  const binary = format === 'epub' || format === 'pdf'
+  const limit = binary ? MATERIAL_BINARY_MAX_BYTES : MATERIAL_MAX_BYTES
+  if (buffer.length > limit) throw new StoryError('material-too-large', `素材超过 ${limit} 字节`)
+  let content: string
+  if (binary) {
+    const magic = format === 'pdf'
+      ? buffer.subarray(0, 5).toString('ascii') === '%PDF-'
+      : buffer[0] === 0x50 && buffer[1] === 0x4b
+    if (!magic) throw new StoryError('material-format-invalid', `文件内容与 .${format} 扩展名不符`)
+    if (format === 'pdf') {
+      content = (await extractPdf(buffer)).text
+    } else {
+      content = (await extractEpub(buffer)).text
+    }
+  } else {
+    if (buffer.includes(0)) throw new StoryError('material-encoding-invalid', '素材包含 NUL 字节')
+    if (buffer.length >= 2 && ((buffer[0] === 0xff && buffer[1] === 0xfe) || (buffer[0] === 0xfe && buffer[1] === 0xff))) {
+      throw new StoryError('material-encoding-invalid', '素材不能是 UTF-16')
+    }
+    try {
+      content = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(buffer)
+    } catch {
+      throw new StoryError('material-encoding-invalid', '素材必须是 UTF-8 文本')
+    }
+    if (content.trim() === '') throw new StoryError('material-empty', '素材内容为空')
   }
-  if (buffer.includes(0)) throw new StoryError('material-encoding-invalid', '素材包含 NUL 字节')
-  if (buffer.length >= 2 && ((buffer[0] === 0xff && buffer[1] === 0xfe) || (buffer[0] === 0xfe && buffer[1] === 0xff))) {
-    throw new StoryError('material-encoding-invalid', '素材不能是 UTF-16')
-  }
-  let content
-  try {
-    content = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(buffer)
-  } catch {
-    throw new StoryError('material-encoding-invalid', '素材必须是 UTF-8 文本')
-  }
-  if (content.trim() === '') throw new StoryError('material-empty', '素材内容为空')
   const hash = createHash('sha256').update(buffer).digest('hex')
-  const format = fileName.toLowerCase().endsWith('.md') ? 'md' : 'txt'
   const defaultTitle = fileName.slice(0, -(format.length + 1))
   const title = String(input?.title ?? '').trim() || defaultTitle
   if (codePointLength(title) > MATERIAL_TITLE_MAX) {
@@ -124,6 +143,7 @@ export interface MaterialRow {
   purpose: string
   bytes: number
   hash: string
+  origin: string
   created_at: string
 }
 
@@ -134,6 +154,7 @@ export interface MaterialMetadata {
   purpose: string
   bytes: number
   hashPrefix: string
+  sourceName: string
   createdAt: string
 }
 
@@ -145,6 +166,11 @@ export function materialMetadata(row: MaterialRow): MaterialMetadata {
     purpose: row.purpose,
     bytes: row.bytes,
     hashPrefix: String(row.hash).slice(0, 12),
+    sourceName: (() => {
+      const name = String(row.origin ?? '').split('/').pop() ?? ''
+      const prefix = String(row.hash ?? '').slice(0, 8) + '-'
+      return name.startsWith(prefix) ? name.slice(prefix.length) : name
+    })(),
     createdAt: row.created_at,
   }
 }

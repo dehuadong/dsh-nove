@@ -22,6 +22,7 @@
     "icon.svg",
     "README.md",
     "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
     "skills"
   ],
   "license": "MIT",
@@ -67,7 +68,9 @@
     "@types/node": "^26.6.5",
     "@types/react": "^18.3.31",
     "esbuild": "^0.28.2",
+    "jszip": "^3.10.1",
     "tsdown": "^0.23.2",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "unpdf": "^1.6.2"
   }
 }
