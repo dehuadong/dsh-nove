@@ -44,6 +44,7 @@ export interface MetaRow {
   form: string
   tags: string | null
   plan_approval: 'required' | 'off'
+  max_chapter_tokens: number | null
   word_min: number | null
   word_max: number | null
   outline_written_at: string | null

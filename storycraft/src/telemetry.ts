@@ -1,6 +1,7 @@
 /** Per-dispatch model call telemetry stored in the work database. */
 
 import { openWork, transaction } from './db.ts'
+import { StoryError } from './domain.ts'
 
 export interface CallInput {
   chapter: number | null
@@ -95,6 +96,26 @@ export function nextAttempt(root: string, work: string, chapter: number | null, 
   } catch (error) {
     console.warn(`[storycraft] 无法读取调用 attempt，按 1 记录：${error instanceof Error ? error.message : String(error)}`)
     return 1
+  }
+}
+
+/** Sum observed tokens for one chapter; null/absent usage contributes nothing. */
+export function chapterTokenTotal(root: string, work: string, chapter: number): number {
+  const db = openWork(root, work)
+  try {
+    const row = db.prepare('SELECT coalesce(sum(total_tokens), 0) AS tokens FROM model_calls WHERE chapter = ?').get(chapter) as { tokens?: number } | undefined
+    return Number(row?.tokens ?? 0)
+  } finally {
+    db.close()
+  }
+}
+
+/** Refuse a dispatch before it starts when the chapter cap is already reached. */
+export function assertChapterBudget(root: string, work: string, chapter: number | null, limit: number | null): void {
+  if (chapter === null || limit === null) return
+  const used = chapterTokenTotal(root, work, chapter)
+  if (used >= limit) {
+    throw new StoryError('chapter-budget-exceeded', `第 ${chapter} 章已用 ${used} token，达到单章上限 ${limit}：先提高上限或换章`)
   }
 }
 

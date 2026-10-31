@@ -1124,6 +1124,7 @@ const DELEGATE_OUTPUT: DshToolOutput = {
       submissionAttempts: { type: 'integer' },
       durationMs: { type: 'integer' },
       usage: { type: 'object', additionalProperties: true },
+      retries: { type: 'integer' },
       lastMode: { type: 'string', enum: ['patch', 'polish', 'rewrite', 'deslop'] },
       wordRange: {
         type: 'object',
@@ -2403,8 +2404,9 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
     action({
       name: 'story_settings',
       mutates: true,
-      description: '设定作品的写作参数：单章字数范围与章纲确认策略。'
-        + ' 字数传 null 表示清空、不按字数判定；planApproval 传 required 表示每章章纲必须作者在面板确认，传 off 表示不需要确认。',
+      description: '设定作品的写作参数：单章字数范围、章纲确认策略与可选单章 token 上限。'
+        + ' 字数传 null 表示清空、不按字数判定；planApproval 传 required 表示每章章纲必须作者在面板确认，传 off 表示不需要确认；'
+        + 'maxChapterTokens 传正整数设置上限、传 null 清空，省略表示不改；未设置不限制。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -2423,6 +2425,10 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
             enum: ['required', 'off'],
             description: '章纲确认策略：required 每章必须确认；off 不需要确认。省略表示不改。',
           },
+          maxChapterTokens: {
+            oneOf: [{ type: 'integer' }, { type: 'null' }],
+            description: '单章已观测 token 上限；传 null 清空。省略表示不改；不设置不限制。',
+          },
         },
         required: ['work'],
       },
@@ -2432,12 +2438,14 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
           work: args.work,
           ...(args.clear === true ? { wordRange: null } : args.wordRange === undefined ? {} : { wordRange: args.wordRange }),
           ...(args.planApproval === undefined ? {} : { planApproval: args.planApproval }),
+          ...(args.maxChapterTokens === undefined ? {} : { maxChapterTokens: args.maxChapterTokens }),
         })
         return {
           ok: true,
           workId: result.workId,
           ...(result.wordRange === undefined ? {} : { wordRange: result.wordRange }),
           ...(result.planApproval === undefined ? {} : { planApproval: result.planApproval }),
+          ...(result.maxChapterTokens === undefined ? {} : { maxChapterTokens: result.maxChapterTokens }),
         }
       },
     }),

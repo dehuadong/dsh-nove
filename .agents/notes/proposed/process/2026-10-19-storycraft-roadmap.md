@@ -51,7 +51,7 @@ Status: proposed
 | 长篇 | F13 250 章性能 | **已交付**（#87） |
 | 长篇 | F8 成本与调用观测 | **已交付**（#88） |
 | 长篇 | A9 创作方法库/加载证据 | 部分：阶段技能与 `catalog.json` 已交付；加载证据未做 |
-| 长篇 | F14 失败重试与成本上限 | 规划中；[F14 Note](../architecture/2026-10-31-storycraft-f14-retry-budget.md)，F8 数据已就绪 |
+| 长篇 | F14 失败重试与成本上限 | **已交付**（启动重试 + 可选单章 token 上限）；[F14 Note](../../implemented/architecture/2026-10-31-storycraft-f14-retry-budget.md) |
 | 长篇 | E1/E4/E5/E6/E7/E13 面板 | 待开/未排期；E2 阅读器未排期 |
 | 长篇 | B1 epub/pdf 素材、B2 技能参考检索 | 部分：txt/md 与故事记忆已交付；epub/pdf、技能参考未做 |
 | 长篇 | A1b 单次调用产章、F5 快照 | 未排期；F5 现有备份是作品级基础 |
@@ -69,7 +69,7 @@ Status: proposed
 | `implemented/architecture/2026-10-28-storycraft-settle-finalize-split.md` | 已迁移（#82/#85） |
 | `proposed/architecture/2026-10-23-storycraft-skill-organization-v2.md` | 部分落地：阶段技能/薄角色已交付；S/D 独立流水线待做 |
 | `proposed/architecture/2026-10-24-store-db-row-types.md` | 待开（类型缝/`@ts-nocheck` 收口） |
-| `proposed/architecture/2026-10-31-storycraft-f14-retry-budget.md` | 规划中（F14；启动重试 + 可选单章 token 上限） |
+| `implemented/architecture/2026-10-31-storycraft-f14-retry-budget.md` | 已迁移（F14；启动重试 + 可选单章 token 上限） |
 | `implemented/process/2026-10-24-storycraft-ts-migration.md`、`implemented/process/2026-10-24-storycraft-ts-pilot.md` | 已迁移（TS 源码、构建与 CI 接入） |
 | `implemented/process/2026-10-26-storycraft-release-packaging.md` | 已迁移（发布字段、LICENSE、tarball smoke） |
 | `implemented/bug-fix/2026-10-27-storycraft-gate-panel-architect-remediation.md` | 已迁移（#79） |

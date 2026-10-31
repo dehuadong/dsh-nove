@@ -1,4 +1,4 @@
-// Only v6 work databases are supported: legacy test schemas are refused, not upgraded.
+// Only the current work schema is supported: legacy test schemas are refused, not upgraded.
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -25,10 +25,10 @@ function throwsCode(name, code, fn) {
 const root = await mkdtemp(join(tmpdir(), 'storycraft-schema-'))
 try {
   const { workId } = s.initWork(root, { title: 'schema-only', wordRange: { min: 50, max: 200 } })
-  check('new work is v14', WORK_SCHEMA_VERSION === 14, String(WORK_SCHEMA_VERSION))
+  check('new work is v15', WORK_SCHEMA_VERSION === 15, String(WORK_SCHEMA_VERSION))
   openWork(root, workId).close()
 
-  for (const version of [1, 2, 3, 4, 5, 13, 99]) {
+  for (const version of [1, 2, 3, 4, 5, 13, 14, 99]) {
     const db = openDatabase(workFile(root, workId))
     db.exec(`PRAGMA user_version = ${version}`)
     db.close()
@@ -39,12 +39,18 @@ try {
   db.exec(`PRAGMA user_version = ${WORK_SCHEMA_VERSION}`)
   db.close()
   openWork(root, workId).close()
-  check('v6 work reopens', true)
+  check('current work schema reopens', true)
 
   const stale = openDatabase(workFile(root, workId))
   stale.exec('ALTER TABLE chapters DROP COLUMN plan_revision')
   stale.close()
-  throwsCode('v6 work missing A0 columns is refused', 'schema-version-mismatch', () => openWork(root, workId))
+  throwsCode('current work missing A0 columns is refused', 'schema-version-mismatch', () => openWork(root, workId))
+
+  const metaWork = s.initWork(root, { title: 'meta shape' }).workId
+  const staleMeta = openDatabase(workFile(root, metaWork))
+  staleMeta.exec('ALTER TABLE meta DROP COLUMN max_chapter_tokens')
+  staleMeta.close()
+  throwsCode('work missing max_chapter_tokens is refused', 'schema-version-mismatch', () => openWork(root, metaWork))
 } finally {
   await rm(root, { recursive: true, force: true })
 }

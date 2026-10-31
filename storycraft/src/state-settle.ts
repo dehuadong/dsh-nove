@@ -14,7 +14,8 @@ import {
 import { readCards } from './facts.ts'
 import { closeSubmission, consumeSubmission, openSubmission } from './submission.ts'
 import { runChild } from './delegate.ts'
-import { callSummary, finishCall, nextAttempt, recordCall } from './telemetry.ts'
+import { assertChapterBudget, callSummary, finishCall, nextAttempt, recordCall } from './telemetry.ts'
+import { maxChapterTokensOf } from './store-db.ts'
 import { checkChapterState } from './state-check.ts'
 
 /** One chapter entry from the manifest. */
@@ -337,6 +338,7 @@ async function runSettler(root: string, input: SettlerInput, host: SettleHost, t
         scope: `settle:r${input.revision}`, attempt: nextAttempt(root, input.workId, input.chapter, 'settler', `settle:r${input.revision}`), trigger: input.trigger ?? 'first',
         delegationId: opened.delegationId, sessions: host.sessions,
         sink: (call) => recordCall(root, input.workId, call),
+        assertBudget: () => assertChapterBudget(root, input.workId, input.chapter, maxChapterTokensOf(root, input.workId)),
       },
       unavailableMessage: '当前组合没有可用的 subagents 服务：无法自动结算状态',
     })
@@ -509,6 +511,7 @@ export async function settleChapterState(
       if (error?.code === 'state-check-stale') {
         throw new StoryError('state-settle-stale', `第 ${chapter} 章在结算期间改版：请对当前版本重跑`)
       }
+      if (error?.code === 'chapter-budget-exceeded') throw error
       if (error?.code === 'state-check-unavailable') {
         throw new StoryError('state-settle-unavailable', error.message)
       }

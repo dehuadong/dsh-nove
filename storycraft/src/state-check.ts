@@ -15,7 +15,8 @@ import {
 import { readCards } from './facts.ts'
 import { closeSubmission, consumeSubmission, openSubmission, STATE_CHECK_NO_EVIDENCE } from './submission.ts'
 import { runChild } from './delegate.ts'
-import { finishCall, nextAttempt, recordCall } from './telemetry.ts'
+import { assertChapterBudget, finishCall, nextAttempt, recordCall } from './telemetry.ts'
+import { maxChapterTokensOf } from './store-db.ts'
 
 /** One chapter entry from the manifest. */
 interface ManifestChapter {
@@ -310,6 +311,7 @@ export async function checkChapterState(
         scope: `validate:r${revision}`, attempt: nextAttempt(root, work, chapter, 'validator', `validate:r${revision}`), trigger: input.trigger ?? 'first',
         delegationId: opened.delegationId, sessions: host.sessions,
         sink: (call) => recordCall(root, work, call),
+        assertBudget: () => assertChapterBudget(root, work, chapter, maxChapterTokensOf(root, work)),
       },
       unavailableCode: 'state-check-unavailable',
       failedCode: 'state-check-failed',

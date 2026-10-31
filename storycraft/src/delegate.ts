@@ -18,9 +18,9 @@ import {
 } from './storage.ts'
 import { readFoundationDocuments, writeContextTrace } from './artifact-store.ts'
 import { callEvidence } from './call-evidence.ts'
-import { finishCall, nextAttempt, recordCall } from './telemetry.ts'
+import { assertChapterBudget, finishCall, nextAttempt, recordCall } from './telemetry.ts'
 import type { CallInput } from './telemetry.ts'
-import { acceptedProposalOf } from './store-db.ts'
+import { acceptedProposalOf, maxChapterTokensOf } from './store-db.ts'
 import { critique, findingsOf, withMechanicalFindings } from './critique.ts'
 import { loadRoleInput } from './role-input.ts'
 import { checkDraft } from './landing.ts'
@@ -401,6 +401,8 @@ export interface CallTelemetry {
   delegationId?: string
   sessions?: any
   sink?: (call: CallInput) => number | undefined
+  /** Called before every start attempt; chapter roles use it for the token cap. */
+  assertBudget?: () => void
 }
 
 /** What a finished dispatch carries back for receipts and tests. */
@@ -408,6 +410,8 @@ export interface ChildCall {
   callId?: number
   durationMs: number
   usage: ReturnType<typeof callEvidence>
+  /** Startup retries actually performed. */
+  retries: number
 }
 
 /** A started child and the cleaner the caller must run. */
@@ -464,19 +468,27 @@ export async function runChild(input: ChildRunInput): Promise<ChildRun> {
     assertChildAvailability(service, agent, { unavailableCode, unavailableMessage })
   }
 
-  const started = Date.now()
-  const startedAt = new Date(started).toISOString()
-  const promptChars = [...prompt].length
-  const timeout = new AbortController()
-  const timer = setTimeout(() => timeout.abort(), timeoutMs)
   const callerSignal = signal ?? new AbortController().signal
-  const combined = AbortSignal.any([callerSignal, timeout.signal])
+  const promptChars = [...prompt].length
+  const budget = telemetry === undefined
+    ? undefined
+    : telemetry.assertBudget
+      ?? (telemetry.chapter === null
+        ? undefined
+        : () => assertChapterBudget(cwd, telemetry.work, telemetry.chapter, maxChapterTokensOf(cwd, telemetry.work)))
   let activation: ChildActivation | undefined
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let started = Date.now()
+  let startedAt = new Date(started).toISOString()
+  let attemptIndex = 0
+  let retries = 0
+  let attemptStarted = false
+  let recorded = false
   let disposed = false
   const dispose = async (): Promise<void> => {
     if (disposed) return
     disposed = true
-    clearTimeout(timer)
+    if (timer !== undefined) clearTimeout(timer)
     if (activation !== undefined) {
       try {
         await activation.dispose()
@@ -486,6 +498,7 @@ export async function runChild(input: ChildRunInput): Promise<ChildRun> {
     }
   }
   const record = (outcome: string, result: ChildResult | undefined, errorCode?: string | null): ChildCall => {
+    recorded = true
     const ended = Date.now()
     const usage = callEvidence(telemetry?.sessions, activation?.childId, result, promptChars)
     let callId: number | undefined
@@ -493,7 +506,8 @@ export async function runChild(input: ChildRunInput): Promise<ChildRun> {
       try {
         callId = telemetry.sink({
           chapter: telemetry.chapter, role: telemetry.role, scope: telemetry.scope,
-          attempt: telemetry.attempt, trigger: telemetry.trigger,
+          attempt: telemetry.attempt + attemptIndex,
+          trigger: attemptIndex === 0 ? telemetry.trigger : 'transient-retry',
           delegationId: telemetry.delegationId ?? null,
           childSession: activation?.childId === undefined ? null : String(activation.childId),
           startedAt, endedAt: new Date(ended).toISOString(), durationMs: ended - started,
@@ -508,48 +522,111 @@ export async function runChild(input: ChildRunInput): Promise<ChildRun> {
         console.warn(`[storycraft] 调用记录写入失败：${error instanceof Error ? error.message : String(error)}`)
       }
     }
-    return { ...(callId === undefined ? {} : { callId }), durationMs: ended - started, usage }
+    return { ...(callId === undefined ? {} : { callId }), durationMs: ended - started, usage, retries }
   }
 
+  let activeTimeout: AbortSignal | undefined
   try {
-    try {
-      activation = await service.startActivation({
-        provider: 'spawn',
-        label,
-        request: {
-          parent: agent,
-          cwd,
-          prompt: [{ type: 'text', text: prompt }],
-        },
-        signal: combined,
-        delivery: 'caller',
-      })
-    } catch (error: any) {
-      // A startActivation rejection crosses the service boundary; only code and message are read.
-      throw (error?.code === 'UNSUPPORTED_CAPABILITY' || /provider|capabilit/iu.test(String(error?.message)))
-        ? new StoryError(unavailableCode, `子代理 provider 不可用：${error?.message ?? error}`)
-        : new StoryError(failedCode, `子代理启动失败：${error?.message ?? error}`)
+    for (;;) {
+      // Budget and caller cancellation happen before the recording scaffold.
+      attemptStarted = false
+      recorded = false
+      budget?.()
+      if (callerSignal.aborted) throw new StoryError(failedCode, '子代理调用被取消')
+      started = Date.now()
+      startedAt = new Date(started).toISOString()
+      const timeout = new AbortController()
+      timer = setTimeout(() => timeout.abort(), timeoutMs)
+      activeTimeout = timeout.signal
+      const combined = AbortSignal.any([callerSignal, timeout.signal])
+      try {
+        attemptStarted = true
+        activation = await service.startActivation({
+          provider: 'spawn',
+          label,
+          request: {
+            parent: agent,
+            cwd,
+            prompt: [{ type: 'text', text: prompt }],
+          },
+          signal: combined,
+          delivery: 'caller',
+        })
+        break
+      } catch (error: any) {
+        const message = String(error?.message ?? error)
+        const timedOut = activeTimeout?.aborted === true
+        const transient = !timedOut && isTransientStartFailure(message)
+        const unavailable = !transient && (error?.code === 'UNSUPPORTED_CAPABILITY' || /capabilit/iu.test(message) || /provider unavailable/iu.test(message))
+        const code = timedOut ? failedCode : transient ? 'delegation-transient' : unavailable ? unavailableCode : failedCode
+        const call = record(timedOut ? 'timeout' : 'error', undefined, code)
+        if (callerSignal.aborted) {
+          const cancelled = new StoryError(failedCode, '子代理调用被取消')
+          ;(cancelled as any).retries = attemptIndex
+          if (call.callId !== undefined) (cancelled as any).callId = call.callId
+          throw cancelled
+        }
+        if (timedOut) {
+          const mapped = new StoryError(failedCode, `子代理启动超时：${message}`)
+          ;(mapped as any).retries = attemptIndex
+          if (call.callId !== undefined) (mapped as any).callId = call.callId
+          throw mapped
+        }
+        if (!transient || attemptIndex >= 2) {
+          const mapped = new StoryError(
+            transient ? 'delegation-transient-exhausted' : code,
+            transient ? `子代理启动连续失败（已重试 ${attemptIndex} 次）：${message}` : `子代理启动失败：${message}`,
+          )
+          ;(mapped as any).retries = attemptIndex
+          if (call.callId !== undefined) (mapped as any).callId = call.callId
+          throw mapped
+        }
+        attemptIndex += 1
+        retries = attemptIndex
+        if (timer !== undefined) clearTimeout(timer)
+        await abortableDelay(800 * attemptIndex, callerSignal, failedCode)
+      }
     }
 
-    // The inner catch above always throws, so a started activation exists here.
+    if (activeTimeout === undefined) throw new StoryError(failedCode, '子代理没有启动')
     const result = await Promise.race([
       activation!.result,
       abortPromise(callerSignal, '子代理调用被取消', failedCode),
-      abortPromise(timeout.signal, '子代理调用超时', failedCode),
+      abortPromise(activeTimeout, '子代理调用超时', failedCode),
     ]).catch(error => {
       if (error instanceof StoryError) throw error
       throw new StoryError(failedCode, `子代理调用失败：${error?.message ?? error}`)
     })
-    clearTimeout(timer)
+    if (timer !== undefined) clearTimeout(timer)
     const call = record(result?.stopReason === 'completed' ? 'completed' : 'error', result)
-    return { result, dispose, call }
+    return { result, dispose, call: { ...call, retries } }
   } catch (error) {
-    const outcome = timeout.signal.aborted ? 'timeout' : callerSignal.aborted ? 'cancelled' : 'error'
-    const call = record(outcome, undefined, (error as { code?: string })?.code)
+    if (!recorded && attemptStarted) {
+      const outcome = callerSignal.aborted ? 'cancelled' : activeTimeout?.aborted ? 'timeout' : 'error'
+      const call = record(outcome, undefined, (error as { code?: string })?.code)
+      if (call.callId !== undefined && typeof error === 'object' && error !== null) (error as any).callId = call.callId
+    }
     await dispose()
-    if (call.callId !== undefined && typeof error === 'object' && error !== null) (error as any).callId = call.callId
+    if (typeof error === 'object' && error !== null) (error as any).retries = retries
     throw error
   }
+}
+
+function isTransientStartFailure(message: string): boolean {
+  const text = message.toLowerCase()
+  if (text.includes('model_not_available') || text.includes('model not available')) return false
+  return /\b(429|502|503|504)\b/.test(text)
+    || ['temporarily unavailable', 'service unavailable', 'bad gateway', 'gateway timeout', 'too many requests', 'rate limit', 'overloaded', 'please retry', 'try again later']
+      .some(needle => text.includes(needle))
+}
+
+function abortableDelay(ms: number, signal: AbortSignal, code: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) { reject(new StoryError(code, '子代理调用被取消')); return }
+    const timer = setTimeout(() => { signal.removeEventListener('abort', onAbort); resolve() }, ms)
+    const onAbort = () => { clearTimeout(timer); reject(new StoryError(code, '子代理调用被取消')) }
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
 }
 
 /** Shorten receipt warnings to the contract budget and mark truncation. */
@@ -749,6 +826,7 @@ async function delegateArchitect(root: string, input: ArchitectInput, host: Dele
     return fitReceipt({
         durationMs: child.call.durationMs,
         usage: child.call.usage,
+        retries: child.call.retries,
       ok: true,
       workId: work,
       role: 'architect',
@@ -890,6 +968,7 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
         scope: `${role}:r${manifest.chapters.find(item => item.number === chapter)?.currentRevision ?? 0}`,
         attempt: nextAttempt(root, work, chapter, role, `${role}:r${manifest.chapters.find(item => item.number === chapter)?.currentRevision ?? 0}`), trigger: 'first', delegationId: opened.delegationId,
         sessions: host.sessions, sink: (call) => recordCall(root, work, call),
+        assertBudget: () => assertChapterBudget(root, work, chapter, maxChapterTokensOf(root, work)),
       },
     })
     const result = child.result
@@ -928,6 +1007,7 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
       return fitReceipt({
         durationMs: child.call.durationMs,
         usage: child.call.usage,
+        retries: child.call.retries,
         ok: true,
         workId: work,
         chapter,
@@ -955,6 +1035,7 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
       return fitReceipt({
         durationMs: child.call.durationMs,
         usage: child.call.usage,
+        retries: child.call.retries,
         ok: true,
         workId: work,
         chapter,
@@ -974,6 +1055,7 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
       const revision = entry!.currentRevision
       let written: ReturnType<typeof writeReview>
       let reviewerAttempts = attempts
+      let reviewerRetries = child.call.retries
       let acceptedCallId = child.call.callId
       try {
         written = writeReview(root, { work, chapter, observations: reviewerObservations(payload.items, chapter, revision) })
@@ -1004,6 +1086,7 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
               work, chapter, role, scope: `${role}:r${revision}`, attempt: nextAttempt(root, work, chapter, role, `${role}:r${revision}`), trigger: 'reviewer-quote-retry',
               delegationId: retryOpened.delegationId, sessions: host.sessions,
               sink: (call) => recordCall(root, work, call),
+              assertBudget: () => assertChapterBudget(root, work, chapter, maxChapterTokensOf(root, work)),
             },
           })
           const retrySubmission = consumeSubmission(retryOpened.delegationId)
@@ -1012,6 +1095,7 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
           }
           assertActive(signal)
           reviewerAttempts = Math.min(3, attempts + (retrySubmission.attempts ?? 1))
+          reviewerRetries += retryChild.call.retries
           written = writeReview(root, { work, chapter, observations: reviewerObservations(retrySubmission.payload.items, chapter, revision) })
           acceptedCallId = retryChild.call.callId
         } finally {
@@ -1023,6 +1107,7 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
       return fitReceipt({
         durationMs: child.call.durationMs,
         usage: child.call.usage,
+        retries: reviewerRetries,
         ok: true,
         workId: work,
         chapter,
@@ -1046,6 +1131,7 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
       return fitReceipt({
         durationMs: child.call.durationMs,
         usage: child.call.usage,
+        retries: child.call.retries,
         ok: true,
         workId: work,
         chapter,
@@ -1075,6 +1161,7 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
     return fitReceipt({
         durationMs: child.call.durationMs,
         usage: child.call.usage,
+        retries: child.call.retries,
       ok: true,
       workId: work,
       chapter,

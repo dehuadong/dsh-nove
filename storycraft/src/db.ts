@@ -44,7 +44,7 @@ export const STORE_DIR = '.storycraft'
 export const CATALOG_SCHEMA_VERSION = 1
 
 /** Schema version of one work database. */
-export const WORK_SCHEMA_VERSION = 14
+export const WORK_SCHEMA_VERSION = 15
 
 /** Final material table with purpose, used by new databases. */
 const MATERIALS_SCHEMA_V4 = `
@@ -124,6 +124,7 @@ CREATE TABLE IF NOT EXISTS meta (
   form TEXT NOT NULL,
   tags TEXT,
   plan_approval TEXT NOT NULL DEFAULT 'required',
+  max_chapter_tokens INTEGER,
   word_min INTEGER,
   word_max INTEGER,
   outline_written_at TEXT,
@@ -379,7 +380,7 @@ export function openCatalog(root: string, options: { create?: boolean, busyTimeo
 /** Columns the current shape needs; a file without them predates the A0 schema. */
 const WORK_SCHEMA_REQUIRED_COLUMNS = Object.freeze({
   chapters: ['plan_revision', 'plan_approved_source', 'plan_approved_reason', 'state_ready_revision', 'provenance'],
-  meta: ['outline_approved_revision', 'outline_approved_source', 'outline_approved_reason', 'foundation_approved_revision', 'foundation_approved_source', 'foundation_approved_reason'],
+  meta: ['outline_approved_revision', 'outline_approved_source', 'outline_approved_reason', 'foundation_approved_revision', 'foundation_approved_source', 'foundation_approved_reason', 'max_chapter_tokens'],
   artifacts: ['input_revision'],
   model_calls: ['chapter', 'role', 'scope', 'attempt', 'trigger', 'outcome', 'usage_source', 'started_at', 'ended_at', 'duration_ms', 'prompt_chars', 'output_chars'],
 })

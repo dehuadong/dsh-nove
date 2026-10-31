@@ -80,7 +80,7 @@ CREATE INDEX model_calls_chapter_role ON model_calls(chapter, role);
 - `state-settle` settler 第一次 `trigger='first'`；同一结算轮次的第二次 settler 用 `settler-revalidate`，attempt=2；
 - `state-check` 首次 `trigger='first'`；同一轮次的第二次 validator 用 `validator-revalidate`，attempt=2；
 - attempt 的作用域是 `(chapter, role, scope)`；scope 标识操作上下文（architect 的 frame/rules/roles/cards、review:r2、settle:r1、validate:r1…），同一 scope 内重试才递增，新 stage/新 review 轮次从 1 开始；trigger 只记录重试原因；
-- F14 计划增加启动重试的 `transient-retry`，并把初始 attempt 改为按 scope 派生；当前实现尚未落地，见 [F14 Note](../../proposed/architecture/2026-10-31-storycraft-f14-retry-budget.md)；
+- F14 已增加启动重试的 `transient-retry`，并把初始 attempt 改为按 scope 派生；见 [F14 Note](2026-10-31-storycraft-f14-retry-budget.md)；
 - 所有提交被拒（reviewer/settler/validator）→ `outcome='rejected'` + `error_code`；超时/取消分别 `timeout`/`cancelled`。
 
 ### usage 与成本口径

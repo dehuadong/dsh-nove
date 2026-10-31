@@ -1,6 +1,6 @@
 # Agent Note: 故事工坊：F14 失败重试与单章成本上限
 
-Status: proposed
+Status: implemented
 
 工作项：当前任务 F14（不再新建 GitHub issue）。验收与产品行为归本 Note；F8 的 `model_calls` 是数据基础。
 
@@ -32,7 +32,7 @@ F8 之前无法测量重试成本，现在可以按章聚合；F14 只消费这�
 | 线性退避 | `800 * (attempt + 1)` 毫秒，abortable | 与参考一致 | 采纳 | 中断测试 |
 | 无成本上限 | 作者可选 `maxChapterTokens`，无默认 | 不发明产品限制 | 新增 | 上限/不设限 |
 
-## Proposal
+## Decision
 
 ### 重试（只覆盖启动阶段）
 
@@ -69,7 +69,7 @@ F8 之前无法测量重试成本，现在可以按章聚合；F14 只消费这�
 - `src/telemetry.ts`：`chapterTokenTotal(root, work, chapter)`；`assertChapterBudget`。
 - `src/store-db.ts` / `src/db.ts`：`maxChapterTokens` 设置、`meta.max_chapter_tokens`、schema 15、`WORK_SCHEMA_REQUIRED_COLUMNS.meta`。
 - `src/tools.ts`：`story_settings` 参数/输出；`story_delegate` receipt `retries`；`story_settle`/`story_state_check` 的错误码传递；`chapter-budget-exceeded` 不被结算循环吞成反馈。
-- `src/state-settle.ts` / `src/state-check.ts`：派发前 budget 断言、错误码映射；**除 architect 外所有 chapter 派发必须注入 `assertBudget`**，漏注入由类型/测试拦截，不能静默不设限。
+- `src/state-settle.ts` / `src/state-check.ts`：派发前 budget 断言、错误码映射；四个 chapter 调用点都显式注入 `assertBudget`，`runChild` 另有 `maxChapterTokensOf` fallback，新增派发漏注入时仍会检查而不是静默无限。
 - `tests/retry-budget.test.mjs`：启动重试/非临时/耗尽/中断/上限/未设限；`migration.test` 更新 v15。
 
 ## Alternatives considered
@@ -82,18 +82,14 @@ F8 之前无法测量重试成本，现在可以按章聚合；F14 只消费这�
 
 **D. 上限按金额。** 最强理由是最直观。否决原因：F8 作者已裁决只记 token/model，不做单价；金额需要价格表和供应商变动，归后续独立工作项。
 
-## Acceptance criteria
+## Testing
 
-1. 启动阶段临时故障：自动重试最多 2 次，每次一行 `model_calls`，`attempt` 按 `(chapter,role,scope)` 递增，`trigger` 首行 `first`、重试行 `transient-retry`；非临时错误只写一行；
-2. 激活开始后的超时/错误/无提交/格式/审稿拒绝：不自动重试，保留失败行与错误码；
-3. 启动重试耗尽：抛明确错误码，正文/状态无半成品；成功回执带 `retries`；
-4. 中断：退避或 child 期间 abort 后不再启动新 attempt；退避期间的 abort 不写行，不覆盖已写行；
-5. `maxChapterTokens` 设置后，达到上限的下一次派发（含启动重试）在记录脚手架之前被 `chapter-budget-exceeded` 拒绝，且不新增调用行；未设置时不限制；
-6. 上限只统计已观测 token，partial/unavailable 不被伪造；architect 不受单章上限；settler/validator 也受检查；
-7. schema v15；旧 v14 被拒；`story_settings` 可设置/清空上限；导出不含该设置；
-8. 现有单元 + 29 E2E 通过；新增重试/上限/中断测试。
+- tests/retry-budget.test.mjs：启动临时故障重试到第 3 次、每次一行、attempt/trigger；provider unavailable 不重试；激活后错误/超时单行；启动超时即使文案含 503 也不重试；退避中断不新增行；耗尽错误码；token 上限阻断且不写行；未设限、architect 豁免、清空上限、非法上限。
+- tests/migration.test.mjs：v15、旧 v14 拒绝、缺 max_chapter_tokens 拒绝。
+- tests/tools.test.mjs：story_settings 的 maxChapterTokens 参数、delegate 回执 retries 字段。
+- 完整 CI：85 单元 + 29 E2E。
 
-## Risks
+## Consequences
 
 - 启动错误分类基于 provider 文案，文案变化可能漏判；漏判只导致不重试，不会误重试内容失败。
 - 上限按已观测 token，usage 缺失时可能低估；status 已暴露缺失计数。

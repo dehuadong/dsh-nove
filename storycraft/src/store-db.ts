@@ -1574,9 +1574,9 @@ export function nextStep(root: any, work: any) {
 // ---------------------------------------------------------------------------
 
 /**
- * Update the word range and/or the plan-approval policy.
+ * Update the word range, plan-approval policy and optional chapter token cap.
  * @param {string} root - workspace directory.
- * @param {{work: string, wordRange?: {min: number, max: number}|null, planApproval?: 'required'|'off'|null}} input - settings.
+ * @param {{work: string, wordRange?: {min: number, max: number}|null, planApproval?: 'required'|'off'|null, maxChapterTokens?: number|null}} input - settings.
  * @returns {object} stored settings.
  */
 export function updateSettings(root: any, input: any) {
@@ -1592,14 +1592,28 @@ export function updateSettings(root: any, input: any) {
       }
       const policy = input.planApproval === null ? 'required' : input.planApproval ?? meta.plan_approval
       if (policy !== 'required' && policy !== 'off') throw new StoryError('plan-approval-invalid', '章纲确认策略不合法')
-      db.prepare('UPDATE meta SET word_min = ?, word_max = ?, plan_approval = ?, updated_at = ? WHERE id = 1')
-        .run(min, max, policy, now())
+      const cap = input.maxChapterTokens === null ? null : input.maxChapterTokens ?? meta.max_chapter_tokens
+      if (cap !== null && (!Number.isInteger(cap) || cap <= 0)) throw new StoryError('chapter-token-limit-invalid', '单章 token 上限必须是正整数')
+      db.prepare('UPDATE meta SET word_min = ?, word_max = ?, plan_approval = ?, max_chapter_tokens = ?, updated_at = ? WHERE id = 1')
+        .run(min, max, policy, cap, now())
       return {
         workId,
         planApproval: policy,
         ...(min === null ? {} : { wordRange: { min, max } }),
+        maxChapterTokens: cap,
       }
     })
+  } finally {
+    db.close()
+  }
+}
+
+/** Read the optional per-chapter token cap; absent means unlimited. */
+export function maxChapterTokensOf(root: string, work: string): number | null {
+  const db = openWork(root, work)
+  try {
+    const row = db.prepare('SELECT max_chapter_tokens AS cap FROM meta WHERE id = 1').get() as { cap?: number | null } | undefined
+    return typeof row?.cap === 'number' ? row.cap : null
   } finally {
     db.close()
   }
