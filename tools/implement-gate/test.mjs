@@ -125,5 +125,15 @@ check('parent escape is outside', shellOutside('Set-Content ..\\x.txt x', root) 
 
 check('piped docs trash keeps docs classification', shellAccess('node scripts/trash.mjs .agents/notes/x | Select-Object -Last 1', root).docsOnly === true)
 
+const hereStringCommand = [
+  "Set-Location E:\\dsh-nove\\storycraft",
+  "$p = '.tmp-tools\\analysis-perf.mjs'",
+  "@'",
+  "import { select } from '../src/retrieval.ts'",
+  "'@ | Set-Content -LiteralPath $p",
+].join('\n')
+check('here-string relative imports are not outside', shellOutside(hereStringCommand, root) === false)
+check('here-string does not hide a real outside target', shellOutside("Set-Content C:\\outside\\x.txt x", root) === true)
+
 if (failures > 0) { console.error(`\n${failures} CHECK(S) FAILED`); process.exit(1) }
 console.log('\nALL CHECKS PASSED')

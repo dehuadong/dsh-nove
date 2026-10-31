@@ -115,7 +115,10 @@ export function shellAccess(command, root) {
 
 /** Detect an absolute/outside write target in a shell line. */
 export function shellOutside(command, root) {
-  for (const match of String(command ?? '').matchAll(/(?:^|[\s'"])(?:[A-Za-z]:\\[^\s"']+|\/[A-Za-z][^\s"']*|\.[.][/\\][^\s"']*)/gu)) {
+  // A here-string is script content, not shell path syntax; scanning its
+  // imports would flag relative specifiers like ../src as outside writes.
+  const text = String(command ?? '').replace(/@'[\s\S]*?'@/gu, ' ').replace(/@"[\s\S]*?"@/gu, ' ')
+  for (const match of text.matchAll(/(?:^|[\s'"])(?:[A-Za-z]:\\[^\s"']+|\/[A-Za-z][^\s"']*|\.[.][/\\][^\s"']*)/gu)) {
     const target = classifyPath(root, match[0].replace(/^[\s'"]+/u, ''))
     if (target.outside) return true
   }
