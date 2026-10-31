@@ -60,6 +60,9 @@ for (const name of tests) {
   if (code !== 0) failed += 1
 }
 
+const guardCode = run(process.execPath, [path.join('tools', 'implement-gate', 'test.mjs')], path.dirname(storycraftDir))
+if (guardCode !== 0) failed += 1
+
 for (const script of ['scripts/validate-skills.mjs', 'scripts/build.mjs', 'scripts/check-built-tools.mjs', 'scripts/pack-check.mjs']) {
   const code = run(process.execPath, [path.join(...script.split('/'))], storycraftDir)
   if (code !== 0) failed += 1
