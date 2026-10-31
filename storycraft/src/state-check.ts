@@ -15,6 +15,7 @@ import {
 import { readCards } from './facts.ts'
 import { closeSubmission, consumeSubmission, openSubmission, STATE_CHECK_NO_EVIDENCE } from './submission.ts'
 import { runChild } from './delegate.ts'
+import { finishCall, recordCall } from './telemetry.ts'
 
 /** One chapter entry from the manifest. */
 interface ManifestChapter {
@@ -70,6 +71,8 @@ interface VerifiedFindings {
 
 /** One proposed delta to check. */
 interface StateCheckInput {
+  attempt?: number
+  trigger?: string
   work: string
   chapter: number | string
   // Model-supplied operations are a dynamic JSON boundary typed by the projection.
@@ -90,6 +93,8 @@ interface StateCheckHost {
   signal?: AbortSignal
   /** Per-run budget override; defaults to STATE_CHECK_TIMEOUT_MS. */
   timeoutMs?: number
+  /** Live session store for child usage. */
+  sessions?: any
 }
 
 /** The prompt input assembled from the store and the proposed delta. */
@@ -300,6 +305,12 @@ export async function checkChapterState(
       label: '故事工坊-状态对账',
       signal: host.signal,
       timeoutMs: Number.isFinite(host.timeoutMs) ? host.timeoutMs! : STATE_CHECK_TIMEOUT_MS,
+      telemetry: {
+        work, chapter, role: 'validator',
+        scope: `validate:r${revision}`, attempt: input.attempt ?? 1, trigger: input.trigger ?? 'first',
+        delegationId: opened.delegationId, sessions: host.sessions,
+        sink: (call) => recordCall(root, work, call),
+      },
       unavailableCode: 'state-check-unavailable',
       failedCode: 'state-check-failed',
       unavailableMessage: '当前组合没有可用的 subagents 服务：无法做语义状态对账',
@@ -329,6 +340,7 @@ export async function checkChapterState(
     }
 
     const verified = verifyEvidence(submission.payload.items, body)
+    if (child.call.callId !== undefined) finishCall(root, work, child.call.callId, { outcome: 'accepted', submissionAttempts: attempts })
     return {
       ok: true,
       workId: work,

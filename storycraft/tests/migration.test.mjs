@@ -25,7 +25,7 @@ function throwsCode(name, code, fn) {
 const root = await mkdtemp(join(tmpdir(), 'storycraft-schema-'))
 try {
   const { workId } = s.initWork(root, { title: 'schema-only', wordRange: { min: 50, max: 200 } })
-  check('new work is v13', WORK_SCHEMA_VERSION === 13, String(WORK_SCHEMA_VERSION))
+  check('new work is v14', WORK_SCHEMA_VERSION === 14, String(WORK_SCHEMA_VERSION))
   openWork(root, workId).close()
 
   for (const version of [1, 2, 3, 4, 5, 99]) {

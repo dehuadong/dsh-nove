@@ -44,7 +44,7 @@ export const STORE_DIR = '.storycraft'
 export const CATALOG_SCHEMA_VERSION = 1
 
 /** Schema version of one work database. */
-export const WORK_SCHEMA_VERSION = 13
+export const WORK_SCHEMA_VERSION = 14
 
 /** Final material table with purpose, used by new databases. */
 const MATERIALS_SCHEMA_V4 = `
@@ -204,6 +204,36 @@ CREATE TABLE IF NOT EXISTS search_docs (
 
 CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(tokens, content='search_docs', content_rowid='rowid');
 
+CREATE TABLE IF NOT EXISTS model_calls (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  chapter INTEGER,
+  role TEXT NOT NULL,
+  scope TEXT NOT NULL,
+  attempt INTEGER NOT NULL,
+  submission_attempts INTEGER,
+  trigger TEXT NOT NULL,
+  delegation_id TEXT,
+  child_session TEXT,
+  started_at TEXT NOT NULL,
+  ended_at TEXT NOT NULL,
+  duration_ms INTEGER NOT NULL,
+  stop_reason TEXT,
+  outcome TEXT NOT NULL,
+  prompt_chars INTEGER NOT NULL,
+  output_chars INTEGER NOT NULL,
+  model_calls INTEGER,
+  input_tokens INTEGER,
+  output_tokens INTEGER,
+  total_tokens INTEGER,
+  cache_read_tokens INTEGER,
+  cache_write_tokens INTEGER,
+  usage_source TEXT NOT NULL,
+  model TEXT,
+  provider TEXT,
+  error_code TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_model_calls_chapter_role ON model_calls(chapter, role);
+
 CREATE INDEX IF NOT EXISTS idx_versions_number ON chapter_versions(number);
 CREATE INDEX IF NOT EXISTS idx_events_chapter ON events(chapter);
 CREATE INDEX IF NOT EXISTS idx_search_chapter ON search_docs(chapter);
@@ -351,6 +381,7 @@ const WORK_SCHEMA_REQUIRED_COLUMNS = Object.freeze({
   chapters: ['plan_revision', 'plan_approved_source', 'plan_approved_reason', 'state_ready_revision', 'provenance'],
   meta: ['outline_approved_revision', 'outline_approved_source', 'outline_approved_reason', 'foundation_approved_revision', 'foundation_approved_source', 'foundation_approved_reason'],
   artifacts: ['input_revision'],
+  model_calls: ['chapter', 'role', 'scope', 'attempt', 'trigger', 'outcome', 'usage_source'],
 })
 
 /** Reject a stale work file instead of letting a raw SQLite error surface later. */

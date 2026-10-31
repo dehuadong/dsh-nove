@@ -14,6 +14,7 @@ import {
 import { readCards } from './facts.ts'
 import { closeSubmission, consumeSubmission, openSubmission } from './submission.ts'
 import { runChild } from './delegate.ts'
+import { callSummary, finishCall, recordCall } from './telemetry.ts'
 import { checkChapterState } from './state-check.ts'
 
 /** One chapter entry from the manifest. */
@@ -68,6 +69,8 @@ interface SettleHost {
   signal?: AbortSignal
   /** Per-child budget override; defaults to STATE_SETTLE_TIMEOUT_MS. */
   timeoutMs?: number
+  /** Live session store for child usage. */
+  sessions?: any
   /** Whole-settlement budget override; defaults to SETTLE_TOTAL_TIMEOUT_MS. */
   settleTimeoutMs?: number
 }
@@ -80,6 +83,8 @@ interface SettleInput {
 
 /** What one settler run needs; the prompt adds the delegation identity. */
 interface SettlerInput {
+  attempt?: number
+  trigger?: string
   workId: string
   chapter: number
   manifest: ManifestView
@@ -109,12 +114,14 @@ interface AttemptTrace {
 interface SettlementTrace {
   durationMs: number
   perAttempt: AttemptTrace[]
+  usage?: any
   lastError?: string
 }
 
 /** Timing detail on a receipt; landing reports only the total. */
 interface ReceiptTrace {
   durationMs: number
+  usage?: any
   perAttempt?: AttemptTrace[]
   lastError?: string
 }
@@ -325,6 +332,12 @@ async function runSettler(root: string, input: SettlerInput, host: SettleHost, t
       timeoutMs,
       unavailableCode: 'state-settle-unavailable',
       failedCode: 'state-settle-failed',
+      telemetry: {
+        work: input.workId, chapter: input.chapter, role: 'settler',
+        scope: `settle:r${input.revision}`, attempt: input.attempt ?? 1, trigger: input.trigger ?? 'first',
+        delegationId: opened.delegationId, sessions: host.sessions,
+        sink: (call) => recordCall(root, input.workId, call),
+      },
       unavailableMessage: '当前组合没有可用的 subagents 服务：无法自动结算状态',
     })
     const result = child.result
@@ -342,6 +355,7 @@ async function runSettler(root: string, input: SettlerInput, host: SettleHost, t
       throw new StoryError('state-settle-no-submission',
         `settler 没有提交通过校验的结果（尝试 ${attempts} 次）`)
     }
+    if (child.call.callId !== undefined) finishCall(root, input.workId, child.call.callId, { outcome: 'accepted', submissionAttempts: attempts })
     return submission.payload
   } finally {
     closeSubmission(opened.delegationId)
@@ -366,10 +380,11 @@ export async function settleChapterState(
   const started = Date.now()
   const settleTimeoutMs = Number.isFinite(host.settleTimeoutMs) ? host.settleTimeoutMs! : SETTLE_TOTAL_TIMEOUT_MS
   const deadline = started + settleTimeoutMs
-  const trace: SettlementTrace = { durationMs: 0, perAttempt: [] }
+  const trace: SettlementTrace = { durationMs: 0, perAttempt: [], usage: null }
   const remaining = (): number => Math.max(0, deadline - Date.now())
   const timedOut = (message: string, extra: TimeoutExtra = {}): SettleReceipt => {
     trace.durationMs = Date.now() - started
+  trace.usage = callSummary(root, work)
     return unresolved({
     root, work, chapter, revision: extra.revision ?? 0, reason: 'state-settle-timeout', message,
     proposed: extra.proposed ?? { factOps: {}, hookOps: {}, newHooks: [] },
@@ -408,6 +423,7 @@ export async function settleChapterState(
     try {
       payload = await runSettler(root, {
         workId: work, chapter, manifest, body: bodyRead.content, revision, seq, folded, summary, plan, cards, feedback,
+        attempt, trigger: attempt === 1 ? 'first' : 'settler-revalidate',
       }, host, Math.min(Number.isFinite(host.timeoutMs) ? host.timeoutMs! : STATE_SETTLE_TIMEOUT_MS, remaining()))
       trace.perAttempt.push({ stage: 'settler', ms: Date.now() - settlerStart })
     } catch (error: any) {
@@ -469,10 +485,11 @@ export async function settleChapterState(
     const checkStart = Date.now()
     let check
     try {
-      check = await checkChapterState(root, { work, chapter, ...proposed }, {
+      check = await checkChapterState(root, { work, chapter, ...proposed, attempt: validatorAttempts, trigger: validatorAttempts === 1 ? 'first' : 'validator-revalidate' }, {
         service: host.service,
         agent: host.agent,
         signal: host.signal,
+        sessions: host.sessions,
         timeoutMs: Math.min(Number.isFinite(host.timeoutMs) ? host.timeoutMs! : STATE_SETTLE_TIMEOUT_MS, remaining()),
       })
       trace.perAttempt.push({ stage: 'validator', ms: Date.now() - checkStart })

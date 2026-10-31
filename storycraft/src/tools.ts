@@ -637,6 +637,21 @@ const OUTPUT_PROPERTIES: SchemaNode = {
       title: { type: 'string' },
       form: { type: 'string' },
       planApproval: { type: 'string', enum: ['required', 'off'] },
+      calls: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          count: { type: 'integer' },
+          totalDurationMs: { type: 'integer' },
+          totalTokens: { oneOf: [{ type: 'integer' }, { type: 'null' }] },
+          callsWithUsage: { type: 'integer' },
+          callsPartial: { type: 'integer' },
+          callsWithoutUsage: { type: 'integer' },
+          usageComplete: { type: 'boolean' },
+          byRole: { type: 'object', additionalProperties: true },
+        },
+        required: ['count', 'totalDurationMs', 'totalTokens', 'callsWithUsage', 'callsPartial', 'callsWithoutUsage', 'usageComplete', 'byRole'],
+      },
       outline: {
         oneOf: [
           {
@@ -1107,6 +1122,8 @@ const DELEGATE_OUTPUT: DshToolOutput = {
       summaryChars: { type: 'integer' },
       reviewRound: { type: 'integer' },
       submissionAttempts: { type: 'integer' },
+      durationMs: { type: 'integer' },
+      usage: { type: 'object', additionalProperties: true },
       lastMode: { type: 'string', enum: ['patch', 'polish', 'rewrite', 'deslop'] },
       wordRange: {
         type: 'object',
@@ -1184,6 +1201,7 @@ const STATE_CHECK_OUTPUT: DshToolOutput = {
         properties: {
           durationMs: { type: 'integer' },
           submissionAttempts: { type: 'integer' },
+          usage: { type: 'object', additionalProperties: true },
         },
         required: ['durationMs', 'submissionAttempts'],
       },
@@ -1897,6 +1915,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
         return checkChapterState(root, args as Parameters<typeof checkChapterState>[1], {
           service,
           agent: exec.agent,
+          sessions: typeof ctx?.get === 'function' ? ctx.get('sessions') : undefined,
           signal: exec.signal,
         })
       },
@@ -1925,6 +1944,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
           service,
           agent: exec.agent,
           signal: exec.signal,
+          sessions: typeof ctx?.get === 'function' ? ctx.get('sessions') : undefined,
         })
       },
     }),
@@ -2693,6 +2713,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
           service,
           agent: exec.agent,
           signal: exec.signal,
+          sessions: typeof ctx?.get === 'function' ? ctx.get('sessions') : undefined,
         })
       },
     }),

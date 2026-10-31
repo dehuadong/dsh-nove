@@ -94,6 +94,7 @@ import {
   writeChapterMemoOnDb, writeChapterObservationsOnDb, writeChapterSummaryOnDb, writeTextArtifactOnDb, readTextArtifactOnDb,
 } from './artifact-store.ts'
 import { reviewInputOf } from './review-binding.ts'
+import { callSummary } from './telemetry.ts'
 
 /** How long an unused proposal is kept before the next proposal write prunes it. */
 export const PROPOSAL_TTL_MS = 30 * 24 * 60 * 60 * 1000
@@ -996,6 +997,7 @@ export function status(root: any, work: any) {
     const written = manifest.chapters.filter((chapter: any) => chapter.currentRevision > 0)
     return {
       workId: manifest.workId,
+      calls: callSummary(root, manifest.workId),
       planApproval: planApprovalPolicy(manifest),
       outline: manifest.outline === undefined
         ? null

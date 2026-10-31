@@ -17,6 +17,9 @@ import {
   type Form,
 } from './storage.ts'
 import { readFoundationDocuments, writeContextTrace } from './artifact-store.ts'
+import { callEvidence } from './call-evidence.ts'
+import { finishCall, recordCall } from './telemetry.ts'
+import type { CallInput } from './telemetry.ts'
 import { acceptedProposalOf } from './store-db.ts'
 import { critique, findingsOf, withMechanicalFindings } from './critique.ts'
 import { loadRoleInput } from './role-input.ts'
@@ -374,6 +377,7 @@ function assertChildAvailability(
 
 /** One started child from the subagents service. */
 interface ChildActivation {
+  childId?: string
   // The run envelope belongs to the subagents service; the Harness owns its shape.
   result: Promise<any>
   dispose(): Promise<void> | void
@@ -383,12 +387,34 @@ interface ChildActivation {
 interface ChildResult {
   stopReason?: string
   diagnostic?: string
+  output?: any[]
+}
+
+/** Telemetry context supplied by the call site. */
+export interface CallTelemetry {
+  work: string
+  chapter: number | null
+  role: string
+  scope: string
+  attempt: number
+  trigger: string
+  delegationId?: string
+  sessions?: any
+  sink?: (call: CallInput) => number | undefined
+}
+
+/** What a finished dispatch carries back for receipts and tests. */
+export interface ChildCall {
+  callId?: number
+  durationMs: number
+  usage: ReturnType<typeof callEvidence>
 }
 
 /** A started child and the cleaner the caller must run. */
 interface ChildRun {
   result: ChildResult
   dispose: () => Promise<void>
+  call: ChildCall
 }
 
 /** Host dependencies supplied by the action layer. */
@@ -401,6 +427,8 @@ interface DelegateHost {
   signal?: AbortSignal
   /** Per-run budget override; defaults to DELEGATE_TIMEOUT_MS. */
   timeoutMs?: number
+  /** Live session store used to read child usage before dispose. */
+  sessions?: any
 }
 
 /** One child run's request; service and agent reuse the host boundary. */
@@ -413,6 +441,7 @@ interface ChildRunInput extends DelegateHost {
   unavailableCode?: string
   failedCode?: string
   unavailableMessage?: string
+  telemetry?: CallTelemetry
 }
 
 /**
@@ -429,11 +458,15 @@ export async function runChild(input: ChildRunInput): Promise<ChildRun> {
     unavailableCode = 'delegation-unavailable',
     failedCode = 'delegation-failed',
     unavailableMessage = '当前组合没有可用的 subagents 服务：请走手动 story_context + subagent 路径',
+    telemetry,
   } = input
   if (availability) {
     assertChildAvailability(service, agent, { unavailableCode, unavailableMessage })
   }
 
+  const started = Date.now()
+  const startedAt = new Date(started).toISOString()
+  const promptChars = [...prompt].length
   const timeout = new AbortController()
   const timer = setTimeout(() => timeout.abort(), timeoutMs)
   const callerSignal = signal ?? new AbortController().signal
@@ -452,6 +485,31 @@ export async function runChild(input: ChildRunInput): Promise<ChildRun> {
       }
     }
   }
+  const record = (outcome: string, result: ChildResult | undefined, errorCode?: string | null): ChildCall => {
+    const ended = Date.now()
+    const usage = callEvidence(telemetry?.sessions, activation?.childId, result, promptChars)
+    let callId: number | undefined
+    if (telemetry?.sink !== undefined) {
+      try {
+        callId = telemetry.sink({
+          chapter: telemetry.chapter, role: telemetry.role, scope: telemetry.scope,
+          attempt: telemetry.attempt, trigger: telemetry.trigger,
+          delegationId: telemetry.delegationId ?? null,
+          childSession: activation?.childId === undefined ? null : String(activation.childId),
+          startedAt, endedAt: new Date(ended).toISOString(), durationMs: ended - started,
+          stopReason: result?.stopReason ?? null, outcome,
+          promptChars, outputChars: usage.outputChars, modelCalls: usage.modelCalls,
+          inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, totalTokens: usage.totalTokens,
+          cacheReadTokens: usage.cacheReadTokens, cacheWriteTokens: usage.cacheWriteTokens,
+          usageSource: usage.usageSource, model: usage.model, provider: usage.provider,
+          errorCode: errorCode ?? null,
+        })
+      } catch (error) {
+        console.warn(`[storycraft] 调用记录写入失败：${error instanceof Error ? error.message : String(error)}`)
+      }
+    }
+    return { ...(callId === undefined ? {} : { callId }), durationMs: ended - started, usage }
+  }
 
   try {
     try {
@@ -467,11 +525,13 @@ export async function runChild(input: ChildRunInput): Promise<ChildRun> {
         delivery: 'caller',
       })
     } catch (error: any) {
+      const call = record('error', undefined, error?.code)
       // A startActivation rejection crosses the service boundary; only code and message are read.
-      if (error?.code === 'UNSUPPORTED_CAPABILITY' || /provider|capabilit/iu.test(String(error?.message))) {
-        throw new StoryError(unavailableCode, `子代理 provider 不可用：${error?.message ?? error}`)
-      }
-      throw new StoryError(failedCode, `子代理启动失败：${error?.message ?? error}`)
+      const mapped = (error?.code === 'UNSUPPORTED_CAPABILITY' || /provider|capabilit/iu.test(String(error?.message)))
+        ? new StoryError(unavailableCode, `子代理 provider 不可用：${error?.message ?? error}`)
+        : new StoryError(failedCode, `子代理启动失败：${error?.message ?? error}`)
+      if (call.callId !== undefined) (mapped as any).callId = call.callId
+      throw mapped
     }
 
     // The inner catch above always throws, so a started activation exists here.
@@ -484,9 +544,13 @@ export async function runChild(input: ChildRunInput): Promise<ChildRun> {
       throw new StoryError(failedCode, `子代理调用失败：${error?.message ?? error}`)
     })
     clearTimeout(timer)
-    return { result, dispose }
+    const call = record(result?.stopReason === 'completed' ? 'completed' : 'error', result)
+    return { result, dispose, call }
   } catch (error) {
+    const outcome = timeout.signal.aborted ? 'timeout' : callerSignal.aborted ? 'cancelled' : 'error'
+    const call = record(outcome, undefined, (error as { code?: string })?.code)
     await dispose()
+    if (call.callId !== undefined && typeof error === 'object' && error !== null) (error as any).callId = call.callId
     throw error
   }
 }
@@ -667,6 +731,11 @@ async function delegateArchitect(root: string, input: ArchitectInput, host: Dele
       signal: host.signal,
       timeoutMs,
       availability: false,
+      telemetry: {
+        work, chapter: null, role: 'architect', scope: `architect:${stage}`, attempt: 1, trigger: 'first',
+        delegationId: opened.delegationId, sessions: host.sessions,
+        sink: (call) => recordCall(root, work, call),
+      },
     })
     const result = child.result
     const submission = consumeSubmission(opened.delegationId)
@@ -679,7 +748,10 @@ async function delegateArchitect(root: string, input: ArchitectInput, host: Dele
     }
     assertActive(signal)
     const landed = writeFoundationStage(root, { work, stage, payload: submission.payload })
+    if (child.call.callId !== undefined) finishCall(root, work, child.call.callId, { outcome: 'accepted', submissionAttempts: attempts })
     return fitReceipt({
+        durationMs: child.call.durationMs,
+        usage: child.call.usage,
       ok: true,
       workId: work,
       role: 'architect',
@@ -816,6 +888,12 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
       signal: host.signal,
       timeoutMs,
       availability: false,
+      telemetry: {
+        work, chapter, role,
+        scope: `${role}:r${manifest.chapters.find(item => item.number === chapter)?.currentRevision ?? 0}`,
+        attempt: 1, trigger: 'first', delegationId: opened.delegationId,
+        sessions: host.sessions, sink: (call) => recordCall(root, work, call),
+      },
     })
     const result = child.result
     const submission = consumeSubmission(opened.delegationId)
@@ -846,7 +924,10 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
       } catch {
         // Diagnostics only: the plan already landed.
       }
+      if (child.call.callId !== undefined) finishCall(root, work, child.call.callId, { outcome: 'accepted', submissionAttempts: attempts })
       return fitReceipt({
+        durationMs: child.call.durationMs,
+        usage: child.call.usage,
         ok: true,
         workId: work,
         chapter,
@@ -866,7 +947,10 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
         work, chapter, title, body,
         requirePlanApproval: loaded.manifest.planApproval === 'required',
       })
+      if (child.call.callId !== undefined) finishCall(root, work, child.call.callId, { outcome: 'accepted', submissionAttempts: attempts })
       return fitReceipt({
+        durationMs: child.call.durationMs,
+        usage: child.call.usage,
         ok: true,
         workId: work,
         chapter,
@@ -892,6 +976,7 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
         if ((error as { code?: unknown } | null)?.code !== 'observation-source-unverified') throw error
         // One bounded repair: give the reviewer the rejected evidence and let it
         // resubmit once; the host still verifies every quote.
+        if (child.call.callId !== undefined) finishCall(root, work, child.call.callId, { outcome: 'rejected', submissionAttempts: attempts, errorCode: 'observation-source-unverified' })
         const feedback = `上一次提交被拒绝：${error instanceof Error ? error.message : String(error)}。重新提交前逐条核对：quote 必须是当前正文 r${revision} 中连续存在的原文；核对不过就删除该条 observation，不得改写引文。`
         const retryOpened = openSubmission({
           role,
@@ -910,6 +995,11 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
             signal: host.signal,
             timeoutMs,
             availability: false,
+            telemetry: {
+              work, chapter, role, scope: `${role}:r${revision}`, attempt: 2, trigger: 'reviewer-quote-retry',
+              delegationId: retryOpened.delegationId, sessions: host.sessions,
+              sink: (call) => recordCall(root, work, call),
+            },
           })
           const retrySubmission = consumeSubmission(retryOpened.delegationId)
           if (retryChild.result?.stopReason !== 'completed' || retrySubmission?.consumed !== true || retrySubmission.payload === undefined) {
@@ -918,12 +1008,16 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
           assertActive(signal)
           reviewerAttempts = attempts + (retrySubmission.attempts ?? 1)
           written = writeReview(root, { work, chapter, observations: reviewerObservations(retrySubmission.payload.items, chapter, revision) })
+          if (retryChild.call.callId !== undefined) finishCall(root, work, retryChild.call.callId, { outcome: 'accepted', submissionAttempts: retrySubmission.attempts ?? 1 })
         } finally {
           closeSubmission(retryOpened.delegationId)
           if (retryChild !== undefined) await retryChild.dispose()
         }
       }
+      if (child.call.callId !== undefined) finishCall(root, work, child.call.callId, { outcome: 'accepted', submissionAttempts: reviewerAttempts })
       return fitReceipt({
+        durationMs: child.call.durationMs,
+        usage: child.call.usage,
         ok: true,
         workId: work,
         chapter,
@@ -943,7 +1037,10 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
       assertActive(signal)
       const summaryInput: SummaryInput = { work, chapter, content: payload, ifAbsent: true }
       const receipt = writeSummary(root, summaryInput)
+      if (child.call.callId !== undefined) finishCall(root, work, child.call.callId, { outcome: 'accepted', submissionAttempts: attempts })
       return fitReceipt({
+        durationMs: child.call.durationMs,
+        usage: child.call.usage,
         ok: true,
         workId: work,
         chapter,
@@ -965,7 +1062,10 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
       requirePlanApproval: readManifest(root, work).planApproval === 'required',
     }
     const revised = reviseChapter(root, revisionInput)
+    if (child.call.callId !== undefined) finishCall(root, work, child.call.callId, { outcome: 'accepted', submissionAttempts: attempts })
     return fitReceipt({
+        durationMs: child.call.durationMs,
+        usage: child.call.usage,
       ok: true,
       workId: work,
       chapter,
