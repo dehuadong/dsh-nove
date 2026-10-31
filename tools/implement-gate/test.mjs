@@ -96,5 +96,8 @@ const preExec = (host, agent, name, args) => host.handlers['tools/pre-execute'](
 
 check('compound shell outside is detected', shellOutside('Set-Content C:\\outside\\x.txt x', root) === true)
 
+check('relative ./path is not outside', shellOutside('node -e "./tools/x"', root) === false)
+check('parent escape is outside', shellOutside('Set-Content ..\\x.txt x', root) === true)
+
 if (failures > 0) { console.error(`\n${failures} CHECK(S) FAILED`); process.exit(1) }
 console.log('\nALL CHECKS PASSED')

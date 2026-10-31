@@ -111,8 +111,8 @@ export function shellAccess(command, root) {
 
 /** Detect an absolute/outside write target in a shell line. */
 export function shellOutside(command, root) {
-  for (const match of String(command ?? '').matchAll(/(?:[A-Za-z]:\\[^\s"']+|\/[A-Za-z][^\s"']*|(?:^|[\s'"])\.[.][/\\][^\s"']*)/gu)) {
-    const target = classifyPath(root, match[0])
+  for (const match of String(command ?? '').matchAll(/(?:^|[\s'"])(?:[A-Za-z]:\\[^\s"']+|\/[A-Za-z][^\s"']*|\.[.][/\\][^\s"']*)/gu)) {
+    const target = classifyPath(root, match[0].replace(/^[\s'"]+/u, ''))
     if (target.outside) return true
   }
   return false
