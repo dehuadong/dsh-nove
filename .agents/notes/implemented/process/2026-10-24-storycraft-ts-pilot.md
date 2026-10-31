@@ -1,8 +1,8 @@
 # Agent Note: 故事工坊：TypeScript 开发与编译产物接入
 
-Status: proposed
+Status: implemented
 
-## 问题
+## Problem
 
 开发时用 TypeScript，安装包用编译后的 JavaScript。需要确定：
 
@@ -22,7 +22,7 @@ Status: proposed
 
 采纳其 **TS 源码 → dist JS → 安装/运行** 的方式；不复制其包结构或构建工具，试点用本地 `tsc`。
 
-## 提案
+## Decision
 
 ### 1. 源码与产物
 
@@ -51,14 +51,18 @@ Status: proposed
 - 根入口 shim 或提交生成产物；
 - 改变运行行为或 DSH 加载路径。
 
-## 备选方案
+## Alternatives considered
 
 - **提交 dist**：会把生成物变成第二个真源；否决。
 - **根 `scope.js` re-export**：会保留一份 JS 入口；否决，直接 import 产物。
 - **全局 tsc**：不可复现；否决，改用 devDependency。
 - **构建时再编译（不预构建）**：没有构建步骤的开发机无法直接 `link:`；用 `prepack` + 显式 build 解决。
 
-## 验收条件
+## Testing
+
+`scripts/build.mjs` 的 Host/Client 产物、`scripts/pack-check.mjs` 的入口清单、CI 的 tsc/build 阶段；完整 CI：84 单元 + 29 E2E。
+
+验收覆盖：
 
 1. `src/scope.ts` 是唯一实现，`dist/` 被忽略且不提交；
 2. `npm install && npm run build` 生成 `dist/scope.js`；
@@ -66,7 +70,7 @@ Status: proposed
 4. `npm pack` 的 tarball 含 `dist/scope.js`，不含 tests/e2e/src；
 5. 临时 profile 安装 tarball 后 DSH 能启动。
 
-## 风险
+## Consequences
 
 - 开发机需要先 `npm install` 和 build，`link:` 不是零步骤；
 - `dist` 不提交，直接复制仓库目录安装会缺产物，必须走 tarball 或先 build；

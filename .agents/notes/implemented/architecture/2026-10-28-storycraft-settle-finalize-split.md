@@ -1,11 +1,11 @@
 # Agent Note: 故事工坊：结算与定稿拆分
 
-Status: proposed
+Status: implemented
 
 > 承接 [#82](https://github.com/dehuadong/dsh-nove/issues/82)。产品行为与验收归 #82；本 Note 拥有技术设计与实现边界。
 > 部分替代 `2026-10-24-storycraft-bible-artifacts.md`、`2026-10-24-storycraft-consumer-migration.md` 中“settle 单动作完成状态与定稿”的描述；状态投影与对账语义不变。
 
-## 问题
+## Problem
 
 `story_settle` 把状态抽取、语义对账、定稿锁定绑在一个事务里（`state-settle.ts` → `settleState`）。真实链路（#50）里，结算超时或对账退回会卡住定稿；退回的 proposed 只能由模型手抄进 `story_state` 再重跑。
 
@@ -21,7 +21,7 @@ Status: proposed
 - `assertStateGate`（`store-db.ts:2434`）校验审稿/摘要；
 - `deriveWorkbench({next, manifest})`（`workbench.ts:73`）不读草案。
 
-## 提案
+## Decision
 
 ### 数据
 
@@ -116,7 +116,7 @@ Status: proposed
 | `state-not-ready` | 定稿时无 ready 草案或 `state_ready_revision ≠ current` |
 | `summary-required` / `summary-stale` / `review-required` | 沿用现有语义 |
 
-## 备选方案
+## Alternatives considered
 
 - **A. 结算即入账、定稿只锁定**：定稿前改稿留下不可撤销事件，AC6 不成立。**不采用**。
 - **B. 只给 settle 加 `applyProposed` 参数**：不解决“结算失败卡定稿”。**不采用**。
@@ -128,7 +128,7 @@ Status: proposed
 - 参考工程无此状态机（`packages/**/*.ts` 检索，见 #80 记录）；
 - 对账与投影沿用 `state-check.ts` / `state-settle.ts`，本设计只改入账时点与草案生命周期。
 
-## 风险
+## Consequences
 
 - 草案删除不可恢复：定稿后改状态必须 reopen → 重结算（刻意不变量）。
 - `story_state` 语义变更影响 `client.ts:909-910`、`:971-973`、技能文案与 README。
@@ -137,7 +137,11 @@ Status: proposed
 - 零 ops 草案与“空 ops 一律 empty-state”的旧断言冲突：需更新 `state-v2-settle.test.mjs` 与 `state-settle.test.mjs` 的空 delta 用例。
 - `revision-limit` 必须排在 apply/finalize 之前。
 
-## 验收条件
+## Testing
+
+`tests/settle-draft.test.mjs`、`state-settle.test.mjs`、`revision-adopt.test.mjs`；`#82`/`#85`。完整 CI：84 单元 + 29 E2E。
+
+验收覆盖：
 
 - 单元：settle 干净/零 ops/退回/超时带 ops/超时无 ops；apply 三错误；finalize 前置 + 事件条数 + 草案删除；story_state 合并（resolvedBy）与空 ops；reopen/rewrite/revise/move/delete 清就绪并删草案；空草案可定稿。
 - 集成：一章“结算 → 草案 → 接受/改状态 → 定稿”，事件只在定稿增加、草案消失。

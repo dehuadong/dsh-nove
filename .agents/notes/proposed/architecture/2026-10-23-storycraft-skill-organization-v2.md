@@ -4,7 +4,7 @@ Status: proposed
 
 > 部分交付：A0-5 共享方法与 L 角色薄契约已落地；S/D 独立流水线未落地，保留 proposed。
 >
-> **部分替代（2026-10-27）**：§1「形态级共享方法」已被阶段技能决定替代——一个技能只装一个节点的 craft，参考只由宿主按节点选择；见 [2026-10-27-storycraft-action-gates.md](../feature/2026-10-27-storycraft-action-gates.md)。三形态独立流水线的其余部分仍然有效。
+> **部分替代（2026-10-27）**：§1「形态级共享方法」已被阶段技能决定替代——一个技能只装一个节点的 craft，参考只由宿主按节点选择；见 [2026-10-27-storycraft-action-gates.md](../../implemented/feature/2026-10-27-storycraft-action-gates.md)。三形态独立流水线的其余部分仍然有效。
 
 ## 问题
 

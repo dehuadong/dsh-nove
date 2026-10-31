@@ -1,8 +1,8 @@
 # Agent Note: 故事工坊：npm 发布形态与安装验收
 
-Status: proposed
+Status: implemented
 
-## 问题
+## Problem
 
 构建形态已由 [2026-10-26-storycraft-bundled-build.md](../../implemented/process/2026-10-26-storycraft-bundled-build.md) 定稿并交付：`lib/` 四个入口、测试跑源码、`engines.node >=22.18`。
 
@@ -20,7 +20,7 @@ Status: proposed
 - DSH 宿主契约：`deepseek-harness/docs/user/develop/basic/publish.zh.md`（第 66 行要求 `engines.dsh`，缺省时回退到 `@deepseek-ai/dsh*` peer 范围；npm 与 tarball 安装使用预构建产物，不执行构建）；`deepseek-harness/packages/boot/app-boot/src/plugin-compatibility.ts` 第 55–73 行规定有 `engines.dsh` 时只看它、两者都缺视为满足。
 - 无参考实现的取值：`engines.dsh` 的具体范围与 `see-storycraft` 在 npm 的占用属于本包事实，参考工程都没有使用 DSH。范围由作者在 2026-10-26 定为 `>=0.2.1-rc.2 <0.3.0`。
 
-## 提案
+## Decision
 
 ### 1. manifest
 
@@ -92,7 +92,7 @@ Status: proposed
 - 迁移触发条件，满足任一条再做，且作为**独立工作项**先做结构迁移：① 出现第二个要独立发布的包（例如某形态拆成 `see-storycraft-script` 单独发版）；② 两个包需要共享一份 core；③ 某个包的产物要被另一个包内联。
 - 触发时的最小方案：仓库根加 `pnpm-workspace.yaml`（`packages: ['storycraft', 'packages/*']`）与根 `package.json`，内部库用 `workspace:*`，构建用 `pnpm -r --if-present build`，发布仍逐个包；届时一并处理包管理器（npm→pnpm）、lockfile、`ci.mjs`/`install-smoke` 的安装语义，并修正 TypeScript 迁移 Note 里“不采纳 monorepo”的记录。
 
-## 备选方案
+## Alternatives considered
 
 - **继续只做 link 开发**：不满足可分发目标；否决。
 - **GitHub 直装**（`git+https://…&path:/storycraft`，安装时 `prepare` 构建）：私有仓库需要凭据、安装时依赖 devDependencies 与 pnpm 行为，且作者 2026-10-27 明确不需要；否决。
@@ -103,7 +103,11 @@ Status: proposed
 - **GPL-3.0-only 并把源码放进 npm 包**：能合规，但作者选择更简单的 MIT；否决 GPL。
 - **插件市场索引与中央注册表**：作者决定本次不做；延后。
 
-## 验收条件
+## Testing
+
+`scripts/pack-check.mjs`、`scripts/ci.mjs --smoke`（tarball → 冷启动）、`LICENSE`/`engines.dsh`；完整 CI：84 单元 + 29 E2E。
+
+验收覆盖：
 
 本节只列该设计需要被证明成立的技术点；交付范围、产品验收与批准证据归工作项 `#75`。
 
@@ -111,7 +115,7 @@ Status: proposed
 2. tarball 在临时 `DSH_HOME` 的独立 profile 中安装后，`--dump-config` 出现 `see-storycraft` 层，冷启动页面无 `pageerror` 且工作台路由返回 200。
 3. 把 `engines.dsh` 改成当前运行版本不满足的范围后，隔离 profile 的安装被宿主拒绝并给出原因。
 
-## 风险
+## Consequences
 
 - 本机只有 `0.2.1-rc.3` 可运行（checkout 为 rc.2 且没有 `node_modules`）；`engines.dsh` 含 rc.2 但 rc.2 未实测，登记为已知缺口。
 - pnpm 的 24 小时 `minimumReleaseAge` 会挡住发布当天的 registry 安装验证，需要在临时 profile 显式豁免该版本。

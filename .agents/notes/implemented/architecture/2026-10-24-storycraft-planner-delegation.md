@@ -1,8 +1,8 @@
 # Agent Note: 故事工坊：L P0 planner 委派
 
-Status: proposed
+Status: implemented
 
-## 问题
+## Problem
 
 章纲目前由主编直接调用 `story_plan` 写，`story_delegate` 的角色只有 writer/reviewer/reviser/summarizer/architect。规划角色没有委派入口，导致：
 
@@ -25,7 +25,7 @@ Status: proposed
 
 本 Note 只拥有 planner 的委派路径、输入装配、提交校验与落盘边界，不重写章纲字段合同。
 
-## 提案
+## Decision
 
 ### 1. 角色与契约
 
@@ -77,14 +77,18 @@ planner 只产出章纲，不写正文、不写全书计划、不确认章纲。
 - 不静默回退主编写章纲；作者可以显式走手动 `story_plan`；
 - planner 不可用不影响已存在章纲的写作与后续阶段。
 
-## 备选方案
+## Alternatives considered
 
 - **保持主编写章纲**：角色边界不清，`#65` 多章验收无法覆盖 planner；否决。
 - **让 planner 一次生成全书计划 + 章纲**：与 `story_outline` 的作者确认和 architect foundation 重叠；否决。
 - **planner 直接落盘不提交**：绕过宿主校验，与所有角色契约不一致；否决。
 - **允许 planner 覆盖已存在章纲**：会绕过章纲确认闸门；否决，改由主编手动 `story_plan`。
 
-## 验收条件
+## Testing
+
+`tests/delegate.test.mjs` 覆盖 planner 委派；`#63`。完整 CI：84 单元 + 29 E2E。
+
+验收覆盖：
 
 1. `story_delegate(role:'planner')` 在 outline 已确认、无 plan 时成功写入 `plan:<n>`，回执不含正文；
 2. 无 outline / 已有 plan / 子代理不可用/无提交时按错误码停手，不写 plan；
@@ -93,7 +97,7 @@ planner 只产出章纲，不写正文、不写全书计划、不确认章纲。
 5. 作者确认章纲仍走面板，planner 不能代签；
 6. 单测 + `ci --no-e2e` 通过；真实链路不归本项，统一并入 `#50` 的 L 验收。
 
-## 风险
+## Consequences
 
 - planner 产出的章纲质量依赖模型与上下文；作者确认闸门仍是最后防线。
 - 新增角色的技能名硬编码在 `ROLE_META`，改名需同步测试。

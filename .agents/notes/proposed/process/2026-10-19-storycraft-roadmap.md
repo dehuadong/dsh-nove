@@ -64,17 +64,17 @@ Status: proposed
 
 | Note | 处置 |
 | --- | --- |
-| `architecture/2026-10-24-storycraft-planner-delegation.md` | 已落地（#63） |
-| `architecture/2026-10-27-storycraft-byte-binding-and-engines.md` | 已落地（#78/#79） |
-| `architecture/2026-10-28-storycraft-settle-finalize-split.md` | 已落地（#82/#85） |
-| `architecture/2026-10-23-storycraft-skill-organization-v2.md` | 部分落地：阶段技能/薄角色已交付；S/D 独立流水线待做 |
-| `architecture/2026-10-24-store-db-row-types.md` | 待开（类型缝/`@ts-nocheck` 收口） |
-| `architecture/2026-10-24-storycraft-ts-migration.md`、`2026-10-24-storycraft-ts-pilot.md` | 已落地（TS 源码、构建与 CI 接入） |
-| `process/2026-10-26-storycraft-release-packaging.md` | 已落地（发布字段、LICENSE、tarball smoke） |
-| `bug-fix/2026-10-27-storycraft-gate-panel-architect-remediation.md` | 已落地（#79） |
-| `feature/2026-10-27-storycraft-action-gates.md` | 已落地（#77） |
+| `implemented/architecture/2026-10-24-storycraft-planner-delegation.md` | 已迁移（#63） |
+| `implemented/architecture/2026-10-27-storycraft-byte-binding-and-engines.md` | 已迁移（#78/#79） |
+| `implemented/architecture/2026-10-28-storycraft-settle-finalize-split.md` | 已迁移（#82/#85） |
+| `proposed/architecture/2026-10-23-storycraft-skill-organization-v2.md` | 部分落地：阶段技能/薄角色已交付；S/D 独立流水线待做 |
+| `proposed/architecture/2026-10-24-store-db-row-types.md` | 待开（类型缝/`@ts-nocheck` 收口） |
+| `implemented/process/2026-10-24-storycraft-ts-migration.md`、`implemented/process/2026-10-24-storycraft-ts-pilot.md` | 已迁移（TS 源码、构建与 CI 接入） |
+| `implemented/process/2026-10-26-storycraft-release-packaging.md` | 已迁移（发布字段、LICENSE、tarball smoke） |
+| `implemented/bug-fix/2026-10-27-storycraft-gate-panel-architect-remediation.md` | 已迁移（#79） |
+| `implemented/feature/2026-10-27-storycraft-action-gates.md` | 已迁移（#77） |
 
-实现已落地但文件仍在 `proposed/` 的 Note 保留为设计史，不再作为工作项；下一次触及该主题时按 `write-agent-notes` 转 implemented 或归档。
+已落地的 8 篇已按 `write-agent-notes` 迁到 `implemented/`；`proposed/` 只剩 skill-organization v2（部分）、store-db-row-types（待开）与 roadmap/parity 两篇 living 文档。
 
 ### 技能与资源基线
 

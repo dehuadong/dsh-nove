@@ -1,8 +1,8 @@
 # Agent Note: 故事工坊：TypeScript 迁移计划（分阶段）
 
-Status: proposed
+Status: implemented
 
-## 问题
+## Problem
 
 故事工坊目前几乎全是 JS + JSDoc，只有 `scope` 是 TS（`src/scope.ts` → `dist/scope.js`）。要决定：
 
@@ -19,7 +19,7 @@ Status: proposed
 - 不采纳其目录结构、monorepo、tsdown/vitest 或包划分；故事工坊是单个 DSH 插件包，结构由 DSH 的加载契约决定。
 - Client 的 browser bundle 也按 DSH 的 `__ModuleLoader__` 单文件入口处理，不照搬参考工程的 browser 构建。
 
-## 提案
+## Decision
 
 ### 1. DSH 约束下的结构
 
@@ -87,7 +87,7 @@ Status: proposed
 - 每层形成独立 commit，便于按层审阅/回退；
 - 回退按 commit 处理，dist 重新构建。
 
-## 备选方案
+## Alternatives considered
 
 - **一次全仓 rename**：回归面太大；否决。
 - **`allowJs` + `checkJs` 混编**：无法保证 TS 模块边界，类型收益低；否决。
@@ -95,7 +95,11 @@ Status: proposed
 - **只迁叶子模块不迁 store-db/tools**：类型收益停在边缘；不作为终点。
 - **Client 与 Host 同批**：构建模型不同（esbuild vs tsc）；否决。
 
-## 验收条件
+## Testing
+
+Host/Client `tsc -p` 类型检查、测试直接 import `src/*.ts`、`scripts/build.mjs` 生成 `lib/`；完整 CI：84 单元 + 29 E2E。
+
+验收覆盖：
 
 1. 每层模块只有 TS 源，`dist` 由构建生成，仓库不提交；
 2. 每层 `ci --no-e2e`、pack-check、tarball 安装 smoke 通过；
@@ -104,7 +108,7 @@ Status: proposed
 5. L4 后 `index.js`/`tools.js` 的 DSH 入口仍可加载；
 6. T4 Client 独立验收，不阻塞 Host 层。
 
-## 风险
+## Consequences
 
 - `store-db` 166KB，类型化 SQLite 行与动态 SQL 成本高；单独一批，允许 `unknown` 边界。
 - DSH `ctx`/`exec` 没有公开类型；本地声明可能与运行时漂移，需 T3 真实构造验证。
