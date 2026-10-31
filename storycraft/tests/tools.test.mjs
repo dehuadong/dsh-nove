@@ -276,6 +276,8 @@ try {
     && ['authority', 'task', 'constraints', 'state', 'style'].every(name => context.sections.some(item => item.name === name)),
   JSON.stringify(context).slice(0, 300))
   check('story_context returns a trace', context.ok === true && context.trace.budget.limit > 0, JSON.stringify(context.trace))
+  check('story_context traces the requested skills', context.ok === true
+    && context.trace.skills?.some(item => item.id === 'storycraft-long-prose' && /^[0-9a-f]{12}$/u.test(item.revision)), JSON.stringify(context.trace?.skills))
   const budgeted = await byName.get('story_context').execute({ work, chapter: 1, role: 'writer', budget: 1234 }, exec)
   check('story_context accepts a token budget', budgeted.ok === true && budgeted.trace.budget.limit === 1234,
     JSON.stringify(budgeted.trace?.budget))
@@ -558,6 +560,7 @@ try {
   // R12: a dispatch trace is readable by id, but only for the current chapter.
   const traceFixture = {
     chapter: 2,
+    skills: [],
     plannerInputs: [],
     composerInputs: ['outline'],
     selectedSources: ['outline'],

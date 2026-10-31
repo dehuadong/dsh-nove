@@ -80,23 +80,22 @@ export const WORKER_POLICY = [
   '只用本次角色允许的工具；落盘由宿主完成，你通过 story_submit 提交。',
 ].join('\n')
 
-/** One role's receipt label and the skill the child must load. */
+import { roleMethod, roleSkills, writerSkills, plannerSkills } from './skill-routing.ts'
+import { skillEvidence } from './skill-evidence.ts'
+
+export { roleMethod, writerSkills, plannerSkills }
+
+/** One role's receipt label; routing owns the skill. */
 interface RoleMeta {
   label: string
-  skill?: string
 }
 
-/**
- * Role labels and role-specific skills. Writer and planner carry no skill of
- * their own: the form supplies the craft, and the role protocol lives in
- * `promptFor`, so no skill has to cover more than one form.
- */
 export const ROLE_META = {
   writer: { label: '写手' },
-  reviewer: { label: '审稿', skill: 'storycraft-review' },
-  reviser: { label: '修订', skill: 'storycraft-revise-craft' },
+  reviewer: { label: '审稿' },
+  reviser: { label: '修订' },
   summarizer: { label: '摘要' },
-  architect: { label: '架构师', skill: 'storycraft-architect' },
+  architect: { label: '架构师' },
   planner: { label: '规划' },
 } as const
 
@@ -107,42 +106,6 @@ type RoleName = keyof typeof ROLE_META
 function isRoleName(role: string): role is RoleName {
   // Absent keys must read as absent, so the lookup stays on own properties.
   return (ROLE_META as Record<string, RoleMeta | undefined>)[role] !== undefined
-}
-
-/** Skills the writer loads: the form's craft only; the role protocol lives in `promptFor`. */
-export function writerSkills(form: Form): string[] {
-  return [FORM_META[formOf({ form })].craft]
-}
-
-/** Skills the planner loads: the form's craft, whose node rules name the plan reference. */
-export function plannerSkills(form: Form): string[] {
-  return [FORM_META[formOf({ form })].craft]
-}
-
-/**
- * The one method reference a role reads at this node.
- *
- * The host picks it so a resident skill never has to list every reference and
- * the child never sees planning material while writing.
- */
-export function roleMethod(role: string, form: Form): { skill: string; reference?: string } | undefined {
-  const meta = FORM_META[formOf({ form })]
-  if (role === 'writer') {
-    return {
-      skill: meta.craft,
-      reference: form === 'script'
-        ? 'references/episode-scene-craft.md'
-        : form === 'short' ? 'references/production-checklist.md' : 'references/scene-dialogue-and-length-budget.md',
-    }
-  }
-  if (role === 'planner') {
-    return {
-      skill: form === 'script' ? 'storycraft-script-spec' : form === 'short' ? 'storycraft-short-outline' : 'storycraft-long-plan',
-      reference: form === 'script' ? 'references/spec.md' : form === 'short' ? 'references/outline.md' : 'references/chapter-plan.md',
-    }
-  }
-  if (role === 'reviewer') return { skill: 'storycraft-review', reference: 'references/review-dimensions.md' }
-  return undefined
 }
 
 /** One chapter entry from the manifest. */
@@ -281,11 +244,7 @@ function promptFor({ input, manifest, context, delegationId }: PromptRequest): s
   const meta: RoleMeta = ROLE_META[input.role]
   const form = formOf(manifest)
   const formMeta = FORM_META[form]
-  const skills = input.role === 'writer'
-    ? writerSkills(form)
-    : input.role === 'planner'
-      ? plannerSkills(form)
-      : (meta.skill === undefined ? [] : [meta.skill])
+  const skills = roleSkills(input.role, form)
   const lines = [
     `你是${formMeta.label}《${manifest.title}》（${manifest.workId}）的${meta.label}子代理，负责第 ${input.chapter} ${unitOf(form)}。`,
     ...(skills.length === 0 ? [] : [`开工前先调用 skill 工具加载 ${skills.map(skill => `\`${skill}\``).join('、')}，严格按它们的契约与共享方法执行。`]),
@@ -713,7 +672,7 @@ function architectPrompt({ work, stage, instruction, delegationId, manifest, fou
   if (stage === 'cards' && foundation.rolesIndex !== undefined) context.push(`## 角色索引\n${JSON.stringify(foundation.rolesIndex, null, 2)}`)
   return [
     `你是《${manifest.title}》（${manifest.workId}）的架构师子代理，负责基础设定：${labels[stage]}。`,
-    '开工前先调用 skill 工具加载 `storycraft-architect`，严格按它的契约与 longform foundation-design 参考执行。',
+    `开工前先调用 skill 工具加载 ${roleSkills('architect', formOf(manifest)).map(id => `\`${id}\``).join('、')}，严格按它们的契约与 longform foundation-design 参考执行。`,
     ...(proposal === undefined ? [] : ['', '## 作者已确认的提案', `前提：${proposal.premise}`, `人物：${proposal.characters}`, '只依据本任务的提案与已确认材料工作；不得延续其它会话或其它作品的内容。']),
     '',
     '## 本次任务',
@@ -749,6 +708,7 @@ async function delegateArchitect(root: string, input: ArchitectInput, host: Dele
     throw new StoryError('foundation-order', '先生成 roles 索引，再生成角色卡')
   }
   const documents = readFoundationDocuments(root, work)
+  const architectSkills = skillEvidence(roleSkills('architect', formOf(manifest)))
   const opened = openSubmission({ role: 'architect', workId: work, stage })
   const prompt = architectPrompt({
     work, stage, instruction: typeof input.instruction === 'string' ? input.instruction : '',
@@ -775,6 +735,7 @@ async function delegateArchitect(root: string, input: ArchitectInput, host: Dele
       work, chapter: 1, role: 'architect',
       trace: {
         chapter: 1,
+        skills: architectSkills,
         // The architect's inputs are the foundation documents it was given.
         plannerInputs: sources,
         composerInputs: [],

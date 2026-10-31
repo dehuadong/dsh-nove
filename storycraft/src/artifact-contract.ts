@@ -467,10 +467,16 @@ export function validateStateDraft(value: ArtifactRecord): ArtifactRecord {
 /** Validate a chapter trace. */
 export function validateChapterTrace(value: ArtifactRecord): ArtifactRecord {
   const input = object(value, 'trace')
-  keys(input, ['chapter', 'plannerInputs', 'composerInputs', 'selectedSources', 'contextTiers',
+  keys(input, ['chapter', 'skills', 'plannerInputs', 'composerInputs', 'selectedSources', 'contextTiers',
     'tokenBudget', 'compression', 'retrieval', 'notes', 'sections', 'trimmed', 'dropped', 'budget',
     'missing', 'overflow'], 'trace')
   integer(input.chapter, 'trace.chapter', 1)
+  list(input.skills, 'trace.skills', (skill, label) => {
+    keys(skill, ['id', 'revision', 'stage'], label)
+    text(skill.id, `${label}.id`)
+    text(skill.revision, `${label}.revision`)
+    if (skill.stage !== undefined) oneOf(skill.stage, ['settler', 'validator'], `${label}.stage`)
+  })
   strings(input.plannerInputs, 'trace.plannerInputs')
   strings(input.composerInputs, 'trace.composerInputs')
   strings(input.selectedSources, 'trace.selectedSources')

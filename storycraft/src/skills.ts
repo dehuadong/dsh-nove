@@ -41,9 +41,6 @@ const FORMS = 'forms'
 /** Discovery rank; lower wins a name collision, and a preset-local catalog is authoritative. */
 const RANK = 100
 
-/** The catalog file: mode → skill names. */
-const CATALOG_FILE = join(SKILLS_ROOT, 'skills', 'catalog.json')
-
 /** Parsed mode catalog. */
 interface Catalog {
   readonly modes: Record<string, readonly string[]>
@@ -56,10 +53,10 @@ interface Catalog {
  * `skills/<name>/` and moving it between catalogs is one edit here.
  * @returns parsed modes; empty when the file is missing or malformed.
  */
-function readCatalog(): Catalog {
+function readCatalog(root = SKILLS_ROOT): Catalog {
   let parsed: unknown
   try {
-    parsed = JSON.parse(readFileSync(CATALOG_FILE, 'utf8'))
+    parsed = JSON.parse(readFileSync(join(root, 'skills', 'catalog.json'), 'utf8'))
   } catch {
     return { modes: {} }
   }
@@ -81,9 +78,9 @@ function readCatalog(): Catalog {
  * before the directories are flattened.
  * @returns name → absolute skill directory; the first directory wins.
  */
-function skillIndex(): Map<string, string> {
+function skillIndex(packageRoot = SKILLS_ROOT): Map<string, string> {
   const index = new Map<string, string>()
-  const root = join(SKILLS_ROOT, 'skills')
+  const root = join(packageRoot, 'skills')
   let entries
   try {
     entries = readdirSync(root, { withFileTypes: true })
@@ -106,6 +103,17 @@ function skillIndex(): Map<string, string> {
     if (!index.has(name)) index.set(name, full)
   }
   return index
+}
+
+/** Resolve one catalog skill id to its directory; optional root aids tests. */
+export function skillDirectory(id: string, packageRoot = SKILLS_ROOT): string | undefined {
+  return skillIndex(packageRoot).get(id)
+}
+
+/** All ids named by catalog.json, independent of the directory walk. */
+export function catalogSkillIds(packageRoot = SKILLS_ROOT): Set<string> {
+  const catalog = readCatalog(packageRoot)
+  return new Set(Object.values(catalog.modes).flat())
 }
 
 /**

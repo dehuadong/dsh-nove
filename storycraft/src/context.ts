@@ -11,6 +11,8 @@
  */
 
 import { deriveWhitelist, readCards, summariseWhitelist } from './facts.ts'
+import { roleSkills } from './skill-routing.ts'
+import { skillEvidence, type SkillEvidence } from './skill-evidence.ts'
 import { listRoleCards, readFoundationDocuments, renderFoundationContent } from './artifact-store.ts'
 import {
   StoryError, chapterNumber, chapterStem, formOf, planApprovalPolicy, sourceIdOf, unitOf,
@@ -178,6 +180,7 @@ interface TraceSection {
 /** What the assembly sent, shortened and dropped, in the contract's trace shape. */
 interface ContextTrace {
   chapter?: number
+  skills: SkillEvidence[]
   plannerInputs: string[]
   composerInputs: string[]
   selectedSources: string[]
@@ -585,6 +588,7 @@ export async function assembleRoleContext(
   const compressibleSegments = sent.filter(item => item.protection === 'compressible')
   const trace: ContextTrace = {
     ...(number === undefined ? {} : { chapter: number }),
+    skills: skillEvidence(roleSkills(role, form)),
     plannerInputs: role === 'planner' ? sent.flatMap(item => sourceIdsOf(item.source)) : [],
     composerInputs: role === 'writer' ? sent.flatMap(item => sourceIdsOf(item.source)) : [],
     selectedSources: sent.flatMap(item => sourceIdsOf(item.source)),

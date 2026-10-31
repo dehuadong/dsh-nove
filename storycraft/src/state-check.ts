@@ -16,6 +16,8 @@ import { readCards } from './facts.ts'
 import { closeSubmission, consumeSubmission, openSubmission, STATE_CHECK_NO_EVIDENCE } from './submission.ts'
 import { runChild } from './delegate.ts'
 import { assertChapterBudget, finishCall, nextAttempt, recordCall } from './telemetry.ts'
+import { atStage, skillEvidence } from './skill-evidence.ts'
+import { roleSkills } from './skill-routing.ts'
 import { maxChapterTokensOf } from './store-db.ts'
 
 /** One chapter entry from the manifest. */
@@ -123,7 +125,7 @@ interface StateCheckReceipt {
   items: Finding[]
   counts: Record<string, number>
   warnings: string[]
-  trace: { durationMs: number; submissionAttempts: number }
+  trace: { durationMs: number; submissionAttempts: number; skills: Array<{ id: string; revision: string; stage?: 'settler' | 'validator' }> }
 }
 
 /** One check's child budget; a validator run is shorter than a chapter run. */
@@ -207,7 +209,7 @@ function promptFor(input: PromptInput): string {
 
   return [
     `你是《${input.manifest.title}》（${input.workId}）第 ${input.chapter} 章的语义状态对账子代理。`,
-    '开工前先调用 skill 工具加载 `storycraft-state-check`，严格按它判断。',
+    `开工前先调用 skill 工具加载 \`${roleSkills('validator', 'longform')[0]}\`，严格按它判断。`,
     '不要用 glob/grep 搜索技能或插件文件；方法以加载到的技能正文为准。',
     '',
     '## 本次任务',
@@ -353,7 +355,7 @@ export async function checkChapterState(
       items: verified.items,
       counts: { ...preview.counts, items: verified.items.length },
       warnings: verified.warnings,
-      trace: { durationMs, submissionAttempts: attempts },
+      trace: { durationMs, submissionAttempts: attempts, skills: atStage(skillEvidence(roleSkills('validator', 'longform')), 'validator') },
     }
   } finally {
     closeSubmission(opened.delegationId)

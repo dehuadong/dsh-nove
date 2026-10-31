@@ -1,6 +1,6 @@
 # Agent Note: 故事工坊：A9 技能加载证据
 
-Status: proposed
+Status: implemented
 
 工作项：当前任务 A9（不新建 GitHub issue）。产品范围与验收归本 Note。
 
@@ -28,7 +28,7 @@ parity 矩阵的裁决是保留“子代理按提示自己 `skill`”，不复�
 | 运行时注入层 | 不新增注入层，保留子代理自行加载 | 不重复 DSH 已有能力，不改变现有角色边界 | 不采用注入 | 角色提示不变 |
 | 技能应用记录 | `skill-evidence` 只写“请求加载”，不写“已应用” | 避免把装配证据冒充执行证据 | 收窄命名 | Note/字段说明 |
 
-## Proposal
+## Decision
 
 ### 共享路由
 
@@ -75,16 +75,15 @@ parity 矩阵的裁决是保留“子代理按提示自己 `skill`”，不复�
 
 **D. 复用 `skills-applied` 名字。** 最强理由是与参考字段同名。否决原因：语义不同；我们只记请求加载，不记应用，沿用会误导。
 
-## Acceptance criteria
+## Testing
 
-1. `skill-routing` 为 writer/planner/reviewer/reviser/architect/settler/validator 返回正确技能与 reference；writer 按 form 返回 craft；planner 返回 craft + method-reference 技能；architect 返回 architect + foundation-reference 技能；summarizer 为空；`store-db.methodFor` 不再有独立映射；
-2. 每个映射的技能在 catalog 中存在且目录可读；revision 是 `SKILL.md` + references 的稳定内容哈希（路径统一为 `/`）；改动任一文件 revision 变化；planner 的 chapter-plan、architect 的 foundation-design 改动必须改变对应证据；
-3. `story_context.trace.skills` 对四种可查询角色返回 `{id,revision}`；`story_delegate` 的 context trace、architect trace、settle/check receipt trace 也带技能证据；settle 只记录实际请求的 stage，validator 未被调用时不得出现；
-4. 缺失 catalog 条目/目录/文件时派发失败为 `skill-missing`；architect 在 trace 诊断 try 之前失败，不得输出空证据后继续；
-5. `artifact-contract.ts` 的 trace allowlist、契约测试、`story_context` 共享 `TRACE_OUTPUT`（可选）与 settle/check trace schema 同步；
-6. 现有单元 + 29 E2E 通过；新增路由/证据/缺失/stage 测试；无 UI、无外部技能目录、无 `skills-applied` 字段。
+- tests/skill-evidence.test.mjs：writer 形态、planner craft+method、architect+foundation、固定角色、summarizer 空；catalog/目录缺失；reference 改动改变 revision；stage 标记。
+- tests/skills.test.mjs：路由覆盖的角色/形态技能都在 work-mode catalog 中。
+- tests/artifact-contract.test.mjs：trace.skills 必填、未知 stage 拒绝。
+- tests/tools.test.mjs：story_context.trace.skills 的 writer 证据与 revision 形状。
+- 完整 CI：86 单元 + 29 E2E。
 
-## Risks
+## Consequences
 
 - revision 是内容哈希，不是供应商版本；相同内容不同格式会不同，这是预期；
 - 只证明装配要求，不证明子代理实际调用 `skill`；命名与文档必须持续避免“已应用”的暗示；

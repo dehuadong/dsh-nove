@@ -15,6 +15,8 @@ import { readCards } from './facts.ts'
 import { closeSubmission, consumeSubmission, openSubmission } from './submission.ts'
 import { runChild } from './delegate.ts'
 import { assertChapterBudget, callSummary, finishCall, nextAttempt, recordCall } from './telemetry.ts'
+import { atStage, skillEvidence, type SkillEvidence } from './skill-evidence.ts'
+import { roleSkills } from './skill-routing.ts'
 import { maxChapterTokensOf } from './store-db.ts'
 import { checkChapterState } from './state-check.ts'
 
@@ -114,6 +116,7 @@ interface AttemptTrace {
 /** Whole-settlement timing while attempts run. */
 interface SettlementTrace {
   durationMs: number
+  skills: SkillEvidence[]
   perAttempt: AttemptTrace[]
   usage?: any
   lastError?: string
@@ -122,6 +125,7 @@ interface SettlementTrace {
 /** Timing detail on a receipt; landing reports only the total. */
 interface ReceiptTrace {
   durationMs: number
+  skills: SkillEvidence[]
   usage?: any
   perAttempt?: AttemptTrace[]
   lastError?: string
@@ -248,7 +252,7 @@ function unresolved(input: UnresolvedInput): SettleReceipt {
     }
   }
 
-  const trace: SettlementTrace = input.trace ?? { durationMs: 0, perAttempt: [] }
+  const trace: SettlementTrace = input.trace ?? { durationMs: 0, skills: [], perAttempt: [] }
   trace.durationMs = Date.now() - input.started
   return {
     ok: true,
@@ -292,7 +296,7 @@ function settlerPrompt(input: SettlerPromptInput): string {
   ].filter(Boolean).join('\n\n')
   return [
     `你是《${input.manifest.title}》（${input.workId}）第 ${input.chapter} 章的 settler 子代理。`,
-    '开工前先调用 skill 工具加载 `storycraft-state-settler`，严格按它抽取。',
+    `开工前先调用 skill 工具加载 \`${roleSkills('settler', 'longform')[0]}\`，严格按它抽取。`,
     '不要用 glob/grep 搜索技能或插件文件；方法以加载到的技能正文为准。',
     '',
     '## 本次任务',
@@ -383,7 +387,7 @@ export async function settleChapterState(
   const started = Date.now()
   const settleTimeoutMs = Number.isFinite(host.settleTimeoutMs) ? host.settleTimeoutMs! : SETTLE_TOTAL_TIMEOUT_MS
   const deadline = started + settleTimeoutMs
-  const trace: SettlementTrace = { durationMs: 0, perAttempt: [], usage: null }
+  const trace: SettlementTrace = { durationMs: 0, skills: [], perAttempt: [], usage: null }
   const usageOf = (): any => {
     try { return callSummary(root, work, new Date(started).toISOString()) } catch { return null }
   }
@@ -424,6 +428,9 @@ export async function settleChapterState(
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     if (remaining() <= 0) return timedOut('结算总预算已用完', { revision, proposed, settlerAttempts, validatorAttempts })
     settlerAttempts = attempt
+    if (!trace.skills.some(item => item.stage === 'settler')) {
+      trace.skills = [...trace.skills, ...atStage(skillEvidence(roleSkills('settler', 'longform')), 'settler')]
+    }
     const settlerStart = Date.now()
     let payload: StatePayload
     try {
@@ -488,6 +495,9 @@ export async function settleChapterState(
       return timedOut('结算总预算已用完', { revision, proposed, warnings: pendingWarnings, items: pendingItems, settlerAttempts, validatorAttempts })
     }
     validatorAttempts += 1
+    if (!trace.skills.some(item => item.stage === 'validator')) {
+      trace.skills = [...trace.skills, ...atStage(skillEvidence(roleSkills('validator', 'longform')), 'validator')]
+    }
     const checkStart = Date.now()
     let check
     try {
@@ -592,7 +602,7 @@ function land(root: string, input: LandInput): SettleReceipt {
     warnings,
     items: input.items,
     attempts: { settler: input.settlerAttempts, validator: input.validatorAttempts },
-    trace: { durationMs: Date.now() - input.started, usage: (() => { try { return callSummary(root, input.work, new Date(input.started).toISOString()) } catch { return null } })() },
+    trace: { durationMs: Date.now() - input.started, skills: input.trace?.skills ?? [], usage: (() => { try { return callSummary(root, input.work, new Date(input.started).toISOString()) } catch { return null } })() },
     draft: { artifactId: draft.artifactId, revisionId: draft.revisionId, revision: draft.revision, ready: draft.ready },
     artifact: { workId: input.work, artifactId: draft.artifactId, revisionId: draft.revisionId, kind: 'state_draft' },
   }

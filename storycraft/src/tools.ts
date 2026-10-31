@@ -262,6 +262,20 @@ const TRACE_OUTPUT: SchemaNode = {
   description: 'Token accounting and trimming record for one assembly.',
   properties: {
     chapter: { type: 'integer' },
+    skills: {
+      type: 'array',
+      description: '宿主装配时要求角色加载的技能与内容 revision；不代表子代理已实际加载。',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          id: { type: 'string' },
+          revision: { type: 'string' },
+          stage: { type: 'string', enum: ['settler', 'validator'] },
+        },
+        required: ['id', 'revision'],
+      },
+    },
     plannerInputs: { type: 'array', items: { type: 'string' } },
     composerInputs: { type: 'array', items: { type: 'string' } },
     selectedSources: { type: 'array', items: { type: 'string' } },
@@ -1202,9 +1216,22 @@ const STATE_CHECK_OUTPUT: DshToolOutput = {
         properties: {
           durationMs: { type: 'integer' },
           submissionAttempts: { type: 'integer' },
+          skills: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                id: { type: 'string' },
+                revision: { type: 'string' },
+                stage: { type: 'string', enum: ['settler', 'validator'] },
+              },
+              required: ['id', 'revision'],
+            },
+          },
           usage: { type: 'object', additionalProperties: true },
         },
-        required: ['durationMs', 'submissionAttempts'],
+        required: ['durationMs', 'submissionAttempts', 'skills'],
       },
       error: OUTPUT_PROPERTIES.error,
     },
@@ -1266,6 +1293,19 @@ const STATE_SETTLE_OUTPUT: DshToolOutput = {
         additionalProperties: false,
         properties: {
           durationMs: { type: 'integer' },
+          skills: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                id: { type: 'string' },
+                revision: { type: 'string' },
+                stage: { type: 'string', enum: ['settler', 'validator'] },
+              },
+              required: ['id', 'revision'],
+            },
+          },
           usage: { oneOf: [{ type: 'object', additionalProperties: true }, { type: 'null' }] },
           lastError: { type: 'string' },
           perAttempt: {
@@ -1282,7 +1322,7 @@ const STATE_SETTLE_OUTPUT: DshToolOutput = {
             },
           },
         },
-        required: ['durationMs'],
+        required: ['durationMs', 'skills'],
       },
       artifact: OUTPUT_PROPERTIES.artifact,
       error: OUTPUT_PROPERTIES.error,

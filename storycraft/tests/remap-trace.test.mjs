@@ -33,6 +33,7 @@ try {
       VALUES ('trace:1:architect', 'rev1', 'trace', 1, 'json', ?, 'generated', ?)`)
       .run(JSON.stringify({
         chapter: 1,
+        skills: [],
         plannerInputs: [],
         composerInputs: [],
         selectedSources: [],

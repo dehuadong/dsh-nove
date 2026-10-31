@@ -66,6 +66,7 @@ try {
 
   const traceOf = (chapter, marker) => ({
     chapter,
+    skills: [],
     plannerInputs: [],
     composerInputs: ['outline'],
     selectedSources: ['outline'],

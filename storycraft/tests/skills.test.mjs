@@ -2,6 +2,7 @@
 import { apply } from '../src/skills.ts'
 import { FORM_META, planApprovalPolicy } from '../src/domain.ts'
 import { ROLE_META, writerSkills } from '../src/delegate.ts'
+import { roleSkills } from '../src/skill-routing.ts'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -42,7 +43,10 @@ check('every role and form craft is reachable from the work mode',
     'storycraft-review', 'storycraft-revise-craft', 'storycraft-architect'].every(name => names.includes(name)),
   names.join(','))
 check('no warning for all', all.warnings.length === 0, all.warnings.join('; '))
-const routed = [...Object.values(ROLE_META).map(meta => meta.skill), ...Object.values(FORM_META).map(meta => meta.skill)].filter(Boolean)
+const routed = [
+  ...Object.keys(ROLE_META).flatMap(role => roleSkills(role, 'longform')),
+  ...Object.values(FORM_META).map(meta => meta.skill),
+].filter(Boolean)
 check('every routed role/form skill is mounted', routed.every(name => names.includes(name)), routed.join(','))
 check('writerSkills loads only the form craft',
   writerSkills('longform').join() === 'storycraft-long-prose'

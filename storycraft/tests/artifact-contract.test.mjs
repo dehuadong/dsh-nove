@@ -153,13 +153,21 @@ check('context package valid', validateContextPackage({ chapter: 1, selectedCont
 rejects('context package needs a source', 'artifact-invalid',
   () => validateContextPackage({ chapter: 1, selectedContext: [] }))
 const trace = {
-  chapter: 1, plannerInputs: ['outline'], composerInputs: ['summary:1'], selectedSources: ['summary:1'],
+  chapter: 1, skills: [{ id: 'storycraft-long-prose', revision: 'abcdef123456' }],
+  plannerInputs: ['outline'], composerInputs: ['summary:1'], selectedSources: ['summary:1'],
   contextTiers: { protectedSources: ['bible:book_rules'], compressibleSources: ['summary:1'] },
   tokenBudget: { protectedTokens: 10, compressibleTokens: 20, totalSelectedTokens: 30 },
   notes: [], sections: [{ name: 'summary', protection: 'compressible', sourceIds: ['summary:1'] }],
   trimmed: [], dropped: [], budget: { limit: 100, used: 30, unit: 'characters' },
 }
 check('chapter trace valid', validateChapterTrace(trace).tokenBudget.totalSelectedTokens === 30)
+rejects('trace requires skills', 'artifact-invalid', () => {
+  const { skills, ...without } = trace
+  return validateChapterTrace(without)
+})
+rejects('trace rejects an unknown skill stage', 'artifact-invalid', () => validateChapterTrace({
+  ...trace, skills: [{ ...trace.skills[0], stage: 'planner' }],
+}))
 rejects('trace rejects negative tokens', 'artifact-invalid',
   () => validateChapterTrace({ ...trace, tokenBudget: { ...trace.tokenBudget, totalSelectedTokens: -1 } }))
 
