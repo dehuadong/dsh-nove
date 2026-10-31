@@ -50,7 +50,7 @@ Status: proposed
 | 长篇 | A12 版本候选/回滚 | **已交付**（#86） |
 | 长篇 | F13 250 章性能 | **已交付**（#87） |
 | 长篇 | F8 成本与调用观测 | **已交付**（#88） |
-| 长篇 | A9 创作方法库/加载证据 | 部分：阶段技能与 `catalog.json` 已交付；加载证据未做 |
+| 长篇 | A9 创作方法库/加载证据 | 规划中；[A9 Note](../feature/2026-10-31-storycraft-a9-skill-evidence.md)，阶段技能与 `catalog.json` 已交付 |
 | 长篇 | F14 失败重试与成本上限 | **已交付**（启动重试 + 可选单章 token 上限）；[F14 Note](../../implemented/architecture/2026-10-31-storycraft-f14-retry-budget.md) |
 | 长篇 | E1/E4/E5/E6/E7/E13 面板 | 待开/未排期；E2 阅读器未排期 |
 | 长篇 | B1 epub/pdf 素材、B2 技能参考检索 | 部分：txt/md 与故事记忆已交付；epub/pdf、技能参考未做 |
