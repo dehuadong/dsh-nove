@@ -82,6 +82,11 @@ function segmentAccess(text, root) {
     const args = pathArgs(add[1])
     return { write: true, docsOnly: allDocs(root, args) }
   }
+  const move = /\bgit\s+mv\b([\s\S]*)$/iu.exec(text)
+  if (move !== null) {
+    const args = pathArgs(move[1])
+    return { write: true, docsOnly: allDocs(root, args) }
+  }
   if (/\bgit\s+commit\b/iu.test(text)) return { write: true, docsOnly: stagedDocsOnly(root) }
   const trash = /(?:^|\s)(?:node\s+)?[^\s]*trash\.mjs\b([\s\S]*)$/iu.exec(text)
   if (trash !== null) {

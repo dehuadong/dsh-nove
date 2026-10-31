@@ -42,6 +42,8 @@ check('source trash is not a docs operation', shellAccess('node scripts/trash.mj
 check('docs-only git add is a docs operation', shellAccess('git add .agents/notes docs', root).docsOnly === true)
 check('source git add is gated', shellAccess('git add storycraft/src/client.ts', root).docsOnly === false)
 check('git push does not write the tree', shellAccess('git push origin main', root).write === false)
+check('docs-only git mv is a docs operation', shellAccess('git mv .agents/notes/a.md .agents/notes/b.md', root).docsOnly === true)
+check('source git mv is gated', shellAccess('git mv storycraft/src/a.ts storycraft/src/b.ts', root).docsOnly === false)
 
 function mockHost(approval) {
   const handlers = {}
