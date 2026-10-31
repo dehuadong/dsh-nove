@@ -216,7 +216,7 @@ const TRACE_RETRIEVAL: SchemaNode = {
   additionalProperties: false,
   description: 'FTS retrieval record: the query and the candidates that were selected.',
   properties: {
-    engine: { type: 'string', enum: ['sqlite-fts5-bm25'] },
+    engine: { type: 'string', enum: ['sqlite-fts5-bm25', 'sqlite-fts5-bm25+host-lexical'] },
     query: { type: 'string' },
     selectionMode: { type: 'string', enum: ['semantic', 'complete'] },
     candidates: {
@@ -228,6 +228,7 @@ const TRACE_RETRIEVAL: SchemaNode = {
           id: { type: 'string' },
           kind: { type: 'string' },
           source: { type: 'string' },
+          location: { type: 'string' },
           score: { type: 'number' },
         },
         required: ['id', 'kind', 'source', 'score'],

@@ -20,7 +20,7 @@ Status: implemented
 
 - 内容就是合同 v2 的 trace 字段：`chapter`、`plannerInputs`、`composerInputs`、`selectedSources`、`contextTiers`、`tokenBudget`、`retrieval`、`notes`、`trimmed`、`dropped`、`budget{limit,used,unit}`、`sections`、`missing`、`overflow`。
 - R12 给合同加的增量：`sections[].chars/tokens/dropped/trimmed/reason`、顶层 `missing`/`overflow`；`budget.unit` 收敛为 `tokens`；校验器 `validateChapterTrace` 注册进 `ARTIFACT_CONTENT_VALIDATORS`，并校验 `content.chapter === scope.chapter`。
-- `retrieval` 取合同形状 `{engine:'sqlite-fts5-bm25', query, selectionMode:'complete', candidates[{id,kind,source,score}], semanticSelectedIds}`；检索失败写进 `notes`。
+- `retrieval` 取合同形状 `{engine:'sqlite-fts5-bm25'|'sqlite-fts5-bm25+host-lexical', query, selectionMode:'complete', candidates[{id,kind,source,location?,score}], semanticSelectedIds}`；B2b 起技能 sent 时用 hybrid engine；检索失败写进 `notes`。
 - 只有实际发出的段进入 `selectedSources`/`contextTiers`/`tokenBudget`；`sections` 保留全部段（含被丢的）并标原因。
 - artifactId `trace:<chapter>:<role>`（`writer|planner|reviewer|reviser|summarizer`），`kind:'trace'`、`scope.chapter` 必填；revisionId 是内容哈希，同内容重复装配幂等复用、不报错。
 - 落盘只在**派发**时发生：`delegate` 启动子代理前写；`planner` 的章行由写 plan 时创建，所以它的 trace 在 plan 落库后写。`story_context`/`story_brief` 保持只读、面板 `/brief`（GET）与装配函数都不写；brief 的 trace 只在回执返回。
@@ -32,7 +32,7 @@ Status: implemented
 
 - `ARTIFACT_IDENTITY` 增加 `trace: /^trace:([1-9]\d*):(writer|planner|reviewer|reviser|summarizer)$/`；`remapChapterArtifacts` 对 trace 改章号段、同步 `content.chapter`、删除章节时一并删除（与 plan/summary/review 同一条 identity-change 例外）。
 - `story_context`/`story_brief` 回执的 trace 与落盘用同一组数字；`story_context` 多一个动作专属 `review{round,revision}`。回执 `sections[].sourceIds` 不含 `works/` 路径（`sourceIdOf` 去掉作品前缀），保持 #22 的“模型不拿作品路径”。
-- 回执与落盘 trace 的 `retrieval.candidates[].source` 保持合同字段名：`sanitizeOutput` 只把**虚拟路径**形态的 `source` 解析成 artifact id，已经是 id 的值原样保留。
+- 回执与落盘 trace 的 `retrieval.candidates[].source` 保持合同字段名：`sanitizeOutput` 只把**虚拟路径**形态的 `source` 解析成 artifact id，已经是 id 的值原样保留；B2b 技能 source 为 `skill:<id>/<path>`，不经 artifact id 解析。
 
 ## 备选方案
 

@@ -1,9 +1,9 @@
 /**
  * Deterministic retrieval selection for role context.
  *
- * The work database owns the corpus and FTS ranking; this module builds the
- * query text, excerpts material hits, and selects whole candidate items within
- * per-kind and character budgets. No I/O and no model calls.
+ * The work FTS owns memory/material ranking; callers may also merge host-side
+ * skill candidates. This module builds query text, excerpts hits, and selects
+ * whole candidate items within per-kind and character budgets. No I/O or model calls.
  */
 
 /** Default number of retrieval hits sent into one context. */
@@ -90,7 +90,7 @@ export function snippetFor(text: any, tokens: any, max: any = 400) {
  * @param {number} [options.limit] - maximum sent hits; capped at RETRIEVAL_LIMIT.
  * @param {number} [options.budget] - maximum total code points of fragment texts.
  * @param {number} [options.perKindLimit] - maximum sent items per kind.
- * @returns {{text: string, hits: object[], chars: number}} selected section.
+ * @returns {{text: string, hits: object[], chars: number}} selected section; hits carry source/location/priority ordering for skill candidates.
  */
 export function select(candidates: any, options: any = {}) {
   const exclude = new Set(options.excludeIds ?? [])
@@ -103,6 +103,8 @@ export function select(candidates: any, options: any = {}) {
     .filter(candidate => typeof candidate?.id === 'string' && !exclude.has(candidate.id))
     .filter(candidate => typeof candidate.text === 'string' && candidate.text.trim() !== '')
     .sort((left, right) => {
+      const priority = Number(right.priority ?? 0) - Number(left.priority ?? 0)
+      if (priority !== 0) return priority
       const score = Number(right.score ?? 0) - Number(left.score ?? 0)
       if (score !== 0) return score
       const chapter = Number(right.chapter ?? 0) - Number(left.chapter ?? 0)
@@ -134,6 +136,8 @@ export function select(candidates: any, options: any = {}) {
     id: candidate.id,
     kind: candidate.kind,
     sourceIds: Array.isArray(candidate.sourceIds) ? candidate.sourceIds : [],
+    source: typeof candidate.source === 'string' ? candidate.source : (Array.isArray(candidate.sourceIds) ? String(candidate.sourceIds[0] ?? '') : ''),
+    ...(candidate.location === undefined ? {} : { location: String(candidate.location) }),
     score: Number(candidate.score ?? 0),
     sent: sentIds.has(candidate.id),
   }))

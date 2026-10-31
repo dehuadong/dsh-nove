@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import * as s from '../src/storage.ts'
 import { searchSkillReferences } from '../src/skill-search.ts'
 import { searchUnified, SEARCH_SNIPPET_CHARS } from '../src/search.ts'
+import { skillReferenceScope } from '../src/skill-routing.ts'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -22,6 +23,14 @@ try {
   await writeFile(join(skillDir, 'SKILL.md'), '---\nname: test-skill\n---\n\n## 独特方法\n\n青苔信号表示旧井的潮气。\n')
   await writeFile(join(skillDir, 'references', 'special.md'), '## 场景检查\n\n青苔信号只在背光处出现，检查时先看墙根。\n')
 
+  const writerScope = skillReferenceScope('writer', 'longform')
+  check('writer scope allows only one reference', writerScope.length === 1
+    && writerScope[0].references.length === 1 && writerScope[0].references[0].includes('scene-dialogue'), JSON.stringify(writerScope))
+  const plannerScope = skillReferenceScope('planner', 'longform')
+  check('planner scope keeps method reference only', plannerScope.length === 2
+    && plannerScope.filter(item => item.references.length > 0).length === 1
+    && plannerScope.some(item => item.references[0]?.includes('chapter-plan')), JSON.stringify(plannerScope))
+  check('reviser has no extra reference', skillReferenceScope('reviser', 'longform').every(item => item.references.length === 0))
   const hits = searchSkillReferences('青苔信号', { root: packageRoot })
   check('skill hit carries file and heading', hits.some(hit => hit.source === 'skill:test-skill/references/special.md'
     && hit.location === '场景检查 · L3-3' && hit.id.includes('#')), JSON.stringify(hits.slice(0, 2)))

@@ -18,6 +18,7 @@ export interface SkillHit {
 
 interface Segment {
   id: string
+  path: string
   source: string
   location: string
   heading: string
@@ -72,6 +73,7 @@ function segmentsOf(skill: string, path: string, text: string): Segment[] {
       const source = `skill:${skill}/${path}`
       segments.push({
         id: `${source}#${slug(heading)}:${bodyStart}`,
+        path,
         source,
         location: `${heading} · L${bodyStart}-${bodyEnd}`,
         heading,
@@ -101,13 +103,14 @@ function segmentsOf(skill: string, path: string, text: string): Segment[] {
   return segments
 }
 
-function skillSegments(id: string, packageRoot?: string): Segment[] | undefined {
+function skillSegments(id: string, packageRoot?: string, onError?: (error: unknown) => void): Segment[] | undefined {
   const dir = skillDirectory(id, packageRoot)
   if (dir === undefined) return undefined
   let revision: string
   try {
     revision = skillRevision(id, { root: packageRoot })
   } catch (error) {
+    onError?.(error)
     console.warn(`[storycraft] skill ${id} is unreadable for search: ${error instanceof Error ? error.message : String(error)}`)
     return undefined
   }
@@ -119,21 +122,24 @@ function skillSegments(id: string, packageRoot?: string): Segment[] | undefined 
     cache.set(cacheKey, { revision, segments })
     return segments
   } catch (error) {
+    onError?.(error)
     console.warn(`[storycraft] skill ${id} failed to index: ${error instanceof Error ? error.message : String(error)}`)
     return undefined
   }
 }
 
 /** Search skill Markdown by lexical token coverage; missing skills yield no hits. */
-export function searchSkillReferences(query: string, options: { root?: string, skills?: readonly string[] } = {}): SkillHit[] {
+export function searchSkillReferences(query: string, options: { root?: string, skills?: readonly string[], references?: Record<string, string[]>, onError?: (error: unknown) => void } = {}): SkillHit[] {
   const tokens = [...new Set(searchTokens(query).split(' ').filter(token => token !== ''))]
   if (tokens.length === 0) return []
   const ids = options.skills ?? [...catalogSkillIds(options.root)]
   const hits: SkillHit[] = []
   for (const id of ids) {
-    const segments = skillSegments(id, options.root)
+    const segments = skillSegments(id, options.root, options.onError)
     if (segments === undefined) continue
+    const allowed = options.references?.[id]
     for (const segment of segments) {
+      if (options.references !== undefined && segment.path.startsWith('references/') && !(allowed ?? []).includes(segment.path)) continue
       const haystack = searchTokens(`${segment.heading}\n${segment.body}`).split(' ')
       const counts = new Map<string, number>()
       for (const token of haystack) counts.set(token, (counts.get(token) ?? 0) + 1)

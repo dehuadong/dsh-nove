@@ -50,12 +50,34 @@ try {
   const out = await assembleRoleContext({ root, work, chapter: 5, role: 'writer', task: '写第 5 章正文。', instruction: '写旧井' })
   const names = out.trace.sections.map(item => item.name)
   check('retrieval follows recent', names.indexOf('retrieval') === names.indexOf('recent') + 1, names.join(','))
-  check('retrieval section is present', out.text.includes('相关往事') && out.text.includes('〔summary:1〕'), out.text.slice(-600))
+  check('retrieval section is present', out.text.includes('相关参考') && out.text.includes('〔summary:1〕'), out.text.slice(-600))
   check('retrieval trace is enabled with candidates',
     out.trace.retrieval !== undefined && out.trace.retrieval.candidates.length > 0,
     JSON.stringify(out.trace.retrieval))
-  check('retrieval hits use artifact ids', out.trace.retrieval.candidates.every(hit => hit.source !== '' && !hit.source.includes('/')),
+  check('retrieval hits use artifact ids', out.trace.retrieval.candidates.every(hit => hit.source !== '' && (!hit.source.includes('/') || hit.source.startsWith('skill:'))),
     JSON.stringify(out.trace.retrieval.candidates))
+  const skillHits = out.trace.retrieval.candidates.filter(hit => hit.kind === 'skill')
+  check('skill candidates carry source and location', skillHits.length > 0
+    && skillHits.every(hit => hit.source.startsWith('skill:') && typeof hit.location === 'string' && hit.location.includes('· L')),
+    JSON.stringify(skillHits))
+  check('context scope only allows the writer reference', skillHits.every(hit => !hit.source.includes('reader-contract')), JSON.stringify(skillHits))
+  check('hybrid engine is reported for sent skill', out.trace.retrieval.engine === 'sqlite-fts5-bm25+host-lexical', String(out.trace.retrieval.engine))
+  const retrievalSection = out.trace.sections.find(item => item.name === 'retrieval')
+  check('skill sources stay out of section sourceIds', retrievalSection !== undefined
+    && retrievalSection.sourceIds.every(id => !id.startsWith('skill:')), JSON.stringify(retrievalSection))
+
+  const synthetic = (text) => () => [{
+    id: 'skill:test/references/allowed.md#allowed:1', kind: 'skill',
+    source: 'skill:test/references/allowed.md', location: '允许 · L1-1', text, score: 0.1, chapter: null,
+  }]
+  const withSkill = await assembleRoleContext({ root, work, chapter: 5, role: 'writer', task: '写第 5 章正文。' }, { searchSkills: synthetic('甲'.repeat(2000)) })
+  const clippedRun = Math.max(0, ...[...withSkill.text.matchAll(/甲+/gu)].map(match => match[0].length))
+  check('skill text is clipped before merge', clippedRun >= 399 && clippedRun <= 400, String(clippedRun))
+  const failedSkill = await assembleRoleContext({ root, work, chapter: 5, role: 'writer', task: '写第 5 章正文。' }, {
+    searchSkills: () => { const error = new Error('skill-busy'); error.code = 'skill-busy'; throw error },
+  })
+  check('skill retrieval failure is fail-open', failedSkill.trace.notes.some(note => note.includes('技能检索'))
+    && failedSkill.trace.retrieval.candidates.length > 0, JSON.stringify(failedSkill.trace))
   check('stale chapter 2 summary is not retrieved', !out.trace.retrieval.candidates.some(hit => hit.id === 'summary:2'), JSON.stringify(out.trace.retrieval.candidates))
   check('material is retrieved with a bounded snippet',
     out.trace.retrieval.candidates.some(hit => hit.kind === 'material'
@@ -82,7 +104,8 @@ try {
   check('retrieval is the first compressible dropped', tight.trace.dropped[0] === 'retrieval', tight.trace.dropped.join(','))
   check('dropped retrieval is recorded on its section',
     tight.trace.sections.find(item => item.name === 'retrieval')?.dropped === true, JSON.stringify(tight.trace.sections))
-  check('dropped retrieval is absent from text', !tight.text.includes('相关往事'))
+  check('dropped retrieval is absent from text', !tight.text.includes('相关往事') && !tight.text.includes('相关参考'))
+  check('dropped retrieval does not claim hybrid engine', tight.trace.retrieval?.engine === 'sqlite-fts5-bm25', JSON.stringify(tight.trace.retrieval))
 
   const planner = await assembleRoleContext({ root, work, role: 'planner', scope: 'work', task: '出全书计划 旧井' })
   check('work-scope planner retrieves without a target', planner.trace.retrieval !== undefined, JSON.stringify(planner.trace.retrieval))

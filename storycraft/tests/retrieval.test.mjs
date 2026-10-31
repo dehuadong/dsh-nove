@@ -72,6 +72,13 @@ check('limit above five stays within the bounded trace', capped.hits.length <= 1
   && capped.hits.filter(hit => hit.sent).length <= 5,
 JSON.stringify(capped.hits))
 
+const prioritized = select([
+  { id: 'material:1', kind: 'material', text: '高分材料', score: 100, sourceIds: ['materials/1'] },
+  { id: 'skill:1', kind: 'skill', text: '低分技能', score: 1, priority: 1, source: 'skill:demo/SKILL.md', location: '方法 · L1-1' },
+], { limit: 1 })
+check('priority candidate wins a limited slot', prioritized.hits[0]?.id === 'skill:1'
+  && prioritized.hits[0]?.sent === true && prioritized.hits[0]?.location === '方法 · L1-1', JSON.stringify(prioritized.hits))
+
 const root = await mkdtemp(join(tmpdir(), 'storycraft-retrieval-'))
 try {
   const work = (await s.initWork(root, { title: '检索测试', wordRange: { min: 100, max: 500 } })).workId

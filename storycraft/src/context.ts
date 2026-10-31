@@ -11,7 +11,7 @@
  */
 
 import { deriveWhitelist, readCards, summariseWhitelist } from './facts.ts'
-import { roleSkills } from './skill-routing.ts'
+import { roleSkills, skillReferenceScope } from './skill-routing.ts'
 import { skillEvidence, type SkillEvidence } from './skill-evidence.ts'
 import { listRoleCards, readFoundationDocuments, renderFoundationContent } from './artifact-store.ts'
 import {
@@ -21,7 +21,9 @@ import {
   readBibleMap, readChapter as readChapterRow, readFoldedState, readManifest, readPlan,
   readVolumes, readSummaryState, searchMemory, virtualPath,
 } from './store-db.ts'
-import { buildQuery, select } from './retrieval.ts'
+import { buildQuery, select, snippetFor } from './retrieval.ts'
+import { searchSkillReferences } from './skill-search.ts'
+import { searchTokens } from './search-text.ts'
 import { accountOf } from './accounting.ts'
 
 /** Default budget for one role context, in estimated tokens. */
@@ -132,6 +134,7 @@ interface RoleContextInput {
 /** Injectable store reads, used by tests to exercise fail-open retrieval. */
 interface ContextDependencies {
   searchMemory?: typeof searchMemory
+  searchSkills?: typeof searchSkillReferences
 }
 
 /** One section record. */
@@ -153,12 +156,13 @@ interface TraceRetrievalCandidate {
   id: string
   kind: string
   source: string
+  location?: string
   score: number
 }
 
 /** Retrieval record in the artifact contract's trace shape. */
 interface TraceRetrieval {
-  engine: 'sqlite-fts5-bm25'
+  engine: 'sqlite-fts5-bm25' | 'sqlite-fts5-bm25+host-lexical'
   query: string
   selectionMode: 'complete'
   candidates: TraceRetrievalCandidate[]
@@ -286,6 +290,7 @@ export async function assembleRoleContext(
 ): Promise<RoleContext> {
   const { root, role } = input
   const retrieve = typeof dependencies.searchMemory === 'function' ? dependencies.searchMemory : searchMemory
+  const retrieveSkills = typeof dependencies.searchSkills === 'function' ? dependencies.searchSkills : searchSkillReferences
   const scope = input.scope === 'work' ? 'work' : 'chapter'
   const manifest: ContextManifest = readManifest(root, input.work)
   const work = manifest.workId
@@ -450,16 +455,41 @@ export async function assembleRoleContext(
   let retrieval: ContextSection | undefined
   let retrievalCandidates: TraceRetrievalCandidate[] | undefined
   let retrievalNote: string | undefined
+  let retrievalHasSentSkill = false
   if (query.trim() !== '') {
     try {
       const candidates = retrieve(root, work, query, number === undefined ? {} : { beforeChapter: number })
-      const picked = select(candidates, { excludeIds: recentSummaryIds })
+      const allowed = skillReferenceScope(role, form)
+      const references = Object.fromEntries(allowed.map(item => [item.skill, item.references]))
+      const tokens = searchTokens(query).split(' ').filter(token => token !== '')
+      let skillNote: string | undefined
+      let skills: any[] = []
+      try {
+        skills = retrieveSkills(query, {
+          skills: allowed.map(item => item.skill),
+          references,
+          onError: (error: unknown) => {
+            const code = (error as { code?: unknown } | null | undefined)?.code
+            skillNote = `技能检索警告：${typeof code === 'string' ? code : 'retrieval-failed'}`
+          },
+        }).map(hit => ({ ...hit, priority: 1, text: snippetFor(hit.text, tokens, 400) }))
+      } catch (error) {
+        const code = (error as { code?: unknown } | null | undefined)?.code
+        skillNote = `技能检索警告：${typeof code === 'string' ? code : 'retrieval-failed'}`
+      }
+      if (skillNote !== undefined) retrievalNote = skillNote
+      const picked = select([...candidates, ...skills], { excludeIds: recentSummaryIds })
+      const skillSent = picked.hits.some(hit => hit.sent === true && hit.kind === 'skill')
+      retrievalHasSentSkill = skillSent
       if (picked.text !== '') {
-        retrieval = section('retrieval', '相关往事', picked.text, 'compressible',
+        retrieval = section('retrieval', skillSent ? '相关参考' : '相关往事', picked.text, 'compressible',
           `${virtualPath(work, 'summaries/')} + ${virtualPath(work, 'state/events.jsonl')} + ${virtualPath(work, 'volumes')} + ${virtualPath(work, 'materials/')}`)
       }
       retrievalCandidates = picked.hits.map(hit => ({
-        id: hit.id, kind: hit.kind, source: hit.sourceIds[0] ?? '', score: hit.score,
+        id: hit.id, kind: hit.kind,
+        source: hit.kind === 'skill' ? (hit.source ?? '') : (hit.sourceIds[0] ?? hit.source ?? ''),
+        score: hit.score,
+        ...(hit.location === undefined ? {} : { location: hit.location }),
       }))
     } catch (error) {
       // A thrown store error is a dynamic boundary: only its stable `code` is read.
@@ -603,7 +633,8 @@ export async function assembleRoleContext(
     },
     ...(retrievalCandidates === undefined ? {} : {
       retrieval: {
-        engine: 'sqlite-fts5-bm25',
+        engine: sent.some(item => item.name === 'retrieval') && retrievalHasSentSkill
+          ? 'sqlite-fts5-bm25+host-lexical' : 'sqlite-fts5-bm25',
         query,
         selectionMode: 'complete',
         candidates: retrievalCandidates,

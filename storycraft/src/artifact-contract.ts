@@ -498,7 +498,7 @@ export function validateChapterTrace(value: ArtifactRecord): ArtifactRecord {
   if (input.retrieval !== undefined) {
     const retrieval = object(input.retrieval, 'trace.retrieval')
     keys(retrieval, ['engine', 'query', 'selectionMode', 'candidates', 'semanticSelectedIds'], 'trace.retrieval')
-    oneOf(retrieval.engine, ['sqlite-fts5-bm25'], 'trace.retrieval.engine')
+    oneOf(retrieval.engine, ['sqlite-fts5-bm25', 'sqlite-fts5-bm25+host-lexical'], 'trace.retrieval.engine')
     text(retrieval.query, 'trace.retrieval.query')
     oneOf(retrieval.selectionMode, ['semantic', 'complete'], 'trace.retrieval.selectionMode')
     if (!Array.isArray(retrieval.candidates)) invalid('trace.retrieval.candidates 必须是数组')

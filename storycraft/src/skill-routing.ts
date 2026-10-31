@@ -72,6 +72,15 @@ export function methodForStep(action: string, form: unknown): RoleMethod | undef
   return undefined
 }
 
+/** Allowed skill references for one role/form scope. */
+export function skillReferenceScope(role: string, form: unknown): Array<{ skill: string, references: string[] }> {
+  const method = roleMethod(role, form)
+  return roleSkills(role, form).map(skill => ({
+    skill,
+    references: method?.skill === skill && method.reference !== undefined ? [method.reference] : [],
+  }))
+}
+
 /** Existing test/import names kept stable while routing moves here. */
 export function writerSkills(form: unknown): string[] {
   return [craft(formName(form))]

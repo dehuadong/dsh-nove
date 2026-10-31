@@ -312,7 +312,7 @@ Status: implemented
   "contextTiers": { "protectedSources": ["string"], "compressibleSources": ["string"] },
   "tokenBudget": { "protectedTokens": 0, "compressibleTokens": 0, "totalSelectedTokens": 0 },
   "compression": { "compiledSource": "string", "protectedSources": ["string"], "compressedSources": ["string"], "protectedTokens": 0, "compressibleTokens": 0, "budgetTokens": 0 }?,
-  "retrieval": { "engine": "sqlite-fts5-bm25", "query": "string", "selectionMode": "semantic|complete", "candidates": [], "semanticSelectedIds": [] }?,
+  "retrieval": { "engine": "sqlite-fts5-bm25|sqlite-fts5-bm25+host-lexical", "query": "string", "selectionMode": "semantic|complete", "candidates": [], "semanticSelectedIds": [] }?,
   "notes": ["string"],
   "sections": [{ "name": "string", "protection": "protected|compressible", "sourceIds": ["string"],
     "chars": 0, "tokens": 0, "dropped": true?, "trimmed": true?, "reason": "string?" }]?,

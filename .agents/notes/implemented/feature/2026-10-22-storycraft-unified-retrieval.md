@@ -2,6 +2,8 @@
 
 Status: implemented
 
+> 2026-10-31 B2b 部分取代：技能参考按 role scope 并入 `story_context`；section sourceIds 仍只含作品 artifact，技能只进 retrieval trace（source/location），engine 增加 `sqlite-fts5-bm25+host-lexical`。§13/§20/§78 的“技能不混入”不再适用。
+
 > 2026-10-22 补充（#31）：material 的 FTS tokens 现在含标题；正文片段/每类上限不变。
 
 ## 问题
@@ -62,7 +64,7 @@ B1 已把素材写入作品库并同步 `search_docs`（`kind='material'`），�
 ### 4. 衔接
 
 - `context.js` 无需新增段；`searchMemory` + `select` 自动带素材；
-- trace schema 不变：`kind` 是 string，`sourceIds` 仍是 artifact ID；
+- trace schema 基础不变：`kind` 是 string，`sourceIds` 仍是 artifact ID；B2b 后 engine 枚举增加 hybrid，candidate 增加可选 location，技能 source 只进 retrieval candidate；
 - 预算/裁剪顺序不变（retrieval 先整段丢弃）；
 - `story_brief` 不变；B4 另行决定；
 - `written >= 3` 的启用条件不变：第 1–2 章没有检索段，素材也不进入；这是已知限制。
@@ -73,7 +75,7 @@ B1 已把素材写入作品库并同步 `search_docs`（`kind='material'`），�
 - **不做每类上限/不扫全候选**：真实第 4 章 5 条 hook 已说明垄断，长素材排不进前 10；否决。
 - **标题也进 FTS**：需要重建素材索引；本项否决，另项。
 - **素材摘要化（再调模型）**：增加模型调用/成本；否决，先用可解释片段。
-- **技能参考一起检索**：插件资源不在作品库，路径与权限不同；否决混入本项。
+- **技能参考一起检索**：插件资源不在作品库，路径与权限不同；否决混入本项。（B2b 另项按 role scope 接入。）
 
 ## 后果
 
