@@ -34,6 +34,7 @@ function isDocs(relative) {
     || relative === 'README.md'
     || relative === 'docs' || relative.startsWith('docs/')
     || relative === '.agents/notes' || relative.startsWith('.agents/notes/')
+    || relative === '.agents/skills' || relative.startsWith('.agents/skills/')
     || relative === '.trash' || relative.startsWith('.trash/')
     || (relative.startsWith('tools/') && relative.endsWith('/README.md'))
 }

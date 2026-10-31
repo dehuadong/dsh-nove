@@ -64,3 +64,5 @@ Planning 完成需要同时满足：
 - Plan Review 通过。
 
 若用户只要求规划，交付规划结果与评审证据后结束。端到端任务继续进入项目的 Implementation Gate，并单独核对执行授权。
+
+交付规划结果前，如果 `implement_gate` 可用且当前项目已启用，调用 `implement_gate({action:'end-planning'})` 回到 `discuss`。这样用户收到规划后的普通提问不会解锁 Note 写入；需要修改规划时必须重新取得 planning 授权。
