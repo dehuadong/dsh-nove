@@ -61,8 +61,9 @@ export function finishCall(root: string, work: string, id: number, patch: {
   submissionAttempts?: number | null
   errorCode?: string | null
 }): void {
-  const db = openWork(root, work)
+  let db: any
   try {
+    db = openWork(root, work)
     transaction(db, () => {
       const fields: string[] = []
       const values: unknown[] = []
@@ -73,16 +74,30 @@ export function finishCall(root: string, work: string, id: number, patch: {
       values.push(id)
       db.prepare(`UPDATE model_calls SET ${fields.join(', ')} WHERE id = ?`).run(...(values as any[]))
     })
+  } catch (error) {
+    console.warn(`[storycraft] 调用记录更新失败：${error instanceof Error ? error.message : String(error)}`)
+  } finally {
+    db?.close()
+  }
+}
+
+/** Next attempt within one chapter/role/scope. */
+export function nextAttempt(root: string, work: string, chapter: number | null, role: string, scope: string): number {
+  const db = openWork(root, work)
+  try {
+    const row = db.prepare('SELECT coalesce(max(attempt), 0) AS attempt FROM model_calls WHERE chapter IS ? AND role = ? AND scope = ?')
+      .get(chapter, role, scope) as { attempt?: number } | undefined
+    return Number(row?.attempt ?? 0) + 1
   } finally {
     db.close()
   }
 }
 
 /** Aggregate call telemetry for one work. */
-export function callSummary(root: string, work: string) {
+export function callSummary(root: string, work: string, since?: string) {
   const db = openWork(root, work)
   try {
-    const rows = db.prepare(`SELECT role, outcome, usage_source, duration_ms, total_tokens FROM model_calls`).all() as any[]
+    const rows = db.prepare(`SELECT role, outcome, usage_source, duration_ms, total_tokens FROM model_calls${since === undefined ? '' : ' WHERE started_at >= ?'}`).all(...(since === undefined ? [] : [since])) as any[]
     const byRole: Record<string, number> = {}
     let duration = 0
     let tokens = 0

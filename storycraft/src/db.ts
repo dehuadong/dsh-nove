@@ -381,7 +381,7 @@ const WORK_SCHEMA_REQUIRED_COLUMNS = Object.freeze({
   chapters: ['plan_revision', 'plan_approved_source', 'plan_approved_reason', 'state_ready_revision', 'provenance'],
   meta: ['outline_approved_revision', 'outline_approved_source', 'outline_approved_reason', 'foundation_approved_revision', 'foundation_approved_source', 'foundation_approved_reason'],
   artifacts: ['input_revision'],
-  model_calls: ['chapter', 'role', 'scope', 'attempt', 'trigger', 'outcome', 'usage_source'],
+  model_calls: ['chapter', 'role', 'scope', 'attempt', 'trigger', 'outcome', 'usage_source', 'started_at', 'ended_at', 'duration_ms', 'prompt_chars', 'output_chars'],
 })
 
 /** Reject a stale work file instead of letting a raw SQLite error surface later. */

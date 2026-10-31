@@ -15,7 +15,7 @@ import {
 import { readCards } from './facts.ts'
 import { closeSubmission, consumeSubmission, openSubmission, STATE_CHECK_NO_EVIDENCE } from './submission.ts'
 import { runChild } from './delegate.ts'
-import { finishCall, recordCall } from './telemetry.ts'
+import { finishCall, nextAttempt, recordCall } from './telemetry.ts'
 
 /** One chapter entry from the manifest. */
 interface ManifestChapter {
@@ -307,7 +307,7 @@ export async function checkChapterState(
       timeoutMs: Number.isFinite(host.timeoutMs) ? host.timeoutMs! : STATE_CHECK_TIMEOUT_MS,
       telemetry: {
         work, chapter, role: 'validator',
-        scope: `validate:r${revision}`, attempt: input.attempt ?? 1, trigger: input.trigger ?? 'first',
+        scope: `validate:r${revision}`, attempt: nextAttempt(root, work, chapter, 'validator', `validate:r${revision}`), trigger: input.trigger ?? 'first',
         delegationId: opened.delegationId, sessions: host.sessions,
         sink: (call) => recordCall(root, work, call),
       },
@@ -321,6 +321,7 @@ export async function checkChapterState(
     const attempts = submission?.attempts ?? 0
 
     if (result?.stopReason !== 'completed') {
+      if (child.call.callId !== undefined) finishCall(root, work, child.call.callId, { outcome: 'rejected', submissionAttempts: attempts, errorCode: 'state-check-failed' })
       if (submission?.consumed !== true && attempts >= 3) {
         throw new StoryError('state-check-no-submission',
           `状态对账提交尝试用尽（${attempts} 次），未正常完成（${String(result?.stopReason ?? 'unknown')}）`)
@@ -329,6 +330,7 @@ export async function checkChapterState(
         `状态对账子代理未正常完成（${String(result?.stopReason ?? 'unknown')}）${result?.diagnostic === undefined ? '' : `：${result.diagnostic}`}`)
     }
     if (submission?.consumed !== true || submission.payload === undefined) {
+      if (child.call.callId !== undefined) finishCall(root, work, child.call.callId, { outcome: 'rejected', submissionAttempts: attempts, errorCode: 'state-check-no-submission' })
       throw new StoryError('state-check-no-submission',
         `状态对账子代理没有提交通过校验的结果（尝试 ${attempts} 次）`)
     }

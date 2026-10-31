@@ -2,6 +2,7 @@
 import * as bible from '../src/bible.ts'
 import * as store from '../src/store-db.ts'
 import { reviewFixture } from './review-fixture.mjs'
+import { recordCall } from '../src/telemetry.ts'
 
 export async function buildPerfFixture(root, options = {}) {
   const chapters = options.chapters ?? 250
@@ -49,6 +50,14 @@ export async function buildPerfFixture(root, options = {}) {
   }
   for (let number = 1; number <= Math.min(20, chapters); number += 1) {
     store.settleState(root, { work, chapter: number, newHooks: [{ text: '旧钥匙', type: '悬念' }] })
+  }
+  for (let number = 1; number <= chapters; number += 1) {
+    recordCall(root, work, {
+      chapter: number, role: 'writer', scope: 'writer:r1', attempt: 1, trigger: 'first',
+      startedAt: '2026-10-30T00:00:00.000Z', endedAt: '2026-10-30T00:00:00.100Z', durationMs: 100,
+      outcome: 'accepted', promptChars: 10, outputChars: 20, usageSource: 'session',
+      inputTokens: 5, outputTokens: 5, totalTokens: 10, model: 'fixture', provider: 'fixture',
+    })
   }
 
   const small = []

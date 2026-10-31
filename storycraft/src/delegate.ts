@@ -18,7 +18,7 @@ import {
 } from './storage.ts'
 import { readFoundationDocuments, writeContextTrace } from './artifact-store.ts'
 import { callEvidence } from './call-evidence.ts'
-import { finishCall, recordCall } from './telemetry.ts'
+import { finishCall, nextAttempt, recordCall } from './telemetry.ts'
 import type { CallInput } from './telemetry.ts'
 import { acceptedProposalOf } from './store-db.ts'
 import { critique, findingsOf, withMechanicalFindings } from './critique.ts'
@@ -525,13 +525,10 @@ export async function runChild(input: ChildRunInput): Promise<ChildRun> {
         delivery: 'caller',
       })
     } catch (error: any) {
-      const call = record('error', undefined, error?.code)
       // A startActivation rejection crosses the service boundary; only code and message are read.
-      const mapped = (error?.code === 'UNSUPPORTED_CAPABILITY' || /provider|capabilit/iu.test(String(error?.message)))
+      throw (error?.code === 'UNSUPPORTED_CAPABILITY' || /provider|capabilit/iu.test(String(error?.message)))
         ? new StoryError(unavailableCode, `子代理 provider 不可用：${error?.message ?? error}`)
         : new StoryError(failedCode, `子代理启动失败：${error?.message ?? error}`)
-      if (call.callId !== undefined) (mapped as any).callId = call.callId
-      throw mapped
     }
 
     // The inner catch above always throws, so a started activation exists here.
@@ -732,7 +729,7 @@ async function delegateArchitect(root: string, input: ArchitectInput, host: Dele
       timeoutMs,
       availability: false,
       telemetry: {
-        work, chapter: null, role: 'architect', scope: `architect:${stage}`, attempt: 1, trigger: 'first',
+        work, chapter: null, role: 'architect', scope: `architect:${stage}`, attempt: nextAttempt(root, work, null, 'architect', `architect:${stage}`), trigger: 'first',
         delegationId: opened.delegationId, sessions: host.sessions,
         sink: (call) => recordCall(root, work, call),
       },
@@ -891,7 +888,7 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
       telemetry: {
         work, chapter, role,
         scope: `${role}:r${manifest.chapters.find(item => item.number === chapter)?.currentRevision ?? 0}`,
-        attempt: 1, trigger: 'first', delegationId: opened.delegationId,
+        attempt: nextAttempt(root, work, chapter, role, `${role}:r${manifest.chapters.find(item => item.number === chapter)?.currentRevision ?? 0}`), trigger: 'first', delegationId: opened.delegationId,
         sessions: host.sessions, sink: (call) => recordCall(root, work, call),
       },
     })
@@ -970,6 +967,7 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
       const revision = entry!.currentRevision
       let written: ReturnType<typeof writeReview>
       let reviewerAttempts = attempts
+      let acceptedCallId = child.call.callId
       try {
         written = writeReview(root, { work, chapter, observations: reviewerObservations(payload.items, chapter, revision) })
       } catch (error: unknown) {
@@ -996,7 +994,7 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
             timeoutMs,
             availability: false,
             telemetry: {
-              work, chapter, role, scope: `${role}:r${revision}`, attempt: 2, trigger: 'reviewer-quote-retry',
+              work, chapter, role, scope: `${role}:r${revision}`, attempt: nextAttempt(root, work, chapter, role, `${role}:r${revision}`), trigger: 'reviewer-quote-retry',
               delegationId: retryOpened.delegationId, sessions: host.sessions,
               sink: (call) => recordCall(root, work, call),
             },
@@ -1008,13 +1006,14 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
           assertActive(signal)
           reviewerAttempts = attempts + (retrySubmission.attempts ?? 1)
           written = writeReview(root, { work, chapter, observations: reviewerObservations(retrySubmission.payload.items, chapter, revision) })
-          if (retryChild.call.callId !== undefined) finishCall(root, work, retryChild.call.callId, { outcome: 'accepted', submissionAttempts: retrySubmission.attempts ?? 1 })
+          acceptedCallId = retryChild.call.callId
+          if (acceptedCallId !== undefined) finishCall(root, work, acceptedCallId, { outcome: 'accepted', submissionAttempts: retrySubmission.attempts ?? 1 })
         } finally {
           closeSubmission(retryOpened.delegationId)
           if (retryChild !== undefined) await retryChild.dispose()
         }
       }
-      if (child.call.callId !== undefined) finishCall(root, work, child.call.callId, { outcome: 'accepted', submissionAttempts: reviewerAttempts })
+      if (acceptedCallId !== undefined) finishCall(root, work, acceptedCallId, { outcome: 'accepted', submissionAttempts: reviewerAttempts })
       return fitReceipt({
         durationMs: child.call.durationMs,
         usage: child.call.usage,

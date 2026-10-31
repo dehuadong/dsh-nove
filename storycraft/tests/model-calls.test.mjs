@@ -31,11 +31,18 @@ try {
     outcome: 'rejected', promptChars: 10, outputChars: 20, usageSource: 'unavailable',
     errorCode: 'observation-source-unverified',
   })
+  recordCall(root, work, {
+    chapter: 1, role: 'reviser', scope: 'reviser:r1', attempt: 1, trigger: 'first',
+    startedAt: '2026-11-01T00:00:00.000Z', endedAt: '2026-11-01T00:00:01.000Z', durationMs: 1000,
+    outcome: 'accepted', promptChars: 10, outputChars: 20, usageSource: 'partial',
+    inputTokens: 1, outputTokens: 3, totalTokens: 4,
+  })
   const summary = callSummary(root, work)
-  check('aggregate counts calls', summary.count === 2, JSON.stringify(summary))
-  check('aggregate sums duration', summary.totalDurationMs === 3000, JSON.stringify(summary))
-  check('aggregate keeps partial/unavailable visible', summary.callsWithUsage === 1 && summary.callsWithoutUsage === 1 && summary.usageComplete === false, JSON.stringify(summary))
-  check('aggregate by role', summary.byRole.writer === 1 && summary.byRole.reviewer === 1, JSON.stringify(summary.byRole))
+  check('aggregate counts calls', summary.count === 3, JSON.stringify(summary))
+  check('aggregate marks partial usage', summary.callsPartial === 1 && summary.usageComplete === false, JSON.stringify(summary))
+  check('aggregate sums duration', summary.totalDurationMs === 4000, JSON.stringify(summary))
+  check('aggregate keeps partial/unavailable visible', summary.callsWithUsage === 1 && summary.callsPartial === 1 && summary.callsWithoutUsage === 1 && summary.usageComplete === false, JSON.stringify(summary))
+  check('aggregate by role', summary.byRole.writer === 1 && summary.byRole.reviewer === 1 && summary.byRole.reviser === 1, JSON.stringify(summary.byRole))
 
   const rows = []
   const sessions = {
