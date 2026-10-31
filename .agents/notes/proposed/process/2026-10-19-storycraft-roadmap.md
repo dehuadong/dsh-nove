@@ -38,7 +38,7 @@ Status: proposed
 4. `#50` L 真实验收（已关闭 2026-10-30；EPUB 打开由作者豁免；长篇完成收口）；
 5. 已交付：`#85` A10 恢复、`#86` A12 版本、`#87` F13 性能、`#88` F8 调用观测；`#77`/`#78`/`#79`/`#4` 于 2026-10-31 关闭；
 6. **后续工作项不再新建 GitHub issue**：新提案/工作项使用 `.agents/notes/proposed/`，按 `write-agent-notes` 的 proposed 格式；issue 只保留历史档案；
-7. 下一阶段：**S 短篇**（outline → batch draft → review → revision → package），随后 D 剧本。
+7. **长篇剩余收口（S 之前）**：F14 失败重试/成本上限 → A9 技能加载证据 → E1/E4/E5 面板 → B1 epub/pdf、B2 技能参考 → A1b/F5/R5；`store-db-row-types` 作为技术清理穿插。长篇余项收敛后，才进入 **S 短篇**（outline → batch draft → review → revision → package），随后 D 剧本。
 
 ### 完整待办（并入 `#4`，2026-10-31）
 
