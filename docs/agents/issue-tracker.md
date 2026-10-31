@@ -1,6 +1,8 @@
-# Issue 跟踪：GitHub
+# Issue 跟踪：GitHub（历史档案）
 
-本仓库的工作项是 GitHub issue，位于 `dehuadong/dsh-nove`（私有仓库）。每个工作项拥有本次交付范围、产品行为与验收、评审和批准证据；长期设计与决定归其登记的属主。所有操作使用 `gh` CLI。
+2026-10-31 起，本仓库的新提案/工作项使用 `.agents/notes/proposed/`，按 `write-agent-notes` 的 proposed 格式记录范围、验收、评审与批准证据；**不再新建 GitHub issue**。GitHub Issues 只保留历史工作项与关闭记录，排期以 `.agents/notes/proposed/process/2026-10-19-storycraft-roadmap.md` 为准。
+
+历史 issue 位于 `dehuadong/dsh-nove`（私有仓库），只读使用 `gh` CLI；下文的创建/评论/关闭约定仅用于维护历史档案。
 
 工作区需要配置指向该仓库的 git 远端，`gh` 才能在克隆内定位仓库；`gh auth status` 应显示已登录且令牌有 `repo` 权限。二者缺失时先在对话中讨论和起草，不要改用其他位置发布工作项。
 

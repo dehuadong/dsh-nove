@@ -36,8 +36,45 @@ Status: proposed
 2. P0 已完成：`#63` planner 委派 → `#64` 上下文预算/trace → `#65` 多章确定性验收；
 3. `#66` 面板统一状态（已关闭）、`#67` 死表清理（已关闭）；
 4. `#50` L 真实验收（已关闭 2026-10-30；EPUB 打开由作者豁免；长篇完成收口）；
-5. `#50` 之后（属主 `#4`，开工时立 issue）：A9 技能同步与加载证据、A10 崩溃恢复、A12 候选/历史版本、E1/E4/E5/E6/E7 面板、F8/F14 成本与重试、F13 250 章性能、B1 epub/pdf 素材、B2 技能参考检索；
-6. S 短篇、D 剧本独立流水线提案。
+5. 已交付：`#85` A10 恢复、`#86` A12 版本、`#87` F13 性能、`#88` F8 调用观测；`#77`/`#78`/`#79`/`#4` 于 2026-10-31 关闭；
+6. **后续工作项不再新建 GitHub issue**：新提案/工作项使用 `.agents/notes/proposed/`，按 `write-agent-notes` 的 proposed 格式；issue 只保留历史档案；
+7. 下一阶段：**S 短篇**（outline → batch draft → review → revision → package），随后 D 剧本。
+
+### 完整待办（并入 `#4`，2026-10-31）
+
+`#4` 的完整清单已并入本表；状态以这里为准，未开工项在开工时写 proposed Note，不再立 issue。
+
+| 域 | 条目 | 状态 / 下一步 |
+| --- | --- | --- |
+| 长篇 | A10 状态投影与恢复 | **已交付**（#85） |
+| 长篇 | A12 版本候选/回滚 | **已交付**（#86） |
+| 长篇 | F13 250 章性能 | **已交付**（#87） |
+| 长篇 | F8 成本与调用观测 | **已交付**（#88） |
+| 长篇 | A9 创作方法库/加载证据 | 部分：阶段技能与 `catalog.json` 已交付；加载证据未做 |
+| 长篇 | F14 失败重试与成本上限 | 待开；F8 数据已就绪 |
+| 长篇 | E1/E4/E5/E6/E7/E13 面板 | 待开/未排期；E2 阅读器未排期 |
+| 长篇 | B1 epub/pdf 素材、B2 技能参考检索 | 部分：txt/md 与故事记忆已交付；epub/pdf、技能参考未做 |
+| 长篇 | A1b 单次调用产章、F5 快照 | 未排期；F5 现有备份是作品级基础 |
+| 长篇 | R5-a/b/c/d 检索后续 | 未排期，触发条件见 #4 历史表 |
+| 短篇 | S outline/batch/review/revision/package | **下一阶段**（proposed Note 另行起草） |
+| 剧本 | D spec/script/场次集 | S 之后；C3-C7 未排期 |
+| 导出/发布 | D1 导出已交付；D2 封面、D3 插图 | 未排期 |
+
+### Proposed Note 处置
+
+| Note | 处置 |
+| --- | --- |
+| `architecture/2026-10-24-storycraft-planner-delegation.md` | 已落地（#63） |
+| `architecture/2026-10-27-storycraft-byte-binding-and-engines.md` | 已落地（#78/#79） |
+| `architecture/2026-10-28-storycraft-settle-finalize-split.md` | 已落地（#82/#85） |
+| `architecture/2026-10-23-storycraft-skill-organization-v2.md` | 部分落地：阶段技能/薄角色已交付；S/D 独立流水线待做 |
+| `architecture/2026-10-24-store-db-row-types.md` | 待开（类型缝/`@ts-nocheck` 收口） |
+| `architecture/2026-10-24-storycraft-ts-migration.md`、`2026-10-24-storycraft-ts-pilot.md` | 已落地（TS 源码、构建与 CI 接入） |
+| `process/2026-10-26-storycraft-release-packaging.md` | 已落地（发布字段、LICENSE、tarball smoke） |
+| `bug-fix/2026-10-27-storycraft-gate-panel-architect-remediation.md` | 已落地（#79） |
+| `feature/2026-10-27-storycraft-action-gates.md` | 已落地（#77） |
+
+实现已落地但文件仍在 `proposed/` 的 Note 保留为设计史，不再作为工作项；下一次触及该主题时按 `write-agent-notes` 转 implemented 或归档。
 
 ### 技能与资源基线
 

@@ -174,3 +174,4 @@ DeepSeek Harness 包工作区：packages文档地址 `E:\dsh-nove\deepseek-harne
 2. 写之前先检索 .agents/notes/ 里的同主题旧笔记：有归属就地更新；新想法先放 proposed/，落地随同代码改动转 implemented/；新方案彻底取代旧决策时，同批归档旧篇并标明被谁取代。
 3. 被放弃的方案先写它最强的理由，再解释为什么不用。
 4. 提交前跑 npm run verify-notes，红了先修再交。
+5. **工作项入口**：2026-10-31 起新提案/工作项使用 `.agents/notes/proposed/`（proposed 格式，状态与验收写在 Note），不再新建 GitHub issue；issue 只保留历史档案，排期以 `proposed/process/2026-10-19-storycraft-roadmap.md` 为准。
