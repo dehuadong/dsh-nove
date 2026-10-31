@@ -1265,7 +1265,7 @@ const STATE_SETTLE_OUTPUT: DshToolOutput = {
         additionalProperties: false,
         properties: {
           durationMs: { type: 'integer' },
-          usage: { type: 'object', additionalProperties: true },
+          usage: { oneOf: [{ type: 'object', additionalProperties: true }, { type: 'null' }] },
           lastError: { type: 'string' },
           perAttempt: {
             type: 'array',

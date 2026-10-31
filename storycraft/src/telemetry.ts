@@ -68,7 +68,7 @@ export function finishCall(root: string, work: string, id: number, patch: {
       const fields: string[] = []
       const values: unknown[] = []
       if (patch.outcome !== undefined) { fields.push('outcome = ?'); values.push(patch.outcome) }
-      if (patch.submissionAttempts !== undefined) { fields.push('submission_attempts = ?'); values.push(patch.submissionAttempts) }
+      if (patch.submissionAttempts !== undefined) { fields.push('submission_attempts = ?'); values.push(patch.submissionAttempts === null ? null : Math.min(3, Math.max(0, patch.submissionAttempts))) }
       if (patch.errorCode !== undefined) { fields.push('error_code = ?'); values.push(patch.errorCode) }
       if (fields.length === 0) return
       values.push(id)

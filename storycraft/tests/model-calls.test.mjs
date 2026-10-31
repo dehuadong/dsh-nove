@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runChild } from '../src/delegate.ts'
 import * as s from '../src/storage.ts'
+import { openWork } from '../src/db.ts'
 import { callSummary, finishCall, recordCall } from '../src/telemetry.ts'
 
 let failures = 0
@@ -84,6 +85,15 @@ try {
   })
   check('missing sessions yields unavailable usage', noSessions.call.usage.usageSource === 'unavailable' && noSessions.call.usage.totalTokens === null)
   await noSessions.dispose()
+
+  const clamped = recordCall(root, work, {
+    chapter: 1, role: 'writer', scope: 'writer:r4', attempt: 1, trigger: 'first',
+    startedAt: '2026-11-02T00:00:00.000Z', endedAt: '2026-11-02T00:00:01.000Z', durationMs: 1000,
+    outcome: 'completed', promptChars: 1, outputChars: 1, usageSource: 'unavailable',
+  })
+  finishCall(root, work, clamped, { outcome: 'rejected', submissionAttempts: 4 })
+  const clampedDb = openWork(root, work)
+  try { check('submission attempts stay at most 3', clampedDb.prepare('SELECT submission_attempts AS n FROM model_calls WHERE id = ?').get(clamped)?.n === 3) } finally { clampedDb.close() }
 
   const beforeFailure = callSummary(root, work).count
   const failing = { async startActivation() { throw new Error('provider unavailable') } }

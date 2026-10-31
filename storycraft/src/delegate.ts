@@ -904,6 +904,9 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
         `子代理未正常完成（${String(result?.stopReason ?? 'unknown')}）${result?.diagnostic === undefined ? '' : `：${result.diagnostic}`}`)
     }
     if (submission?.consumed !== true || submission.payload === undefined) {
+      if (result?.stopReason === 'completed' && child.call.callId !== undefined) {
+        finishCall(root, work, child.call.callId, { outcome: 'rejected', submissionAttempts: attempts, errorCode: 'delegation-no-submission' })
+      }
       throw new StoryError('delegation-no-submission',
         `子代理没有提交通过校验的角色结果（尝试 ${attempts} 次）`)
     }
