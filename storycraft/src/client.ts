@@ -482,6 +482,10 @@ window.__ModuleLoader__.load({
       file: string
       bytes: number
       createdAt: string
+      materials?: { count: number, bytes: number }
+      incomplete?: boolean
+      corrupt?: boolean
+      noMaterials?: boolean
     }
 
     interface BackupPayload {
@@ -2368,14 +2372,18 @@ function hookStatusLabel(status: string): string {
 
       const restoreBackupItem = async (item: BackupFile) => {
         if (sessionId === undefined) return
-        if (!window.confirm('恢复会用这个备份覆盖当前作品库；恢复前会自动备份当前版本。继续？')) return
+        if (!window.confirm(item.materials !== undefined
+          ? '恢复会用这个备份覆盖当前作品库和素材原文件；恢复前会自动备份当前版本。继续？'
+          : '恢复会用这个备份覆盖当前作品库（不含素材原文件）；恢复前会自动备份当前版本。继续？')) return
         try {
-          await face.restoreBackup(root, sessionId, workId, item.backupId)
+          const result = await face.restoreBackup(root, sessionId, workId, item.backupId) as { materialsRestored?: number, hasMaterials?: boolean }
           setSelected(undefined)
           setChapterPage(1)
           setBible({ status: 'idle' })
           setBrief({ status: 'idle' })
-          onNotice({ kind: 'ok', text: '已恢复备份；当前作品已重新读取' })
+          onNotice({ kind: 'ok', text: result.hasMaterials === true
+            ? `已恢复备份与 ${result.materialsRestored ?? 0} 份素材；当前作品已重新读取`
+            : '已恢复备份（不含素材 sidecar）；当前作品已重新读取' })
           await load()
           await refreshBackups()
         } catch (error) {
@@ -3893,7 +3901,7 @@ function hookStatusLabel(status: string): string {
           hidden: tab !== 'backups',
         },
           h('h3', { className: 'sc-section-title' }, '备份'),
-          h('p', { className: 'sc-item-body' }, `备份 ${backupList.length} 份；每份是独立数据库副本，可恢复或删除。`),
+          h('p', { className: 'sc-item-body' }, `备份 ${backupList.length} 份；每份含数据库，显式备份还含素材原文件，可恢复或删除。`),
           h('div', { className: 'sc-actions' },
             h('button', {
               type: 'button',
@@ -3929,7 +3937,14 @@ function hookStatusLabel(status: string): string {
               h('div', { className: 'sc-item-head' },
                 h('span', { className: 'sc-badge' }, String(index + 1).padStart(2, '0')),
                 h('span', { className: 'sc-item-name' }, item.file.split(/[\\/]/u).at(-1)),
-                h('span', { className: 'sc-badge' }, `${item.bytes} B`),
+                h('span', { className: 'sc-badge' }, `${item.bytes} B 总量`),
+                item.materials !== undefined
+                  ? h('span', { className: 'sc-badge' }, `素材 ${item.materials.count} 份 · ${item.materials.bytes} B`)
+                  : item.corrupt === true
+                    ? h('span', { className: 'sc-badge sc-badge-warn' }, '素材 sidecar 损坏')
+                    : item.incomplete === true
+                      ? h('span', { className: 'sc-badge sc-badge-warn' }, '不完整：缺素材 sidecar')
+                      : h('span', { className: 'sc-badge' }, item.noMaterials === true ? '仅数据库（无素材）' : '仅数据库'),
                 h('span', { className: 'sc-item-id' }, String(item.createdAt ?? '').replace('T', ' ').slice(0, 16)),
               ),
               h('div', { className: 'sc-actions' },

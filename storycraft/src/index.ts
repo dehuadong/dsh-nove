@@ -720,7 +720,7 @@ export function apply(ctx: DshContext): void {
       handler: (req, res) => readRoute(req, res, async (query) => {
         const root = await rootOf(ctx, query)
         const workId = workOf(query)
-        return { backups: listBackups(root, workId) }
+        return { backups: await listBackups(root, workId) }
       }),
     }),
     ctx.webServer.register({

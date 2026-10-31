@@ -64,7 +64,7 @@ B1 要求“支持 txt/md/epub/pdf 入库并保留来源；验收：入库后可
 
 - materials 循环在 **`exportWork`**（`exportWorkAtomic` 也委托到它）：txt/md 仍写 `content`；epub/pdf 从 `origin` 解析到 `.storycraft/materials` 下复制原文件到 `materials/<id>.<format>`，不把抽取文本写成伪 epub/pdf；
 - 复制前校验 hash；受管副本缺失报 `material-origin-missing`，不生成坏文件；导出仍原子替换，文件清单包含二进制副本；
-- 备份目前只包含作品库、不含 `.storycraft/materials`；B1 不扩展备份格式，README/Note 明示“备份不携带原二进制，恢复后可检索抽取文本但导出原文件会报缺失”，后续另立附件备份工作项。
+- B1 时备份只包含作品库、不含 `.storycraft/materials`；F5 已扩展为 DB + 素材 sidecar，见 [F5 Note](../../implemented/feature/2026-10-31-storycraft-f5-backup-materials.md)。
 
 ### 面板
 
@@ -97,4 +97,4 @@ B1 要求“支持 txt/md/epub/pdf 入库并保留来源；验收：入库后可
 - 扫描版/加密 spine 被拒绝，不做 OCR；字体混淆的 EPUB 不应被误拒；
 - EPUB HTML 结构差异大；以 spine 文本为准，不保留 CSS/图片；
 - 18MB 源文件与 2M 抽取字符均在内存解析；超限明确拒绝；
-- 备份不含 `.storycraft/materials` 原文件；恢复后检索仍可用，但导出会报 `material-origin-missing`，附件备份另立工作项。
+- B1 时备份不含 `.storycraft/materials` 原文件；F5 已补显式备份的素材 sidecar；无 sidecar 的旧备份仍会导出 `material-origin-missing`。

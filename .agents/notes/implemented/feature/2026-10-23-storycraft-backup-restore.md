@@ -2,6 +2,8 @@
 
 Status: implemented
 
+> 2026-10-31 F5 扩展：显式备份增加 `.materials.zip` sidecar；恢复先校验 DB/素材，再写素材、换 DB；自动安全备份仍 DB-only。
+
 
 ## 问题
 
@@ -52,9 +54,9 @@ Status: implemented
    - `token` 只允许**纯数字**（`/^\d+$/`），必须是 `<workId>-<token>.db`；
    - 路径 resolve 后仍在 `backupsDir`；其他作品的文件名（如工作 `a1` 的 `a1-2-1730.db`）token 含连字符，直接拒绝；
    - 缺失 → `backup-not-found`；
-4. 校验备份：`openDatabase(file, readOnly)` → `integrityCheck` → `meta.work_id === workId`；读/坏/不匹配统一 `backup-invalid`；
+4. 校验备份：`openDatabase(file, readOnly)` → `integrityCheck` → `meta.work_id === workId`；F5 起再校验可选素材 sidecar 与 stage DB 的 materials 行；读/坏/不匹配统一 `backup-invalid`；
 5. **准备 stage 并迁移**：复制备份到 works 的临时 `.<workId>-restore-<random>.db`，打开 stage 执行现有 `migrateWorkSchema` 到当前版本；迁移/校验失败清 stage，当前库不动；
-6. **自动备份当前版本**：`backupWork(root, work)`；
+6. **自动备份当前版本**：`backupWork(root, work, {materials:false})`（F5 起安全备份 DB-only）；
    - 普通失败 → `backup-failed`，中止；
    - `db-corrupt`：不移动当前库，标记 `corrupt=true`；跳过 `openWork`/checkpoint，直接进入交换；这是唯一允许无完整安全副本的路径；
 7. 非 corrupt：`openWork` + `checkpoint` 后关闭；关闭失败 `work-busy`，中止；

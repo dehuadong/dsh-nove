@@ -18,7 +18,7 @@
 
 import { createHash } from 'node:crypto'
 import {
-  StoryError, backupWork, deleteWork, exportWork, initWork, nextStep as nextStepFor, 
+  StoryError, createBackup, deleteWork, exportWork, initWork, nextStep as nextStepFor, 
   approveFoundation, approveOutline, approveChapterPlan, finalizeChapter, markStateDraftReady, mergeStateDraft,
   planApprovalPolicy,
   latestReview, readBibleEntry, readChapter, readChapterHistory, readEvents, readEventsText, readManifest, readPlan, readSessionCurrent,
@@ -2831,7 +2831,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
     action({
       name: 'story_backup',
       mutates: true,
-      description: '把一部作品的库备份成单个文件，返回 backup:<workId>:<timestamp> 与完整性检查结果；作者从只读备份路由取用。',
+      description: '把一部作品的库与素材原文件备份成 DB + materials sidecar，返回 backup:<workId>:<timestamp> 与完整性检查结果；作者从只读备份路由取用。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -2842,7 +2842,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
       },
       async execute(args, exec) {
         const root = workspaceOf(exec)
-        const backup = await backupWork(root, args.work)
+        const backup = await createBackup(root, args.work, 0)
         return { ok: true, workId: args.work, backup }
       },
     }),

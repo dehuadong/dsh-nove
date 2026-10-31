@@ -64,7 +64,8 @@ DSH 里的长篇创作编排：三十六个动作把立项、章纲、正文、�
   trash/<workId>.db          软删除的作品库
   materials/                 素材托管副本（模型不可读；删除素材时保留）
   exports/<workId>/          按需导出（作者在系统文件管理器里取用）
-  backups/<workId>-<ts>.db   单作品备份
+  backups/<workId>-<ts>.db        单作品备份
+  backups/<workId>-<ts>.materials.zip  显式备份的素材 sidecar
 ```
 
 `catalog.db` 只存元数据，是 title/form/tags 的权威；作品库的 `meta` 行是导出副本。每部作品独立 `user_version`，升级一部不影响其他；作品库只支持当前 schema；没有旧作品，不做迁移或兼容读取，版本不符直接返回 `schema-version-mismatch`。表结构、连接策略、改名/删除/恢复顺序与启动对账的完整设计见 [作品入库 Note](../.agents/notes/implemented/architecture/2026-10-19-storycraft-sqlite-store.md)。
@@ -104,7 +105,7 @@ materials         作者素材（txt/md/epub/pdf；用途 setting/character/scen
 | `story_delete` | 移入 `.storycraft/trash/`，不再出现在列表 |
 | `story_restore` | 恢复回收站里最近一次的同名作品 |
 | `story_export` | 导出为 `export:<workId>`；作者从只读 `/exports` 路由取目录，内容含 manifest v6、`book.txt` 与 `book.epub`、各版正文、章纲、摘要、各轮审稿、真值、`foundation/`（story_frame/volume_map/book_rules/roles/current_focus）、卷、事件、提案与 `materials/<id>.<format>` |
-| `story_backup` | 用 SQLite 备份 API 生成单作品文件，返回 `integrity_check` |
+| `story_backup` | 生成单作品 DB + 素材 sidecar（无素材时仅 DB），返回 `integrity_check` |
 
 导出是给作者在系统文件管理器里取用的，不是让模型读库；`.storycraft` 仍整体拒绝工具直接访问。
 
@@ -162,7 +163,7 @@ materials         作者素材（txt/md/epub/pdf；用途 setting/character/scen
 - 右侧：作品详情——顶部作品栏 + 七个标签「看板 / 章节 / 真值 / 写前上下文 / 素材 / 导出 / 备份」；章节点开后可在「正文 / 章纲 / 摘要 / 版本」间切换；章节列表倒序、20 章/页，可翻页，选中旧章自动跳页；章节行可「前移/后移」；看审稿 observation（id/评估/证据/修法）。看板内可展开「分析」查看审稿分布、角色/模型调用成本，并按章查看节奏；「自检」只读检查库完整性、检索索引、章节版本与状态草案；作品库打不开时仍可点开该作品在错误分支运行自检；「日志」按游标查看逐次调用与失败；「检索」统一查记忆、素材与技能参考，命中带来源/位置。
 - 作品栏下方是「下一步」状态卡：每个状态只有一个主按钮（确认基础设定 / 确认全书计划 / 确认章纲 / 写正文 / 审稿 / 修订 / 摘要 / 定稿 / 补卷摘要），次按钮在被禁用时给出原因；导出、抽取文风、基础设定、字数范围等管理入口仍在同一栏。
 - 「真值」：五张中文卡片（世界观/人物档案/文风基准/全书计划/作者意图），world/characters/style/intent 用右侧抽屉编辑保存，plan 只读；写前上下文是独立标签，选择目标章后装配。
-- 「备份」：创建、恢复、删除、保留最近 N 份；恢复前自动备份当前版本；「重建检索索引」从章节、摘要、事件与素材重建派生索引。导出仍是覆盖快照，备份是历史副本。
+- 「备份」：创建（DB + 素材 sidecar）、恢复、删除、保留最近 N 份；恢复前自动备份当前版本；列表显示素材份数/大小或“仅数据库/不完整”；恢复会同时还原素材原文件；「重建检索索引」从章节、摘要、事件与素材重建派生索引。导出仍是覆盖快照，备份是历史副本。
 
 `style` 真值里的 `<!-- storycraft:style-samples:start -->` / `<!-- storycraft:style-samples:end -->` 是「抽取文风」的受管区块：重新抽取会替换整块，作者不要把保留标记写进正文；块外文字保留。若 style 编辑器里有未保存内容，重新抽取会覆盖它；先保存或取消。
 
@@ -207,7 +208,7 @@ materials         作者素材（txt/md/epub/pdf；用途 setting/character/scen
 | `POST /api/see-storycraft/materials/delete` | 删除素材库记录与索引（保留副本） |
 | `POST /api/see-storycraft/export` | 面板直接导出（原子替换，返回目录与文件数） |
 | `GET /api/see-storycraft/exports?root=&id=` | 作者导出目录状态（只读） |
-| `GET /api/see-storycraft/backups?root=&id=` | 作者备份文件列表（只读） |
+| `GET /api/see-storycraft/backups?root=&id=` | 作者备份列表：DB/素材 sidecar 元数据（只读） |
 | `POST /api/see-storycraft/chapter/history` | 作者读取章节正文/章纲版本与当前标记（只读） |
 | `POST /api/see-storycraft/chapter/adopt` | 作者回滚到正文/章纲历史版本（需确认） |
 | `POST /api/see-storycraft/recover/rebuild-index` | 作者触发：重建检索索引（需确认，不改正文） |
@@ -253,7 +254,7 @@ storycraft/
   Get-ChildItem storycraft/tests -Filter *.test.mjs | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { exit 1 } }
   ```
 
-- 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑 47 条页面 spec——侧栏入口、加载契约（无 `pageerror`、`/api/see-storycraft/works` 200）、页面读数、作者确认、摘要徽标、素材导入/重命名/删除/PDF-EPUB、面板导出、章节倒序分页/前移后移、文风样例、看板分析/自检/日志/统一检索、真值抽屉、备份恢复、指令门禁、预设声明与刷新。不调用模型，零额度；Playwright 是本包 devDependency（首次 `npm install && npx playwright install chromium`），`node storycraft/e2e/run.mjs --list` 可只看清单。
+- 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑 48 条页面 spec——侧栏入口、加载契约（无 `pageerror`、`/api/see-storycraft/works` 200）、页面读数、作者确认、摘要徽标、素材导入/重命名/删除/PDF-EPUB、面板导出、章节倒序分页/前移后移、文风样例、看板分析/自检/日志/统一检索、真值抽屉、备份/素材恢复、指令门禁、预设声明与刷新。不调用模型，零额度；Playwright 是本包 devDependency（首次 `npm install && npx playwright install chromium`），`node storycraft/e2e/run.mjs --list` 可只看清单。
 - `node storycraft/scripts/ci.mjs` 依次跑：Host 与 Client 类型检查（`tsc -p`，`--noEmit`）、全部单元文件（直接 import `src/*.ts`，靠 Node 类型擦除，不先构建）、`scripts/build.mjs`（tsdown 出 Host 入口 + esbuild 出 `client.js`）、pack-check，最后二选一：默认跑复制安装的页面 spec，`--smoke` 跑 tarball 安装 smoke（`npm pack` → `dsh plugin add <tgz>` → 冷启动 → 加载契约）。
 - 端到端验收、评审与证据记录在 issue `dehuadong/dsh-nove#18`。
 

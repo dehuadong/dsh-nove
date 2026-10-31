@@ -13,7 +13,8 @@ import { createHash, randomUUID } from 'node:crypto'
 import {
   closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, rmSync, statSync, unlinkSync, utimesSync, writeFileSync, writeSync,
 } from 'node:fs'
-import { join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
+import JSZip from 'jszip'
 import type { Database } from './db.ts'
 import type { ArtifactRow, BibleRow, ChapterRow, ChapterVersionRow, EventRow, MaterialRow, MetaRow, VolumeRow, WorkRow } from './store-rows.ts'
 
@@ -3744,7 +3745,7 @@ export async function deleteChapter(root: any, work: any, chapter: any, options:
   } finally {
     probe.close()
   }
-  await backupWork(root, work)
+  await backupWork(root, work, { materials: false })
   const db = openWork(root, work)
   try {
     return transaction(db, () => {
@@ -3802,7 +3803,7 @@ export async function moveChapter(root: any, work: any, from: any, to: any, opti
     const staged = db.prepare('SELECT stage FROM chapters WHERE number IN (?, ?)').all(source, target)
     if (staged.some(row => row.stage === 'settled')) throw new StoryError('chapter-settled', '受影响章节中有已定稿章：先 reopen 再删/移')
     const mapping = chapterRemap(keys, { type: 'move', from: source, to: target })
-    await backupWork(root, work)
+    await backupWork(root, work, { materials: false })
     return transaction(db, () => {
       applyChapterMapping(db, mapping)
       remapChapterArtifacts(db, { mapping })
@@ -4368,6 +4369,112 @@ function backupPattern(workId: any) {
   return new RegExp(`^${escapeBackup(workId)}-(\\d+)\\.db$`, 'u')
 }
 
+const BACKUP_MATERIALS_SUFFIX = '.materials.zip'
+
+/** Sidecar path for one DB backup file. */
+function backupMaterialsFile(file: string) {
+  return `${file}${BACKUP_MATERIALS_SUFFIX}`
+}
+
+/** Validate and resolve a materials origin without leaving `.storycraft`. */
+function materialOriginPath(root: any, origin: any) {
+  if (typeof origin !== 'string' || !/^materials\/[^/\\]+$/u.test(origin) || ['.', '..'].includes(basename(origin))) {
+    throw new StoryError('backup-material-origin-missing', `素材 origin 不合法：${String(origin)}`)
+  }
+  return join(root, '.storycraft', origin)
+}
+
+/** Material rows needed for one explicit backup. */
+function backupMaterialRows(db: any) {
+  return db.prepare('SELECT id, format, origin, bytes, hash FROM materials ORDER BY id').all() as Array<{
+    id: string, format: string, origin: string, bytes: number, hash: string,
+  }>
+}
+
+/** Build and atomically write the materials sidecar; null when there are no materials. */
+async function writeMaterialsSidecar(root: any, workId: string, file: string, rows: any[]) {
+  if (rows.length === 0) return undefined
+  const zip = new JSZip()
+  const entries: any[] = []
+  const names = new Set<string>()
+  for (const row of rows) {
+    const source = materialOriginPath(root, row.origin)
+    if (!existsSync(source)) throw new StoryError('backup-material-missing', `素材 ${row.id} 的原文件不存在：${row.origin}`)
+    const data = readFileSync(source)
+    if (data.length !== Number(row.bytes) || createHash('sha256').update(data).digest('hex') !== String(row.hash)) {
+      throw new StoryError('backup-material-corrupt', `素材 ${row.id} 的原文件校验失败`)
+    }
+    const name = basename(String(row.origin))
+    if (names.has(name)) throw new StoryError('backup-material-duplicate', `素材文件名重复：${name}`)
+    names.add(name)
+    zip.file(`materials/${name}`, data)
+    entries.push({ id: row.id, format: row.format, origin: row.origin, bytes: Number(row.bytes), hash: row.hash })
+  }
+  zip.file('manifest.json', JSON.stringify({
+    formatVersion: 1,
+    schemaVersion: WORK_SCHEMA_VERSION,
+    workId,
+    createdAt: now(),
+    materials: entries,
+  }))
+  const data = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
+  const sidecar = backupMaterialsFile(file)
+  const temp = `${sidecar}.tmp`
+  writeFileSync(temp, data)
+  renameSync(temp, sidecar)
+  return { file: sidecar, bytes: data.length, materials: { count: entries.length, bytes: entries.reduce((sum, entry) => sum + entry.bytes, 0) } }
+}
+
+/** Read and validate a sidecar without writing anything. */
+async function readMaterialsSidecar(root: any, workId: string, sidecar: string, expectedRows: any[] = []) {
+  const zip = await JSZip.loadAsync(readFileSync(sidecar))
+  const manifestEntry = zip.file('manifest.json')
+  if (manifestEntry === null) throw new StoryError('backup-material-corrupt', '素材备份缺少 manifest')
+  let manifest: any
+  try {
+    manifest = JSON.parse(await manifestEntry.async('string'))
+  } catch {
+    throw new StoryError('backup-material-corrupt', '素材备份 manifest 无法解析')
+  }
+  if (manifest?.formatVersion !== 1 || manifest?.schemaVersion !== WORK_SCHEMA_VERSION || manifest.workId !== workId) {
+    throw new StoryError('backup-material-corrupt', '素材备份的格式、schema 或作品不匹配')
+  }
+  if (!Array.isArray(manifest.materials)) throw new StoryError('backup-material-corrupt', '素材备份 manifest 缺少 materials')
+  const expected = new Set(['manifest.json'])
+  const expectedById = new Map(expectedRows.map(row => [row.id, row]))
+  const materials: Array<{ origin: string, data: Buffer }> = []
+  for (const entry of manifest.materials) {
+    const expectedRow = expectedById.get(entry?.id)
+    if (expectedRows.length > 0 && (expectedRow === undefined
+      || Number(expectedRow.bytes) !== Number(entry?.bytes)
+      || expectedRow.hash !== String(entry?.hash)
+      || expectedRow.origin !== String(entry?.origin)
+      || expectedRow.format !== String(entry?.format))) {
+      throw new StoryError('backup-material-corrupt', `素材备份与数据库不一致：${String(entry?.id)}`)
+    }
+    const origin = String(entry?.origin ?? '')
+    materialOriginPath(root, origin)
+    const name = `materials/${basename(origin)}`
+    if (expected.has(name)) throw new StoryError('backup-material-corrupt', `素材备份重复：${name}`)
+    expected.add(name)
+    const handle = zip.file(name)
+    if (handle === null) throw new StoryError('backup-material-corrupt', `素材备份缺少：${name}`)
+    const data = await handle.async('nodebuffer')
+    if (data.length !== Number(entry.bytes) || createHash('sha256').update(data).digest('hex') !== String(entry.hash)) {
+      throw new StoryError('backup-material-corrupt', `素材备份校验失败：${name}`)
+    }
+    materials.push({ origin, data })
+  }
+  if (expectedRows.length > 0 && materials.length !== expectedRows.length) {
+    throw new StoryError('backup-material-corrupt', '素材备份数量与数据库不一致')
+  }
+  for (const name of Object.keys(zip.files)) {
+    if (zip.files[name]?.dir === true) continue
+    if (!expected.has(name)) throw new StoryError('backup-material-corrupt', `素材备份含未登记文件：${name}`)
+  }
+  return materials
+}
+
 /** List one work's backup files, newest first. */
 function backupFiles(root: any, workId: any) {
   const directory = backupsDir(root)
@@ -4385,19 +4492,79 @@ function backupFiles(root: any, workId: any) {
     .map(name => {
       const file = join(directory, name)
       const info = statSync(file)
-      return { file, name, token: pattern.exec(name)![1], bytes: info.size, createdAt: info.mtime.toISOString() }
+      const materialsFile = backupMaterialsFile(file)
+      const materialsBytes = existsSync(materialsFile) ? statSync(materialsFile).size : 0
+      return {
+        file, name, token: pattern.exec(name)![1], bytes: info.size,
+        materialsFile: existsSync(materialsFile) ? materialsFile : undefined,
+        materialsBytes,
+        createdAt: info.mtime.toISOString(),
+      }
     })
 }
 
+/** Read just the manifest summary from a sidecar. */
+async function sidecarSummary(file: string, workId: string) {
+  const zip = await JSZip.loadAsync(readFileSync(file))
+  const entry = zip.file('manifest.json')
+  if (entry === null) throw new StoryError('backup-material-corrupt', '素材备份缺少 manifest')
+  const manifest = JSON.parse(await entry.async('string'))
+  if (manifest?.formatVersion !== 1 || manifest?.schemaVersion !== WORK_SCHEMA_VERSION || manifest.workId !== workId) {
+    throw new StoryError('backup-material-corrupt', '素材备份的格式、schema 或作品不匹配')
+  }
+  if (!Array.isArray(manifest?.materials)) throw new StoryError('backup-material-corrupt', '素材备份 manifest 缺少 materials')
+  return {
+    count: manifest.materials.length,
+    bytes: manifest.materials.reduce((sum: number, item: any) => sum + Number(item?.bytes ?? 0), 0),
+  }
+}
+
+/** Count material rows stored in one backup DB without touching the live work. */
+function backupMaterialCount(file: string) {
+  const db = openDatabase(file, '备份文件无法读取', { readOnly: true })
+  try {
+    return Number(db.prepare('SELECT count(*) AS count FROM materials').get()?.count ?? 0)
+  } finally {
+    db.close()
+  }
+}
+
 /** List a work's backups with stable ids for routes/UI. */
-export function listBackups(root: any, work: any) {
+export async function listBackups(root: any, work: any) {
   const workId = String(work)
-  return backupFiles(root, workId).map(entry => ({
-    backupId: `backup:${workId}:${entry.token}`,
-    file: entry.file,
-    bytes: entry.bytes,
-    createdAt: entry.createdAt,
-  }))
+  pruneOrphanSidecars(root, workId)
+  const out = []
+  for (const entry of backupFiles(root, workId)) {
+    let materials
+    let incomplete = false
+    let corrupt = false
+    let noMaterials = false
+    if (entry.materialsFile !== undefined) {
+      try {
+        materials = await sidecarSummary(entry.materialsFile, workId)
+      } catch {
+        corrupt = true
+      }
+    } else {
+      try {
+        if (backupMaterialCount(entry.file) > 0) incomplete = true
+        else noMaterials = true
+      } catch {
+        incomplete = true
+      }
+    }
+    out.push({
+      backupId: `backup:${workId}:${entry.token}`,
+      file: entry.file,
+      bytes: entry.bytes + entry.materialsBytes,
+      createdAt: entry.createdAt,
+      ...(materials === undefined ? {} : { materials }),
+      ...(incomplete ? { incomplete: true } : {}),
+      ...(corrupt ? { corrupt: true } : {}),
+      ...(noMaterials ? { noMaterials: true } : {}),
+    })
+  }
+  return out
 }
 
 /** Resolve a backupId without crossing into another work's files. */
@@ -4408,7 +4575,8 @@ function resolveBackupFile(root: any, workId: any, backupId: any) {
   if (!/^\d+$/u.test(token)) throw new StoryError('backup-not-found', '没有这个备份')
   const file = join(backupsDir(root), `${workId}-${token}.db`)
   if (!existsSync(file)) throw new StoryError('backup-not-found', '没有这个备份')
-  return { file, token }
+  const materialsFile = backupMaterialsFile(file)
+  return { file, token, materialsFile: existsSync(materialsFile) ? materialsFile : undefined }
 }
 
 /** Run one function under the per-work lock shared with export. */
@@ -4428,13 +4596,43 @@ async function withWorkLock(root: any, work: any, fn: any) {
   }
 }
 
+/** Remove sidecars whose DB partner is gone. */
+function pruneOrphanSidecars(root: any, workId: any) {
+  const directory = backupsDir(root)
+  let names
+  try {
+    names = readdirSync(directory)
+  } catch {
+    return
+  }
+  const pattern = backupPattern(workId)
+  const cutoff = Date.now() - 60 * 60 * 1000
+  for (const name of names) {
+    if (name.startsWith(String(workId) + '-') && name.endsWith(BACKUP_MATERIALS_SUFFIX + '.tmp')) {
+      const path = join(directory, name)
+      try {
+        if (statSync(path).mtimeMs < cutoff) unlinkSync(path)
+      } catch {
+        // Swap/delete race: the next list retries.
+      }
+      continue
+    }
+    if (!name.startsWith(String(workId) + '-') || !name.endsWith(BACKUP_MATERIALS_SUFFIX)) continue
+    const base = name.slice(0, -BACKUP_MATERIALS_SUFFIX.length)
+    if (!pattern.test(base)) continue
+    if (!existsSync(join(directory, base))) unlinkSync(join(directory, name))
+  }
+}
+
 /** Delete old panel-created backups, keeping the newest `keep` files. */
 export function pruneBackups(root: any, workId: any, keep: any) {
+  pruneOrphanSidecars(root, workId)
   if (keep === 0) return { removed: [] }
   const files = backupFiles(root, workId)
   const removed = []
   for (const entry of files.slice(keep)) {
     unlinkSync(entry.file)
+    if (entry.materialsFile !== undefined) unlinkSync(entry.materialsFile)
     removed.push(entry.name)
   }
   return { removed }
@@ -4456,17 +4654,19 @@ export async function deleteBackup(root: any, work: any, backupId: any) {
   return withWorkLock(root, work, async () => {
     const target = resolveBackupFile(root, work, backupId)
     unlinkSync(target.file)
+    if (target.materialsFile !== undefined) unlinkSync(target.materialsFile)
     return { backupId }
   })
 }
 
 /**
- * Restore one backup over the current work, with an automatic safety backup.
+ * Restore one backup over the current work, with an automatic DB-only safety backup.
+ * Materials are validated against the staged DB and written before the DB swap.
  * @param {string} root - workspace directory.
  * @param {string} work - work identity.
  * @param {string} backupId - backup identity.
  * @param {{corruptCurrent?: boolean}} [options] - internal diagnostic path.
- * @returns {Promise<{workId: string, restoredBackup: string, safetyBackup: string|undefined, corrupt: boolean}>} receipt.
+ * @returns {Promise<{workId: string, restoredBackup: string, safetyBackup: string|undefined, corrupt: boolean, hasMaterials: boolean, materialsRestored: number}>} receipt.
  */
 export async function restoreBackup(root: any, work: any, backupId: any, options: any = {}) {
   const workId = String(work)
@@ -4485,6 +4685,7 @@ export async function restoreBackup(root: any, work: any, backupId: any, options
 
   return withWorkLock(root, workId, async () => {
     copyFileSync(target.file, stage)
+    let expectedMaterials: any[] = []
     try {
       const copy = openDatabase(stage, '备份无法读取')
       try {
@@ -4493,6 +4694,7 @@ export async function restoreBackup(root: any, work: any, backupId: any, options
           throw new StoryError('backup-invalid', `备份 schema v${version} 不是支持的 v${WORK_SCHEMA_VERSION}`)
         }
         if (integrityCheck(copy) !== 'ok') throw new StoryError('backup-invalid', '备份文件不完整')
+        expectedMaterials = backupMaterialRows(copy)
       } finally {
         copy.close()
       }
@@ -4502,12 +4704,39 @@ export async function restoreBackup(root: any, work: any, backupId: any, options
       throw new StoryError('backup-invalid', `备份无法恢复：${error.message}`)
     }
 
+    let materials: Array<{ origin: string, data: Buffer }> = []
+    if (target.materialsFile !== undefined) {
+      try {
+        materials = await readMaterialsSidecar(root, workId, target.materialsFile, expectedMaterials)
+      } catch (error: any) {
+        removeDatabaseFiles(stage)
+        throw error instanceof StoryError ? error : new StoryError('backup-material-corrupt', `素材备份无法恢复：${error.message}`)
+      }
+    }
+    if (materials.length > 0) {
+      const temps: string[] = []
+      try {
+        mkdirSync(materialsDir(root), { recursive: true })
+        for (const material of materials) {
+          const destination = join(materialsDir(root), basename(material.origin))
+          const temp = `${destination}.${randomUUID().slice(0, 8)}.tmp`
+          temps.push(temp)
+          writeFileSync(temp, material.data)
+          renameSync(temp, destination)
+        }
+      } catch (error: any) {
+        for (const temp of temps) if (existsSync(temp)) unlinkSync(temp)
+        removeDatabaseFiles(stage)
+        throw new StoryError('backup-material-write-failed', `素材恢复失败：${error.message}`)
+      }
+    }
+
     let corrupt = options.corruptCurrent === true
     let safetyBackup
     try {
       if (!corrupt) {
         try {
-          safetyBackup = (await backupWork(root, workId)).file
+          safetyBackup = (await backupWork(root, workId, { materials: false })).file
         } catch (error: any) {
           if (error?.code !== 'db-corrupt') throw error
           corrupt = true
@@ -4552,7 +4781,14 @@ export async function restoreBackup(root: any, work: any, backupId: any, options
         db.close()
       }
       if (!corrupt && existsSync(safety)) removeDatabaseFiles(safety)
-      return { workId, restoredBackup: backupId, safetyBackup, corrupt }
+      return {
+        workId,
+        restoredBackup: backupId,
+        safetyBackup,
+        corrupt,
+        hasMaterials: target.materialsFile !== undefined,
+        materialsRestored: materials.length,
+      }
     } finally {
       if (existsSync(stage)) removeDatabaseFiles(stage)
     }
@@ -4560,21 +4796,27 @@ export async function restoreBackup(root: any, work: any, backupId: any, options
 }
 
 /**
- * Copy one work's database to a backup file with an integrity check.
+ * Copy one work's database, and explicitly its material originals, to a backup.
  * @param {string} root - workspace directory.
  * @param {string} work - work identity.
- * @param {string} [destination] - backup file.
- * @returns {Promise<{file: string, integrity: string}>} backup result.
+ * @param {string|{materials?: boolean}} [destinationOrOptions] - backup file or options.
+ * @param {{materials?: boolean}} [extra] - options when the third argument is a file.
+ * @returns {Promise<{file: string, integrity: string, materialsFile?: string, materials?: {count: number, bytes: number}}>} backup result.
  */
-export async function backupWork(root: any, work: any, destination: any = undefined) {
+export async function backupWork(root: any, work: any, destinationOrOptions: any = undefined, extra: any = {}) {
+  const destination = typeof destinationOrOptions === 'string' ? destinationOrOptions : undefined
+  const options = destinationOrOptions === undefined ? (extra ?? {}) : typeof destinationOrOptions === 'string' ? extra : destinationOrOptions
+  const withMaterials = options.materials !== false
   const catalog = openCatalog(root, { create: false })
   if (catalog === undefined) throw new StoryError('work-not-found', `没有作品：${String(work)}`)
   try {
     const row = catalogRow(catalog, work)
     if (row === undefined) throw new StoryError('work-not-found', `没有作品：${String(work)}`)
     const db = openWork(root, row.work_id)
+    let file: string | undefined
+    let sidecar: any
     try {
-      let file = destination
+      file = destination
       if (file === undefined) {
         let stamp = Date.now()
         do {
@@ -4584,16 +4826,40 @@ export async function backupWork(root: any, work: any, destination: any = undefi
       }
       try {
         await backupTo(db, file)
+        const rows = withMaterials ? backupMaterialRows(db) : []
+        sidecar = await writeMaterialsSidecar(root, row.work_id, file, rows)
+        if (sidecar === undefined && destination !== undefined) {
+          const stale = backupMaterialsFile(file)
+          if (existsSync(stale)) unlinkSync(stale)
+        }
       } catch (error: any) {
         if (error?.code === 'db-corrupt') throw error
+        if (error instanceof StoryError) throw error
         throw new StoryError('backup-failed', `备份失败：${error.message}`)
       }
       const copy = openDatabase(file, '备份文件无法读取', { readOnly: true })
       try {
-        return { file, integrity: integrityCheck(copy) }
+        return {
+          file,
+          integrity: integrityCheck(copy),
+          ...(sidecar === undefined ? {} : { materialsFile: sidecar.file, materials: sidecar.materials }),
+        }
       } finally {
         copy.close()
       }
+    } catch (error: any) {
+      try {
+        if (file !== undefined) {
+          if (existsSync(file)) removeDatabaseFiles(file)
+          const sidecarPath = backupMaterialsFile(file)
+          if (existsSync(sidecarPath)) unlinkSync(sidecarPath)
+          const temp = `${sidecarPath}.tmp`
+          if (existsSync(temp)) unlinkSync(temp)
+        }
+      } catch {
+        // Cleanup is best effort; the backup error below is authoritative.
+      }
+      throw error
     } finally {
       db.close()
     }
