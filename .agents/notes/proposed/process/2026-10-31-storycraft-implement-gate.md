@@ -103,7 +103,8 @@ work: active | blocked
 | --- | --- | --- |
 | `write`/`edit` | 目标在 `.agents/notes/**`、`docs/**` 放行；源码/测试/脚本/配置拒绝 | 放行 |
 | `trash.mjs` | 目标在 `.agents/notes/**`、`docs/**` 时放行（Note 生命周期迁移）；目标为源码则拒绝 | 放行 |
-| `pwsh`/`bash` 其他写命令 | 含写文件、`git add/commit`、构建、安装等写动作拒绝 | 放行 |
+| `git add`/`git commit`/`git push` | `add` 的 pathspec、`commit` 的已暂存文件都只在 notes/docs 时放行；含源码/测试/脚本/配置则拒绝；`push` 在无源码提交时放行 | 放行 |
+| `pwsh`/`bash` 其他写命令 | 含写文件、构建、安装等写动作拒绝 | 放行 |
 | 读取/搜索/`git status`/测试 | 放行 | 放行 |
 | 工作区外写入 | 始终拒绝 | 始终拒绝 |
 
