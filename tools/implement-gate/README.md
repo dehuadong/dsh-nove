@@ -1,37 +1,78 @@
 # implement-gate
 
-Host 插件：没有当前任务的 implement 授权时，拒绝源码写入。
+Host 插件：仅在已启用的项目里，按**会话**控制源码与规划 Note 的写入。
 
 ## 为什么存在
 
 `AGENTS.md` 和 `docs/agents/GATES.md` 已经规定 Planning 授权不包含实施，但文档不能阻止工具调用。守卫在 `tools/pre-execute` 上返回 `deny`，文件在 dispatch 前就被拒绝。
 
-授权来源只有两种：
+## 项目启用
 
-- 真实用户整条消息中的规范命令 `批准，使用技能 implement 执行实现 {工作项}`；
-- `implement_gate({action:'authorize'})` 调用 DSH approval 服务，获得任务级的一次批准。
+只有项目根存在：
 
-审批不可用/被策略禁止/被拒绝时，`implement_gate authorize` 返回 `approval-unavailable`、`approval-disabled` 或 `approval-rejected`，都退回规范命令。
+```text
+.agents/implement-gate.json
+{"enabled": true}
+```
+
+才启用本守卫。没有该文件的项目**完全 pass-through**，不会被拦截，`implement_gate status` 返回 `enabled:false`。
+
+该文件和 `.agents/state/implement-gate/` 是守护路径，模型不能通过 `write`/`edit`/shell 修改；状态文件由插件自己写。
+
+## 会话状态
+
+状态按 `(workspaceRoot, sessionId)` 存放：
+
+```text
+.agents/state/implement-gate/<session-hash>.json
+```
+
+每个会话一个文件，并行会话互不影响，插件重载后从文件恢复。状态：
+
+```json
+{
+  "phase": "discuss | planning | implement | complete",
+  "work": "active | blocked",
+  "task": "...",
+  "blockReason": null
+}
+```
+
+`discuss` 是默认态：不写源码，也不写规划 Note；用户随口提问不会导致 Note 被改。Planning 结束通过 `implement_gate({action:'end-planning'})` 显式回到 discuss。
+
+## 授权来源
+
+- 真实用户整条消息中的规范命令：
+  - `批准，使用技能 planning 执行规划 {工作项}` → planning；
+  - `批准，使用技能 implement 执行实现 {工作项}` → implement；
+- `implement_gate({action:'authorize'})` 调用 DSH approval 服务，获得任务级批准；
+- 审批不可用/被策略禁止/被拒绝时返回 `approval-unavailable`、`approval-disabled` 或 `approval-rejected`，回退规范命令。
+
+命令匹配只看 owner 用户消息（`source.kind==='user'`、无 `principal`、SessionHeader `origin` 非 subagent），整条消息匹配，不做子串/语义近似。
 
 ## 行为
 
-- `write`/`edit`：`.agents/notes/**`、`docs/**`、`.trash/**`、根 `AGENTS.md`/`GATES.md`/`README.md`、`tools/*/README.md` 始终放行；其他路径需要 implement；
-- `trash.mjs`：Note/文档目标放行，源码目标拒绝；
-- `git add`/`commit`：paths 或已暂存文件全在 notes/docs 时放行；混入源码时拒绝；
-- `git push` 不改工作树，放行；
-- 其他 shell 写动作（枚举在 `classify.js`）需要 implement；
-- `implement_gate block` 后源码写拒绝，文档写仍放行；
-- `implement_gate complete` 后源码写恢复拒绝，文档写仍放行。
+| 目标 | discuss | planning | implement | complete |
+| --- | --- | --- | --- | --- |
+| 源码/测试/脚本 | 拒绝 | 拒绝 | 允许 | 拒绝 |
+| `.agents/notes/**` | 拒绝 | 允许 | 允许 | 允许 |
+| `docs/**` 等文档 | 允许 | 允许 | 允许 | 允许 |
+| shell 写命令 | 拒绝 | 仅 docs-only | 允许 | 拒绝 |
+| 状态/启用标记 | 拒绝 | 拒绝 | 拒绝 | 拒绝 |
 
-命令匹配只看 owner 用户消息（`source.kind==='user'`、无 `principal`、SessionHeader 非 subagent），整条消息匹配，不做子串/语义近似。
+- `trash.mjs` 的 Note/文档目标按 docs 处理；源码目标按源码；
+- `git add`/`commit`/`mv` 的 paths 或已暂存文件全在 notes/docs 时放行；混入源码时拒绝；
+- `git push` 不改工作树，放行；
+- `implement_gate block` 冻结源码写，文档仍可写；
+- `implement_gate complete` 结束任务，源码写恢复拒绝，文档仍可写。
 
 ## 文件
 
 | 文件 | 作用 |
 | --- | --- |
-| `index.js` | 插件入口、状态、`implement_gate` 工具、pre-execute 拦截 |
+| `index.js` | 插件入口、项目启用、会话状态、`implement_gate` 工具、pre-execute 拦截 |
 | `classify.js` | 纯分类：命令、路径、shell 写动作 |
-| `test.mjs` | 不依赖 Harness 的纯函数用例 |
+| `test.mjs` | 纯函数 + mock Host 用例 |
 | `cordis.patch.yml` | 插入 `implement-gate` 行 |
 
 ## 验证

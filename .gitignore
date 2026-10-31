@@ -58,6 +58,9 @@ $RECYCLE.BIN/
 # 可还原删除（scripts/trash.mjs 的回收目录）
 /.trash/
 
+# implement-gate 的每会话本地状态（不提交）
+/.agents/state/implement-gate/
+
 # 故事工坊运行时作品库（SQLite 数据，不进版本库）
 /.storycraft/
 

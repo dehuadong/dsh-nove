@@ -1,4 +1,7 @@
 // Pure checks for the implement gate; no Harness required.
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { classifyPath, gateCommand, shellAccess, shellOutside } from './classify.js'
 import { apply } from './index.js'
 
@@ -45,12 +48,17 @@ check('git push does not write the tree', shellAccess('git push origin main', ro
 check('docs-only git mv is a docs operation', shellAccess('git mv .agents/notes/a.md .agents/notes/b.md', root).docsOnly === true)
 check('source git mv is gated', shellAccess('git mv storycraft/src/a.ts storycraft/src/b.ts', root).docsOnly === false)
 
-function mockHost(approval) {
+function mockHost(approval, workspace) {
+  if (workspace === undefined) {
+    workspace = mkdtempSync(path.join(os.tmpdir(), 'implement-gate-'))
+    mkdirSync(path.join(workspace, '.agents'), { recursive: true })
+    writeFileSync(path.join(workspace, '.agents', 'implement-gate.json'), '{"enabled":true}')
+  }
   const handlers = {}
   const tools = {}
   const ctx = {
     on: (name, handler) => { handlers[name] = handler },
-    get: name => name === 'approval' ? approval : name === 'sandboxPolicy' ? { workspaceRoot: root, resolve: () => ({ workspaceRoot: root }) } : undefined,
+    get: name => name === 'approval' ? approval : name === 'sandboxPolicy' ? { workspaceRoot: workspace, resolve: () => ({ workspaceRoot: workspace }) } : undefined,
     tools: { register: definition => { tools[definition.name] = definition } },
   }
   apply(ctx)
@@ -61,37 +69,53 @@ function agentFor(id, header = {}) { return { id, session: { header } } }
 const gateMessage = text => ({ role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text }] })
 const preStep = (host, agent, messages) => host.handlers['agent/pre-step']({ agent, messages }, async () => ({ kind: 'allow' }))
 const preExec = (host, agent, name, args) => host.handlers['tools/pre-execute']({ name, arguments: args, agent, signal: new AbortController().signal, callId: 'c1' }, async () => ({ kind: 'allow' }))
+const call = (host, agent, action, reason) => host.tools.implement_gate.execute({ action, reason }, { agent, signal: new AbortController().signal })
 
 {
   const host = mockHost(undefined)
   const agent = agentFor('a1')
-  check('unauthenticated source write is denied', (await preExec(host, agent, 'write', { file_path: 'storycraft/src/x.ts' })).kind === 'deny')
-  check('unauthenticated docs write is allowed', (await preExec(host, agent, 'write', { file_path: '.agents/notes/x.md' })).kind === 'allow')
+  const gate = { execute: (args, exec) => host.tools.implement_gate.execute(args, exec) }
+  check('discuss denies source write', (await preExec(host, agent, 'write', { file_path: 'storycraft/src/x.ts' })).kind === 'deny')
+  check('discuss denies planning Note write', (await preExec(host, agent, 'write', { file_path: '.agents/notes/x.md' })).kind === 'deny')
+  await preStep(host, agent, [gateMessage('批准，使用技能 planning 执行规划 integration')])
+  check('planning allows Note write', (await preExec(host, agent, 'write', { file_path: '.agents/notes/x.md' })).kind === 'allow')
+  check('planning still denies source write', (await preExec(host, agent, 'write', { file_path: 'storycraft/src/x.ts' })).kind === 'deny')
+  await call(host, agent, 'end-planning')
+  check('end-planning denies Note write', (await preExec(host, agent, 'write', { file_path: '.agents/notes/x.md' })).kind === 'deny')
   await preStep(host, agent, [gateMessage('批准，使用技能 implement 执行实现 integration')])
-  check('command unlocks source write', (await preExec(host, agent, 'write', { file_path: 'storycraft/src/x.ts' })).kind === 'allow')
-  const gate = host.tools.implement_gate
-  await gate.execute({ action: 'block', reason: 'contract changed' }, { agent, signal: new AbortController().signal })
+  check('implement allows source write', (await preExec(host, agent, 'write', { file_path: 'storycraft/src/x.ts' })).kind === 'allow')
+  await call(host, agent, 'block', 'contract changed')
   check('blocked denies source write', (await preExec(host, agent, 'write', { file_path: 'storycraft/src/x.ts' })).kind === 'deny')
-  check('blocked still allows docs write', (await preExec(host, agent, 'write', { file_path: '.agents/notes/x.md' })).kind === 'allow')
-  await gate.execute({ action: 'complete' }, { agent, signal: new AbortController().signal })
+  check('blocked allows Note write', (await preExec(host, agent, 'write', { file_path: '.agents/notes/x.md' })).kind === 'allow')
+  await call(host, agent, 'complete')
   check('complete denies source write', (await preExec(host, agent, 'write', { file_path: 'storycraft/src/x.ts' })).kind === 'deny')
+  check('complete allows Note write', (await preExec(host, agent, 'write', { file_path: '.agents/notes/x.md' })).kind === 'allow')
+  const status = await call(host, agent, 'status')
+  check('status reports complete', status.phase === 'complete')
 }
 
 {
   const host = mockHost({ overrideOf: () => undefined, request: async () => 'allowed-once' })
   const agent = agentFor('a2')
-  const gate = host.tools.implement_gate
-  const approved = await gate.execute({ action: 'authorize' }, { agent, signal: new AbortController().signal })
+  const approved = await call(host, agent, 'authorize')
   check('approval allowed-once authorizes', approved.ok === true && (await preExec(host, agent, 'write', { file_path: 'storycraft/src/x.ts' })).kind === 'allow')
 }
 
 {
   const host = mockHost({ overrideOf: () => undefined, request: async () => 'rejected' })
   const agent = agentFor('a3')
-  const gate = host.tools.implement_gate
-  const rejected = await gate.execute({ action: 'authorize' }, { agent, signal: new AbortController().signal })
+  const rejected = await call(host, agent, 'authorize')
   check('approval rejected falls back to command', rejected.ok === false && rejected.code === 'approval-rejected')
   check('approval rejected does not authorize', (await preExec(host, agent, 'write', { file_path: 'storycraft/src/x.ts' })).kind === 'deny')
+}
+
+{
+  const empty = mkdtempSync(path.join(os.tmpdir(), 'implement-gate-'))
+  const host = mockHost(undefined, empty)
+  const agent = agentFor('other')
+  const status = await call(host, agent, 'status')
+  check('workspace without marker is disabled', status.enabled === false)
+  check('workspace without marker passes writes through', (await preExec(host, agent, 'write', { file_path: 'storycraft/src/x.ts' })).kind === 'allow')
 }
 
 check('compound shell outside is detected', shellOutside('Set-Content C:\\outside\\x.txt x', root) === true)

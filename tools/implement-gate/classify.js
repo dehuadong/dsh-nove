@@ -43,7 +43,10 @@ export function classifyPath(root, value) {
   const absolute = path.resolve(root, String(value ?? ''))
   const relative = path.relative(root, absolute).replaceAll('\\', '/')
   const outside = relative === '..' || relative.startsWith('../') || path.isAbsolute(relative)
-  return { absolute, relative, outside, docs: !outside && isDocs(relative) }
+  const notes = !outside && (relative === '.agents/notes' || relative.startsWith('.agents/notes/'))
+  const protectedPath = !outside && (relative === '.agents/implement-gate.json'
+    || relative === '.agents/state/implement-gate' || relative.startsWith('.agents/state/implement-gate/'))
+  return { absolute, relative, outside, notes, protected: protectedPath, docs: !outside && isDocs(relative) }
 }
 
 /** Write verbs and explicit shell redirection, excluding `=>` and `2>&1`. */

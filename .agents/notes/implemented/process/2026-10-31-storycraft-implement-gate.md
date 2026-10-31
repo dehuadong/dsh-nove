@@ -62,19 +62,15 @@ Status: implemented
 - `approval.overrideOf(session) === 'never'` 只作为快速跳过；**不能依赖它判断配置默认值**，最终以 `request()` 的 outcome 为准；
 - 授权请求的审计语义是任务级，不是“这一次写已批准”；不能把一次写审批伪装成长期授权。
 
-**两种模式只产生同一种状态**：
+**项目启用与会话状态**：
 
-```
-authorization: none | planning | implement
-work: active | blocked | complete
-```
+- 项目根存在 `.agents/implement-gate.json`（`{"enabled":true}`）才启用；无此文件完全 pass-through，不干扰其他项目；
+- 状态按 `(workspaceRoot, sessionId)` 存放在 `.agents/state/implement-gate/<session-hash>.json`，并行会话互不共享，插件重载后从文件恢复；
+- 状态机：`discuss`（默认）→ planning 命令 → `planning` → `implement_gate({action:'end-planning'})` → `discuss`；implement 命令/审批 → `implement` → `complete`；
+- `discuss` 下源码和 `.agents/notes/**` 都拒绝；`planning` 只放行规划 Note；`implement` 放行源码与 Note；`complete` 源码拒绝、文档仍可写；
+- `.agents/implement-gate.json` 与 `.agents/state/implement-gate/**` 是守护路径，模型不可写；状态由插件自己写。
 
-状态按 `(agentId, workspaceRoot)` 内存保存，并记录任务名用于回执/拒绝文案；这是会话级守卫，不声称知道工单的文件边界。
-
-- 无记录默认 `none`；
-- 插件重载/重启后回到 `none`，失败关闭；
-- implement 在实现、Review、Verify 期间保持；Verify PASS 后调用 `implement_gate({action:'complete'})` 清除；
-- 新 planning 命令撤销；
+- 无记录默认 `discuss`；
 - 子代理不继承父授权；子代理没有对 owner 命令的检测能力，默认拒绝源码写入。
 
 ### 守卫工具
@@ -83,15 +79,16 @@ work: active | blocked | complete
 
 ```json
 {
-  "action": "authorize | block | complete | status",
+  "action": "authorize | end-planning | block | complete | status",
   "reason": "string?"
 }
 ```
 
 - `authorize`：走审批模式；不可用时返回 `approval-unavailable`，命令模式无需调用；
+- `end-planning`：planning 结束后显式回到 `discuss`，之后 Note 写也被拒绝；
 - `block`：`work='blocked'`，源码写全部拒绝；
-- `complete`：Verify PASS 且 Note/roadmap 迁移完成后清除授权；`complete` 之后文档写仍放行，源码写恢复拒绝；
-- `status`：只读返回当前 authorization/work/task。
+- `complete`：Verify PASS 且 Note/roadmap 迁移完成后结束任务；`complete` 之后文档写仍放行，源码写恢复拒绝；
+- `status`：只读返回 enabled/phase/work/task。
 
 该工具自身不受写守卫限制；`plugin_manager` 仍可禁用整个插件，这是本方案的残余风险（见 Risks）。
 
@@ -99,14 +96,15 @@ work: active | blocked | complete
 
 在 `tools/pre-execute` 中：
 
-| 工具 | 无 implement 时 | 有 implement 时 |
-| --- | --- | --- |
-| `write`/`edit` | 目标在 `.agents/notes/**`、`docs/**`、根 `AGENTS.md`/`GATES.md`/`README.md`、`tools/*/README.md` 放行；源码/测试/脚本/配置拒绝 | 放行 |
-| `trash.mjs` | 目标在 `.agents/notes/**`、`docs/**` 时放行（Note 生命周期迁移）；目标为源码则拒绝 | 放行 |
-| `git add`/`git commit`/`git push` | `add` 的 pathspec、`commit` 的已暂存文件都只在 notes/docs 时放行；含源码/测试/脚本/配置则拒绝；`push` 不改工作树，放行 | 放行 |
-| `pwsh`/`bash` 其他写命令 | 含写文件、构建、安装等写动作拒绝 | 放行 |
-| 读取/搜索/`git status`/测试 | 放行 | 放行 |
-| 工作区外写入 | 始终拒绝 | 始终拒绝 |
+| 目标 | discuss | planning | implement | complete |
+| --- | --- | --- | --- | --- |
+| 源码/测试/脚本 | 拒绝 | 拒绝 | 允许 | 拒绝 |
+| `.agents/notes/**` | 拒绝 | 允许 | 允许 | 允许 |
+| `docs/**` 等文档 | 允许 | 允许 | 允许 | 允许 |
+| shell 写命令 | 拒绝 | 仅 docs-only | 允许 | 拒绝 |
+| 状态/启用标记 | 拒绝 | 拒绝 | 拒绝 | 拒绝 |
+
+`trash.mjs` 的 Note/文档目标按 docs 处理；`git add`/`commit`/`mv` 的 paths 或已暂存文件全在 notes/docs 时放行，混入源码时拒绝；`git push` 不改工作树，放行。工作区外写入始终拒绝。
 
 Agent Notes 的 `proposed → implemented` 迁移是路径级例外：`write` 新文件、`edit` 状态/标题、`trash.mjs` 旧 Note 都不需要 implement 授权，也不会被 `complete` 之后误拦。`.trash/` 作为这些文档移动的目的地同样放行；只有源码/测试/脚本/配置路径受授权约束。
 
@@ -145,8 +143,8 @@ Agent Notes 的 `proposed → implemented` 迁移是路径级例外：`write` �
 
 ## Testing
 
-- `tools/implement-gate/test.mjs`：19 条纯分类/命令用例 + mock Host 的 `agent/pre-step`/`tools/pre-execute`/`implement_gate` 用例，覆盖无授权拒绝、docs 放行、命令解锁、block/complete、approval allowed/rejected、复合命令、重定向、构建、docs-only git mv/trash、工作区外路径；
-- 已安装到 desktop profile 后实测：无授权源码 `write` 被拒绝；docs `write` 与 `trash.mjs` 放行；工作区外写入拒绝；`implement_gate status` 返回 `authorization:'none'`；
+- `tools/implement-gate/test.mjs`：纯分类/命令用例 + mock Host 用例，覆盖 discuss 拒绝源码和 Note、planning 放行 Note、end-planning 回 discuss、implement/block/complete、approval allowed/rejected、无 marker 项目 pass-through、复合命令、重定向、构建、docs-only git mv/trash、工作区外路径；
+- 已安装到 desktop profile 后实测：无 marker 的其他 workspace 不拦截；本 workspace 无授权源码 `write` 被拒绝；docs `write` 与 `trash.mjs` 放行；`implement_gate status` 返回当前会话 phase；
 - `storycraft/scripts/ci.mjs` 加入 `tools/implement-gate/test.mjs`，完整单元 CI 通过（86 文件）。
 
 ## Consequences
@@ -154,7 +152,8 @@ Agent Notes 的 `proposed → implemented` 迁移是路径级例外：`write` �
 - 命令匹配是整条消息匹配，不做语义理解；用户换说法会被拒绝，这是有意的安全默认；
 - shell 写分类只能覆盖明显模式，复杂脚本仍可能绕过；第一版优先保证 file 工具与常见写命令；
 - `implement_gate block` 仍需要代理主动调用；守卫无法推断合同语义，只能在标记后强制停止；
-- 内存状态在插件重载后丢失，需要重新授权；这是失败关闭的代价；
+- 状态按会话文件持久化，插件重载后恢复；文件丢失/损坏时回落到 discuss，不会放行源码；
+- 项目 marker 与 state 文件在 workspace 内，必须依赖 guard 自身拒绝模型写；模型若通过复杂脚本/其他宿主动手仍可能绕过，属于分层防护的残余风险；
 - 审批可用时第一次 `authorize` 会弹一次窗，明确请求“本任务后续写入”；审计的是任务授权，不是单次写；
 - `approval.request` 依赖 open turn 与 answerer；不满足时只能回退命令，不能假装已批准；
 - `plugin_manager` 仍可禁用守卫本身；若允许模型调用它，守卫无法自保，需在 preset/权限层限制；
