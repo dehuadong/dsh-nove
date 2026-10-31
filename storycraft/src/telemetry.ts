@@ -83,13 +83,18 @@ export function finishCall(root: string, work: string, id: number, patch: {
 
 /** Next attempt within one chapter/role/scope. */
 export function nextAttempt(root: string, work: string, chapter: number | null, role: string, scope: string): number {
-  const db = openWork(root, work)
   try {
-    const row = db.prepare('SELECT coalesce(max(attempt), 0) AS attempt FROM model_calls WHERE chapter IS ? AND role = ? AND scope = ?')
-      .get(chapter, role, scope) as { attempt?: number } | undefined
-    return Number(row?.attempt ?? 0) + 1
-  } finally {
-    db.close()
+    const db = openWork(root, work)
+    try {
+      const row = db.prepare('SELECT coalesce(max(attempt), 0) AS attempt FROM model_calls WHERE chapter IS ? AND role = ? AND scope = ?')
+        .get(chapter, role, scope) as { attempt?: number } | undefined
+      return Number(row?.attempt ?? 0) + 1
+    } finally {
+      db.close()
+    }
+  } catch (error) {
+    console.warn(`[storycraft] 无法读取调用 attempt，按 1 记录：${error instanceof Error ? error.message : String(error)}`)
+    return 1
   }
 }
 

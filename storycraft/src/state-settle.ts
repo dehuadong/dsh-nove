@@ -344,7 +344,6 @@ async function runSettler(root: string, input: SettlerInput, host: SettleHost, t
     const submission = consumeSubmission(opened.delegationId)
     const attempts = submission?.attempts ?? 0
     if (result?.stopReason !== 'completed') {
-      if (child.call.callId !== undefined) finishCall(root, input.workId, child.call.callId, { outcome: 'rejected', submissionAttempts: attempts, errorCode: 'state-settle-failed' })
       if (submission?.consumed !== true && attempts >= 3) {
         throw new StoryError('state-settle-no-submission',
           `settler 提交尝试用尽（${attempts} 次），未正常完成（${String(result?.stopReason ?? 'unknown')}）`)
@@ -353,7 +352,7 @@ async function runSettler(root: string, input: SettlerInput, host: SettleHost, t
         `settler 未正常完成（${String(result?.stopReason ?? 'unknown')}）${result?.diagnostic === undefined ? '' : `：${result.diagnostic}`}`)
     }
     if (submission?.consumed !== true || submission.payload === undefined) {
-      if (child.call.callId !== undefined) finishCall(root, input.workId, child.call.callId, { outcome: 'rejected', submissionAttempts: attempts, errorCode: 'state-settle-no-submission' })
+      if (result?.stopReason === 'completed' && child.call.callId !== undefined) finishCall(root, input.workId, child.call.callId, { outcome: 'rejected', submissionAttempts: attempts, errorCode: 'state-settle-no-submission' })
       throw new StoryError('state-settle-no-submission',
         `settler 没有提交通过校验的结果（尝试 ${attempts} 次）`)
     }
@@ -383,10 +382,13 @@ export async function settleChapterState(
   const settleTimeoutMs = Number.isFinite(host.settleTimeoutMs) ? host.settleTimeoutMs! : SETTLE_TOTAL_TIMEOUT_MS
   const deadline = started + settleTimeoutMs
   const trace: SettlementTrace = { durationMs: 0, perAttempt: [], usage: null }
+  const usageOf = (): any => {
+    try { return callSummary(root, work, new Date(started).toISOString()) } catch { return null }
+  }
   const remaining = (): number => Math.max(0, deadline - Date.now())
   const timedOut = (message: string, extra: TimeoutExtra = {}): SettleReceipt => {
     trace.durationMs = Date.now() - started
-  trace.usage = callSummary(root, work, new Date(started).toISOString())
+  trace.usage = usageOf()
     return unresolved({
     root, work, chapter, revision: extra.revision ?? 0, reason: 'state-settle-timeout', message,
     proposed: extra.proposed ?? { factOps: {}, hookOps: {}, newHooks: [] },
@@ -587,7 +589,7 @@ function land(root: string, input: LandInput): SettleReceipt {
     warnings,
     items: input.items,
     attempts: { settler: input.settlerAttempts, validator: input.validatorAttempts },
-    trace: { durationMs: Date.now() - input.started, usage: callSummary(root, input.work, new Date(input.started).toISOString()) },
+    trace: { durationMs: Date.now() - input.started, usage: (() => { try { return callSummary(root, input.work, new Date(input.started).toISOString()) } catch { return null } })() },
     draft: { artifactId: draft.artifactId, revisionId: draft.revisionId, revision: draft.revision, ready: draft.ready },
     artifact: { workId: input.work, artifactId: draft.artifactId, revisionId: draft.revisionId, kind: 'state_draft' },
   }

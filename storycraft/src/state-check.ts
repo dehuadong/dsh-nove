@@ -321,7 +321,6 @@ export async function checkChapterState(
     const attempts = submission?.attempts ?? 0
 
     if (result?.stopReason !== 'completed') {
-      if (child.call.callId !== undefined) finishCall(root, work, child.call.callId, { outcome: 'rejected', submissionAttempts: attempts, errorCode: 'state-check-failed' })
       if (submission?.consumed !== true && attempts >= 3) {
         throw new StoryError('state-check-no-submission',
           `状态对账提交尝试用尽（${attempts} 次），未正常完成（${String(result?.stopReason ?? 'unknown')}）`)
@@ -330,7 +329,7 @@ export async function checkChapterState(
         `状态对账子代理未正常完成（${String(result?.stopReason ?? 'unknown')}）${result?.diagnostic === undefined ? '' : `：${result.diagnostic}`}`)
     }
     if (submission?.consumed !== true || submission.payload === undefined) {
-      if (child.call.callId !== undefined) finishCall(root, work, child.call.callId, { outcome: 'rejected', submissionAttempts: attempts, errorCode: 'state-check-no-submission' })
+      if (result?.stopReason === 'completed' && child.call.callId !== undefined) finishCall(root, work, child.call.callId, { outcome: 'rejected', submissionAttempts: attempts, errorCode: 'state-check-no-submission' })
       throw new StoryError('state-check-no-submission',
         `状态对账子代理没有提交通过校验的结果（尝试 ${attempts} 次）`)
     }

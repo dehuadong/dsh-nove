@@ -938,7 +938,11 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
 
     if (role === 'writer') {
       const { title, body } = payload
-      const { warnings } = await checkDraft(root, { work, chapter, body })
+      let warnings
+      try { ({ warnings } = await checkDraft(root, { work, chapter, body })) } catch (error) {
+        if (child.call.callId !== undefined) finishCall(root, work, child.call.callId, { outcome: 'rejected', submissionAttempts: attempts, errorCode: (error as { code?: string })?.code })
+        throw error
+      }
       assertActive(signal)
       const written = writeChapter(root, {
         work, chapter, title, body,
@@ -1004,10 +1008,9 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
             throw new StoryError('delegation-no-submission', `引文被拒后的重试仍未提交通过校验的角色结果（尝试 ${retrySubmission?.attempts ?? 0} 次）`)
           }
           assertActive(signal)
-          reviewerAttempts = attempts + (retrySubmission.attempts ?? 1)
+          reviewerAttempts = Math.min(3, attempts + (retrySubmission.attempts ?? 1))
           written = writeReview(root, { work, chapter, observations: reviewerObservations(retrySubmission.payload.items, chapter, revision) })
           acceptedCallId = retryChild.call.callId
-          if (acceptedCallId !== undefined) finishCall(root, work, acceptedCallId, { outcome: 'accepted', submissionAttempts: retrySubmission.attempts ?? 1 })
         } finally {
           closeSubmission(retryOpened.delegationId)
           if (retryChild !== undefined) await retryChild.dispose()
@@ -1052,7 +1055,11 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
     }
 
     const { body } = payload
-    const { warnings } = await checkDraft(root, { work, chapter, body })
+    let warnings
+    try { ({ warnings } = await checkDraft(root, { work, chapter, body })) } catch (error) {
+      if (child.call.callId !== undefined) finishCall(root, work, child.call.callId, { outcome: 'rejected', submissionAttempts: attempts, errorCode: (error as { code?: string })?.code })
+      throw error
+    }
     assertActive(signal)
     const open = openObservationsOf(latestReview(root, work, chapter)).map(observation => observation.id)
     const problemIds = Array.isArray(payload.resolved) ? payload.resolved.map(String) : open

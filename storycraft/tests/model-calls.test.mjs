@@ -84,6 +84,20 @@ try {
   })
   check('missing sessions yields unavailable usage', noSessions.call.usage.usageSource === 'unavailable' && noSessions.call.usage.totalTokens === null)
   await noSessions.dispose()
+
+  const beforeFailure = callSummary(root, work).count
+  const failing = { async startActivation() { throw new Error('provider unavailable') } }
+  let failedStart = ''
+  try {
+    await runChild({
+      service: failing, agent: { id: 'parent' }, cwd: root, prompt: '写正文', label: 'fixture', timeoutMs: 5000,
+      telemetry: {
+        work, chapter: 1, role: 'writer', scope: 'writer:r3', attempt: 1, trigger: 'first',
+        sink: (call) => recordCall(root, work, call),
+      },
+    })
+  } catch (error) { failedStart = error?.code ?? String(error) }
+  check('a start failure records exactly one row', failedStart !== '' && callSummary(root, work).count === beforeFailure + 1, failedStart)
 } finally {
   await rm(root, { recursive: true, force: true })
 }

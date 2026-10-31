@@ -28,7 +28,7 @@ try {
   check('new work is v14', WORK_SCHEMA_VERSION === 14, String(WORK_SCHEMA_VERSION))
   openWork(root, workId).close()
 
-  for (const version of [1, 2, 3, 4, 5, 99]) {
+  for (const version of [1, 2, 3, 4, 5, 13, 99]) {
     const db = openDatabase(workFile(root, workId))
     db.exec(`PRAGMA user_version = ${version}`)
     db.close()
