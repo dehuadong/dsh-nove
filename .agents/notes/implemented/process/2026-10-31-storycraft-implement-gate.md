@@ -1,6 +1,6 @@
 # Agent Note: 故事工坊：implement-gate 写前授权守卫
 
-Status: proposed
+Status: implemented
 
 工作项：当前任务 implement-gate（不新建 GitHub issue）。产品行为与验收归本 Note。
 
@@ -30,7 +30,7 @@ Status: proposed
 | 审批 seam 可问用户 | 第一版不启用 ask；用规范命令解锁 | 当前审批提示关闭，ask 会直接拒绝 | 暂不采用 | 配置说明 |
 | 允许所有 shell | 只挡明显写动作，读/测试放行 | 不误伤诊断 | 收窄 | 分类测试 |
 
-## Proposal
+## Decision
 
 ### 包与挂载
 
@@ -143,19 +143,13 @@ Agent Notes 的 `proposed → implemented` 迁移是路径级例外：`write` �
 
 **D. 用 git pre-commit hook。** 最强理由是提交层统一。否决原因：代码已经被改，用户仍会看到工作树污染；门禁应在写前。
 
-## Acceptance criteria
+## Testing
 
-1. 没有 implement 授权时，`write`/`edit` 不能写 `storycraft/src`、`storycraft/tests`、`scripts`、`package.json` 等实现路径，返回明确拒绝原因；
-2. 只有“真实用户（无 principal、非子代理 Session）、整条消息”的规范 implement 命令，或 `implement_gate authorize` 的任务级审批 `allowed-once` 解锁；引用文档/问题/截图/模糊同意/子代理 prompt 不解锁；planning 命令撤销；审批 `rejected`/`cancelled` 不下发授权但可回退规范命令；
-3. implement 授权在 Implement、Review、Verify 期间持续，Verify 完成或新 planning 命令后才清除；
-4. `implement_gate({action:'block'})` 后源码写全部拒绝，读/诊断/blocker Note 仍可写；解除需要新的用户命令；
-5. shell 的明显写动作（枚举动词）同样被挡，读/搜索/测试不被误伤；
-6. 工作区外写入始终拒绝；
-7. 插件重载/重启后默认无授权（失败关闭）；
-8. 审批可用时，`implement_gate authorize` 触发一次任务级 `approval.request`；`allowed-once` 后本任务后续写不再弹；`unavailable`/默认 `never` 的 `rejected`/`cancelled` 都回退规范命令，不假设审批一定可用；
-9. 单元测试与真实工具调用测试通过；不改变 GATES.md 的授权语义，不增加 Verify 门禁。
+- `tools/implement-gate/test.mjs`：19 条纯分类/命令用例 + mock Host 的 `agent/pre-step`/`tools/pre-execute`/`implement_gate` 用例，覆盖无授权拒绝、docs 放行、命令解锁、block/complete、approval allowed/rejected、复合命令、重定向、构建、docs-only git mv/trash、工作区外路径；
+- 已安装到 desktop profile 后实测：无授权源码 `write` 被拒绝；docs `write` 与 `trash.mjs` 放行；工作区外写入拒绝；`implement_gate status` 返回 `authorization:'none'`；
+- `storycraft/scripts/ci.mjs` 加入 `tools/implement-gate/test.mjs`，完整单元 CI 通过（86 文件）。
 
-## Risks
+## Consequences
 
 - 命令匹配是整条消息匹配，不做语义理解；用户换说法会被拒绝，这是有意的安全默认；
 - shell 写分类只能覆盖明显模式，复杂脚本仍可能绕过；第一版优先保证 file 工具与常见写命令；
