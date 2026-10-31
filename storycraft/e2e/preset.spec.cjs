@@ -6,6 +6,7 @@
 // standard preset, so a clean checkout (no DSH source tree) still enforces the
 // baseline the static test can only check when that tree is present.
 const fs = require('node:fs')
+const path = require('node:path')
 const { test, expect } = require('@playwright/test')
 
 const runtimePath = process.env.STORYCRAFT_E2E_RUNTIME
@@ -16,16 +17,22 @@ const skip = !url && 'STORYCRAFT_E2E_RUNTIME 未设置：请用 node storycraft/
 
 /** Read one preset document as its top-level plugin rows. */
 function rowBlocks(text) {
-  const lines = String(text ?? '').split('\n')
+  const lines = String(text ?? '').split(/\r?\n/)
+  const plugins = lines.findIndex(line => /^\s*plugins:\s*$/.test(line))
+  if (plugins === -1) return []
+  const first = lines.slice(plugins + 1).find(line => /^\s+- id: \S+$/.test(line))
+  if (first === undefined) return []
+  const indent = /^(\s+)- id:/.exec(first)[1]
+  const startRe = new RegExp(`^${indent}- id: (\\S+)$`)
   const starts = []
-  for (let index = 0; index < lines.length; index += 1) {
-    if (/^- id: \S+$/.test(lines[index])) starts.push(index)
+  for (let index = plugins + 1; index < lines.length; index += 1) {
+    if (startRe.test(lines[index])) starts.push(index)
   }
   return starts.map((start, index) => {
     const end = index + 1 < starts.length ? starts[index + 1] : lines.length
     return {
-      id: /^- id: (\S+)$/.exec(lines[start])[1],
-      body: lines.slice(start, end).join('\n').trim(),
+      id: startRe.exec(lines[start])[1],
+      body: lines.slice(start, end).map(line => line.startsWith(indent) ? line.slice(indent.length) : line).join('\n').trim(),
     }
   })
 }
@@ -44,8 +51,16 @@ test.describe('故事工坊工作模式', () => {
   })
 
   test('组合继承标准预设的每一行，委派固定为 spawn 且不可再派发', async ({ request }) => {
-    const standard = rowBlocks((await (await request.get(`${base}/api/see-storycraft/document?id=standard`)).json()).content)
-    const storycraft = rowBlocks((await (await request.get(`${base}/api/see-storycraft/document?id=storycraft`)).json()).content)
+    // Prefer the checkout's standard when present; a clean checkout without the
+    // DSH source tree still falls back to the running host's bundled standard.
+    const standardFile = path.join(__dirname, '..', 'deepseek-harness', 'packages', 'bundle', 'web-app', 'presets', 'standard.patch.yml')
+    const standard = rowBlocks(fs.existsSync(standardFile)
+      ? fs.readFileSync(standardFile, 'utf8')
+      : (await (await request.get(`${base}/api/see-storycraft/document?id=standard`)).json()).content)
+    const storycraftFile = path.join(__dirname, '..', 'cordis.patch.yml')
+    const storycraft = rowBlocks(fs.existsSync(storycraftFile)
+      ? fs.readFileSync(storycraftFile, 'utf8')
+      : (await (await request.get(`${base}/api/see-storycraft/document?id=storycraft`)).json()).content)
 
     expect(storycraft.map(row => row.id).slice(-2)).toEqual(['storycraft-skills', 'storycraft-tools'])
 
