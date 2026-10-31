@@ -8,7 +8,7 @@
  */
 
 import path from 'node:path'
-import { classifyPath, gateCommand, shellAccess } from './classify.js'
+import { classifyPath, gateCommand, shellAccess, shellOutside } from './classify.js'
 
 export const inject = ['tools']
 
@@ -30,20 +30,13 @@ function deny(reason) {
   return { kind: 'deny', reason, info: { name: 'implement-gate', code: 'implement-required' } }
 }
 
-function allowDocs(exec, root) {
-  const file = exec.arguments?.file_path
-  if (typeof file !== 'string' || file === '') return false
-  const target = classifyPath(root, file)
-  return !target.outside && target.docs
-}
-
 /** One agent's gate state; absent means none. */
-function stateOf(states, agent) {
-  if (agent === undefined || agent === null) return { authorization: 'none', work: 'active', task: null }
-  let state = states.get(agent)
+function stateOf(states, agent, root) {
+  const key = (agent === undefined || agent === null ? 'anonymous' : String(agent.id)) + '\0' + root
+  let state = states.get(key)
   if (state === undefined) {
-    state = { authorization: 'none', work: 'active', task: null }
-    states.set(agent, state)
+    state = { authorization: 'none', work: 'active', task: null, blockReason: null }
+    states.set(key, state)
   }
   return state
 }
@@ -54,7 +47,7 @@ function toolOutput(value) {
 }
 
 export function apply(ctx) {
-  const states = new WeakMap()
+  const states = new Map()
 
   ctx.on('agent/pre-step', async (payload, next) => {
     const agent = payload?.agent
@@ -65,7 +58,7 @@ export function apply(ctx) {
       transition = gateCommand(message, header) ?? transition
     }
     if (transition !== undefined) {
-      const state = stateOf(states, agent)
+      const state = stateOf(states, agent, workspaceBoundary(ctx, agent))
       if (transition.kind === 'planning') {
         state.authorization = 'planning'
         state.work = 'active'
@@ -96,20 +89,23 @@ export function apply(ctx) {
       render: (_args, value) => toolOutput(value),
     },
     async execute(args, exec) {
-      const state = stateOf(states, exec.agent)
+      const state = stateOf(states, exec.agent, workspaceBoundary(ctx, exec.agent))
       if (args.action === 'status') {
-        return { ok: true, authorization: state.authorization, work: state.work, task: state.task }
+        return { ok: true, authorization: state.authorization, work: state.work, task: state.task, blockReason: state.blockReason }
       }
       if (args.action === 'complete') {
         state.authorization = 'none'
         state.work = 'complete'
+        state.blockReason = null
         return { ok: true, authorization: state.authorization, work: state.work, task: state.task }
       }
       if (args.action === 'block') {
         state.work = 'blocked'
-        return { ok: true, authorization: state.authorization, work: state.work, task: state.task }
+        state.blockReason = typeof args.reason === 'string' ? args.reason : null
+        return { ok: true, authorization: state.authorization, work: state.work, task: state.task, blockReason: state.blockReason }
       }
       if (args.action !== 'authorize') throw new Error(`unknown implement_gate action: ${String(args.action)}`)
+      if (state.work === 'blocked') return { ok: false, code: 'blocked', next: '先解决合同阻塞并输入规范 implement 命令' }
       if (state.authorization === 'implement' && state.work === 'active') {
         return { ok: true, authorization: state.authorization, work: state.work, task: state.task }
       }
@@ -123,7 +119,11 @@ export function apply(ctx) {
         outcome = await approval.request({
           agent: exec.agent,
           toolName: 'implement_gate',
-          reason: `授权任务「${state.task ?? '当前任务'}」后续源码写入，直到 Verify 完成`,
+          reason: typeof args.reason === 'string' && args.reason.trim() !== '' ? args.reason : `授权任务「${state.task ?? '当前任务'}」后续源码写入，直到 Verify 完成`,
+          displayReason: {
+            en: `Authorize source writes for task ${state.task ?? 'current task'} until Verify completes`,
+            zh: `授权任务「${state.task ?? '当前任务'}」后续源码写入，直到 Verify 完成`,
+          },
           signal: exec.signal,
         })
       } catch {
@@ -142,7 +142,7 @@ export function apply(ctx) {
   ctx.on('tools/pre-execute', async (exec, next) => {
     if (exec.name === 'implement_gate') return next()
     const root = workspaceBoundary(ctx, exec.agent)
-    const state = stateOf(states, exec.agent)
+    const state = stateOf(states, exec.agent, root)
 
     if (exec.name === 'write' || exec.name === 'edit') {
       const file = exec.arguments?.file_path
@@ -152,26 +152,26 @@ export function apply(ctx) {
       if (target.docs) return next()
       if (state.authorization === 'implement' && state.work === 'active') return next()
       return deny(state.work === 'blocked'
-        ? '当前任务已 blocked：先解决合同阻塞，再重新授权。'
-        : '当前任务没有 implement 授权：你只批准了 planning。输入规范 implement 命令，或使用 implement_gate authorize。')
+        ? `当前任务已 blocked${state.blockReason === null ? '' : `（${state.blockReason}）`}：先解决合同阻塞，再输入「批准，使用技能 implement 执行实现 {工作项}」重新授权。`
+        : '当前任务没有 implement 授权：你只批准了 planning。输入「批准，使用技能 implement 执行实现 {工作项}」，或使用 implement_gate authorize。')
     }
 
     if (exec.name === 'pwsh' || exec.name === 'bash') {
       const command = exec.arguments?.command
       if (typeof command !== 'string' || command.trim() === '') return next()
-      const access = shellAccess(command, root)
+      const requested = exec.arguments?.workdir
+      const cwd = typeof requested === 'string' && requested !== '' ? path.resolve(root, requested) : root
+      if (classifyPath(root, cwd).outside) return deny('工作区外写入被拒绝')
+      if (shellOutside(command, cwd)) return deny('工作区外写入被拒绝')
+      const access = shellAccess(command, cwd)
       if (!access.write) return next()
       if (access.docsOnly) return next()
       if (state.authorization === 'implement' && state.work === 'active') return next()
       return deny(state.work === 'blocked'
-        ? '当前任务已 blocked：源码写被拒绝。'
-        : '当前任务没有 implement 授权：源码写被拒绝。先输入规范 implement 命令。')
+        ? `当前任务已 blocked${state.blockReason === null ? '' : `（${state.blockReason}）`}：源码写被拒绝。`
+        : '当前任务没有 implement 授权：源码写被拒绝。先输入「批准，使用技能 implement 执行实现 {工作项}」。')
     }
 
-    if (exec.name === 'apply_patch') {
-      if (state.authorization === 'implement' && state.work === 'active') return next()
-      return deny('当前任务没有 implement 授权：apply_patch 被拒绝。')
-    }
     return next()
   })
 }

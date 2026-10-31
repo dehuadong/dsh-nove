@@ -48,7 +48,7 @@ Status: proposed
 - `批准，使用技能 implement 执行实现 {工作项}`；
 - `批准，使用implement 执行实现 {工作项}`（GATES 中存在的无“技能”拼写）；
 - 归一化只做空白折叠，不做子串匹配；消息里引用文档、带前后说明、问句都不算；
-- 只接受 `source.kind === 'user'`、**没有 `principal`**，且**当前 SessionHeader 没有 `parentSession`/`origin:'subagent'`** 的消息：`principal` 排除跨会话/非 owner；子代理的 prompt 与 `send_message` 也可能是 `kind:'user'`，必须靠 SessionHeader 排除；schedule 的 source 是 `schedule`；
+- 只接受 `source.kind === 'user'`、**没有 `principal`**，且**当前 SessionHeader 的 `origin` 不是 `subagent`** 的消息：`principal` 排除跨会话/非 owner；子代理的 prompt 与 `send_message` 也可能是 `kind:'user'`，必须靠 `origin` 排除；历史 fork 的 `parentSession` 不单独视为子代理；schedule 的 source 是 `schedule`；
 - 看到规范 planning 命令：撤销 implement，回到 planning；
 - 其他任何消息不改变授权。
 
@@ -66,7 +66,7 @@ Status: proposed
 
 ```
 authorization: none | planning | implement
-work: active | blocked
+work: active | blocked | complete
 ```
 
 状态按 `(agentId, workspaceRoot)` 内存保存，并记录任务名用于回执/拒绝文案；这是会话级守卫，不声称知道工单的文件边界。
@@ -75,7 +75,7 @@ work: active | blocked
 - 插件重载/重启后回到 `none`，失败关闭；
 - implement 在实现、Review、Verify 期间保持；Verify PASS 后调用 `implement_gate({action:'complete'})` 清除；
 - 新 planning 命令撤销；
-- 子代理不继承父授权；子代理自己的写入需要自己的授权（默认拒绝）。
+- 子代理不继承父授权；子代理没有对 owner 命令的检测能力，默认拒绝源码写入。
 
 ### 守卫工具
 
@@ -101,9 +101,9 @@ work: active | blocked
 
 | 工具 | 无 implement 时 | 有 implement 时 |
 | --- | --- | --- |
-| `write`/`edit` | 目标在 `.agents/notes/**`、`docs/**` 放行；源码/测试/脚本/配置拒绝 | 放行 |
+| `write`/`edit` | 目标在 `.agents/notes/**`、`docs/**`、根 `AGENTS.md`/`GATES.md`/`README.md`、`tools/*/README.md` 放行；源码/测试/脚本/配置拒绝 | 放行 |
 | `trash.mjs` | 目标在 `.agents/notes/**`、`docs/**` 时放行（Note 生命周期迁移）；目标为源码则拒绝 | 放行 |
-| `git add`/`git commit`/`git push` | `add` 的 pathspec、`commit` 的已暂存文件都只在 notes/docs 时放行；含源码/测试/脚本/配置则拒绝；`push` 在无源码提交时放行 | 放行 |
+| `git add`/`git commit`/`git push` | `add` 的 pathspec、`commit` 的已暂存文件都只在 notes/docs 时放行；含源码/测试/脚本/配置则拒绝；`push` 不改工作树，放行 | 放行 |
 | `pwsh`/`bash` 其他写命令 | 含写文件、构建、安装等写动作拒绝 | 放行 |
 | 读取/搜索/`git status`/测试 | 放行 | 放行 |
 | 工作区外写入 | 始终拒绝 | 始终拒绝 |

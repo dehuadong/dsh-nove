@@ -11,11 +11,11 @@ Host 插件：没有当前任务的 implement 授权时，拒绝源码写入。
 - 真实用户整条消息中的规范命令 `批准，使用技能 implement 执行实现 {工作项}`；
 - `implement_gate({action:'authorize'})` 调用 DSH approval 服务，获得任务级的一次批准。
 
-审批不可用（当前 desktop 会话即如此）时，`implement_gate authorize` 返回 `approval-unavailable`，退回规范命令。
+审批不可用/被策略禁止/被拒绝时，`implement_gate authorize` 返回 `approval-unavailable`、`approval-disabled` 或 `approval-rejected`，都退回规范命令。
 
 ## 行为
 
-- `write`/`edit`：`.agents/notes/**`、`docs/**`、`.trash/**` 始终放行；其他路径需要 implement；
+- `write`/`edit`：`.agents/notes/**`、`docs/**`、`.trash/**`、根 `AGENTS.md`/`GATES.md`/`README.md`、`tools/*/README.md` 始终放行；其他路径需要 implement；
 - `trash.mjs`：Note/文档目标放行，源码目标拒绝；
 - `git add`/`commit`：paths 或已暂存文件全在 notes/docs 时放行；混入源码时拒绝；
 - `git push` 不改工作树，放行；

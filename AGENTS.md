@@ -25,6 +25,8 @@
 
 边界说明：守卫装在当前 profile，只覆盖经由本 Harness 工具发起的命令；作者自己终端里的操作不在其内。因此删除一律走 `trash.mjs`，不要因为“有守卫”就放宽命令行。
 
+源码写入另由 Host 插件 `@dsh-nove/implement-gate`（源码 `tools/implement-gate/`）在 `tools/pre-execute` 强制执行：没有当前任务的 implement 授权时，`write`/`edit` 与明显写动作的 shell 命令被拒绝。授权来自 owner 用户整条消息中的规范 implement 命令，或 `implement_gate({action:'authorize'})` 的任务级审批；`.agents/notes/**`、`docs/**`、根 `AGENTS.md`/`GATES.md`/`README.md`、`tools/*/README.md` 与 Note 的 trash 迁移不受源码门禁限制。合同变化时调用 `implement_gate({action:'block',reason})`，Verify 后调用 `complete`。
+
 ## 工程工作流 
 
 工程任务从 Discuss 开始。
