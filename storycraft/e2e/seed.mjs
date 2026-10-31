@@ -10,6 +10,8 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { reviewFixture } from '../tests/review-fixture.mjs'
+import { recordCall } from '../src/telemetry.ts'
 
 const projectRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
 
@@ -105,6 +107,28 @@ export async function buildFixture(workspaceDir) {
     await store.appendStateEvent(workspaceDir, {
       work: w, chapter: 1, kind: 'hook',
       payload: { op: 'upsert', hook: { hookId: 'h-2', startChapter: 2, type: '悬念', status: 'open', lastAdvancedChapter: 1, expectedPayoff: '第二真相', notes: '', dependsOn: [], paysOffInArc: '', text: '第二把钥匙' } },
+    })
+  })
+  await stateWork('状态-分析', 'short', async (w) => {
+    await boardSetup(w)
+    reviewFixture(workspaceDir, {
+      work: w, chapter: 1,
+      observations: [
+        { id: 'O1', category: 'quality', assessment: 'issue', summary: '重复句', evidence: [], sourceRefs: [{ sourceId: 'chapter:1', quote: '灰旗在风里翻了一夜。' }] },
+        { id: 'O2', category: 'execution', assessment: 'issue', severity: 'major', summary: '节奏慢', evidence: [], sourceRefs: [{ sourceId: 'chapter:1', quote: '灰旗在风里翻了一夜。' }] },
+      ],
+    })
+    recordCall(workspaceDir, w, {
+      chapter: 1, role: 'writer', scope: 'writer:r1', attempt: 1, trigger: 'first',
+      startedAt: '2026-10-31T00:00:00.000Z', endedAt: '2026-10-31T00:00:01.000Z', durationMs: 1000,
+      outcome: 'accepted', promptChars: 10, outputChars: 20, usageSource: 'session', totalTokens: 100,
+      inputTokens: 40, outputTokens: 60, model: 'model-a', provider: 'p',
+    })
+    recordCall(workspaceDir, w, {
+      chapter: 1, role: 'reviewer', scope: 'review:r1', attempt: 1, trigger: 'first',
+      startedAt: '2026-10-31T00:00:00.000Z', endedAt: '2026-10-31T00:00:02.000Z', durationMs: 2000,
+      outcome: 'accepted', promptChars: 10, outputChars: 20, usageSource: 'unavailable',
+      model: 'model-a', provider: 'p',
     })
   })
   await stateWork('状态-看板草案', 'short', async (w) => {

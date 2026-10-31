@@ -242,6 +242,36 @@ window.__ModuleLoader__.load({
       | { status: 'error', error: string }
       | { status: 'ready', dashboard: DashboardPayload }
 
+    interface AnalysisCallRow {
+      count: number
+      totalDurationMs: number
+      totalTokens: number | null
+      callsWithoutUsage: number
+    }
+
+    interface AnalysisPayload {
+      reviews: {
+        issues: {
+          total: number
+          bySeverity: { blocking: number, major: number, minor: number, unspecified: number }
+          byCategory: { execution: number, quality: number, scope: number }
+        }
+        resolved: number
+        chapters: Array<{ chapter: number, issues: number, resolved: number }>
+      }
+      calls: {
+        total: AnalysisCallRow
+        byRole: Array<AnalysisCallRow & { role: string }>
+        byModel: Array<AnalysisCallRow & { model: string | null }>
+      }
+    }
+
+    type AnalysisLoadState =
+      | { status: 'idle' }
+      | { status: 'loading' }
+      | { status: 'error', error: string }
+      | { status: 'ready', analysis: AnalysisPayload }
+
     interface ChapterPayload {
       view: string
       path: string
@@ -502,6 +532,7 @@ window.__ModuleLoader__.load({
       ): Promise<{ accepted: number }>
       approveOutline(root: string | undefined, sessionId: string | undefined, workId: string): Promise<unknown>
       dashboard(root: string | undefined, id: string): Promise<{ dashboard: DashboardPayload }>
+      analysis(root: string | undefined, id: string): Promise<{ analysis: AnalysisPayload }>
       transitionHook(
         root: string | undefined, sessionId: string | undefined, workId: string, hookId: string, op: 'progress' | 'resolve',
       ): Promise<{ dashboard: DashboardPayload }>
@@ -748,6 +779,7 @@ window.__ModuleLoader__.load({
       accept: '/api/see-storycraft/chapter/accept',
       outlineApprove: '/api/see-storycraft/outline/approve',
       dashboard: '/api/see-storycraft/dashboard',
+      analysis: '/api/see-storycraft/analysis',
       hookTransition: '/api/see-storycraft/hooks/transition',
       foundation: '/api/see-storycraft/foundation',
       foundationApprove: '/api/see-storycraft/foundation/approve',
@@ -918,6 +950,11 @@ function hookStatusLabel(status: string): string {
 .sc-summary-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:5px 0;border-top:1px solid var(--dsw-alias-border-l1)}
 .sc-summary-view{margin-top:8px;padding:10px;border:1px solid var(--dsw-alias-border-l1);border-radius:9px;background:var(--dsw-alias-bg-layer-2)}
 .sc-summary-body{max-height:260px;overflow:auto;white-space:pre-wrap;margin:8px 0 0}
+.sc-analysis{display:flex;flex-direction:column;gap:10px}
+.sc-analysis-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.sc-analysis-block{display:flex;flex-direction:column;gap:5px;padding:10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2)}
+.sc-analysis-row{display:flex;justify-content:space-between;gap:8px;font-size:12px}
+.sc-rhythm{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-top:8px;border-top:1px solid var(--dsw-alias-border-l1)}
 .sc-bible-card{display:flex;flex-direction:column;gap:6px;margin:0}
 .sc-bible-card .sc-item-id{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sc-bible-card .sc-yaml{max-height:150px;overflow:auto;margin:0;padding:8px 10px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);font-size:11px;overscroll-behavior:contain}
@@ -927,7 +964,7 @@ function hookStatusLabel(status: string): string {
 .sc-drawer-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .sc-drawer-input{flex:1;min-height:280px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 .sc-drawer-foot{display:flex;justify-content:flex-end;gap:8px;position:sticky;bottom:0;padding-top:10px;background:var(--dsw-alias-bg-base)}
-@container (max-width:600px){.sc-two-col{grid-template-columns:minmax(0,1fr)}.sc-bible-grid{grid-template-columns:minmax(0,1fr)}.sc-foundation-stages{grid-template-columns:repeat(2,minmax(0,1fr))}.sc-dash-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.sc-header-actions{flex-wrap:wrap}}.sc-help li{margin:3px 0}
+@container (max-width:600px){.sc-two-col{grid-template-columns:minmax(0,1fr)}.sc-bible-grid{grid-template-columns:minmax(0,1fr)}.sc-foundation-stages{grid-template-columns:repeat(2,minmax(0,1fr))}.sc-dash-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.sc-analysis-grid{grid-template-columns:minmax(0,1fr)}.sc-header-actions{flex-wrap:wrap}}.sc-help li{margin:3px 0}
 .sc-help code{padding:1px 5px;border-radius:4px;background:var(--dsw-alias-bg-layer-2);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 @media (max-width:760px){.sc-body{grid-template-columns:minmax(0,1fr)}.sc-list{border-right:none;border-bottom:1px solid var(--dsw-alias-border-l1);max-height:34vh}}
 `
@@ -1145,6 +1182,7 @@ function hookStatusLabel(status: string): string {
         acceptChapter: (root, sessionId, workId, chapter) => post(ROUTE.accept, { root, sessionId, workId, chapter }),
         approveOutline: (root, sessionId, workId) => post(ROUTE.outlineApprove, { root, sessionId, workId }),
         dashboard: (root, id) => route(ROUTE.dashboard, { root, id }),
+        analysis: (root, id) => route(ROUTE.analysis, { root, id }),
         transitionHook: (root, sessionId, workId, hookId, op) => post(ROUTE.hookTransition, { root, sessionId, workId, hookId, op }),
         foundation: (root, id) => route(ROUTE.foundation, { root, id }),
         approveFoundation: (root, sessionId, workId) => post(ROUTE.foundationApprove, { root, sessionId, workId }),
@@ -1783,6 +1821,12 @@ function hookStatusLabel(status: string): string {
       const [bible, setBible] = useState<BibleState>({ status: 'idle' })
       const [foundation, setFoundation] = useState<FoundationLoadState>({ status: 'idle' })
       const [dashboard, setDashboard] = useState<DashboardLoadState>({ status: 'idle' })
+      const [analysis, setAnalysis] = useState<AnalysisLoadState>({ status: 'idle' })
+      const [analysisOpen, setAnalysisOpen] = useState(false)
+      const [rhythmChapter, setRhythmChapter] = useState<number | undefined>(undefined)
+      const [rhythm, setRhythm] = useState<CritiqueMetrics | undefined>(undefined)
+      const analysisRequest = useRef(0)
+      const rhythmRequest = useRef(0)
       const [summaryView, setSummaryView] = useState<{ chapter: number, content: string } | undefined>(undefined)
       const [bibleEditor, setBibleEditor] = useState<BibleEditor | undefined>(undefined)
       const bibleTextareaRef = useRef<HTMLTextAreaElement | null | undefined>(undefined)
@@ -2044,6 +2088,43 @@ function hookStatusLabel(status: string): string {
         window.addEventListener('keydown', onKey)
         return () => window.removeEventListener('keydown', onKey)
       }, [summaryView])
+
+      useEffect(() => {
+        // WorkDetail is not re-keyed per work; drop analysis from the previous work.
+        analysisRequest.current += 1
+        rhythmRequest.current += 1
+        setAnalysis({ status: 'idle' })
+        setAnalysisOpen(false)
+        setRhythmChapter(undefined)
+        setRhythm(undefined)
+      }, [workId])
+
+      const loadAnalysis = async () => {
+        const request = ++analysisRequest.current
+        setAnalysis({ status: 'loading' })
+        try {
+          const payload = await face.analysis(root, workId)
+          if (request !== analysisRequest.current) return
+          setAnalysis({ status: 'ready', analysis: payload.analysis })
+        } catch (error) {
+          if (request !== analysisRequest.current) return
+          setAnalysis({ status: 'error', error: error instanceof Error ? error.message : String(error) })
+        }
+      }
+
+      const loadRhythm = async (chapter: number) => {
+        const request = ++rhythmRequest.current
+        setRhythmChapter(chapter)
+        setRhythm(undefined)
+        try {
+          const payload = await face.critique(root, workId, chapter)
+          if (request !== rhythmRequest.current) return
+          setRhythm(payload.metrics)
+        } catch (error) {
+          if (request !== rhythmRequest.current) return
+          onNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) })
+        }
+      }
 
       const loadBible = async () => {
         setBible({ status: 'loading' })
@@ -2948,6 +3029,111 @@ function hookStatusLabel(status: string): string {
                             onClick: () => { void openSummary(chapter.number) },
                           }, '查看摘要'),
                         ))),
+                    ),
+                    h('section', { className: 'sc-dash-section' },
+                      h('div', { className: 'sc-item-head' },
+                        h('h3', { className: 'sc-section-title' }, '分析'),
+                        h('button', {
+                          type: 'button', className: 'sc-btn sc-btn-small',
+                          onClick: () => {
+                            if (!analysisOpen && analysis.status === 'idle') void loadAnalysis()
+                            setAnalysisOpen(open => !open)
+                          },
+                        }, analysisOpen ? '收起分析' : '展开分析'),
+                      ),
+                      analysisOpen
+                        ? analysis.status === 'loading'
+                          ? h('p', { className: 'sc-muted' }, '读取分析…')
+                          : analysis.status === 'error'
+                            ? h('div', null,
+                              h('p', { className: 'sc-notice sc-notice-info' }, analysis.error),
+                              h('button', { type: 'button', className: 'sc-btn sc-btn-small', onClick: () => { void loadAnalysis() } }, '重试'),
+                            )
+                            : analysis.status === 'ready'
+                              ? (() => {
+                                const a = analysis.analysis
+                                const severity: Array<[string, number]> = [
+                                  ['blocking', a.reviews.issues.bySeverity.blocking],
+                                  ['major', a.reviews.issues.bySeverity.major],
+                                  ['minor', a.reviews.issues.bySeverity.minor],
+                                  ['unspecified', a.reviews.issues.bySeverity.unspecified],
+                                ]
+                                return h('div', { className: 'sc-analysis' },
+                                  h('p', { className: 'sc-muted' }, '全书 ' + list.reduce((sum, chapter) => sum + chapter.words, 0) + ' 字 · ' + list.length + ' 章'),
+                                  h('div', { className: 'sc-analysis-grid' },
+                                    h('div', { className: 'sc-analysis-block' },
+                                      h('strong', null, a.reviews.issues.total + ' 个未处理审稿问题'),
+                                      ...severity.map(([label, value]) => h('div', { className: 'sc-analysis-row', key: label },
+                                        h('span', null, label),
+                                        h('span', { className: 'sc-muted' }, String(value) + ' 条'),
+                                      )),
+                                      h('div', { className: 'sc-analysis-row' },
+                                        h('span', null, '已解决'),
+                                        h('span', { className: 'sc-muted' }, String(a.reviews.resolved) + ' 条'),
+                                      ),
+                                      ...([
+                                        ['execution', a.reviews.issues.byCategory.execution],
+                                        ['quality', a.reviews.issues.byCategory.quality],
+                                        ['scope', a.reviews.issues.byCategory.scope],
+                                      ] as Array<[string, number]>).map(([label, value]) => h('div', { className: 'sc-analysis-row', key: 'category-' + label },
+                                        h('span', null, label),
+                                        h('span', { className: 'sc-muted' }, String(value) + ' 条'),
+                                      )),
+                                      ...a.reviews.chapters.map(chapter => h('div', { className: 'sc-analysis-row', key: 'review-chapter-' + chapter.chapter },
+                                        h('span', null, '第 ' + chapter.chapter + ' 章'),
+                                        h('span', { className: 'sc-muted' }, String(chapter.issues) + ' 未处理 · ' + String(chapter.resolved) + ' 已解决'),
+                                      )),
+                                    ),
+                                    h('div', { className: 'sc-analysis-block' },
+                                      h('strong', null, a.calls.total.count + ' 次调用'),
+                                      h('div', { className: 'sc-analysis-row' },
+                                        h('span', null, 'token'),
+                                        h('span', { className: 'sc-muted' }, a.calls.total.totalTokens === null ? '未记录' : String(a.calls.total.totalTokens)),
+                                      ),
+                                      h('div', { className: 'sc-analysis-row' },
+                                        h('span', null, '缺 usage'),
+                                        h('span', { className: 'sc-muted' }, String(a.calls.total.callsWithoutUsage) + ' 次'),
+                                      ),
+                                      ...a.calls.byRole.map(row => h('div', { className: 'sc-analysis-row', key: 'role-' + row.role },
+                                        h('span', null, row.role),
+                                        h('span', { className: 'sc-muted' }, String(row.count) + ' 次 · ' + (row.totalTokens === null ? 'token 未知' : String(row.totalTokens))),
+                                      )),
+                                      ...a.calls.byModel.map(row => h('div', { className: 'sc-analysis-row', key: 'model-' + row.model },
+                                        h('span', null, 'model ' + (row.model ?? '未记录')),
+                                        h('span', { className: 'sc-muted' }, String(row.count) + ' 次 · ' + (row.totalTokens === null ? 'token 未知' : String(row.totalTokens))),
+                                      )),
+                                    ),
+                                  ),
+                                  h('div', { className: 'sc-rhythm' },
+                                    h('span', { className: 'sc-muted' }, '节奏（按章读取正文，复用 critique）'),
+                                    h('select', {
+                                      className: 'sc-input',
+                                      value: rhythmChapter === undefined ? '' : String(rhythmChapter),
+                                      onChange: (event: Event) => {
+                                        const number = Number((event.target as HTMLSelectElement).value)
+                                        if (Number.isInteger(number) && number > 0) void loadRhythm(number)
+                                      },
+                                    },
+                                      h('option', { value: '' }, '选择章节'),
+                                      ...list.filter(chapter => chapter.revision > 0).map(chapter => h('option', { value: String(chapter.number), key: chapter.number }, '第 ' + chapter.number + ' 章')),
+                                    ),
+                                    rhythm === undefined
+                                      ? null
+                                      : h('p', { className: 'sc-muted' },
+                                        '字数 ' + rhythm.words + ' · 字符 ' + rhythm.chars + ' · 平均句长 ' + rhythm.sentences.averageLength
+                                        + ' · 最长句 ' + rhythm.sentences.longest + ' · 对话比例 ' + Math.round(rhythm.dialogueRatio * 100) + '% · 重复 ' + rhythm.repeated.length
+                                        + ' · AI 短语 ' + rhythm.aiPhrases.count),
+                                  ),
+                                  a.reviews.issues.total === 0
+                                    ? h('p', { className: 'sc-muted' }, '还没有审稿。')
+                                    : null,
+                                  a.calls.total.count === 0
+                                    ? h('p', { className: 'sc-muted' }, '还没有调用。')
+                                    : null,
+                                )
+                              })()
+                              : null
+                        : h('p', { className: 'sc-muted' }, '展开查看审稿分布、调用成本与节奏。'),
                     ),
                     summaryView === undefined
                       ? null

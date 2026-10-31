@@ -159,7 +159,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 侧栏入口「故事工坊」打开一个面板：
 
 - 左侧：「作品 / 回收站」视图与类型筛选；作品列表显示标题、形态、已写/总章数、最新章号、最近更新时间、未处理问题数；底部显示工作区路径与会话状态。回收站可恢复或彻底删除，彻底删除不可撤销。
-- 右侧：作品详情——顶部作品栏 + 七个标签「看板 / 章节 / 真值 / 写前上下文 / 素材 / 导出 / 备份」；章节点开后可在「正文 / 章纲 / 摘要 / 版本」间切换；章节列表倒序、20 章/页，可翻页，选中旧章自动跳页；章节行可「前移/后移」；看审稿 observation（id/评估/证据/修法）。
+- 右侧：作品详情——顶部作品栏 + 七个标签「看板 / 章节 / 真值 / 写前上下文 / 素材 / 导出 / 备份」；章节点开后可在「正文 / 章纲 / 摘要 / 版本」间切换；章节列表倒序、20 章/页，可翻页，选中旧章自动跳页；章节行可「前移/后移」；看审稿 observation（id/评估/证据/修法）。看板内可展开「分析」查看审稿分布、角色/模型调用成本，并按章查看节奏。
 - 作品栏下方是「下一步」状态卡：每个状态只有一个主按钮（确认基础设定 / 确认全书计划 / 确认章纲 / 写正文 / 审稿 / 修订 / 摘要 / 定稿 / 补卷摘要），次按钮在被禁用时给出原因；导出、抽取文风、基础设定、字数范围等管理入口仍在同一栏。
 - 「真值」：五张中文卡片（世界观/人物档案/文风基准/全书计划/作者意图），world/characters/style/intent 用右侧抽屉编辑保存，plan 只读；写前上下文是独立标签，选择目标章后装配。
 - 「备份」：创建、恢复、删除、保留最近 N 份；恢复前自动备份当前版本；「重建检索索引」从章节、摘要、事件与素材重建派生索引。导出仍是覆盖快照，备份是历史副本。
@@ -194,6 +194,7 @@ materials         作者素材（txt/md；用途 setting/character/scene/style/r
 | `POST /api/see-storycraft/style/extract` | 从当前正文抽取文风样例到 style 受管区块 |
 | `POST /api/see-storycraft/bible/write` | 保存可编辑真值（world/characters/style/intent；plan 拒绝；64KB；可选 `expectedVersion`） |
 | `GET /api/see-storycraft/state?root=&id=` | 一个作品的进度摘要 |
+| `GET /api/see-storycraft/analysis?root=&id=` | 分析：最新审稿分布与角色/模型调用成本（只读，不含正文） |
 | `GET /api/see-storycraft/bible?root=&id=&file=` | 真值文件与内容版本 |
 | `GET /api/see-storycraft/brief?root=&id=&chapter=` | 写前上下文装配结果 |
 | `GET /api/see-storycraft/materials?root=&workId=&purpose=` | 素材元数据列表（可按用途过滤） |
@@ -249,7 +250,7 @@ storycraft/
   Get-ChildItem storycraft/tests -Filter *.test.mjs | ForEach-Object { node $_.FullName; if ($LASTEXITCODE) { exit 1 } }
   ```
 
-- 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑 34 条页面 spec——侧栏入口、加载契约（无 `pageerror`、`/api/see-storycraft/works` 200）、页面读数、作者确认、摘要徽标、素材导入/重命名/删除、面板导出、章节倒序分页/前移后移、文风样例、真值抽屉、备份恢复、指令门禁、预设声明与刷新。不调用模型，零额度；Playwright 是本包 devDependency（首次 `npm install && npx playwright install chromium`），`node storycraft/e2e/run.mjs --list` 可只看清单。
+- 页面 spec：`node storycraft/e2e/run.mjs`。它起一个临时 DSH 实例（独立 `DSH_HOME`、临时端口、预置 fixture 工作区），跑 37 条页面 spec——侧栏入口、加载契约（无 `pageerror`、`/api/see-storycraft/works` 200）、页面读数、作者确认、摘要徽标、素材导入/重命名/删除、面板导出、章节倒序分页/前移后移、文风样例、真值抽屉、备份恢复、指令门禁、预设声明与刷新。不调用模型，零额度；Playwright 是本包 devDependency（首次 `npm install && npx playwright install chromium`），`node storycraft/e2e/run.mjs --list` 可只看清单。
 - `node storycraft/scripts/ci.mjs` 依次跑：Host 与 Client 类型检查（`tsc -p`，`--noEmit`）、全部单元文件（直接 import `src/*.ts`，靠 Node 类型擦除，不先构建）、`scripts/build.mjs`（tsdown 出 Host 入口 + esbuild 出 `client.js`）、pack-check，最后二选一：默认跑复制安装的页面 spec，`--smoke` 跑 tarball 安装 smoke（`npm pack` → `dsh plugin add <tgz>` → 冷启动 → 加载契约）。
 - 端到端验收、评审与证据记录在 issue `dehuadong/dsh-nove#18`。
 

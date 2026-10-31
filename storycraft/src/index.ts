@@ -15,6 +15,7 @@ import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/pro
 import { isAbsolute, join, resolve } from 'node:path'
 import { deriveWorkbench } from './workbench.ts'
 import { readDashboard, transitionHook } from './dashboard.ts'
+import { readAnalysis } from './analysis.ts'
 import { rebuildSearchIndex } from './recovery.ts'
 import { acceptChapter, adoptChapterRevision, approveChapterPlan, approveFoundation, approveOutline, createBackup, deleteBackup, deleteChapter, deleteMaterial, readChapterHistory, ensureReconciled, exportWorkAtomic, importMaterial, moveChapter, listMaterials, listTrash, listWorks, nextStep, purgeTrash, readFoundationState, readManifest, restoreBackup, listBackups, readChapter, readReview, readWork, renameMaterial, restoreWork, setMaterialPurpose, status as readStatus, StoryError } from './storage.ts'
 import { critique } from './critique.ts'
@@ -752,6 +753,13 @@ export function apply(ctx: DshContext): void {
       path: `${BASE}/state`,
       handler: (req, res) => readRoute(req, res, async (query) => ({
         state: readStatus(await rootOf(ctx, query), workOf(query)),
+      })),
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/analysis`,
+      handler: (req, res) => readRoute(req, res, async (query) => ({
+        analysis: readAnalysis(await rootOf(ctx, query), workOf(query)),
       })),
     }),
     ctx.webServer.register({

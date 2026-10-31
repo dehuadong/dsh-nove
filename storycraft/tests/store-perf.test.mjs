@@ -8,6 +8,7 @@ import * as bible from '../src/bible.ts'
 import * as store from '../src/store-db.ts'
 import { exportsDir } from '../src/db.ts'
 import { select } from '../src/retrieval.ts'
+import { readAnalysis } from '../src/analysis.ts'
 import { buildPerfFixture } from './perf-fixture.mjs'
 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-perf-'))
@@ -45,6 +46,12 @@ try {
   await budget('250-chapter readManifest', () => store.readManifest(root, work), 100)
   await budget('250-chapter readWork', () => store.readWork(root, work), 150)
   await budget('250-chapter status', () => store.status(root, work), 300)
+  const analysisStarted = performance.now()
+  const analysis = await readAnalysis(root, work)
+  const analysisMs = performance.now() - analysisStarted
+  const analysisJson = JSON.stringify(analysis)
+  check('250-chapter analysis under 300ms', analysisMs < 300, analysisMs.toFixed(1) + 'ms')
+  check('250-chapter analysis carries counts only', !analysisJson.includes('"observations"') && !analysisJson.includes('"summary"') && !analysisJson.includes('周砚'), analysisJson.slice(0, 200))
   await budget('250-chapter listWorks (21 works)', () => store.listWorks(root), 500)
   await budget('chapter-250 assembleBrief', () => bible.assembleBrief(root, work, 250), 400)
 

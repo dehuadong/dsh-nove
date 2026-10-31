@@ -528,18 +528,54 @@ function isCleanReview(review: any) {
   return review !== undefined && review.observations.length === 0
 }
 
-/** Open observation count per chapter, from each chapter's newest review artifact. */
-function openProblemCountByChapter(db: any) {
-  const rows = db.prepare(`SELECT a.scope_chapter AS chapter, a.content FROM artifacts a
+/** Newest review artifact per chapter, shared by status and analysis. */
+function latestReviewRows(db: any) {
+  return db.prepare(`SELECT a.scope_chapter AS chapter, a.content FROM artifacts a
     JOIN (SELECT scope_chapter, max(rowid) AS rowid FROM artifacts
       WHERE kind = 'review' AND scope_chapter IS NOT NULL GROUP BY scope_chapter) latest
       ON a.rowid = latest.rowid`).all()
+}
+
+/** Open observation count per chapter, from each chapter's newest review artifact. */
+function openProblemCountByChapter(db: any) {
+  const rows = latestReviewRows(db)
   const counts = new Map()
   for (const row of rows) {
     const content = JSON.parse(String(row.content))
     counts.set(row.chapter, openObservations({ observations: content.observations }).length)
   }
   return counts
+}
+
+/** Latest-review issue counts for the analysis panel; no review text. */
+export function reviewDistribution(root: any, work: any) {
+  const db = openWork(root, work)
+  try {
+    const rows = latestReviewRows(db) as any[]
+    const bySeverity = { blocking: 0, major: 0, minor: 0, unspecified: 0 }
+    const byCategory = { execution: 0, quality: 0, scope: 0 }
+    const chapters: Array<{ chapter: number, issues: number, resolved: number }> = []
+    let total = 0
+    let resolved = 0
+    for (const row of rows) {
+      const content = JSON.parse(String(row.content))
+      const observations = Array.isArray(content.observations) ? content.observations : []
+      const issues = openObservations({ observations })
+      const resolvedHere = observations.filter((item: any) => item.assessment === 'resolved')
+      for (const item of issues) {
+        total += 1
+        const severity = (item.severity === 'blocking' || item.severity === 'major' || item.severity === 'minor' ? item.severity : 'unspecified') as keyof typeof bySeverity
+        bySeverity[severity] += 1
+        if (item.category === 'execution' || item.category === 'quality' || item.category === 'scope') byCategory[item.category as keyof typeof byCategory] += 1
+      }
+      resolved += resolvedHere.length
+      chapters.push({ chapter: Number(row.chapter), issues: issues.length, resolved: resolvedHere.length })
+    }
+    chapters.sort((left, right) => left.chapter - right.chapter)
+    return { issues: { total, bySeverity, byCategory }, resolved, chapters }
+  } finally {
+    db.close()
+  }
 }
 
 /** Serialize every event row as JSONL for export and `story_read(state)`. */

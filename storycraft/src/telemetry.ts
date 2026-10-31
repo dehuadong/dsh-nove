@@ -119,12 +119,16 @@ export function assertChapterBudget(root: string, work: string, chapter: number 
   }
 }
 
-/** Aggregate call telemetry for one work. */
-export function callSummary(root: string, work: string, since?: string) {
+/** Aggregate call telemetry for one work; optionally grouped by role/model. */
+export function callSummary(root: string, work: string, since?: string, grouped = false) {
   const db = openWork(root, work)
   try {
-    const rows = db.prepare(`SELECT role, outcome, usage_source, duration_ms, total_tokens FROM model_calls${since === undefined ? '' : ' WHERE started_at >= ?'}`).all(...(since === undefined ? [] : [since])) as any[]
+    const rows = db.prepare(`SELECT role, model, outcome, usage_source, duration_ms, total_tokens FROM model_calls${since === undefined ? '' : ' WHERE started_at >= ?'}`).all(...(since === undefined ? [] : [since])) as any[]
     const byRole: Record<string, number> = {}
+    const byRoleDetail: any[] = []
+    const byModelDetail: any[] = []
+    const roleIndex = new Map<string, number>()
+    const modelIndex = new Map<string | null, number>()
     let duration = 0
     let tokens = 0
     let tokenRows = 0
@@ -138,6 +142,26 @@ export function callSummary(root: string, work: string, since?: string) {
       else if (row.usage_source === 'partial') partial += 1
       else without += 1
       if (typeof row.total_tokens === 'number') { tokens += row.total_tokens; tokenRows += 1 }
+      const role = String(row.role)
+      const roleAt = roleIndex.get(role)
+      if (roleAt === undefined) {
+        roleIndex.set(role, byRoleDetail.push({ role, count: 0, totalDurationMs: 0, totalTokens: null, callsWithoutUsage: 0 }) - 1)
+      }
+      const model = row.model === null ? null : String(row.model)
+      const modelAt = modelIndex.get(model)
+      if (modelAt === undefined) {
+        modelIndex.set(model, byModelDetail.push({ model, count: 0, totalDurationMs: 0, totalTokens: null, callsWithoutUsage: 0 }) - 1)
+      }
+      const roleEntry = byRoleDetail[roleIndex.get(role) as number]
+      roleEntry.count += 1
+      roleEntry.totalDurationMs += Number(row.duration_ms ?? 0)
+      if (typeof row.total_tokens === 'number') roleEntry.totalTokens = (roleEntry.totalTokens ?? 0) + row.total_tokens
+      if (row.usage_source === 'unavailable') roleEntry.callsWithoutUsage += 1
+      const modelEntry = byModelDetail[modelIndex.get(model) as number]
+      modelEntry.count += 1
+      modelEntry.totalDurationMs += Number(row.duration_ms ?? 0)
+      if (typeof row.total_tokens === 'number') modelEntry.totalTokens = (modelEntry.totalTokens ?? 0) + row.total_tokens
+      if (row.usage_source === 'unavailable') modelEntry.callsWithoutUsage += 1
     }
     return {
       count: rows.length,
@@ -148,6 +172,7 @@ export function callSummary(root: string, work: string, since?: string) {
       callsWithoutUsage: without,
       usageComplete: rows.length > 0 && withUsage === rows.length,
       byRole,
+      ...(grouped ? { byRoleDetail, byModelDetail } : {}),
     }
   } finally {
     db.close()
