@@ -165,6 +165,7 @@ DeepSeek Harness 包工作区：packages文档地址 `E:\dsh-nove\deepseek-harne
 - 源码以 `deepseek-harness/`（指向 DSH checkout 的符号链接）为准；安装版在 `app.asar` 内，shell 读不到。两处版本不一致时，以实际运行版本的 README 与 Config schema 为准。
 - 实时契约用 `cordis_inspect_list` / `cordis_inspect_query` 读 Service、Event、Config、Tool、Slots；不要猜插件名、字段或默认值。
 - 安装或修改插件与预设走 `plugin_manager`（`install_bundle`、`set_bundle`），不手改 profile 文件。
+- **交付默认包含重新打包安装**：插件代码通过 Verify 后，代理立即构建、打包，并用 `plugin_manager` 安装到当前 `desktop` profile、校验安装副本；不再等待用户说“重新打包安装”。只有目标不是本机 desktop、或用户明确只要 tarball 时才停在打包。desktop profile 由 Electron 独占，CLI 不能安装，必须走 `plugin_manager`。
 - 外部参考工程只作功能性参考，先核对其声明的 DSH 版本；
 
 
