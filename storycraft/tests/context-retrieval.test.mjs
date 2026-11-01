@@ -7,6 +7,7 @@ import * as b from '../src/bible.ts'
 import { openWork } from '../src/db.ts'
 import { assembleRoleContext } from '../src/context.ts'
 import { reviewFixture } from './review-fixture.mjs'
+import { mintHookId } from '../src/state-projection.ts'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -127,6 +128,44 @@ try {
   }
   await s.writePlan(root, { work: emptyWork, chapter: 4, perspective: '乙', goal: 'zzzz', obstacle: 'o', cost: 'c', turn: 't' })
   await s.approveChapterPlan(root, { work: emptyWork, chapter: 4 })
+  const { workId: refWork } = s.initWork(root, { title: '定向伏笔' })
+  await s.writeOutline(root, { work: refWork, mainline: '深井与钥匙' })
+  await b.writeBible(root, refWork, 'characters', JSON.stringify([{ name: '甲', role: '主视角', want: '找钥匙', fear: '失去', limit: '不伤人', voice: '短句' }]))
+  for (const chapter of [1, 2, 3]) {
+    await s.writePlan(root, { work: refWork, chapter, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
+    await s.approveChapterPlan(root, { work: refWork, chapter })
+    await s.writeChapter(root, { work: refWork, chapter, body: `第${chapter}章正文。`.repeat(20) })
+    await s.writeSummary(root, { work: refWork, chapter, text: `第${chapter}章摘要。` })
+  }
+  const hookText = '深井钥匙'
+  const hookId = mintHookId(hookText)
+  s.appendStateEvent(root, {
+    work: refWork, chapter: 3, kind: 'hook',
+    payload: { op: 'upsert', hook: { hookId, startChapter: 3, type: '物件', status: 'open', lastAdvancedChapter: 3, expectedPayoff: '真相', notes: '', dependsOn: [], paysOffInArc: '第一卷', text: hookText } },
+  })
+  const futureId = mintHookId('未来钥匙')
+  s.appendStateEvent(root, {
+    work: refWork, chapter: 3, kind: 'hook',
+    payload: { op: 'upsert', hook: { hookId: futureId, startChapter: 5, type: '物件', status: 'open', lastAdvancedChapter: 5, expectedPayoff: '真相', notes: '', dependsOn: [], paysOffInArc: '第二卷', text: '未来钥匙' } },
+  })
+  await s.writePlan(root, {
+    work: refWork, chapter: 4, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't',
+    body: '章纲正文', threadRefs: [hookId, futureId, 'h-deadbeef'],
+  })
+  await s.approveChapterPlan(root, { work: refWork, chapter: 4 })
+  const directed = await assembleRoleContext({ root, work: refWork, chapter: 4, role: 'writer', task: '普通任务' })
+  const directedHooks = directed.trace.retrieval.candidates.filter(hit => hit.kind === 'hook')
+  check('threadRefs hook is retrieved without relying on FTS', directedHooks.some(hit => hit.id === `hook:${hookId}` && hit.source === 'state')
+    && directed.text.includes('建立第 3 章') && !directed.text.includes('最近推进第 4 章'), JSON.stringify(directedHooks))
+  const threadDeduped = await assembleRoleContext({ root, work: refWork, chapter: 4, role: 'writer', task: '深井钥匙 普通任务' })
+  const dedupedHooks = threadDeduped.trace.retrieval.candidates.filter(hit => hit.kind === 'hook')
+  check('threadRefs hook is deduplicated', dedupedHooks.length === 1, JSON.stringify(dedupedHooks))
+  check('unknown threadRef is noted', directed.trace.notes.some(note => note.includes('h-deadbeef')), JSON.stringify(directed.trace.notes))
+  check('future hook is not leaked', !directedHooks.some(hit => hit.id === `hook:${futureId}`), JSON.stringify(directedHooks))
+  s.appendStateEvent(root, { work: refWork, chapter: 3, kind: 'hook', payload: { op: 'resolve', hookId } })
+  const afterResolve = await assembleRoleContext({ root, work: refWork, chapter: 4, role: 'writer', task: '普通任务' })
+  check('resolved hook is not recalled by threadRefs', !afterResolve.trace.retrieval.candidates.some(hit => hit.id === `hook:${hookId}`), JSON.stringify(afterResolve.trace.retrieval.candidates))
+
   const empty = await assembleRoleContext({ root, work: emptyWork, role: 'planner', scope: 'work', task: 'zzzz' })
   check('zero-hit retrieval keeps an enabled empty trace',
     empty.trace.retrieval !== undefined && empty.trace.retrieval.candidates.length === 0

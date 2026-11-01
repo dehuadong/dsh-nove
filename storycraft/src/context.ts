@@ -18,7 +18,7 @@ import {
   StoryError, chapterNumber, chapterStem, formOf, planApprovalPolicy, sourceIdOf, unitOf,
 } from './domain.ts'
 import {
-  readBibleMap, readChapter as readChapterRow, readFoldedState, readManifest, readPlan,
+  readBibleMap, readChapter as readChapterRow, readFoldedState, readManifest, readPlan, readPlanMemo,
   readVolumes, readSummaryState, searchMemory, virtualPath,
 } from './store-db.ts'
 import { buildQuery, select, snippetFor } from './retrieval.ts'
@@ -235,9 +235,27 @@ interface ContextManifest {
 
 /** One folded event hook. */
 interface FoldedHook {
+  hookId: string
   status: string
   text: string
   startChapter: number
+  lastAdvancedChapter: number
+}
+
+/** Read hook IDs from the structured chapter-plan memo. */
+function threadRefsOf(memo: any): { ids: string[], invalid: string[] } {
+  if (!Array.isArray(memo?.threadRefs)) return { ids: [], invalid: [] }
+  const ids: string[] = []
+  const invalid: string[] = []
+  for (const raw of memo.threadRefs) {
+    if (typeof raw !== 'string' || raw.trim() === '') {
+      invalid.push(String(raw))
+      continue
+    }
+    const id = raw.trim()
+    if (!ids.includes(id)) ids.push(id)
+  }
+  return { ids, invalid }
 }
 
 /** One folded event fact. */
@@ -304,6 +322,7 @@ export async function assembleRoleContext(
   const needsPlan = role === 'writer' || role === 'reviewer' || role === 'reviser'
 
   const chapterPlan: string | undefined = entry === undefined ? undefined : readPlan(root, work, entry.number)
+  const planMemo = entry === undefined ? undefined : readPlanMemo(root, work, entry.number)
   if (needsPlan && chapterPlan === undefined) {
     throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲：先 story_plan，再派活`)
   }
@@ -454,11 +473,38 @@ export async function assembleRoleContext(
     : ''
   let retrieval: ContextSection | undefined
   let retrievalCandidates: TraceRetrievalCandidate[] | undefined
-  let retrievalNote: string | undefined
+  const retrievalNotes: string[] = []
   let retrievalHasSentSkill = false
   if (query.trim() !== '') {
     try {
       const candidates = retrieve(root, work, query, number === undefined ? {} : { beforeChapter: number })
+      const refs = threadRefsOf(planMemo)
+      const directedState = number === undefined ? folded : readFoldedState(root, work, { beforeChapter: number })
+      for (const invalid of refs.invalid) retrievalNotes.push(`章纲伏笔 ID 无效：${invalid}`)
+      const referenced = new Set(refs.ids)
+      const directHooks: any[] = []
+      for (const [index, hookId] of refs.ids.entries()) {
+        const hook = directedState.hooks.find((item: FoldedHook) => item.hookId === hookId)
+        if (hook === undefined) {
+          retrievalNotes.push(`章纲伏笔未找到：${hookId}`)
+          continue
+        }
+        if (!['open', 'progressing', 'deferred'].includes(hook.status)) continue
+        if (number !== undefined && hook.startChapter >= number) continue
+        const advanced = Number(hook.lastAdvancedChapter)
+        const suffix = number !== undefined && advanced < number ? `；最近推进第 ${advanced} 章` : ''
+        directHooks.push({
+          id: `hook:${hook.hookId}`,
+          kind: 'hook',
+          source: 'state',
+          sourceIds: ['state'],
+          chapter: hook.startChapter,
+          text: `${hook.text}（建立第 ${hook.startChapter} 章${suffix}）`,
+          score: -index,
+          priority: 1,
+        })
+      }
+      const memoryCandidates = candidates.filter(candidate => !(candidate.kind === 'hook' && referenced.has(candidate.hookId)))
       const allowed = skillReferenceScope(role, form)
       const references = Object.fromEntries(allowed.map(item => [item.skill, item.references]))
       const tokens = searchTokens(query).split(' ').filter(token => token !== '')
@@ -477,8 +523,8 @@ export async function assembleRoleContext(
         const code = (error as { code?: unknown } | null | undefined)?.code
         skillNote = `技能检索警告：${typeof code === 'string' ? code : 'retrieval-failed'}`
       }
-      if (skillNote !== undefined) retrievalNote = skillNote
-      const picked = select([...candidates, ...skills], { excludeIds: recentSummaryIds })
+      if (skillNote !== undefined) retrievalNotes.push(skillNote)
+      const picked = select([...memoryCandidates, ...directHooks, ...skills], { excludeIds: recentSummaryIds })
       const skillSent = picked.hits.some(hit => hit.sent === true && hit.kind === 'skill')
       retrievalHasSentSkill = skillSent
       if (picked.text !== '') {
@@ -495,7 +541,7 @@ export async function assembleRoleContext(
       // A thrown store error is a dynamic boundary: only its stable `code` is read.
       const code = (error as { code?: unknown } | null | undefined)?.code
       retrievalCandidates = []
-      retrievalNote = `检索失败：${typeof code === 'string' ? code : 'retrieval-failed'}`
+      retrievalNotes.push(`检索失败：${typeof code === 'string' ? code : 'retrieval-failed'}`)
     }
   }
 
@@ -563,7 +609,7 @@ export async function assembleRoleContext(
     ? requestedBudget
     : DEFAULT_CONTEXT_BUDGET
   const notes: string[] = ['tokens 为估算值（cjk 1:1，其它 4:1）']
-  if (retrievalNote !== undefined) notes.push(retrievalNote)
+  notes.push(...retrievalNotes)
   const missing: Array<{ name: string, reason: string }> = []
   const segments: TracedSection[] = sections.map(item => ({ ...item, trimmed: false }))
   for (const item of segments) {

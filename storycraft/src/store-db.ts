@@ -3345,10 +3345,18 @@ export function readEventsText(root: any, work: any) {
  * Project one work's event log into hooks and facts.
  * @param {string} root - workspace directory.
  * @param {string} work - work identity.
+ * @param {{beforeChapter?: number}} [options] - project only events before this target chapter.
  * @returns {{hooks: object[], facts: object[]}} projected state.
  */
-export function readFoldedState(root: any, work: any) {
-  return projectState(readEvents(root, work))
+export function readFoldedState(root: any, work: any, options: { beforeChapter?: number } = {}) {
+  const before = Number.isInteger(options.beforeChapter) ? Number(options.beforeChapter) : undefined
+  if (before === undefined) return projectState(readEvents(root, work))
+  if (before <= 1) return projectState([])
+  const events = readEvents(root, work, before - 1)
+  const reopened = new Map(events
+    .filter(event => event.kind === 'reopen')
+    .map(event => [event.chapter, event.seq]))
+  return projectState(events.filter(event => event.seq > Number(reopened.get(event.chapter) ?? -1)))
 }
 
 /**
@@ -3359,6 +3367,18 @@ export function readFoldedState(root: any, work: any) {
  * @returns {string|undefined} plan text.
  */
 export function readPlan(root: any, work: any, chapter: any) {
+  const memo = readPlanMemo(root, work, chapter)
+  return memo === undefined ? undefined : renderChapterMemo(memo)
+}
+
+/**
+ * Read one chapter plan memo without round-tripping through rendered Markdown.
+ * @param {string} root - workspace directory.
+ * @param {string} work - work identity.
+ * @param {number|string} chapter - chapter number.
+ * @returns {object|undefined} structured memo.
+ */
+export function readPlanMemo(root: any, work: any, chapter: any) {
   const number = chapterNumber(chapter)
   const db = openWork(root, work)
   try {
@@ -3366,13 +3386,11 @@ export function readPlan(root: any, work: any, chapter: any) {
       WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1`).get(`plan:${number}`)
     if (row === undefined) return undefined
     if (row.content_type !== 'json') throw new StoryError('artifact-invalid', `plan:${number} 不是结构化 memo`)
-    let memo
     try {
-      memo = JSON.parse(String(row.content))
+      return JSON.parse(String(row.content))
     } catch {
       throw new StoryError('artifact-invalid', `plan:${number} 的 memo JSON 无法解析`)
     }
-    return renderChapterMemo(memo)
   } finally {
     db.close()
   }
@@ -3878,7 +3896,7 @@ export function search(root: any, work: any, query: any, limit: any = 5) {
  * @param {object} [options] - retrieval filter.
  * @param {number} [options.beforeChapter] - only material before this chapter.
  * @param {string[]} [options.kinds] - restrict kinds; unknown entries are ignored.
- * @returns {Array<{id: string, kind: string, source: string, sourceIds: string[], chapter: number, text: string, score: number}>} candidates: current summaries, unresolved hooks, volumes, and bounded material excerpts.
+ * @returns {Array<{id: string, kind: string, source: string, sourceIds: string[], chapter: number, hookId?: string, text: string, score: number}>} candidates: current summaries, unresolved hooks, volumes, and bounded material excerpts.
  */
 export function searchMemory(root: any, work: any, query: any, options: any = {}) {
   const beforeChapter = Number.isInteger(options.beforeChapter) ? options.beforeChapter : undefined
@@ -3954,6 +3972,7 @@ export function searchMemory(root: any, work: any, query: any, options: any = {}
           source: row.source,
           sourceIds: ['state'],
           chapter,
+          hookId,
           text: `${hook.text}（${hook.status}，第 ${chapter} 章）`,
           score: -row.score,
         })
