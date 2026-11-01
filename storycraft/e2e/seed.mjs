@@ -99,6 +99,15 @@ export async function buildFixture(workspaceDir) {
     await store.approveChapterPlan(workspaceDir, { work: w, chapter: 1 })
     await store.writeChapter(workspaceDir, { work: w, chapter: 1, title: '一', body: '灰旗在风里翻了一夜。'.repeat(20) })
   }
+  await stateWork('状态-筛选', 'longform', async (w) => {
+    await store.writeOutline(workspaceDir, { work: w, mainline: '一条主线' })
+    await store.approveOutline(workspaceDir, { work: w })
+    for (let chapter = 1; chapter <= 21; chapter += 1) {
+      await plan(w, chapter)
+      await store.approveChapterPlan(workspaceDir, { work: w, chapter })
+      await store.writeChapter(workspaceDir, { work: w, chapter, title: `章${chapter}`, body: `第${chapter}章正文。`.repeat(20) })
+    }
+  })
   await stateWork('状态-看板', 'short', async (w) => {
     await boardSetup(w)
     await store.appendStateEvent(workspaceDir, {

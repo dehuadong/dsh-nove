@@ -77,6 +77,7 @@ import {
 } from './db.ts'
 import { MATERIAL_PURPOSES, MATERIAL_TITLE_MAX, materialMetadata, normalizeMaterialPurpose, prepareMaterial } from './materials.ts'
 import { chapterRemap } from './chapter-edit.ts'
+import { filterChapters, filterWorks, workStatus, type ChapterFilters, type WorkFilters } from './work-filters.ts'
 import { buildEpub } from './epub.ts'
 import { snippetFor } from './retrieval.ts'
 import { materialIndexText, searchTokens } from './search-text.ts'
@@ -851,7 +852,7 @@ export function ensureReconciled(root: any) {
  * @param {string} root - workspace directory.
  * @returns {Array<object>} work summaries.
  */
-export function listWorks(root: string): any[] {
+export function listWorks(root: string, options: WorkFilters = {}): any[] {
   ensureReconciled(root)
   const catalog = openCatalog(root, { create: false })
   if (catalog === undefined) return []
@@ -873,6 +874,7 @@ export function listWorks(root: string): any[] {
           chapters: null,
           writtenChapters: null,
           latestChapter: null,
+          latestStage: null,
           openProblems: null,
           updatedAt: row.updated_at,
           degraded: true,
@@ -887,7 +889,7 @@ export function listWorks(root: string): any[] {
       }
       try {
         const meta = metaOf(db)
-        const chapters = db.prepare('SELECT number, current_revision FROM chapters ORDER BY number').all()
+        const chapters = db.prepare('SELECT number, current_revision, stage FROM chapters ORDER BY number').all()
         let openProblems = 0
         for (const current of openProblemCountByChapter(db).values()) openProblems += current
         works.push({
@@ -897,6 +899,7 @@ export function listWorks(root: string): any[] {
           chapters: chapters.length,
           writtenChapters: chapters.filter((chapter: any) => Number(chapter.current_revision) > 0).length,
           latestChapter: chapters.length === 0 ? 0 : chapters[chapters.length - 1].number,
+          latestStage: chapters.length === 0 ? null : stageOf(chapters[chapters.length - 1]),
           openProblems,
           updatedAt: meta.updated_at,
         })
@@ -904,7 +907,8 @@ export function listWorks(root: string): any[] {
         db.close()
       }
     }
-    return works.sort((left, right) => String(right.updatedAt).localeCompare(String(left.updatedAt)))
+    const withStatus = works.map(work => ({ ...work, status: workStatus(work) }))
+    return filterWorks(withStatus.sort((left, right) => String(right.updatedAt).localeCompare(String(left.updatedAt))), options)
   } finally {
     catalog.close()
   }
@@ -939,7 +943,7 @@ export function listTrash(root: string): any[] {
  * @param {string} work - work identity.
  * @returns {object} work detail payload.
  */
-export function readWork(root: string, work: unknown): any {
+export function readWork(root: string, work: unknown, options: ChapterFilters = {}): any {
   const manifest = readManifest(root, work)
   const db = openWork(root, manifest.workId)
   try {
@@ -985,6 +989,7 @@ export function readWork(root: string, work: unknown): any {
         updatedAt: manifest.updatedAt,
       },
       chapters,
+      chapterMatches: filterChapters(chapters, options),
       state: {
         facts: folded.facts,
         hooks: folded.hooks,

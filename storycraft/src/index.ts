@@ -344,7 +344,19 @@ export function apply(ctx: DshContext): void {
       path: `${BASE}/works`,
       handler: (req, res) => readRoute(req, res, async (query) => {
         const root = await rootOf(ctx, query)
-        return { root, works: await listWorks(root) }
+        const q = query.get('q') ?? ''
+        const rawStatus = query.get('status') ?? ''
+        const status = ['empty', 'planning', 'writing', 'settled', 'degraded'].includes(rawStatus) ? rawStatus : ''
+        const rawIssues = query.get('issues')
+        const issues = rawIssues === 'true' ? true : rawIssues === 'false' ? false : undefined
+        return {
+          root,
+          works: await listWorks(root, {
+            ...(q === '' ? {} : { q }),
+            ...(status === '' ? {} : { status: status as any }),
+            ...(issues === undefined ? {} : { issues }),
+          }),
+        }
       }),
     }),
     ctx.webServer.register({
@@ -726,7 +738,18 @@ export function apply(ctx: DshContext): void {
     ctx.webServer.register({
       kind: 'exact',
       path: `${BASE}/work`,
-      handler: (req, res) => readRoute(req, res, async (query) => readWork(await rootOf(ctx, query), workOf(query))),
+      handler: (req, res) => readRoute(req, res, async (query) => {
+        const rawIssues = query.get('issues')
+        const issues = rawIssues === 'true' ? true : rawIssues === 'false' ? false : undefined
+        const q = query.get('q') ?? ''
+        const rawStage = query.get('stage') ?? ''
+        const stage = ['planned', 'written', 'reviewed', 'revised', 'settled'].includes(rawStage) ? rawStage : ''
+        return readWork(await rootOf(ctx, query), workOf(query), {
+          ...(q === '' ? {} : { q }),
+          ...(stage === '' ? {} : { stage }),
+          ...(issues === undefined ? {} : { issues }),
+        })
+      }),
     }),
     ctx.webServer.register({
       kind: 'exact',

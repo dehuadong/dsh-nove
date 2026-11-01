@@ -53,6 +53,7 @@ Status: proposed
 | 长篇 | A9 创作方法库/加载证据 | **已交付**；[A9 Note](../../implemented/feature/2026-10-31-storycraft-a9-skill-evidence.md)，阶段技能 + 技能加载证据 |
 | 长篇 | F14 失败重试与成本上限 | **已交付**（启动重试 + 可选单章 token 上限）；[F14 Note](../../implemented/architecture/2026-10-31-storycraft-f14-retry-budget.md) |
 | 长篇 | E1/E4/E5/E6/E7/E13 面板 | E1/E4/E5 **已交付**：[看板 Note](../../implemented/feature/2026-10-31-storycraft-dashboard-e1-e5.md)；E6 **已交付**：[分析 Note](../../implemented/feature/2026-10-31-storycraft-e6-analysis.md)；E13 **已交付**：[自检 Note](../../implemented/feature/2026-10-31-storycraft-e13-self-check.md)；E7 **已交付**：[日志 Note](../../implemented/feature/2026-10-31-storycraft-e7-call-logs.md)；E2 阅读器**不做**（2026-11-01 作者决定） |
+| 长篇 | E18 作品/章节检索筛选 | **已交付**：[E18 Note](../../implemented/feature/2026-11-01-storycraft-e18-work-chapter-filters.md) |
 | 长篇 | B1 epub/pdf 素材、B2 技能参考检索 | 部分：txt/md、epub/pdf 与故事记忆已交付；B1 [素材 Note](../../implemented/feature/2026-10-31-storycraft-b1-epub-pdf-materials.md)；B2 **已交付**：[技能检索 Note](../../implemented/feature/2026-10-31-storycraft-b2-skill-search.md)；B2b **已交付**：[上下文检索 Note](../../implemented/feature/2026-10-31-storycraft-b2b-context-skill-retrieval.md) |
 | 长篇 | A1b 单次调用产章、F5 快照 | A1b **取消**（2026-11-01 作者决定）；F5 **已交付**：[备份与素材 Note](../../implemented/feature/2026-10-31-storycraft-f5-backup-materials.md) |
 | 长篇 | R5-a/b/c/d 检索后续 | **R5-b 已交付**：[threadRefs Note](../../implemented/feature/2026-11-01-storycraft-r5b-threadrefs.md)；R5-a/c/d 未排期 |

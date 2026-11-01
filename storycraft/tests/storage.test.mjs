@@ -127,11 +127,16 @@ try {
 
   const works = await s.listWorks(root)
   check('listWorks finds the work', works.length === 1 && works[0].workId === work)
+  check('listWorks exposes latestStage/status', works[0].latestStage === 'settled' && works[0].status === 'settled', JSON.stringify(works[0]))
 
   const detail = await s.readWork(root, work)
   check('detail chapters include plan flag', detail.chapters[0].hasPlan === true)
   check('detail review openProblems', detail.chapters[0].openProblems === 0, String(detail.chapters[0].openProblems))
   check('detail stage is settled', detail.chapters[0].stage === 'settled', String(detail.chapters[0].stage))
+  const filtered = await s.readWork(root, work, { stage: 'settled' })
+  check('detail keeps full chapters and filters matches', filtered.chapters.length === 1 && filtered.chapterMatches.length === 1)
+  const noMatch = await s.readWork(root, work, { q: '#99' })
+  check('detail matches can be empty without losing chapters', noMatch.chapters.length === 1 && noMatch.chapterMatches.length === 0)
   check('detail facts folded', detail.state.facts.length === 2 && detail.state.hooks.length === 2)
 
   const chapter = await s.readChapter(root, { work, chapter: 1 })

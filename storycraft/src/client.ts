@@ -106,6 +106,8 @@ window.__ModuleLoader__.load({
       writtenChapters: number | null
       latestChapter: number | null
       openProblems: number | null
+      latestStage?: string | null
+      status?: string | null
       updatedAt: string
       degraded?: boolean
       schemaVersion?: number
@@ -115,6 +117,18 @@ window.__ModuleLoader__.load({
     interface WorksPayload {
       root?: string
       works: WorkSummary[]
+    }
+
+    interface WorkQueryFilters {
+      q?: string
+      status?: string
+      issues?: boolean
+    }
+
+    interface ChapterQueryFilters {
+      q?: string
+      stage?: string
+      issues?: boolean
     }
 
     interface TrashItem {
@@ -199,6 +213,7 @@ window.__ModuleLoader__.load({
     interface WorkDetailPayload {
       manifest: WorkManifest
       chapters: ChapterSummary[]
+      chapterMatches?: ChapterSummary[]
       state: WorkState
     }
 
@@ -564,7 +579,7 @@ window.__ModuleLoader__.load({
     /** The business face the page renders from. */
     interface Face {
       context(): FaceContext
-      listWorks(root: string | undefined): Promise<WorksPayload>
+      listWorks(root: string | undefined, filters?: WorkQueryFilters): Promise<WorksPayload>
       listTrash(root: string | undefined): Promise<TrashPayload>
       restoreTrash(root: string | undefined, workId: string): Promise<{ workId: string }>
       purgeTrash(root: string | undefined, workId: string): Promise<{ workId: string }>
@@ -577,7 +592,7 @@ window.__ModuleLoader__.load({
       next(root: string | undefined, id: string): Promise<NextPayload>
       getCurrent(root: string | undefined, sessionId: string): Promise<CurrentPayload>
       setCurrent(root: string | undefined, sessionId: string, workId: string): Promise<CurrentPayload>
-      work(root: string | undefined, id: string): Promise<WorkDetailPayload>
+      work(root: string | undefined, id: string, filters?: ChapterQueryFilters): Promise<WorkDetailPayload>
       chapter(
         root: string | undefined,
         id: string,
@@ -794,6 +809,8 @@ window.__ModuleLoader__.load({
     interface ProjectListProps {
       works: WorkSummary[]
       form: WorkForm | undefined
+      filters: WorkQueryFilters
+      onFilters(filters: WorkQueryFilters): void
       onOpen(workId: string): void
       onCreate(idea: string): void
     }
@@ -1057,6 +1074,8 @@ function hookStatusLabel(status: string): string {
 .sc-log-row{display:flex;flex-direction:column;gap:3px;padding:7px 0;border-top:1px solid var(--dsw-alias-border-l1)}
 .sc-log-line{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .sc-log-meta{display:flex;flex-wrap:wrap;gap:8px;font-size:11px;color:var(--dsw-alias-label-secondary)}
+.sc-filter-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}
+.sc-filter-input{min-width:140px;flex:1}
 .sc-search-body{display:flex;flex-direction:column;gap:8px}
 .sc-search-form{display:flex;gap:8px;align-items:center}
 .sc-search-form .sc-input{flex:1}
@@ -1275,7 +1294,7 @@ function hookStatusLabel(status: string): string {
       }
       return {
         context: () => currentContext(ctx),
-        listWorks: (root) => route(ROUTE.works, { root }),
+        listWorks: (root, filters) => route(ROUTE.works, { root, ...(filters ?? {}) }),
         listTrash: (root) => route(ROUTE.trash, { root }),
         restoreTrash: (root, workId) => post('/api/see-storycraft/trash/restore', { root, workId }),
         purgeTrash: (root, workId) => post('/api/see-storycraft/trash/purge', { root, workId, confirm: true }),
@@ -1288,7 +1307,7 @@ function hookStatusLabel(status: string): string {
         next: (root, id) => route(ROUTE.next, { root, id }),
         getCurrent: (root, sessionId) => route(ROUTE.current, { root, sessionId }),
         setCurrent: (root, sessionId, workId) => post(ROUTE.current, { root, sessionId, workId }),
-        work: (root, id) => route(ROUTE.work, { root, id }),
+        work: (root, id, filters) => route(ROUTE.work, { root, id, ...(filters ?? {}) }),
         chapter: (root, id, chapter, view, revision) => route(ROUTE.chapter, { root, id, chapter, view, revision }),
         approveChapterPlan: (root, sessionId, workId, chapter) => post(ROUTE.approve, { root, sessionId, workId, chapter }),
         acceptChapter: (root, sessionId, workId, chapter) => post(ROUTE.accept, { root, sessionId, workId, chapter }),
@@ -1549,12 +1568,57 @@ function hookStatusLabel(status: string): string {
      * @param {object} props - works of this form, the form itself, open/create handlers.
      * @returns {object} the view.
      */
-    function ProjectList({ works, form, onOpen, onCreate }: ProjectListProps) {
+    function ProjectList({ works, form, filters, onFilters, onOpen, onCreate }: ProjectListProps) {
       const [idea, setIdea] = useState('')
+      const [query, setQuery] = useState(filters.q ?? '')
+      const workTitleRef = useRef<HTMLSelectElement>(null)
+      const statusRef = useRef<HTMLSelectElement>(null)
+      const issuesRef = useRef<HTMLSelectElement>(null)
+      const apply = (next: WorkQueryFilters) => onFilters(next)
+      const applyWorkFilters = () => apply({
+        ...(query.trim() === '' && (workTitleRef.current?.value ?? '') === '' ? {} : { q: query.trim() || workTitleRef.current?.value }),
+        ...(statusRef.current?.value === undefined || statusRef.current.value === '' ? {} : { status: statusRef.current.value }),
+        ...(issuesRef.current?.value === undefined || issuesRef.current.value === '' ? {} : { issues: issuesRef.current.value === 'true' }),
+      })
+      const filtered = String(filters.q ?? '') !== '' || String(filters.status ?? '') !== '' || filters.issues !== undefined
       return h('div', { className: 'sc-projects' },
         h('h2', { className: 'sc-detail-title' }, `${form?.label ?? '作品'}`),
+        h('div', { className: 'sc-filter-bar' },
+          h('input', {
+            className: 'sc-input sc-filter-input', 'aria-label': '搜索作品', placeholder: '搜索标题', list: 'sc-work-title-options',
+            value: query, onChange: (event: Event) => setQuery((event.target as HTMLInputElement).value),
+          }),
+          h('datalist', { id: 'sc-work-title-options' }, ...works.map(work => h('option', { key: work.workId, value: work.title }))),
+          h('select', { className: 'sc-input sc-narrow', 'aria-label': '作品标题', defaultValue: filters.q ?? '', ref: workTitleRef },
+            h('option', { value: '' }, '全部标题'),
+            ...works.map(work => h('option', { key: work.workId, value: work.title }, work.title)),
+          ),
+          form?.id === 'longform'
+            ? h('select', { className: 'sc-input sc-narrow', 'aria-label': '作品状态', defaultValue: filters.status ?? '', ref: statusRef },
+              h('option', { value: '' }, '全部状态'),
+              h('option', { value: 'empty' }, '未开始'),
+              h('option', { value: 'planning' }, '筹备中'),
+              h('option', { value: 'writing' }, '写作中'),
+              h('option', { value: 'settled' }, '已收尾'),
+              h('option', { value: 'degraded' }, '不可读'),
+            )
+            : null,
+          h('select', { className: 'sc-input sc-narrow', 'aria-label': '未处理筛选', defaultValue: filters.issues === undefined ? '' : filters.issues ? 'true' : 'false', ref: issuesRef },
+            h('option', { value: '' }, '全部未处理'),
+            h('option', { value: 'true' }, '有未处理'),
+            h('option', { value: 'false' }, '无未处理'),
+          ),
+          h('button', { type: 'button', className: 'sc-btn sc-btn-small', onClick: applyWorkFilters }, '筛选'),
+          h('button', { type: 'button', className: 'sc-btn sc-btn-small', onClick: () => {
+            setQuery('')
+            if (workTitleRef.current !== null) workTitleRef.current.value = ''
+            if (statusRef.current !== null) statusRef.current.value = ''
+            if (issuesRef.current !== null) issuesRef.current.value = ''
+            apply({})
+          } }, '清空'),
+        ),
         works.length === 0
-          ? h('p', { className: 'sc-muted' }, `还没有${form?.label ?? ''}作品：在下面起一个。`)
+          ? h('p', { className: 'sc-muted' }, filtered ? '没有匹配的作品。' : `还没有${form?.label ?? ''}作品：在下面起一个。`)
           : h('div', { className: 'sc-project-grid' },
             ...works.map(work => h('button', {
               key: work.workId,
@@ -2231,6 +2295,11 @@ function hookStatusLabel(status: string): string {
       const bibleTriggerRef = useRef<HTMLElement | null | undefined>(undefined)
       const [tab, setTab] = useState('chapters')
       const [chapterPage, setChapterPage] = useState(1)
+      const [chapterFilters, setChapterFilters] = useState<ChapterQueryFilters>({})
+      const [chapterQuery, setChapterQuery] = useState('')
+      const chapterTitleRef = useRef<HTMLSelectElement>(null)
+      const chapterStageRef = useRef<HTMLSelectElement>(null)
+      const chapterIssuesRef = useRef<HTMLSelectElement>(null)
       const [exportInfo, setExportInfo] = useState<ExportsPayload | undefined>(undefined)
       const [backupList, setBackupList] = useState<BackupFile[]>([])
       const [backupKeep, setBackupKeep] = useState(() => {
@@ -2266,7 +2335,7 @@ function hookStatusLabel(status: string): string {
 
       const load = useCallback(async () => {
         try {
-          const payload = await face.work(root, workId)
+          const payload = await face.work(root, workId, chapterFilters)
           setDetail({ status: 'ready', ...payload })
           const listed = await face.volumes(root, workId).catch(() => ({ volumes: [] }))
           setVolumes(listed.volumes ?? [])
@@ -2276,11 +2345,15 @@ function hookStatusLabel(status: string): string {
           if (sessionId !== undefined) {
             void face.setCurrent(root, sessionId, workId).catch(() => {})
           }
-          setSelected(current => current ?? (payload.chapters.length === 0 ? undefined : payload.chapters[payload.chapters.length - 1].number))
+          const matches = payload.chapterMatches ?? payload.chapters
+          const filtering = Object.keys(chapterFilters).length > 0
+          setSelected(current => matches.some(item => item.number === current)
+            ? current
+            : (filtering || matches.length === 0 ? undefined : matches[matches.length - 1].number))
         } catch (error) {
           setDetail({ status: 'error', error: error instanceof Error ? error.message : String(error) })
         }
-      }, [face, root, workId])
+      }, [face, root, workId, chapterFilters])
 
       const moveChapter = async (item: ChapterSummary, delta: number) => {
         if (sessionId === undefined || detail.status !== 'ready' || chapterBusy) return
@@ -2408,7 +2481,7 @@ function hookStatusLabel(status: string): string {
         refreshInFlight.current = true
         try {
           const [payload, listed, step] = await Promise.all([
-            face.work(root, workId),
+            face.work(root, workId, chapterFilters),
             face.volumes(root, workId).catch(() => ({ volumes: [] })),
             face.next(root, workId).catch(() => ({ next: undefined, workbench: undefined })),
           ])
@@ -2422,7 +2495,7 @@ function hookStatusLabel(status: string): string {
         } finally {
           refreshInFlight.current = false
         }
-      }, [face, root, workId])
+      }, [face, root, workId, chapterFilters])
 
       useEffect(() => { void load() }, [load])
       useEffect(() => { setBriefChapter(selected ?? 1) }, [selected])
@@ -2659,7 +2732,7 @@ function hookStatusLabel(status: string): string {
 
       useEffect(() => {
         if (detail.status !== 'ready') return
-        const index = [...detail.chapters].sort((left, right) => right.number - left.number)
+        const index = [...(detail.chapterMatches ?? detail.chapters)].sort((left, right) => right.number - left.number)
           .findIndex(chapter => chapter.number === selected)
         if (index >= 0) setChapterPage(Math.floor(index / CHAPTER_PAGE_SIZE) + 1)
       }, [selected])
@@ -2804,9 +2877,11 @@ function hookStatusLabel(status: string): string {
 
       const manifest = detail.manifest
       const chapters = detail.chapters
+      const chapterMatches = detail.chapterMatches ?? chapters
+      const chapterFiltered = Object.keys(chapterFilters).length > 0
       const chapter = chapters.find(item => item.number === selected)
       const orderedChapters = [...chapters].sort((left, right) => left.number - right.number)
-      const reversedChapters = [...chapters].sort((left, right) => right.number - left.number)
+      const reversedChapters = [...chapterMatches].sort((left, right) => right.number - left.number)
       const pageCount = Math.max(1, Math.ceil(reversedChapters.length / CHAPTER_PAGE_SIZE))
       const safePage = Math.min(Math.max(1, chapterPage), pageCount)
       const pageChapters = reversedChapters.slice((safePage - 1) * CHAPTER_PAGE_SIZE, safePage * CHAPTER_PAGE_SIZE)
@@ -3202,8 +3277,49 @@ function hookStatusLabel(status: string): string {
         },
           h('div', { className: 'sc-col' },
             h('h3', { className: 'sc-section-title' }, '章节'),
-            chapters.length === 0
-              ? h('p', { className: 'sc-muted' }, '还没有章节。点「写第 1 章」让模型出章纲并写正文。')
+            h('div', { className: 'sc-filter-bar' },
+              h('input', {
+                className: 'sc-input sc-filter-input', 'aria-label': '搜索章节', placeholder: '章号或标题', list: 'sc-chapter-title-options',
+                value: chapterQuery, onChange: (event: Event) => setChapterQuery((event.target as HTMLInputElement).value),
+              }),
+              h('datalist', { id: 'sc-chapter-title-options' }, ...chapters.map(item => h('option', { key: item.number, value: item.title }))),
+              h('select', { className: 'sc-input sc-narrow', 'aria-label': '章节标题', defaultValue: '', ref: chapterTitleRef },
+                h('option', { value: '' }, '全部标题'),
+                ...chapters.map(item => h('option', { key: item.number, value: item.title }, `第 ${item.number} 章 · ${item.title}`)),
+              ),
+              h('select', { className: 'sc-input sc-narrow', 'aria-label': '章节阶段', defaultValue: chapterFilters.stage ?? '', ref: chapterStageRef },
+                h('option', { value: '' }, '全部阶段'),
+                h('option', { value: 'planned' }, '已规划'),
+                h('option', { value: 'written' }, '已写'),
+                h('option', { value: 'reviewed' }, '已审'),
+                h('option', { value: 'revised' }, '已修订'),
+                h('option', { value: 'settled' }, '已定稿'),
+              ),
+              h('select', { className: 'sc-input sc-narrow', 'aria-label': '章节未处理', defaultValue: chapterFilters.issues === undefined ? '' : chapterFilters.issues ? 'true' : 'false', ref: chapterIssuesRef },
+                h('option', { value: '' }, '全部未处理'),
+                h('option', { value: 'true' }, '有未处理'),
+                h('option', { value: 'false' }, '无未处理'),
+              ),
+              h('button', { type: 'button', className: 'sc-btn sc-btn-small', onClick: () => {
+                setSelected(current => chapterMatches.some(item => item.number === current) ? current : undefined)
+                setChapterPage(1)
+                setChapterFilters({
+                  ...(chapterQuery.trim() === '' && (chapterTitleRef.current?.value ?? '') === '' ? {} : { q: chapterQuery.trim() || chapterTitleRef.current?.value }),
+                  ...(chapterStageRef.current?.value === undefined || chapterStageRef.current.value === '' ? {} : { stage: chapterStageRef.current.value }),
+                  ...(chapterIssuesRef.current?.value === undefined || chapterIssuesRef.current.value === '' ? {} : { issues: chapterIssuesRef.current.value === 'true' }),
+                })
+              } }, '筛选'),
+              h('button', { type: 'button', className: 'sc-btn sc-btn-small', onClick: () => {
+                setSelected(undefined)
+                setChapterQuery('')
+                if (chapterTitleRef.current !== null) chapterTitleRef.current.value = ''
+                if (chapterStageRef.current !== null) chapterStageRef.current.value = ''
+                if (chapterIssuesRef.current !== null) chapterIssuesRef.current.value = ''
+                setChapterPage(1); setChapterFilters({})
+              } }, '清空'),
+            ),
+            chapterMatches.length === 0
+              ? h('p', { className: 'sc-muted' }, chapterFiltered ? '没有匹配的章节。' : '还没有章节。点「写第 1 章」让模型出章纲并写正文。')
               : h('div', null,
                 ...pageGroups.map(group => h('div', { key: group.key, className: 'sc-volume' },
                   h('div', { className: 'sc-volume-head' },
@@ -3228,6 +3344,7 @@ function hookStatusLabel(status: string): string {
                     h('button', {
                       type: 'button',
                       className: 'sc-chapter',
+                      'data-chapter-number': item.number,
                       'aria-current': item.number === selected ? 'true' : 'false',
                       onClick: () => setSelected(item.number),
                     },
@@ -3577,7 +3694,7 @@ function hookStatusLabel(status: string): string {
             disabled: safePage <= 1,
             onClick: () => setChapterPage(page => Math.max(1, page - 1)),
           }, '上一页'),
-          h('span', { className: 'sc-muted' }, `第 ${safePage} / ${pageCount} 页 · 共 ${chapters.length} 章`),
+          h('span', { className: 'sc-muted' }, `第 ${safePage} / ${pageCount} 页 · 共 ${chapterMatches.length} 章`),
           h('button', {
             type: 'button',
             className: 'sc-btn sc-btn-small',
@@ -4065,6 +4182,7 @@ function hookStatusLabel(status: string): string {
       const [trash, setTrash] = useState<TrashItem[]>([])
       const [homeView, setHomeView] = useState('works')
       const [typeFilter, setTypeFilter] = useState('longform')
+      const [workFilters, setWorkFilters] = useState<WorkQueryFilters>({})
       const [currentId, setCurrentId] = useState<string | undefined>(undefined)
       const [trashNote, setTrashNote] = useState<string | undefined>(undefined)
       const [selected, setSelected] = useState<string | undefined>(undefined)
@@ -4113,7 +4231,7 @@ function hookStatusLabel(status: string): string {
             const pointer = await face.getCurrent(root, sessionId).catch(() => ({ current: undefined }))
             setCurrentId(pointer.current ?? undefined)
           }
-          const payload = await face.listWorks(context.root)
+          const payload = await face.listWorks(context.root, workFilters)
           setWorks(payload.works ?? [])
           try {
             const trashed = await face.listTrash(context.root)
@@ -4134,7 +4252,7 @@ function hookStatusLabel(status: string): string {
           setStatus('error')
           setError(cause instanceof Error ? cause.message : String(cause))
         }
-      }, [face])
+      }, [face, workFilters])
 
       const refreshWorks = useCallback(async () => {
         if (face === undefined || face === null || refreshInFlight.current) return
@@ -4150,7 +4268,7 @@ function hookStatusLabel(status: string): string {
               pointer = null
             }
           }
-          const payload = await face.listWorks(context.root)
+          const payload = await face.listWorks(context.root, workFilters)
           setWorks(payload.works ?? [])
           if (pointer !== null) setCurrentId(pointer?.current ?? undefined)
           setRefreshError(undefined)
@@ -4159,7 +4277,7 @@ function hookStatusLabel(status: string): string {
         } finally {
           refreshInFlight.current = false
         }
-      }, [face])
+      }, [face, workFilters])
 
       useEffect(() => { void load() }, [load])
 
@@ -4236,7 +4354,7 @@ function hookStatusLabel(status: string): string {
               type: 'button',
               className: 'sc-work',
               'aria-current': typeFilter === form.id ? 'true' : 'false',
-              onClick: () => { setTypeFilter(form.id); setSelected(undefined); setNotice(undefined) },
+              onClick: () => { setTypeFilter(form.id); setWorkFilters({}); setSelected(undefined); setNotice(undefined) },
             },
               h('span', { className: 'sc-work-title' }, form.label),
               h('span', { className: 'sc-work-meta' },
@@ -4271,8 +4389,11 @@ function hookStatusLabel(status: string): string {
                       ))),
                 )
                 : h(ProjectList, {
+                  key: typeFilter,
                   works: worksList.filter(work => work.form === typeFilter),
                   form: FORMS.find(form => form.id === typeFilter),
+                  filters: workFilters,
+                  onFilters: filters => { setWorkFilters(filters); setSelected(undefined) },
                   onOpen: workId => {
                     setSelected(workId)
                     setNotice(undefined)
@@ -4298,7 +4419,7 @@ function hookStatusLabel(status: string): string {
             refreshError !== undefined
               ? h('p', { className: 'sc-notice sc-notice-info' }, `刷新失败：${refreshError}`)
               : null,
-            status === 'ready' && worksList.length === 0
+            status === 'ready' && worksList.length === 0 && Object.keys(workFilters).length === 0
               ? h(EmptyState, {
                 face: face!,
                 notice,
