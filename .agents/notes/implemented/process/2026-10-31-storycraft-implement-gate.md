@@ -99,12 +99,12 @@ Status: implemented
 | 目标 | discuss | planning | implement | complete |
 | --- | --- | --- | --- | --- |
 | 源码/测试/脚本 | 拒绝 | 拒绝 | 允许 | 拒绝 |
-| `.agents/notes/**` | 拒绝 | 允许 | 允许 | 允许 |
-| `docs/**` 等文档 | 允许 | 允许 | 允许 | 允许 |
-| shell 写命令 | 拒绝 | 仅 docs-only | 允许 | 拒绝 |
+| `.agents/notes/proposed/**` | 拒绝 | 允许 | 允许 | 拒绝 |
+| 其他 `.agents/notes/**`、`docs/**`、根文档、skills | 允许 | 允许 | 允许 | 允许 |
+| shell 写命令 | 仅非-proposed docs | 仅 docs-only | 允许 | 仅非-proposed docs |
 | 状态/启用标记 | 拒绝 | 拒绝 | 拒绝 | 拒绝 |
 
-`trash.mjs` 的 Note/文档目标按 docs 处理；`git add`/`commit`/`mv` 的 paths 或已暂存文件全在 notes/docs 时放行，混入源码时拒绝；`git push` 不改工作树，放行。工作区外写入始终拒绝。
+文档与仓库治理绕过工程状态门禁：README、AGENTS、GATES、docs、skills、已归档/已实现 Note 在 discuss 与 complete 下也可写；只有 **propose 规划 Note** 仍要求 planning/implement。`trash.mjs`、`git add/commit/mv` 按目标路径分类，混入源码或 propose Note 时拒绝；`git push` 不改工作树，放行。工作区外写入始终拒绝。
 
 Agent Notes 的 `proposed → implemented` 迁移是路径级例外：`write` 新文件、`edit` 状态/标题、`trash.mjs` 旧 Note 都不需要 implement 授权，也不会被 `complete` 之后误拦。`.trash/` 作为这些文档移动的目的地同样放行；只有源码/测试/脚本/配置路径受授权约束。
 

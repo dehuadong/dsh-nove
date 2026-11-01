@@ -45,9 +45,10 @@ export function classifyPath(root, value) {
   const relative = path.relative(root, absolute).replaceAll('\\', '/')
   const outside = relative === '..' || relative.startsWith('../') || path.isAbsolute(relative)
   const notes = !outside && (relative === '.agents/notes' || relative.startsWith('.agents/notes/'))
+  const proposed = !outside && (relative === '.agents/notes/proposed' || relative.startsWith('.agents/notes/proposed/'))
   const protectedPath = !outside && (relative === '.agents/implement-gate.json'
     || relative === '.agents/state/implement-gate' || relative.startsWith('.agents/state/implement-gate/'))
-  return { absolute, relative, outside, notes, protected: protectedPath, docs: !outside && isDocs(relative) }
+  return { absolute, relative, outside, notes, proposed, protected: protectedPath, docs: !outside && isDocs(relative) }
 }
 
 /** Write verbs and explicit shell redirection, excluding `=>` and `2>&1`. */
@@ -59,18 +60,23 @@ function pathArgs(text) {
     .filter(value => value !== undefined && !value.startsWith('-'))
 }
 
-function allDocs(root, values) {
-  return values.length > 0 && values.every(value => {
+/** Aggregate docs/proposed classification for explicit path arguments. */
+function pathInfo(root, values) {
+  let docsOnly = values.length > 0
+  let touchesProposed = false
+  for (const value of values) {
     const target = classifyPath(root, value)
-    return !target.outside && target.docs
-  })
+    if (target.outside || !target.docs) docsOnly = false
+    if (target.proposed) touchesProposed = true
+  }
+  return { docsOnly, touchesProposed }
 }
 
-function stagedDocsOnly(root) {
+function stagedInfo(root) {
   const result = spawnSync('git', ['diff', '--cached', '--name-only'], { cwd: root, encoding: 'utf8' })
-  if (result.error !== undefined || result.status !== 0) return false
+  if (result.error !== undefined || result.status !== 0) return { docsOnly: false, touchesProposed: false }
   const files = String(result.stdout ?? '').split(/\r?\n/u).map(line => line.trim()).filter(Boolean)
-  return files.length > 0 && files.every(file => classifyPath(root, file).docs)
+  return pathInfo(root, files)
 }
 
 /** Split a compound shell line into independently classified segments. */
@@ -80,36 +86,40 @@ function segments(text) {
 
 /** Decide one shell segment; `write` means it mutates the workspace. */
 function segmentAccess(text, root) {
-  if (/\bgit\s+push\b/iu.test(text)) return { write: false, docsOnly: false }
+  if (/\bgit\s+push\b/iu.test(text)) return { write: false, docsOnly: false, touchesProposed: false }
   const add = /\bgit\s+add\b([\s\S]*)$/iu.exec(text)
   if (add !== null) {
-    const args = pathArgs(add[1])
-    return { write: true, docsOnly: allDocs(root, args) }
+    const info = pathInfo(root, pathArgs(add[1]))
+    return { write: true, ...info }
   }
   const move = /\bgit\s+mv\b([\s\S]*)$/iu.exec(text)
   if (move !== null) {
-    const args = pathArgs(move[1])
-    return { write: true, docsOnly: allDocs(root, args) }
+    const info = pathInfo(root, pathArgs(move[1]))
+    return { write: true, ...info }
   }
-  if (/\bgit\s+commit\b/iu.test(text)) return { write: true, docsOnly: stagedDocsOnly(root) }
+  if (/\bgit\s+commit\b/iu.test(text)) {
+    const info = stagedInfo(root)
+    return { write: true, ...info }
+  }
   const trash = /(?:^|\s)(?:node\s+)?[^\s]*trash\.mjs\b([\s\S]*)$/iu.exec(text)
   if (trash !== null) {
-    const targets = pathArgs(trash[1])
-    return { write: true, docsOnly: allDocs(root, targets) }
+    const info = pathInfo(root, pathArgs(trash[1]))
+    return { write: true, ...info }
   }
-  return { write: WRITE_COMMAND.test(text), docsOnly: false }
+  return { write: WRITE_COMMAND.test(text), docsOnly: false, touchesProposed: false }
 }
 
 /**
  * Decide whether a shell command needs an implement authorization.
- * `docsOnly` commands are the Agent Note/roadmap lifecycle exceptions.
+ * `docsOnly` marks documentation/governance operations; `touchesProposed`
+ * keeps proposed planning notes inside the planning phase.
  */
 export function shellAccess(command, root) {
-  const parts = segments(command)
-  const writes = parts.map(part => segmentAccess(part, root)).filter(item => item.write)
+  const writes = segments(command).map(part => segmentAccess(part, root)).filter(item => item.write)
   return {
     write: writes.length > 0,
     docsOnly: writes.length > 0 && writes.every(item => item.docsOnly),
+    touchesProposed: writes.some(item => item.touchesProposed),
   }
 }
 

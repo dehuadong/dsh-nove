@@ -76,12 +76,18 @@ const call = (host, agent, action, reason) => host.tools.implement_gate.execute(
   const agent = agentFor('a1')
   const gate = { execute: (args, exec) => host.tools.implement_gate.execute(args, exec) }
   check('discuss denies source write', (await preExec(host, agent, 'write', { file_path: 'storycraft/src/x.ts' })).kind === 'deny')
-  check('discuss denies planning Note write', (await preExec(host, agent, 'write', { file_path: '.agents/notes/x.md' })).kind === 'deny')
+  check('discuss denies proposed Note write', (await preExec(host, agent, 'write', { file_path: '.agents/notes/proposed/x.md' })).kind === 'deny')
+  check('discuss allows implemented Note write', (await preExec(host, agent, 'write', { file_path: '.agents/notes/implemented/x.md' })).kind === 'allow')
+  check('discuss allows docs governance write', (await preExec(host, agent, 'write', { file_path: 'docs/agents/GATES.md' })).kind === 'allow')
+  check('discuss allows AGENTS governance write', (await preExec(host, agent, 'write', { file_path: 'AGENTS.md' })).kind === 'allow')
+  check('discuss allows docs shell', (await preExec(host, agent, 'pwsh', { command: 'node scripts/trash.mjs docs/agents/x.md' })).kind === 'allow')
+  check('discuss allows implemented-note shell', (await preExec(host, agent, 'pwsh', { command: 'node scripts/trash.mjs .agents/notes/implemented/x.md' })).kind === 'allow')
+  check('discuss denies proposed-note shell', (await preExec(host, agent, 'pwsh', { command: 'node scripts/trash.mjs .agents/notes/proposed/x.md' })).kind === 'deny')
   await preStep(host, agent, [gateMessage('批准，使用技能 planning 执行规划 integration')])
-  check('planning allows Note write', (await preExec(host, agent, 'write', { file_path: '.agents/notes/x.md' })).kind === 'allow')
+  check('planning allows proposed Note write', (await preExec(host, agent, 'write', { file_path: '.agents/notes/proposed/x.md' })).kind === 'allow')
   check('planning still denies source write', (await preExec(host, agent, 'write', { file_path: 'storycraft/src/x.ts' })).kind === 'deny')
   await call(host, agent, 'end-planning')
-  check('end-planning denies Note write', (await preExec(host, agent, 'write', { file_path: '.agents/notes/x.md' })).kind === 'deny')
+  check('end-planning denies proposed Note write', (await preExec(host, agent, 'write', { file_path: '.agents/notes/proposed/x.md' })).kind === 'deny')
   await preStep(host, agent, [gateMessage('批准，使用技能 implement 执行实现 integration')])
   check('implement allows source write', (await preExec(host, agent, 'write', { file_path: 'storycraft/src/x.ts' })).kind === 'allow')
   await call(host, agent, 'block', 'contract changed')
@@ -90,6 +96,8 @@ const call = (host, agent, action, reason) => host.tools.implement_gate.execute(
   await call(host, agent, 'complete')
   check('complete denies source write', (await preExec(host, agent, 'write', { file_path: 'storycraft/src/x.ts' })).kind === 'deny')
   check('complete allows Note write', (await preExec(host, agent, 'write', { file_path: '.agents/notes/x.md' })).kind === 'allow')
+  check('complete allows docs shell', (await preExec(host, agent, 'pwsh', { command: 'node scripts/trash.mjs docs/agents/x.md' })).kind === 'allow')
+  check('complete denies proposed shell', (await preExec(host, agent, 'pwsh', { command: 'node scripts/trash.mjs .agents/notes/proposed/x.md' })).kind === 'deny')
   const status = await call(host, agent, 'status')
   check('status reports complete', status.phase === 'complete')
 }
@@ -134,6 +142,10 @@ const hereStringCommand = [
 ].join('\n')
 check('here-string relative imports are not outside', shellOutside(hereStringCommand, root) === false)
 check('here-string does not hide a real outside target', shellOutside("Set-Content C:\\outside\\x.txt x", root) === true)
+
+check('docs shell is governance', shellAccess('node scripts/trash.mjs docs/x', root).docsOnly === true)
+check('proposed shell is marked', shellAccess('node scripts/trash.mjs .agents/notes/proposed/x', root).touchesProposed === true)
+check('implemented shell is not proposed', shellAccess('node scripts/trash.mjs .agents/notes/implemented/x', root).touchesProposed === false)
 
 if (failures > 0) { console.error(`\n${failures} CHECK(S) FAILED`); process.exit(1) }
 console.log('\nALL CHECKS PASSED')

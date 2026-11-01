@@ -55,13 +55,12 @@ Host 插件：仅在已启用的项目里，按**会话**控制源码与规划 N
 | 目标 | discuss | planning | implement | complete |
 | --- | --- | --- | --- | --- |
 | 源码/测试/脚本 | 拒绝 | 拒绝 | 允许 | 拒绝 |
-| `.agents/notes/**` | 拒绝 | 允许 | 允许 | 允许 |
-| `docs/**` 等文档 | 允许 | 允许 | 允许 | 允许 |
-| shell 写命令 | 拒绝 | 仅 docs-only | 允许 | 拒绝 |
+| `.agents/notes/proposed/**` | 拒绝 | 允许 | 允许 | 拒绝 |
+| 其他 `.agents/notes/**`、`docs/**`、根文档、skills | 允许 | 允许 | 允许 | 允许 |
+| shell 写命令 | 仅非-proposed docs | 仅 docs-only | 允许 | 仅非-proposed docs |
 | 状态/启用标记 | 拒绝 | 拒绝 | 拒绝 | 拒绝 |
 
-- `trash.mjs` 的 Note/文档目标按 docs 处理；源码目标按源码；
-- `git add`/`commit`/`mv` 的 paths 或已暂存文件全在 notes/docs 时放行；混入源码时拒绝；
+文档和仓库治理不经过工程状态门禁：README、AGENTS、GATES、docs、skills、已归档/已实现 Note 在 discuss 与 complete 下也可写；只有 **propose 规划 Note** 仍要求 planning/implement。`trash.mjs`、`git add/commit/mv` 按目标路径分类，混入源码或 propose Note 时拒绝。
 - `git push` 不改工作树，放行；
 - `implement_gate block` 冻结源码写，文档仍可写；
 - `implement_gate complete` 结束任务，源码写恢复拒绝，文档仍可写。

@@ -28,7 +28,9 @@
 
 源码写入另由 Host 插件 `@dsh-nove/implement-gate`（源码 `tools/implement-gate/`）在 `tools/pre-execute` 强制执行。它只在项目根存在 `.agents/implement-gate.json`（`{"enabled":true}`）时启用；其他项目完全 pass-through。状态按 `(workspaceRoot, sessionId)` 存放在 `.agents/state/implement-gate/<session-hash>.json`，并行会话互不影响，插件重载后从文件恢复。
 
-状态机：`discuss`（默认；源码和规划 Note 都拒绝）→ planning 命令 → `planning`（允许规划 Note，源码仍拒绝）→ `implement_gate({action:'end-planning'})` → `discuss`；implement 命令/审批 → `implement`（允许源码与 Note）→ `complete`（源码拒绝，文档仍可写）。Planning 结束后必须显式 `end-planning`，用户随口提问不会让代理改规划 Note。授权来自 owner 用户整条消息中的规范 planning/implement 命令，或 `implement_gate({action:'authorize'})` 的任务级审批；`.agents/implement-gate.json` 与 `.agents/state/implement-gate/**` 是守护路径，模型不可写。合同变化时调用 `implement_gate({action:'block',reason})`，Verify 后调用 `complete`。
+状态机：`discuss`（默认；源码和 propose 规划 Note 拒绝）→ planning 命令 → `planning`（允许 propose Note，源码仍拒绝）→ `implement_gate({action:'end-planning'})` → `discuss`；implement 命令/审批 → `implement`（允许源码与 Note）→ `complete`（源码与 propose Note 拒绝）。Planning 结束后必须显式 `end-planning`，用户随口提问不会让代理改 propose Note。
+
+文档与仓库治理绕过工程状态门禁：README、AGENTS、GATES、docs、skills、已归档/已实现 Note 在 discuss 与 complete 下也可写；只有 `.agents/notes/proposed/**` 仍要求 planning/implement。授权来自 owner 用户整条消息中的规范 planning/implement 命令，或 `implement_gate({action:'authorize'})` 的任务级审批；`.agents/implement-gate.json` 与 `.agents/state/implement-gate/**` 是守护路径，模型不可写。合同变化时调用 `implement_gate({action:'block',reason})`，Verify 后调用 `complete`。
 
 ## 工程工作流 
 

@@ -202,8 +202,8 @@ export function apply(ctx) {
       const target = classifyPath(root, file)
       if (target.outside) return deny('工作区外写入被拒绝')
       if (target.protected) return deny('implement-gate 的状态与启用标记不允许模型写入')
-      if (target.notes) {
-        if (state.phase === 'discuss') return deny('当前处于 discuss：不允许修改规划 Note；要修改请先输入 planning 命令。')
+      if (target.proposed) {
+        if (state.phase !== 'planning' && state.phase !== 'implement') return deny('propose 规划 Note 只在 planning/implement 阶段可写；要修改请先输入 planning 命令。')
         return next()
       }
       if (target.docs) return next()
@@ -221,9 +221,10 @@ export function apply(ctx) {
       if (shellOutside(command, cwd)) return deny('工作区外写入被拒绝')
       const access = shellAccess(command, cwd)
       if (!access.write) return next()
-      if (state.phase === 'discuss') return deny('当前处于 discuss：不允许写文件或提交；只允许阅读与沟通。')
+      if (access.docsOnly && !access.touchesProposed) return next()
+      if (access.docsOnly && (state.phase === 'planning' || state.phase === 'implement')) return next()
+      if (state.phase === 'discuss') return deny('当前处于 discuss：不允许写源码或 propose 规划 Note；只允许阅读与沟通。')
       if (state.phase === 'complete') return deny('当前任务已完成：需要新的 implement 授权。')
-      if (access.docsOnly) return next()
       if (state.phase === 'implement' && state.work === 'active') return next()
       return sourceDeny(state)
     }
