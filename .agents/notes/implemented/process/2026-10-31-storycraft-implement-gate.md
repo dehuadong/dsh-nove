@@ -145,7 +145,7 @@ Agent Notes 的 `proposed → implemented` 迁移是路径级例外：`write` �
 
 - `tools/implement-gate/test.mjs`：纯分类/命令用例 + mock Host 用例，覆盖 discuss 拒绝源码和 Note、planning 放行 Note、end-planning 回 discuss、implement/block/complete、approval allowed/rejected、无 marker 项目 pass-through、复合命令、重定向、构建、docs-only git mv/trash、工作区外路径；
 - 已安装到 desktop profile 后实测：无 marker 的其他 workspace 不拦截；本 workspace 无授权源码 `write` 被拒绝；docs `write` 与 `trash.mjs` 放行；`implement_gate status` 返回当前会话 phase；
-- `storycraft/scripts/ci.mjs` 加入 `tools/implement-gate/test.mjs`，完整单元 CI 通过（86 文件）。
+- `storycraft/scripts/ci.mjs` 加入 `tools/implement-gate/test.mjs`，完整单元 CI 通过（94 文件）。
 
 ## Consequences
 
