@@ -630,11 +630,11 @@ function landedStage(root: string, work: string, chapter: number): ReturnType<ty
 }
 
 /** Foundation stages the architect child can produce. */
-type FoundationStage = 'frame' | 'rules' | 'roles' | 'cards'
+type FoundationStage = 'design' | 'frame' | 'rules' | 'roles' | 'cards'
 
-/** Whether a model-supplied stage is one of the four foundation stages. */
+/** Whether a model-supplied stage is one of the known foundation stages. */
 function isFoundationStage(stage: string): stage is FoundationStage {
-  return (['frame', 'rules', 'roles', 'cards'] as readonly string[]).includes(stage)
+  return (['design', 'frame', 'rules', 'roles', 'cards'] as readonly string[]).includes(stage)
 }
 
 /** Rendered foundation text handed to the architect child. */
@@ -659,16 +659,16 @@ interface ArchitectPromptRequest {
 
 /** Build the architect child prompt for one foundation stage. */
 function architectPrompt({ work, stage, instruction, delegationId, manifest, foundation, proposal }: ArchitectPromptRequest): string {
-  const labels = { frame: '故事框架与卷图', rules: '作品规则', roles: '角色索引', cards: '角色卡' }
+  const labels = { design: '故事框架、规则与角色索引', frame: '故事框架与卷图', rules: '作品规则', roles: '角色索引', cards: '角色卡' }
   const shapes = {
+    design: 'payload 格式：{"storyFrame":"# 故事框架…（含 ## 前提/## 核心冲突/## 主角动机/## 约束/## 因果解决）","volumeMap":"## 第一卷\\n- 卷目标：…\\n- 起止章：…\\n- 关键节拍：…\\n- 卷末承诺：…","currentFocus":"# 当前焦点\\n…","bookRules":{...},"rolesIndex":{"roles":[{"name":"…","tier":"major|minor"}]}}。一次提交五块，字段合同按本技能。',
     frame: 'payload 格式：{"storyFrame":"# 故事框架…（含 ## 前提/## 核心冲突/## 主角动机/## 约束/## 因果解决）","volumeMap":"## 第一卷\\n- 卷目标：…\\n- 起止章：…\\n- 关键节拍：…\\n- 卷末承诺：…","currentFocus":"# 当前焦点\\n…"}。',
     rules: 'payload 格式：{"bookRules":{"version":"2","narrativePerson":"…","prohibitions":["…"],"protagonist":{"name":"…","personalityLock":["…"],"behavioralConstraints":["…"]},"genreLock":{"primary":"…","forbidden":["…"]},"enableFullCastTracking":false,"allowedDeviations":["…"],"markdown":"# 作品规则\\n…"}}。',
     roles: 'payload 格式：{"rolesIndex":{"roles":[{"name":"…","tier":"major|minor"}]}}；只列影响开篇冲突的具名人物，≥1，无数量上限。',
     cards: 'payload 格式：{"roleCards":[{"slug":"…","name":"…","tier":"major|minor","motivation":"…","knowledge":"…","relationshipPressure":"…","limits":"…","arc":"可选","markdown":"# …"}]}；按 storycraft-architect 的 cards 合同逐人提交。',
   }
   const context = []
-  if (stage !== 'frame' && foundation.storyFrame !== undefined) context.push(`## 故事框架\n${foundation.storyFrame}`)
-  if (stage === 'cards' && foundation.volumeMap !== undefined) context.push(`## 卷图\n${foundation.volumeMap}`)
+  if (stage !== 'frame' && stage !== 'cards' && foundation.storyFrame !== undefined) context.push(`## 故事框架\n${foundation.storyFrame}`)
   if (stage === 'cards' && foundation.rolesIndex !== undefined) context.push(`## 角色索引\n${JSON.stringify(foundation.rolesIndex, null, 2)}`)
   return [
     `你是《${manifest.title}》（${manifest.workId}）的架构师子代理，负责基础设定：${labels[stage]}。`,

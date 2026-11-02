@@ -7,7 +7,7 @@ import { submitPayload } from '../src/submission.ts'
 import * as s from '../src/storage.ts'
 import * as b from '../src/bible.ts'
 import { assembleRoleContext } from '../src/context.ts'
-import { readArtifact, readFoundationDocuments, readTextArtifact } from '../src/artifact-store.ts'
+import { readArtifact, readFoundationDocuments, readRoleCard, readTextArtifact } from '../src/artifact-store.ts'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -80,8 +80,41 @@ try {
   const shortNext = await s.nextStep(root, shortWork)
   check('short works skip foundation', shortNext.action !== 'story_architect', JSON.stringify(shortNext))
   const first = await s.nextStep(root, work)
-  check('a new work starts with the architect frame', first.action === 'story_architect'
-    && first.foundationStage === 'frame' && first.delegate?.role === 'architect', JSON.stringify(first))
+  check('a new work starts with the architect design', first.action === 'story_architect'
+    && first.foundationStage === 'design' && first.delegate?.role === 'architect', JSON.stringify(first))
+
+  const designWork = (await s.initWork(root, { title: '合并设计' })).workId
+  const designPayload = { ...frame, bookRules, rolesIndex }
+  const designed = await delegateRole(root, { work: designWork, role: 'architect', stage: 'design' }, {
+    service: fakeService([{ payload: designPayload }]), agent, signal,
+  })
+  check('design lands frame, rules and roles in one dispatch', designed.foundationStage === 'design'
+    && designed.artifacts.length === 5, JSON.stringify(designed))
+  const designState = s.readFoundationState(root, designWork)
+  check('design marks the first three stages', designState.stages.frame === true
+    && designState.stages.rules === true && designState.stages.roles === true
+    && designState.stages.cards === false && designState.dispatchStage === 'cards', JSON.stringify(designState))
+  const afterDesign = await s.nextStep(root, designWork)
+  check('design advances to cards', afterDesign.action === 'story_architect'
+    && afterDesign.foundationStage === 'cards', JSON.stringify(afterDesign))
+  check('design prompt carries the five-field shape', lastPrompt.includes('bookRules')
+    && lastPrompt.includes('rolesIndex') && lastPrompt.includes('一次提交五块'), lastPrompt.slice(0, 300))
+  await delegateRole(root, { work: designWork, role: 'architect', stage: 'cards' }, {
+    service: fakeService([{ payload: { roleCards: [card, minorCard] } }]), agent, signal,
+  })
+  check('design work completes cards', s.readFoundationState(root, designWork).stages.cards === true)
+  await delegateRole(root, { work: designWork, role: 'architect', stage: 'design' }, {
+    service: fakeService([{ payload: { ...designPayload, rolesIndex: { roles: [{ name: '甲', tier: 'major' }] } } }]), agent, signal,
+  })
+  let staleCard = ''
+  try { readRoleCard(root, { work: designWork, slug: 'yi' }) } catch (error) { staleCard = error?.code ?? String(error) }
+  check('design drops cards no longer in the roles index', staleCard === 'artifact-not-found', staleCard)
+
+  const badDesign = await s.initWork(root, { title: '坏设计' })
+  await rejects('an invalid design lands nothing', 'delegation-no-submission', () => delegateRole(root, {
+    work: badDesign.workId, role: 'architect', stage: 'design',
+  }, { service: fakeService([{ payload: { ...designPayload, bookRules: { ...bookRules, version: '1' } } }]), agent, signal }))
+  check('a rejected design leaves all three stages empty', s.readFoundationState(root, badDesign.workId).stages.frame === false)
 
   await rejects('unknown stage is refused', 'foundation-stage-invalid', () => delegateRole(root, {
     work, role: 'architect', stage: 'world',

@@ -104,6 +104,19 @@ try {
     && oversized.error.code === 'submit-too-large', JSON.stringify(oversized))
   closeSubmission(huge.delegationId)
 
+  const hugeDesign = openSubmission({ role: 'architect', workId: work, stage: 'design' })
+  const oversizedDesign = await submitPayload({
+    delegationId: hugeDesign.delegationId, depth: 1, root,
+    payload: {
+      storyFrame: `# 故事框架\n## 前提\n${'写'.repeat(70 * 1024)}\n## 核心冲突\n冲突\n## 主角动机\n动机\n## 约束\n约束\n## 因果解决\n解决\n`, volumeMap: '## 卷一\n- 卷目标：目标。\n- 起止章：1–5。\n- 关键节拍：节拍。\n- 卷末承诺：承诺。\n', currentFocus: '甲。',
+      bookRules: { version: '2', narrativePerson: '第三人称', prohibitions: ['禁止'], protagonist: { name: '甲', personalityLock: [], behavioralConstraints: [] }, genreLock: { primary: '都市', forbidden: [] }, enableFullCastTracking: false, allowedDeviations: [], markdown: '# 规则' },
+      rolesIndex: { roles: [{ name: '甲', tier: 'major' }] },
+    },
+  })
+  check('oversized design submission is rejected', oversizedDesign.ok === false
+    && oversizedDesign.error.code === 'submit-too-large', JSON.stringify(oversizedDesign))
+  closeSubmission(hugeDesign.delegationId)
+
   const reviewer = openSubmission({ role: 'reviewer', workId: work, chapter: 1 })
   const wrongRole = await submitPayload({
     delegationId: reviewer.delegationId, depth: 1, root,

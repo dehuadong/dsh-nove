@@ -932,7 +932,7 @@ const NEXT_OUTPUT: DshToolOutput = {
     additionalProperties: false,
     properties: {
       ...OUTPUT_PROPERTIES,
-      foundationStage: { type: 'string', enum: ['frame', 'rules', 'roles', 'cards'] },
+      foundationStage: { type: 'string', enum: ['design', 'frame', 'rules', 'roles', 'cards'] },
       blocked: {
         type: 'array',
         description: 'Author or host actions that must happen before the action can run.',
@@ -946,7 +946,7 @@ const NEXT_OUTPUT: DshToolOutput = {
         additionalProperties: false,
         properties: {
           role: { type: 'string', enum: ['writer', 'reviewer', 'reviser', 'summarizer', 'architect', 'planner'] },
-          stage: { type: 'string', enum: ['frame', 'rules', 'roles', 'cards'] },
+          stage: { type: 'string', enum: ['design', 'frame', 'rules', 'roles', 'cards'] },
         },
         required: ['role'],
       },
@@ -1096,7 +1096,7 @@ const DELEGATE_OUTPUT: DshToolOutput = {
       chapter: OUTPUT_PROPERTIES.chapter,
       role: { type: 'string', enum: ['writer', 'reviewer', 'reviser', 'summarizer', 'architect', 'planner'] },
       stage: OUTPUT_PROPERTIES.stage,
-      foundationStage: { type: 'string', enum: ['frame', 'rules', 'roles', 'cards'] },
+      foundationStage: { type: 'string', enum: ['design', 'frame', 'rules', 'roles', 'cards'] },
       artifacts: {
         type: 'array',
         items: {
@@ -1128,6 +1128,7 @@ const DELEGATE_OUTPUT: DshToolOutput = {
           complete: { type: 'boolean' },
           writtenAt: { type: 'string' },
           nextStage: { type: 'string', enum: ['frame', 'rules', 'roles', 'cards'] },
+          dispatchStage: { type: 'string', enum: ['design', 'cards'] },
           approvedAt: { type: 'string' },
         },
         required: ['stages', 'complete'],
@@ -2756,7 +2757,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
       name: 'story_delegate',
       mutates: true,
       description: '宿主侧委派一个角色完成单步：writer 写首版正文、reviewer 审稿并落清单、reviser 按未处理条目修订、summarizer 写本章摘要、'
-        + 'architect 按 stage 生成基础设定（frame/rules/roles/cards），planner 写首次章纲。'
+        + 'architect 按 stage 生成基础设定（design/cards，手动兼容 frame/rules/roles），planner 写首次章纲。'
         + ' 主编只收回执（版本/字数/审稿计数/警告/阶段），不接触正文与上下文；子代理通过 story_submit 提交，失败返回 delegation-no-submission。',
       parameters: {
         type: 'object',
@@ -2765,7 +2766,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
           work: { type: 'string', description: '作品 id。' },
           chapter: { type: 'integer', description: '章号；architect 不需要。' },
           role: { type: 'string', enum: ['writer', 'reviewer', 'reviser', 'summarizer', 'architect', 'planner'], description: '本次要跑的角色。' },
-          stage: { type: 'string', enum: ['frame', 'rules', 'roles', 'cards'], description: 'architect 的阶段；其他角色忽略。' },
+          stage: { type: 'string', enum: ['design', 'frame', 'rules', 'roles', 'cards'], description: 'architect 的阶段；design 合并 frame/rules/roles；其他角色忽略。' },
           instruction: { type: 'string', description: '作者本轮要求，会并入子代理任务。' },
           mode: {
             type: 'string',

@@ -2,6 +2,8 @@
 
 Status: implemented
 
+> **2026-11-02 部分取代**：正常派发改为 `design` + `cards` 两次；本 Note 的 frame/rules/roles 四阶段保留为手动兼容入口，不再由 `story_next` 逐段派发。理由与验证见 [architect 合并 design + cards 派发](../architecture/2026-11-02-storycraft-design-cards-dispatch.md)。
+
 > **2026-10-29 修正**：`roles ≤20`、`cards ≤12`、卡仅 major 三条与参考实现不符，作者已裁决移除。角色模型按 [parity-matrix 角色卡行](../../proposed/process/2026-10-18-storycraft-parity-matrix.md) 与 [角色模型对齐参考](../architecture/2026-10-29-storycraft-role-model-parity.md) 对齐：薄索引（name+tier）+ 每人 Markdown 卡（动机/知识/关系压力/边界），major/minor 均可建卡，不设数量上限。本 Note 的对应描述、`store-db.ts` 校验、`storycraft-architect` SKILL 与测试需在同一后续工作项里同步；同步前以矩阵裁决为准。
 
 ## 问题

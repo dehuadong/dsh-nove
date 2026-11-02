@@ -63,6 +63,41 @@ try {
   // different concern, so assert the absence of foundation-mismatch.
   check('a frame that names the premise is not refused by the guard', landed !== 'foundation-mismatch', landed)
 
+
+  const { workId: designGuard } = s.initWork(root, { title: '设计守卫' })
+  const designCatalog = openCatalog(root)
+  try {
+    designCatalog.prepare(`INSERT INTO proposals (id, title, form, premise, characters, created_at, used_work_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+      'p-design', '设计守卫', 'longform', '一个修表匠发现所有钟表都慢了三分钟',
+      JSON.stringify([{ name: '老周' }]), new Date().toISOString(), designGuard,
+    )
+  } finally {
+    designCatalog.close()
+  }
+  const designRules = (name) => ({
+    version: '2', narrativePerson: '第三人称', prohibitions: ['禁止'],
+    protagonist: { name, personalityLock: [], behavioralConstraints: [] },
+    genreLock: { primary: '都市', forbidden: [] }, enableFullCastTracking: false,
+    allowedDeviations: [], markdown: '# 作品规则\n',
+  })
+  let designMismatch = ''
+  try {
+    s.writeFoundationStage(root, { work: designGuard, stage: 'design', payload: {
+      storyFrame: '结构工程师沈砚回到陵川，处理旧楼。', volumeMap: '卷一。', currentFocus: '沈砚。',
+      bookRules: designRules('沈砚'), rolesIndex: { roles: [{ name: '沈砚', tier: 'major' }] },
+    } })
+  } catch (error) { designMismatch = error?.code ?? String(error) }
+  check('a design unrelated to the proposal is refused', designMismatch === 'foundation-mismatch', designMismatch)
+  let designInconsistent = ''
+  try {
+    s.writeFoundationStage(root, { work: designGuard, stage: 'design', payload: {
+      storyFrame: '修表匠老周发现钟表都慢了三分钟。', volumeMap: '卷一。', currentFocus: '老周。',
+      bookRules: designRules('沈砚'), rolesIndex: { roles: [{ name: '老周', tier: 'major' }] },
+    } })
+  } catch (error) { designInconsistent = error?.code ?? String(error) }
+  check('a design whose rules protagonist is absent from its frame is refused', designInconsistent === 'foundation-inconsistent', designInconsistent)
+
   // Without a proposal the guard has nothing to compare and must not block.
   const { workId: plain } = s.initWork(root, { title: '无提案' })
   let plainResult = ''

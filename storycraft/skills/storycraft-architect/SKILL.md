@@ -1,6 +1,6 @@
 ---
 name: storycraft-architect
-description: 长篇基础设定（architect）：分四阶段产出故事框架/卷图/当前焦点、作品规则、角色索引与角色卡，只通过 story_submit 提交；不写正文、不写状态。只出方法与提交内容，不直接改文件。 触发：story_delegate 以 role=architect 派发，按 stage（frame/rules/roles/cards）生成基础设定时。
+description: 长篇基础设定（architect）：正常 design/cards 两阶段产出故事框架/卷图/当前焦点、作品规则、角色索引与角色卡，只通过 story_submit 提交；frame/rules/roles 仅作手动兼容。不写正文、不写状态。只出方法与提交内容，不直接改文件。触发：story_delegate 以 role=architect 派发。
 ---
 # 架构师（长篇基础设定）
 
@@ -12,9 +12,19 @@ description: 长篇基础设定（architect）：分四阶段产出故事框架/
 
 - 必读：`references/foundation-design.md`
 
-## 四阶段与输出
+## 阶段与输出
 
-按 `story_delegate` 的 `stage` 只提交一个阶段：
+正常只提交 `design` 或 `cards` 之一；`frame`/`rules`/`roles` 只在手动修复时使用。按 `story_delegate` 的 `stage` 提交：
+
+### design
+
+```json
+{ "storyFrame": "Markdown", "volumeMap": "Markdown", "currentFocus": "Markdown", "bookRules": { "version": "2", "...": "..." }, "rolesIndex": { "roles": [{ "name": "…", "tier": "major|minor" }] } }
+```
+
+- 一次提交五块，宿主在一个事务里写 frame/volume/current_focus、book_rules、roles:index；
+- 任一字段不合法整批不写；
+- 故事框架/卷图/焦点/规则/索引的字段合同分别见下面的 frame/rules/roles 段。
 
 ### frame
 

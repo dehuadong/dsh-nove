@@ -441,6 +441,7 @@ window.__ModuleLoader__.load({
       stages?: { frame?: boolean, rules?: boolean, roles?: boolean, cards?: boolean }
       complete: boolean
       nextStage?: string
+      dispatchStage?: string
       approvedAt?: string
     }
 

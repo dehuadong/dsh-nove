@@ -184,6 +184,7 @@ export function validateSubmissionShape(role: string, payload: any, stage: strin
   }
   if (role === 'architect') {
     const stages: Record<string, { keys: string[], label: string }> = {
+      design: { keys: ['storyFrame', 'volumeMap', 'currentFocus', 'bookRules', 'rolesIndex'], label: 'design' },
       frame: { keys: ['storyFrame', 'volumeMap', 'currentFocus'], label: 'frame' },
       rules: { keys: ['bookRules'], label: 'rules' },
       roles: { keys: ['rolesIndex'], label: 'roles' },
@@ -197,11 +198,11 @@ export function validateSubmissionShape(role: string, payload: any, stage: strin
     for (const key of Object.keys(payload)) {
       if (!spec.keys.includes(key)) return `architect ${spec.label} 不接受字段 ${key}`
     }
-    if (stage === 'frame') {
-      for (const key of spec.keys) {
-        if (typeof payload[key] !== 'string' || payload[key].trim() === '') return `architect frame 的 ${key} 必须是非空字符串`
+    if (stage === 'frame' || stage === 'design') {
+      for (const key of ['storyFrame', 'volumeMap', 'currentFocus']) {
+        if (typeof payload[key] !== 'string' || payload[key].trim() === '') return `architect ${stage} 的 ${key} 必须是非空字符串`
       }
-      if ([...payload.currentFocus].length > 600) return 'architect frame 的 currentFocus 超过 600 字'
+      if ([...payload.currentFocus].length > 600) return `architect ${stage} 的 currentFocus 超过 600 字`
     }
     if (stage === 'cards') {
       if (!Array.isArray(payload.roleCards) || payload.roleCards.length === 0) return 'architect cards 的 roleCards 必须是非空数组'
@@ -213,6 +214,11 @@ export function validateSubmissionShape(role: string, payload: any, stage: strin
       } else if (stage === 'rules') {
         validateBookRules(payload.bookRules)
       } else if (stage === 'roles') {
+        validateRolesIndex(payload.rolesIndex)
+      } else if (stage === 'design') {
+        validateStoryFrame(payload.storyFrame)
+        validateVolumeMap(payload.volumeMap)
+        validateBookRules(payload.bookRules)
         validateRolesIndex(payload.rolesIndex)
       } else {
         for (const card of payload.roleCards) validateRoleCard(card)

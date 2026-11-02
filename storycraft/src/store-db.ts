@@ -1100,8 +1100,11 @@ function delegateOf(step: any, last: any, candidate: any) {
 // so a rerun or a manual edit cannot desync the state.
 // ---------------------------------------------------------------------------
 
-/** Architect stages in order. */
+/** Architect state stages in order. */
 export const FOUNDATION_STAGES = ['frame', 'rules', 'roles', 'cards']
+
+/** Normal architect dispatches: design merges frame/rules/roles; cards stays separate. */
+export const FOUNDATION_DISPATCH_STAGES = ['design', 'cards']
 
 /** Artifacts each stage produces, in write order. */
 const FOUNDATION_STAGE_ARTIFACTS = {
@@ -1142,10 +1145,13 @@ function foundationStateOf(db: any) {
   }
   const complete = FOUNDATION_STAGES.every(stage => (stages as Record<string, boolean>)[stage] === true)
   const nextStage = FOUNDATION_STAGES.find(stage => (stages as Record<string, boolean>)[stage] !== true)
+  const designReady = stages.frame && stages.rules && stages.roles
+  const dispatchStage = !designReady ? FOUNDATION_DISPATCH_STAGES[0] : stages.cards ? undefined : FOUNDATION_DISPATCH_STAGES[1]
   return {
     stages,
     complete,
     ...(nextStage === undefined ? {} : { nextStage }),
+    ...(dispatchStage === undefined ? {} : { dispatchStage }),
     ...(foundationApprovedAt(db) === undefined ? {} : { approvedAt: foundationApprovedAt(db) }),
     ...(metaOf(db).foundation_approved_source === null ? {} : { approvedSource: metaOf(db).foundation_approved_source }),
     ...(metaOf(db).foundation_approved_reason === null ? {} : { approvedReason: metaOf(db).foundation_approved_reason }),
@@ -1222,13 +1228,13 @@ function proposalTokensOf(root: any, workId: string): string[] {
 export function writeFoundationStage(root: any, input: any) {
   const workId = String(input.work)
   const stage = String(input.stage)
-  if (!FOUNDATION_STAGES.includes(stage)) throw new StoryError('foundation-stage-invalid', `未知的 foundation stage：${stage}`)
+  if (!new Set([...FOUNDATION_DISPATCH_STAGES, ...FOUNDATION_STAGES]).has(stage)) throw new StoryError('foundation-stage-invalid', `未知的 foundation stage：${stage}`)
   const payload = input.payload ?? {}
   const db = openWork(root, workId)
   try {
     return transaction(db, () => {
       const state = foundationStateOf(db)
-      if (stage !== 'frame' && state.stages.frame !== true) {
+      if (stage !== 'frame' && stage !== 'design' && state.stages.frame !== true) {
         throw new StoryError('foundation-order', '先生成 frame（故事框架/卷图/当前焦点），再生成后续阶段')
       }
       if (stage === 'cards' && state.stages.roles !== true) {
@@ -1249,7 +1255,39 @@ export function writeFoundationStage(root: any, input: any) {
         return { envelope, source, text: renderFoundationContent(content) }
       }
       let records
-      if (stage === 'frame') {
+      if (stage === 'design') {
+        const tokens = proposalTokensOf(root, workId)
+        const frameText = `${String(payload.storyFrame ?? '')}\n${String(payload.volumeMap ?? '')}\n${String(payload.currentFocus ?? '')}`
+        if (tokens.length > 0 && !tokens.some(token => frameText.includes(token))) {
+          throw new StoryError('foundation-mismatch', '基础设定与提案没有一处对得上：提案里的关键人物或前提没有出现在故事框架里', '按提案重写基础设定，或先说明为什么改方向')
+        }
+        const focus = String(payload.currentFocus ?? '')
+        if ([...focus].length > 600) throw new StoryError('artifact-invalid', 'current_focus 超过 600 字')
+        const protagonist = String(payload.bookRules?.protagonist?.name ?? '').trim()
+        const rulesFrameText = String(payload.storyFrame ?? '')
+        if (protagonist !== '') {
+          const proposal = acceptedProposalOf(root, workId)
+          const known = new Set<string>()
+          try {
+            const list = JSON.parse(proposal?.characters ?? '[]')
+            for (const item of Array.isArray(list) ? list : []) {
+              const name = typeof item === 'string' ? item : item?.name
+              if (typeof name === 'string' && name !== '') known.add(name)
+            }
+          } catch {}
+          const frameNamesSomeone = [...known].some(name => rulesFrameText.includes(name))
+          if (rulesFrameText !== '' && frameNamesSomeone && !rulesFrameText.includes(protagonist)) {
+            throw new StoryError('foundation-inconsistent', `作品规则的主角「${protagonist}」没有出现在故事框架里`, '按框架改规则里的主角名；确实要换主角时，先说明为什么改方向')
+          }
+        }
+        records = [
+          record('bible:story_frame', 'story_frame', String(payload.storyFrame ?? ''), 'foundation/story_frame'),
+          record('bible:volume_map', 'volume_map', String(payload.volumeMap ?? ''), 'foundation/volume_map'),
+          record('bible:current_focus', 'current_focus', focus, 'foundation/current_focus'),
+          record('bible:book_rules', 'book_rules', payload.bookRules, 'foundation/book_rules'),
+          record('roles:index', 'role_index', payload.rolesIndex, 'foundation/roles/index'),
+        ]
+      } else if (stage === 'frame') {
         const tokens = proposalTokensOf(root, workId)
         const frameText = `${String(payload.storyFrame ?? '')}\n${String(payload.volumeMap ?? '')}\n${String(payload.currentFocus ?? '')}`
         if (tokens.length > 0 && !tokens.some(token => frameText.includes(token))) {
@@ -1350,7 +1388,7 @@ export function writeFoundationStage(root: any, input: any) {
         }
         return { artifactId: envelope.artifactId, revisionId: envelope.revisionId, kind: envelope.kind }
       })
-      if (stage === 'roles') {
+      if (stage === 'roles' || stage === 'design') {
         // The index is the person list and the tier authority; stale cards go.
         dropRoleCardsOnDb(db, indexTiersOf(payload.rolesIndex))
       }
@@ -1367,7 +1405,7 @@ export function approveFoundation(root: any, input: any) {
   try {
     return transaction(db, () => {
       const state = foundationStateOf(db)
-      if (state.complete !== true) throw new StoryError('foundation-incomplete', 'foundation 还没生成完整：先跑完四个 stage')
+      if (state.complete !== true) throw new StoryError('foundation-incomplete', 'foundation 还没生成完整：先跑完 design/cards')
       const at = now()
       const source = approvalSourceOf(input)
       db.prepare('UPDATE meta SET foundation_approved_at = ?, foundation_approved_revision = ?, foundation_approved_source = ?, foundation_approved_reason = ?, updated_at = ? WHERE id = 1').run(at, foundationRevisionOf(db), source, approvalReasonOf(input), at)
@@ -1411,10 +1449,11 @@ export function nextStep(root: any, work: any) {
           if (formOf(manifest) === 'longform') {
             const foundation = foundationStateOf(db)
             if (foundation.complete !== true) {
+              const dispatchStage = foundation.dispatchStage ?? foundation.nextStage
               return {
-                chapter, stage: 'planned', action: 'story_architect', foundationStage: foundation.nextStage,
-                reason: `还没有基础设定（${foundation.nextStage}）：让 architect 生成故事框架、规则与角色，再写全书计划`,
-                missing: [`foundation:${foundation.nextStage}`],
+                chapter, stage: 'planned', action: 'story_architect', foundationStage: dispatchStage,
+                reason: `还没有基础设定（${dispatchStage}）：让 architect 生成故事框架、规则与角色，再写全书计划`,
+                missing: [`foundation:${dispatchStage}`],
               }
             }
             if (foundation.approvedAt === undefined) {
