@@ -55,6 +55,11 @@ const cases = [
   ['allow', "@'\nunlinkSync('x')\n'@ | Set-Content .\\notes.md"],
   ['deny', "@'\nrm -rf C:\\Users\\MyPC\\_dsh-apicheck\n'@ | bash"],
   ['deny', 'node -e "require(\'fs\').unlinkSync(\'C:/Users/MyPC/x\')"'],
+
+  // Simple variable assignments resolve; unknown variables stay fail-closed.
+  ['allow', '$p = \'E:\\dsh-nove\\.artifacts\\x\'; Remove-Item $p'],
+  ['deny', '$p = \'C:\\Users\\MyPC\\x\'; Remove-Item $p'],
+  ['deny', '$p = $(Get-Item C:\\Users\\MyPC); Remove-Item $p'],
 ]
 
 let failed = 0

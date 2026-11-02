@@ -14,7 +14,7 @@ Host 插件：在工具派发前拒绝“删除/移动/复制/创建/写入工�
 | `index.js` | 插件入口；从 `sandboxPolicy.resolve({ session }).workspaceRoot` 取工作区边界 |
 | `path-boundary.js` | 路径展开、realpath、symlink/大小写边界 |
 | `classify.js` | 纯函数分类器：动词识别、目标提取、越界判定、拒绝文案 |
-| `test.mjs` | 30 条用例，`node tools/shell-guard/test.mjs`，不依赖 Harness |
+| `test.mjs` | 33 条用例，`node tools/shell-guard/test.mjs`，不依赖 Harness |
 | `cordis.patch.yml` | 插入 `shell-guard` 行（`package.json` 的 `dsh.bundle.patch` 指向它） |
 
 ## 判定规则

@@ -112,15 +112,33 @@ export function collectTargets(command, verb) {
   return found
 }
 
+function assignments(command) {
+  const map = new Map()
+  for (const match of String(command).matchAll(/(?:^|[;\n])\s*\$?([A-Za-z_]\w*)\s*=\s*(?:'([^']*)'|"([^"]*)"|(\S+))/gu)) {
+    map.set(match[1], match[2] ?? match[3] ?? match[4])
+  }
+  return map
+}
+
 function redirectionTargets(statement) {
   return [...String(statement).matchAll(/(?:^|\s)>{1,2}\s*(?:'([^']+)'|"([^"]+)"|([^\s;&|]+))/gu)]
     .map(match => match[1] ?? match[2] ?? match[3])
 }
 
-function validate(targets, options, verb) {
+function validate(targets, options, verb, vars) {
   const violations = []
   const knownEnv = /^(?:%USERPROFILE%|\$env:USERPROFILE|\$HOME\b|\$\{HOME\}|~)/iu
-  for (const target of targets) {
+  for (const rawTarget of targets) {
+    let target = rawTarget
+    const variable = /^\$([A-Za-z_]\w*)$/u.exec(target)
+    if (variable !== null) {
+      const value = vars.get(variable[1])
+      if (value === undefined) {
+        violations.push({ raw: rawTarget, why: 'unknown' })
+        continue
+      }
+      target = value
+    }
     if (/[$%]/u.test(target) && !knownEnv.test(target)) {
       violations.push({ raw: target, why: 'unknown' })
       continue
@@ -142,14 +160,14 @@ function stripPrefixed(statement) {
 }
 
 /** Decide whether one statement's targets may be modified. */
-function classifyStatement(statement, options) {
+function classifyStatement(statement, options, vars) {
   const text = stripPrefixed(statement)
   if (text.trim() === '') return undefined
   const redirects = redirectionTargets(text)
   const verb = matchVerb(text)
   if (verb === undefined) {
     if (redirects.length === 0) return undefined
-    return validate(redirects, options, 'redirection')
+    return validate(redirects, options, 'redirection', vars)
   }
   if (verb.label.startsWith('xargs')) {
     return { verb: verb.label, targets: [{ raw: '(pipeline)', why: 'unknown' }] }
@@ -164,16 +182,17 @@ function classifyStatement(statement, options) {
     }
     raw.push(options.cwd)
   }
-  const failure = validate(raw, options, verb.label)
+  const failure = validate(raw, options, verb.label, vars)
   if (failure !== undefined) return failure
-  return redirects.length === 0 ? undefined : validate(redirects, options, 'redirection')
+  return redirects.length === 0 ? undefined : validate(redirects, options, 'redirection', vars)
 }
 
 /** Decide whether a command may run against the allowed roots. */
 export function classifyCommand(command, options) {
   const failures = []
+  const vars = assignments(command)
   for (const statement of String(command ?? '').split(/[\n;]/u)) {
-    const failure = classifyStatement(statement, options)
+    const failure = classifyStatement(statement, options, vars)
     if (failure !== undefined) failures.push(failure)
   }
   if (failures.length === 0) return { ok: true }
