@@ -1,6 +1,6 @@
 # Agent Note: implement-gate 代码后缀门禁简化
 
-Status: proposed
+Status: implemented
 
 工作项：当前任务「implement-gate 代码后缀门禁简化」。
 
@@ -21,7 +21,7 @@ Status: proposed
 
 参考工程 `inkos-master` 没有 DSH `implement-gate` 对应实现；本项是 DSH Host 工具链自身的授权边界简化。检索范围：`inkos-master` 的 `packages/`、`scripts/`、`docs/` 与 CI；未找到同类 pre-execute 授权守卫。仓库内前置实现是 `tools/implement-gate/` 与 `implemented/process/2026-11-02-implement-gate-generalization.md`。
 
-## Proposal
+## Decision
 
 ### 1. 配置 v2
 
@@ -133,23 +133,15 @@ protected 路径
 
 **D. 把配置 json 也纳入 codeExtensions。** 最强理由是保护配置。否决原因：用户明确说部分 json 不需要 planning/implement；执行入口应由 `codePaths` 精确列出，而不是全量后缀。
 
-## Acceptance criteria
+## Testing
 
-1. Storycraft 配置迁移为 v2，`.ts/.js/.py/.rs/.go` 等代码文件仍需要 implement；`.TS`、`a.test.ts`、尾随点/空格的 `.ts.` 也按代码处理；
-2. `codePaths` 中根级与嵌套执行入口（`package.json`、`storycraft/package.json`、`storycraft/tsconfig.json`、锁文件、`cordis.patch.yml`、`.github/workflows/`）需要 implement，但 implement 下可改；文件条目精确匹配，尾斜杠条目按目录前缀匹配；
-3. `README`、`AGENTS`、`docs`、`.md`、`.json`、`.yaml`、`.gitignore` 等无扩展/非代码文件在 discuss/complete 下直接可写，不要求 docs 命令；
-4. `git status/add/commit/push` 不进入代码门禁；`git checkout/reset/clean` 仍视为代码写，需要 implement；
-5. `pwsh`/`bash` 只按显式代码目标拦截；`Set-Content src/x.ts` 拒绝，`Set-Content docs/x.md`、`data.json` 放行；`> src/x.ts` 拒绝，`> docs/x.md` 放行；`$p='src/x.ts'; Set-Content $p` 拒绝；
-6. 工作区外显式写入仍拒绝；`Test-Path C:\outside`、`Get-ChildItem C:\outside` 等只读命令放行；`npm run build`/`npm install` 不再统一按代码写拒绝；
-7. `.agents/notes/proposed/**` 仍只在 planning/implement 可写；
-8. `.agents/implement-gate.json`、state 始终 protected；
-9. `docScope` 从状态移除；`end-docs` 固定返回 `not-supported`；`commands.docs` 从 schema 移除，配置出现 docs 键或调用 docs 命令不授权；
-10. `version:1`、缺 `version:2`、缺 `codeExtensions`、扩展名非法（无点/通配符/绝对路径）、`codePaths` 含绝对路径/`..`/通配符/空项、非法命令正则、未知键 → `status` 返回 `misconfigured`，写拒绝；
-11. 不同项目可使用不同 `codeExtensions`/`codePaths`，互不影响；
-12. `node tools/implement-gate/test.mjs` 与 `storycraft/scripts/ci.mjs --no-e2e` 通过；
-13. `tools/implement-gate/README.md` 的配置/行为段与 `AGENTS.md:29,33` 同步为“代码后缀门禁”，删除文档范围命令说明。
+- Storycraft `.agents/implement-gate.json` 已升级为 version 2；`loadConfig` 返回 32 个代码扩展名与执行入口 `codePaths`。
+- `tools/implement-gate/test.mjs` 覆盖：`.TS`/`a.test.ts`/`.ts.`、`.md`/`.json`/`.gitignore` 放行、`storycraft/package.json` codePaths、`git status/add/commit/push` 放行、`git checkout` 拒绝、显式代码/重定向/变量目标、docs/json 放行、outside 拒绝、proposed/protected、`end-docs` not-supported、v1 `misconfigured`、自定义 `codeExtensions`。
+- `node storycraft/scripts/ci.mjs --no-e2e` 通过（94 单元文件）。
+- 安装到 desktop profile 后 `implement_gate status` 返回 `enabled:true`、`configVersion:2`。
+- 未覆盖：symlink 到代码文件的 realpath 拦截；无扩展名代码文件；这两项已列为后续边界。
 
-## Risks
+## Consequences
 
 - `.json`、`.yaml` 普通配置不再受 implement 门禁；执行入口由 `codePaths` 精确列出，漏列的执行入口会绕过代码门禁；
 - 仅按后缀判断，扩展名不标准的代码文件（Makefile、无扩展名脚本）不会拦截；需要时加入 `codePaths`，不在本项扩展；
