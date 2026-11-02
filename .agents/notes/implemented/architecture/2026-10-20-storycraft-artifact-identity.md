@@ -104,7 +104,8 @@ E:\dsh-nove\works\tang-ding\bible\characters.json
   - 解析当前存在的 revision；静态 artifact 按合同 v2 保留历史 revision，旧 revisionId 可读；章节重编号/删除的 identity 例外与 export/backup 覆盖式语义除外；
   - export/backup 不是 prose artifact，`story_read` 不读取它们，只由作者 UI 路由取用；
   - 不返回文件路径；
-  - 超长内容按行分页（startLine/lineCount），与参考目标的 read 行为对齐。
+  - 超长内容按行分页（startLine/lineCount），与参考目标的 read 行为对齐；响应带 `hasMore`，`endLine < totalLines` 即还有后续页；
+  - `roles:index` 例外：返回完整 pretty JSON，不套 line slicing（避免 JSON 被截断）；固定 `startLine:1`、`endLine=totalLines`、`hasMore:false`，忽略传入的 `startLine/lineCount`。
 - 写前上下文仍用 `story_brief(work, chapter)`；正文/审稿/修订上下文用 `story_context(work, chapter, role)`；真值用 `story_bible`。
 - `story_read` 让 ID 可读、可测，不再是只写标识。
 - 读取权限不是“同作品即可”，`story_read`、`story_context`、`story_brief` 共用同一阶段作用域：

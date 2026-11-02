@@ -145,7 +145,7 @@ materials         作者素材（txt/md/epub/pdf；用途 setting/character/scen
 | `story_status` | 只读汇总进度、阶段、版本、未处理问题、未解伏笔；每章带 `hasSummary` / `summaryRevision` / `summaryStale` | 作品不存在；作品库升级失败 `schema-migration-failed` |
 | `story_delegate` | 宿主侧跑一个角色（writer/reviewer/reviser/summarizer/architect/planner）：预检、装配上下文、启动子代理、消费 `story_submit`、落库，返回紧凑回执；启动临时故障最多重试 2 次，回执带 `retries` | 预检/阶段错误按原码返回；服务缺失 `delegation-unavailable`；启动重试耗尽 `delegation-transient-exhausted`；单章 token 上限 `chapter-budget-exceeded`；无合格提交 `delegation-no-submission`；当前版本已有摘要 `summary-exists` |
 | `story_submit` | 仅子代理调用：提交结构化角色结果，宿主校验字数/mode，失败可重提 | 父代理/非委派 `submit-parent-denied`；超 3 次 `submit-attempts-exhausted` |
-| `story_read` | 只读：按 `artifactId`/`revisionId` 读取当前章可读内容；`plan:<n>` 返回 memo JSON，可读旧 memo revision；越界返回 `artifact-not-readable` | 作品不存在；旧章/旧审稿版本 |
+| `story_read` | 只读：按 `artifactId`/`revisionId` 读取；`bible:book_rules` 返回 Markdown（`hasMore` 标记分页），`roles:index` 返回完整 JSON（忽略 `startLine/lineCount`）；`plan:<n>` 返回 memo JSON，可读旧 memo revision；越界返回 `artifact-not-readable` | 作品不存在；旧章/旧审稿版本 |
 | `story_context` | 只读按角色装配上下文；回执带 token 预算 trace（默认 8000，可用 `budget` 覆盖），正文 ≥3 章时 trace 带合同形状的 `retrieval` | 缺章 `chapter-not-found`；缺章纲 `plan-not-found`；缺人物卡 `bible-missing` |
 | `story_history` | 只读：正文与章纲版本、当前标记、章纲批准状态 | 作品/章节不存在 |
 | `story_next` | 只读：下一步动作、章号、原因、缺什么、`blocked`；可委派时带 `delegate.role`（architect 带 `stage`） | 作品不存在 |

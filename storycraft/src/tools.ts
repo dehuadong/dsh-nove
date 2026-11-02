@@ -26,7 +26,7 @@ import {
   reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter, setSessionCurrent,
   status as readStatus, updateSettings, workIdOf, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
 } from './storage.ts'
-import { listRoleCards, readArtifact, readChapterMemo, readChapterSummary, readRoleCard, readTextArtifact } from './artifact-store.ts'
+import { listRoleCards, readArtifact, readChapterMemo, readChapterSummary, readFoundationDocument, readRoleCard, readTextArtifact, renderFoundationContent } from './artifact-store.ts'
 import {
   assembleBrief as assembleBriefFor, readBible as readBibleEntries,
   writeBible as writeBibleEntry, writeSummary as writeSummaryEntry,
@@ -499,6 +499,7 @@ const OUTPUT_PROPERTIES: SchemaNode = {
   startLine: { type: 'integer' },
   endLine: { type: 'integer' },
   totalLines: { type: 'integer' },
+  hasMore: { type: 'boolean', description: 'Whether more lines remain after endLine.' },
   exported: {
     type: 'object',
     additionalProperties: false,
@@ -2121,13 +2122,13 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
 
     action({
       name: 'story_read',
-      description: '只读：按 artifactId 读取已登记的作品内容（chapter/plan/review/summary/state/state:draft:<章>:r<版本>/bible/outline/volume/role:<slug>/trace）。宿主校验作品与当前章作用域；不返回文件路径。角色卡按 slug 读，字段是卡合同。',
+      description: '只读：按 artifactId 读取已登记的作品内容（chapter/plan/review/summary/state/state:draft:<章>:r<版本>/bible/outline/volume/role:<slug>/roles:index/trace）。宿主校验作品与当前章作用域；不返回文件路径。bible:book_rules 返回 Markdown；roles:index 返回完整 JSON；角色卡按 slug 读。',
       parameters: {
         type: 'object',
         additionalProperties: false,
         properties: {
           work: { type: 'string', description: '作品 id。' },
-          artifactId: { type: 'string', description: '如 chapter:1、plan:1、bible:characters、role:<slug>（如 role:jia）。' },
+          artifactId: { type: 'string', description: '如 chapter:1、plan:1、bible:characters、bible:book_rules、roles:index、role:<slug>（如 role:jia）。' },
           revisionId: { type: 'string', description: '可选；不传则读当前版本。' },
           startLine: { type: 'integer', description: '可选：从第几行开始（1 起）。' },
           lineCount: { type: 'integer', description: '可选：最多返回多少行。' },
@@ -2225,6 +2226,14 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
             const entry = readBibleEntry(root, workId, file)
             content = entry?.content ?? ''
             ref = { ...ref, artifactId: `bible:${file}`, revisionId: entry?.version ?? 'current', kind: file }
+          } else if (file === 'book_rules') {
+            const read = readFoundationDocument(root, {
+              work: workId,
+              name: 'book_rules',
+              ...(args.revisionId === undefined ? {} : { revisionId: String(args.revisionId) }),
+            })
+            content = renderFoundationContent(read.artifact.content)
+            ref = { ...ref, artifactId: String(read.artifact.artifactId), revisionId: String(read.artifact.revisionId), kind: String(read.artifact.kind) }
           } else {
             const name = file === 'plan' ? 'plan' : file
             const expected = name === 'plan'
@@ -2238,6 +2247,15 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
             content = String(read.artifact.content)
             ref = { ...ref, ...expected, revisionId: read.artifact.revisionId as string }
           }
+        } else if (kind === 'roles') {
+          if (parts.length !== 1 || parts[0] !== 'index') throw new StoryError('artifact-not-readable', `不认识的 roles artifactId：${id}`)
+          const read = readFoundationDocument(root, {
+            work: workId,
+            name: 'roles_index',
+            ...(args.revisionId === undefined ? {} : { revisionId: String(args.revisionId) }),
+          })
+          content = JSON.stringify(read.artifact.content, null, 2)
+          ref = { ...ref, artifactId: String(read.artifact.artifactId), revisionId: String(read.artifact.revisionId), kind: String(read.artifact.kind) }
         } else if (kind === 'role') {
           const slug = parts.join(':')
           try {
@@ -2294,17 +2312,19 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
           throw new StoryError('revision-not-found', `artifact ${ref.artifactId} 的 revisionId ${String(args.revisionId)} 已不是当前版本`)
         }
         const lines = String(content).split(/\r?\n/u)
+        const full = kind === 'roles'
         const start = Math.max(1, Number(args.startLine ?? 1))
         const count = Math.max(1, Math.min(500, Number(args.lineCount ?? 200)))
-        const slice = lines.slice(start - 1, start - 1 + count)
+        const slice = full ? lines : lines.slice(start - 1, start - 1 + count)
         return {
           ok: true,
           workId,
           artifact: ref,
           content: slice.join('\n'),
-          startLine: start,
-          endLine: start + slice.length - 1,
+          startLine: full ? 1 : start,
+          endLine: full ? lines.length : start + slice.length - 1,
           totalLines: lines.length,
+          hasMore: !full && start + slice.length - 1 < lines.length,
         }
       },
     }),

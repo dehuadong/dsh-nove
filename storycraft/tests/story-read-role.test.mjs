@@ -32,6 +32,9 @@ const readTool = byName.get('story_read')
 // AC4b: the model must be able to see that role cards are readable.
 check('the tool description names role:<slug>', readTool.description.includes('role:<slug>'), readTool.description)
 check('the artifactId example spells out role:<slug>', readTool.parameters.properties.artifactId.description.includes('role:<slug>'), readTool.parameters.properties.artifactId.description)
+check('the tool description names foundation documents', readTool.description.includes('bible:book_rules') && readTool.description.includes('roles:index'), readTool.description)
+check('the artifactId example names foundation documents', readTool.parameters.properties.artifactId.description.includes('bible:book_rules') && readTool.parameters.properties.artifactId.description.includes('roles:index'), readTool.parameters.properties.artifactId.description)
+check('the output schema declares hasMore', readTool.output?.schema?.properties?.hasMore?.type === 'boolean', JSON.stringify(readTool.output?.schema?.properties?.hasMore))
 check('the failure envelope declares next and retryable',
   readTool.output?.schema?.properties?.error?.properties?.next !== undefined
   && readTool.output?.schema?.properties?.error?.properties?.retryable !== undefined,
@@ -54,7 +57,7 @@ try {
     work, name: 'story_frame',
     content: '# 故事框架\n\n## 前提\n废土上的工程队。\n\n## 核心冲突\n旧秩序与新建立。\n\n## 主角动机\n救父。\n\n## 约束\n不杀人。\n\n## 因果解决\n立国。\n',
   })
-  writeFoundationDocument(root, {
+  const rulesWritten = writeFoundationDocument(root, {
     work, name: 'book_rules',
     content: {
       version: '2', narrativePerson: '第三人称', prohibitions: ['禁止无代价的奇迹'],
@@ -67,10 +70,20 @@ try {
     work, name: 'volume_map',
     content: '## 第一卷\n- 卷目标：立住脚。\n- 起止章：1–20。\n- 关键节拍：搭棚。\n- 卷末承诺：活下来。\n',
   })
-  writeFoundationDocument(root, {
+  const indexWritten = writeFoundationDocument(root, {
     work, name: 'roles_index',
     content: { roles: [{ name: '甲', tier: 'major' }] },
   })
+  setCurrent('role-session', work)
+  const rulesRead = await readTool.execute({ work, artifactId: 'bible:book_rules' }, exec)
+  check('book_rules reads as Markdown, not [object Object]', rulesRead.ok === true
+    && rulesRead.content.startsWith('# 作品规则') && !rulesRead.content.includes('[object Object]'), JSON.stringify(rulesRead).slice(0, 300))
+  check('book_rules read keeps the written revision', rulesRead.artifact?.revisionId === rulesWritten.artifact.revisionId
+    && rulesRead.artifact?.kind === 'book_rules', JSON.stringify(rulesRead.artifact))
+  const indexRead = await readTool.execute({ work, artifactId: 'roles:index' }, exec)
+  check('roles:index reads complete JSON', indexRead.ok === true && JSON.parse(indexRead.content).roles.length === 1
+    && indexRead.artifact?.kind === 'role_index' && indexRead.artifact?.revisionId === indexWritten.artifact.revisionId
+    && indexRead.hasMore === false, JSON.stringify(indexRead).slice(0, 300))
   const card = {
     slug: 'jia', name: '甲', tier: 'major', motivation: '救父', knowledge: '知道账本',
     relationshipPressure: '欠人情', limits: '不杀人', arc: '学会求助', markdown: '# 甲\n\n主角；弧光：学会求助。\n',
@@ -121,6 +134,28 @@ try {
 
   // AC5: the other id shapes keep their behaviour.
   setCurrent('role-session', work)
+  const largeMarkdown = `# 作品规则\n\n${Array.from({ length: 260 }, (_, index) => `- 规则 ${index + 1}`).join('\n')}\n`
+  const largeRulesWork = await seedWork('大规则')
+  writeFoundationDocument(root, { work: largeRulesWork, name: 'book_rules', content: {
+    version: '2', narrativePerson: '第三人称', prohibitions: ['禁止'], protagonist: { name: '甲', personalityLock: [], behavioralConstraints: [] },
+    genreLock: { primary: '废土', forbidden: [] }, enableFullCastTracking: false, allowedDeviations: [], markdown: largeMarkdown,
+  } })
+  setCurrent('role-session', largeRulesWork)
+  const partial = await readTool.execute({ work: largeRulesWork, artifactId: 'bible:book_rules' }, exec)
+  check('large book_rules marks hasMore', partial.ok === true && partial.hasMore === true && partial.endLine < partial.totalLines, JSON.stringify(partial).slice(0, 200))
+  const whole = await readTool.execute({ work: largeRulesWork, artifactId: 'bible:book_rules', lineCount: 500 }, exec)
+  check('large book_rules reads fully with a larger page', whole.content === largeMarkdown && whole.hasMore === false, String(whole.content?.length))
+  const largeIndexWork = await seedWork('大索引')
+  const roles = Array.from({ length: 300 }, (_, index) => ({ name: `角色${index + 1}`, tier: index < 5 ? 'major' : 'minor' }))
+  writeFoundationDocument(root, { work: largeIndexWork, name: 'roles_index', content: { roles } })
+  setCurrent('role-session', largeIndexWork)
+  const largeIndex = await readTool.execute({ work: largeIndexWork, artifactId: 'roles:index', lineCount: 5 }, exec)
+  check('large roles:index returns complete JSON despite lineCount', largeIndex.ok === true
+    && largeIndex.hasMore === false && JSON.parse(largeIndex.content).roles.length === 300, JSON.stringify(largeIndex).slice(0, 200))
+
+  setCurrent('role-session', work)
+  const worldRead = await readTool.execute({ work, artifactId: 'bible:world' }, exec)
+  check('bible:world still reads text', worldRead.ok === true && typeof worldRead.content === 'string' && worldRead.content === '# 世界观\n', JSON.stringify(worldRead).slice(0, 200))
   const bibleRead = await readTool.execute({ work, artifactId: 'bible:characters' }, exec)
   check('bible:characters still reads', bibleRead.ok === true, JSON.stringify(bibleRead).slice(0, 120))
   const unknownResult = await readTool.execute({ work, artifactId: 'nonsense:1' }, exec)
