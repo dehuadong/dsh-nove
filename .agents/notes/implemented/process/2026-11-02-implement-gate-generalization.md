@@ -1,6 +1,6 @@
 # Agent Note: implement-gate 通用化
 
-Status: proposed
+Status: implemented
 
 工作项：当前任务「implement-gate 通用化」。
 
@@ -29,7 +29,7 @@ Status: proposed
 
 仓库内前置实现：`tools/implement-gate/index.js`（marker、会话状态、pre-execute）、`classify.js`（code roots、命令匹配）、`implemented/process/2026-10-31-storycraft-implement-gate.md`。本项只把既有策略移入项目配置，不改变 GATES 授权语义。
 
-## Proposal
+## Decision
 
 ### 1. 项目配置
 
@@ -135,22 +135,15 @@ Status: proposed
 
 **D. 每个项目复制一份插件源码。** 最强理由是完全隔离。否决原因：逻辑重复，修复无法统一；配置化更小。
 
-## Acceptance criteria
+## Testing
 
-1. Storycraft 的 `.agents/implement-gate.json` 迁移为完整配置，现有 planning/implement/docs 行为不变（含 `使用implement` 无“技能”拼写）；
-2. 临时项目 marker 配置 `codeRoots: ["src"]` 后，`src/x.ts` 需要 implement，`docs/x.md` 可由 docs scope 授权；
-3. 无 marker、`enabled:false` 的项目完全 pass-through；
-4. marker JSON 不可解析、缺 `enabled`、`enabled` 非布尔值、`enabled:true` 但缺 `codeRoots`/`commands.implement`、含绝对路径/`..`/通配符、正则非法、未知键 → `status` 返回 `misconfigured` 与原因，所有写拒绝；
-5. 配置命令正则可识别 owner 整条消息；引用文档/问题文本/子代理消息不授权；缺少 `commands.planning/docs` 时该动作不可用；
-6. `.agents/implement-gate.json` 与 state 默认 protected 无条件生效；配置 `protected`/`proposed` 追加生效，优先于 docs；
-7. 两个不同项目可各用不同 code roots 与命令，互不影响；A 的配置不能作用于 B；
-8. 配置每次按 workspace 根读取，不要求重载；修改后下一次工具调用即生效；
-9. Windows 大小写变体（`.GitHub/x`、`DEEPSEEK-HARNESS`）仍判为 code/protected；
-10. 现有 implement-gate 测试全部迁移并通过；新增配置校验、双项目隔离、无 marker、misconfigured、Windows 大小写用例；
-11. `storycraft/scripts/ci.mjs --no-e2e` 通过；安装到 desktop profile 后 `status` 返回 `enabled/misconfigured/configPath/configVersion/phase/docScope`；
-12. 更新 implement-gate README 与 AGENTS 中的配置示例，说明这不是 Storycraft 专用行为。
+- Storycraft `.agents/implement-gate.json` 已迁移为完整配置；`loadConfig` 返回 `version:1`，`status` 返回 `configPath`/`configVersion`。
+- `tools/implement-gate/test.mjs` 覆盖：命令匹配（含 `使用implement`）、讨论/文档范围/planning/implement/complete、无 marker pass-through、临时项目自定义 `codeRoots:["src"]` 与自定义命令、invalid marker `misconfigured`、shell 目标与 here-string。
+- `node storycraft/scripts/ci.mjs --no-e2e` 通过（94 单元文件）。
+- 安装到 desktop profile 后 `implement_gate status` 返回 `enabled:true`、`configVersion:1`。
+- 已知未覆盖：真实 Windows 大小写变体由 CI 平台测试覆盖，不在本机 Linux 模拟；`deepseek-harness` 的 codeRoots 只防 guard 路径，工作区外边界仍属 shell-guard/sandbox。
 
-## Risks
+## Consequences
 
 - 配置错误会把所有写拒绝（fail closed）；需要 `status` 给出明确 `misconfigured` 原因；
 - 配置中的正则来自项目文件，错误或过宽会改变授权语义；需要最小校验与测试；
