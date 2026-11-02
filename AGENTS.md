@@ -22,7 +22,7 @@
 - **删除只走 `node scripts/trash.mjs`**：目标移到 `.trash/` 并保留原路径，`--restore <id>` 可还原。禁止用 `Remove-Item -Recurse`、`rm -rf` 直接抹除。
 - **`danger-full-access` 仅限单文件、单操作、路径已核对**；禁止目录递归、通配符和复合命令。
 
-派发前的强制拦截由 Host 插件 `@dsh-nove/shell-guard`（源码 `tools/shell-guard/`）执行：分类器命中“删除/移动动词 + 工作区外目标 / 通配符 / 变量拼接”时直接拒绝该次工具调用，并在回执里给出 `trash.mjs` 的替代路径。规则写在文档里是给人看的，这一层由运行时强制执行。
+派发前的强制拦截由 Host 插件 `@dsh-nove/shell-guard`（源码 `tools/shell-guard/`）执行：分类器命中“删除/移动/复制/创建/写入动词 + 工作区外目标 / 通配符 / 无法解析的变量”时直接拒绝该次工具调用，并在回执里给出 `trash.mjs` 替代路径与 `.artifacts/` 提示。只读命令不拦截；子进程内部写入仍依赖 sandbox。规则写在文档里是给人看的，这一层由运行时强制执行。
 
 边界说明：守卫装在当前 profile，只覆盖经由本 Harness 工具发起的命令；作者自己终端里的操作不在其内。因此删除一律走 `trash.mjs`，不要因为“有守卫”就放宽命令行。
 

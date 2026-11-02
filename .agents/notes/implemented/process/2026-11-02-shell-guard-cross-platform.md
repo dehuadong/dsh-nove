@@ -1,6 +1,6 @@
 # Agent Note: shell-guard 跨平台补强
 
-Status: proposed
+Status: implemented
 
 工作项：当前任务「shell-guard 跨平台补强」。
 
@@ -24,7 +24,7 @@ Status: proposed
 - `deepseek-harness/packages/core/agent-loop/tests/interception.spec.ts:708-732` 证明 `tools/pre-execute` 的 `deny` 会在 dispatch 前短路；
 - `tools/shell-guard/README.md` 当前只声明删除/移动，本项会把职责扩展到显式创建/写入。
 
-## Proposal
+## Decision
 
 ### 1. 职责边界
 
@@ -118,28 +118,17 @@ python make.py
 
 **D. 允许工作区外临时目录，仅限制删除。** 最强理由是支持跨项目依赖对照。否决原因：正是当前问题的来源；临时测试应放 `.artifacts`，外部目录无法保证清理。
 
-## Acceptance criteria
+## Testing
 
-1. 复现用户报告：`New-Item E:\novelist\_dsh-apicheck`、`npm install --prefix E:\novelist\_dsh-apicheck`、`Remove-Item -Recurse E:\novelist\_dsh-apicheck` 均被拒绝；
-2. `Set-Content E:\outside`、`> E:\outside`、`git clone <url> E:\outside` 被拒绝；
-3. `mv/cp/install/dd/sed -i` 指向外部时被拒绝；
-4. `sudo rm /tmp/x`、`find /outside -delete`、`... | xargs rm` 被识别并拒绝；工作区内 `find . -delete` 仍按工作区内处理；
-5. here-string 作为 `Set-Content` 数据时，正文里的 `unlinkSync`/`rm` 不触发误判；
-6. here-string/heredoc 被 `bash`/`node`/`python`/`Invoke-Expression` 执行、且正文写外部时被拒绝；`node -e`/`python -c` 写外部被拒绝；
-7. 只读命令（`Test-Path E:\outside`、`Get-ChildItem E:\outside`、`ls /tmp`、`git status`）不被拒绝；
-8. workspace 内 `.artifacts/` 的创建/删除/`trash.mjs` 正常；
-9. `workdir` 在工作区外时，相对写/删被拒绝；
-10. symlink 指向外部时，通过该路径写入被拒绝；workspace 根本身先 realpath，再做大小写比较；
-11. macOS 大小写差异不绕过边界；Linux 大小写敏感行为正确；
-12. `tools/shell-guard/test.mjs` 纳入 `storycraft/scripts/ci.mjs`；新增 `.github/workflows/shell-guard.yml` 在 `windows-latest`、`ubuntu-latest`、`macos-latest` 运行该测试；
-13. shell-guard 单独安装时，只读命令/测试不被误伤；与 implement-gate 共存时只验证两者拒绝顺序不互相覆盖，**不声称修掉 implement-gate 的 read-only 误判**（该问题另立工作项）；
-14. `AGENTS.md` 文件安全段、`tools/shell-guard/README.md` 的职责描述同步为“删除/移动/创建/写入/覆盖”，并写明 `.artifacts/` 临时目录与子进程内部写入仍依赖 sandbox；
-15. 变量赋值解析：`$p='E:\out'; Remove-Item $p` 拒绝，`$p='.artifacts\x'; Set-Content $p` 放行；`$(...)`、反引号、`$env:` 等无法静态求值的形式 fail closed；先使用后赋值/重新赋值按最终可见值判断，无法确定时拒绝。
+- `tools/shell-guard/test.mjs` 扩展到 33 条：写/创建/删除/移动/复制、`npm install --prefix`、`git clone`、重定向、here-string 数据/可执行、`node -e`、只读命令、变量赋值、管道与工作区外目标。
+- 本地 Windows 全部通过；`storycraft/scripts/ci.mjs --no-e2e` 通过（94 单元文件）。
+- 新增 `.github/workflows/shell-guard.yml` 的 Windows/Linux/macOS 矩阵；本地未执行 GitHub runner，macOS/Linux 仍以 CI 为准。
+- 安装到 desktop profile 后重新加载；工作区外写入由测试覆盖，未在真实用户目录执行破坏性探测。
 
-## Risks
+## Consequences
 
 - 创建/写入拦截面扩大，可能误伤合法外部安装；通过“只检查显式目标”和 `.artifacts` 提示降低；
-- 变量/命令替换无法完全静态求值，只能 fail closed，可能增加拒绝；
-- `realpath` 对不存在路径需要祖先回溯，逻辑比当前字符串比较复杂；
+- 变量/命令替换只解析简单赋值；`$(...)`、反引号等未知形式 fail closed；
+- `realpath` 对不存在路径做祖先回溯，逻辑比字符串比较复杂；
 - 子进程内部写入仍依赖 sandbox；`danger-full-access` 下不能保证；
-- shell 方言差异（PowerShell/bash/zsh）需要平台测试维护。
+- PowerShell/bash/zsh 方言差异需要平台测试维护。
