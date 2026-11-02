@@ -1,5 +1,5 @@
 // Pure checks for the implement gate; no Harness required.
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { classifyPath, gateCommand, shellAccess } from './classify.js'
@@ -143,6 +143,29 @@ const call = (host, agent, action, reason) => host.tools.implement_gate.execute(
   const status = await call(host, agent, 'status')
   check('v1 is misconfigured', status.ok === false && status.code === 'misconfigured')
   check('misconfigured denies code', (await preExec(host, agent, 'write', { file_path: 'src/x.ts' })).kind === 'deny')
+}
+
+{
+  const empty = mkdtempSync(path.join(os.tmpdir(), 'implement-gate-init-'))
+  const host = mockHost(undefined, empty)
+  const agent = agentFor('init')
+  const created = await call(host, agent, 'init')
+  check('init creates config', created.ok === true && created.configVersion === 2)
+  const status = await call(host, agent, 'status')
+  check('init enables status', status.enabled === true && status.configVersion === 2)
+  const again = await call(host, agent, 'init')
+  check('init refuses existing config', again.ok === false && again.code === 'already-exists')
+  check('init defaults gate code', (await preExec(host, agent, 'write', { file_path: 'src/x.ts' })).kind === 'deny')
+  check('init defaults allow docs', (await preExec(host, agent, 'write', { file_path: 'docs/x.md' })).kind === 'allow')
+}
+
+{
+  const empty = mkdtempSync(path.join(os.tmpdir(), 'implement-gate-init-bad-'))
+  const host = mockHost(undefined, empty)
+  const agent = agentFor('init-bad')
+  const result = await host.tools.implement_gate.execute({ action: 'init', codeExtensions: [] }, { agent, signal: new AbortController().signal })
+  check('invalid init is rejected', result.ok === false && result.code === 'misconfigured')
+  check('invalid init leaves no marker', !existsSync(path.join(empty, '.agents', 'implement-gate.json')))
 }
 
 if (failures > 0) { console.error(`\n${failures} CHECK(S) FAILED`); process.exit(1) }

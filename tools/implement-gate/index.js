@@ -4,10 +4,32 @@
  */
 
 import { createHash } from 'node:crypto'
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { classifyPath, gateCommand, shellAccess } from './classify.js'
-import { loadConfig, STATE_DIR } from './config.js'
+import { loadConfig, MARKER, STATE_DIR } from './config.js'
+
+const DEFAULT_CODE_EXTENSIONS = [
+  '.rs', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
+  '.py', '.go', '.java', '.kt', '.kts',
+  '.c', '.h', '.cc', '.cpp', '.hpp', '.cs',
+  '.rb', '.php', '.swift', '.scala', '.lua',
+  '.sh', '.ps1', '.sql',
+  '.css', '.scss', '.html', '.vue', '.svelte', '.astro',
+]
+const DEFAULT_CODE_PATHS = [
+  'package.json',
+  'package-lock.json',
+  'pnpm-lock.yaml',
+  'tsconfig.json',
+  'tsconfig.client.json',
+  'cordis.patch.yml',
+  '.github/workflows/',
+]
+const DEFAULT_COMMANDS = {
+  planning: '^批准，使用(?:技能\\s*)?planning\\s+执行规划\\s+(.+)$',
+  implement: '^批准，使用(?:技能\\s*)?implement\\s+执行实现\\s+(.+)$',
+}
 
 export const inject = ['tools']
 
@@ -78,6 +100,42 @@ function toolOutput(value) {
   return [{ type: 'text', text: JSON.stringify(value) }]
 }
 
+function initConfig(args) {
+  const value = {
+    enabled: true,
+    version: 2,
+    codeExtensions: args.codeExtensions ?? DEFAULT_CODE_EXTENSIONS,
+    codePaths: args.codePaths ?? DEFAULT_CODE_PATHS,
+    protected: [MARKER, STATE_DIR],
+    commands: DEFAULT_COMMANDS,
+  }
+  if (typeof args.proposed === 'string' && args.proposed.trim() !== '') value.proposed = args.proposed.trim()
+  return value
+}
+
+function writeInit(root, args) {
+  const marker = path.join(root, MARKER)
+  if (existsSync(marker)) return { ok: false, code: 'already-exists', configPath: marker }
+  const value = initConfig(args)
+  mkdirSync(path.dirname(marker), { recursive: true })
+  const temp = `${marker}.${process.pid}.tmp`
+  writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`)
+  renameSync(temp, marker)
+  const config = loadConfig(root)
+  if (config.kind !== 'ok') {
+    rmSync(marker, { force: true })
+    return { ok: false, code: 'misconfigured', reason: config.reason, configPath: marker }
+  }
+  return {
+    ok: true,
+    enabled: true,
+    configPath: marker,
+    configVersion: config.policy.version,
+    codeExtensions: config.policy.codeExtensions,
+    codePaths: config.policy.codePaths,
+  }
+}
+
 export function apply(ctx) {
   ctx.on('agent/pre-step', async (payload, next) => {
     const agent = payload?.agent
@@ -108,8 +166,11 @@ export function apply(ctx) {
       type: 'object',
       additionalProperties: false,
       properties: {
-        action: { type: 'string', enum: ['authorize', 'end-planning', 'end-docs', 'block', 'complete', 'status'] },
+        action: { type: 'string', enum: ['init', 'authorize', 'end-planning', 'end-docs', 'block', 'complete', 'status'] },
         reason: { type: 'string' },
+        codeExtensions: { type: 'array', items: { type: 'string' }, description: 'Optional init override, e.g. [".ts", ".py"].' },
+        codePaths: { type: 'array', items: { type: 'string' }, description: 'Optional init execution-entry paths; a trailing slash means a directory prefix.' },
+        proposed: { type: 'string', description: 'Optional init proposed-notes path.' },
       },
       required: ['action'],
     },
@@ -120,6 +181,7 @@ export function apply(ctx) {
     async execute(args, exec) {
       const root = workspaceBoundary(ctx, exec.agent)
       const config = loadConfig(root)
+      if (args.action === 'init') return writeInit(root, args)
       if (args.action === 'status') {
         if (config.kind === 'invalid') return { ok: false, code: 'misconfigured', reason: config.reason, configPath: config.configPath }
         if (config.kind !== 'ok') return { ok: true, enabled: false, configPath: config.configPath, ...defaultState() }

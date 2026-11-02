@@ -34,6 +34,8 @@ Host 插件：仅在已启用的项目里，按**会话**控制**代码文件**�
 - `codePaths` 不带尾斜杠是精确文件，带尾斜杠是目录前缀；
 - 配置按 workspace 根、每次调用读取；不同项目互不影响。
 
+新项目不需要手写配置：对代理说「初始化 implement-gate」，代理调用 `implement_gate({action:'init'})`。它创建默认 v2 配置并立即生效；已有 marker 时返回 `already-exists`，不会覆盖。可选参数 `codeExtensions`、`codePaths`、`proposed` 用来覆盖默认值；生成后先校验，非法配置会被删除并返回 `misconfigured`。
+
 ## 会话状态
 
 状态按 `(workspaceRoot, sessionId)` 存放：
