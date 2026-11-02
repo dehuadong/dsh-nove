@@ -11,6 +11,10 @@ description: 剧本场次的方法：场次格式、时长估算、对白与钩�
 - 对白带意图与阻碍，不解释设定；
 - 时长按对白页数折算。
 
+## 资源
+
+- 必读：`references/episode-scene-craft.md`
+
 ## 用法
 
 场次格式与时长口径由本技能 references 提供。

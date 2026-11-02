@@ -26,9 +26,11 @@ async function rejects(name, code, fn) {
   }
 }
 
+let lastPrompt = ''
 function fakeService(results) {
   return {
     startActivation(spec) {
+      lastPrompt = spec.request.prompt[0].text
       const result = results.shift()
       if (result === undefined) throw new Error('no fake result queued')
       return {
@@ -94,6 +96,9 @@ try {
   const landed = await delegateRole(root, { work, role: 'architect', stage: 'frame' }, {
     service: fakeService([{ payload: frame }]), agent, signal,
   })
+  check('architect prompt drops the deleted foundation skill', !lastPrompt.includes('longform foundation-design')
+    && !lastPrompt.includes('storycraft-long-foundation')
+    && lastPrompt.includes('storycraft-architect') && lastPrompt.includes('references/foundation-design.md'), lastPrompt.slice(0, 400))
   check('frame lands three artifacts', landed.foundationStage === 'frame'
     && landed.artifacts.length === 3 && landed.foundation.stages.frame === true, JSON.stringify(landed))
   const trace = readArtifact(root, { work, artifactId: 'trace:1:architect' })

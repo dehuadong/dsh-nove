@@ -11,6 +11,11 @@ description: 长篇章纲的方法：五项齐全、推进与余波、章纲自�
 - 结尾变化要留下不可逆的后果，下一章才有压力；
 - 不重复上一章的节拍；重复就是没推进。
 
+## 资源
+
+- 必读：`references/chapter-plan.md`
+- 按需（需要示例时）：`references/chapter-plan-examples.md`
+
 ## 用法
 
-字段与示例由本技能 references 提供；这一节点只读本技能。
+字段与规则以 `references/chapter-plan.md` 为准；示例见 `references/chapter-plan-examples.md`。

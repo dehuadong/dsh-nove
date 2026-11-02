@@ -11,6 +11,10 @@ description: 短篇正文的方法：一次成篇、节奏与交付自检。只�
 - 每段推进或揭示，删掉装饰性段落；
 - 结尾回响落在具体意象上，不写总结。
 
+## 资源
+
+- 必读：`references/production-checklist.md`
+
 ## 用法
 
 生产清单由本技能 references 提供。

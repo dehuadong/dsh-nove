@@ -28,7 +28,7 @@ export function roleSkills(role: string, form: unknown): string[] {
   }
   if (role === 'reviewer') return ['storycraft-review']
   if (role === 'reviser') return ['storycraft-revise-craft']
-  if (role === 'architect') return ['storycraft-architect', 'storycraft-long-foundation']
+  if (role === 'architect') return ['storycraft-architect']
   if (role === 'settler') return ['storycraft-state-settler']
   if (role === 'validator') return ['storycraft-state-check']
   return []
@@ -60,8 +60,8 @@ export function methodForStep(action: string, form: unknown): RoleMethod | undef
   const normalized = formName(form)
   if (action === 'story_outline') {
     return {
-      skill: normalized === 'script' ? 'storycraft-script-spec' : normalized === 'short' ? 'storycraft-short-outline' : 'storycraft-long-foundation',
-      reference: normalized === 'script' ? 'references/spec.md' : normalized === 'short' ? 'references/outline.md' : 'references/foundation-design.md',
+      skill: normalized === 'script' ? 'storycraft-script-spec' : normalized === 'short' ? 'storycraft-short-outline' : 'storycraft-long-outline',
+      reference: normalized === 'script' ? 'references/spec.md' : normalized === 'short' ? 'references/outline.md' : 'references/outline-design.md',
     }
   }
   if (action === 'story_plan') return roleMethod('planner', normalized)

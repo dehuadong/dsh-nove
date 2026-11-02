@@ -8,7 +8,7 @@ description: 审稿标准与产出契约：怎么判断问题、每条要给什�
 
 ## 长篇方法参考
 
-审长篇时先加载 `storycraft-long-prose`：推进、重复、余波与因果归属读它的 `references/reader-contract-and-progression.md`；正文事实与伏笔账本对不上时读它的 `references/state-projection.md`。
+审长篇时先加载 `storycraft-long-prose`：推进、重复、余波与因果归属读它的 `references/reader-contract-and-progression.md`；正文事实与伏笔账本对不上时读 `../storycraft-long-settle/references/state-projection.md`。
 
 ## 先定标准，再找问题
 
@@ -73,3 +73,9 @@ description: 审稿标准与产出契约：怎么判断问题、每条要给什�
 - 不要给总分或评分；
 - 不要把「我不喜欢」写成「有问题」；
 - 不要为了凑数把一句话拆成三条。
+
+## 资源
+
+- 必读：`references/review-dimensions.md`
+- 按需（审长篇时）：`../storycraft-long-prose/references/reader-contract-and-progression.md`
+- 按需（正文事实与伏笔账本对不上时）：`../storycraft-long-settle/references/state-projection.md`

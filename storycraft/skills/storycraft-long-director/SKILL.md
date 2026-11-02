@@ -19,7 +19,8 @@ description: 长篇小说生产线的调度手册：现在在哪个节点、该�
 
 | 节点 | 阶段技能 |
 | --- | --- |
-| 基础设定、全书计划、划卷 | `storycraft-long-foundation` |
+| 基础设定、划卷 | `storycraft-architect` |
+| 全书计划 | `storycraft-long-outline` |
 | 章纲 | `storycraft-long-plan` |
 | 正文 | `storycraft-long-prose` |
 | 审稿 | `storycraft-review` |
@@ -59,8 +60,8 @@ description: 长篇小说生产线的调度手册：现在在哪个节点、该�
 
 写 `story_state` 前只读 `storycraft-long-settle`；结算用 `story_settle` 产草案（不写事件），它先做确定性预检，再用 `story_state_check` 语义核对；作者接受草案后 `story_finalize` 应用并锁定。返回 findings 时把 proposed 与 findings 原样报给作者。
 
-## 参考
+## 资源
 
-- 创意阶段怎么谈：`references/creative-dialogue.md`
-- 五类派发模板：`references/dispatch-templates.md`
-- 验收、回退与汇报：`references/reporting.md`
+- 按需（讨论阶段）：`references/creative-dialogue.md`
+- 按需（派发子代理时）：`references/dispatch-templates.md`
+- 按需（验收与汇报时）：`references/reporting.md`

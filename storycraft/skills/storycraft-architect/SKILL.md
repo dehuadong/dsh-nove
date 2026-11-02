@@ -6,7 +6,11 @@ description: 长篇基础设定（architect）：分四阶段产出故事框架/
 
 你只负责 foundation 的四类产物。它们会被宿主校验后写入作品库，随后进入 brief、上下文、检索、审稿与导出。**不要写正文、章纲、hooks/facts、world/style/intent，也不要改 `bible.characters`。**
 
-开工前如需判断依据，读 `storycraft-long-foundation` 的 `references/foundation-design.md`；本技能的输出契约优先于方法正文。
+开工前先读本技能目录下的 `references/foundation-design.md`；本技能的输出契约优先于方法正文。
+
+## 资源
+
+- 必读：`references/foundation-design.md`
 
 ## 四阶段与输出
 
@@ -39,7 +43,7 @@ description: 长篇基础设定（architect）：分四阶段产出故事框架/
 ```
 
 - 只列影响开篇冲突的具名人物；姓名不重复；无数量上限。
-- 写法见 `storycraft-long-foundation` 的 foundation-design 参考。
+- 写法见本技能 `references/foundation-design.md` 的角色索引段。
 
 ### cards
 
@@ -49,7 +53,7 @@ description: 长篇基础设定（architect）：分四阶段产出故事框架/
 
 - 索引里每人一张卡（1:1）；`tier` 与索引一致；无数量上限。
 - `slug` 稳定、不能含空白、冒号、斜杠或 `.`/`..`；同名重跑会替换旧卡。
-- 写法见 `storycraft-long-foundation` 的 foundation-design 参考；`markdown` 是可读小传。
+- 写法见本技能 `references/foundation-design.md` 的角色卡段；`markdown` 是可读小传。
 
 ## 失败与重试
 

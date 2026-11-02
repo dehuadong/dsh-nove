@@ -11,6 +11,10 @@ description: 长篇结算的方法：把正文已发生的事实与伏笔变化�
 - 投影不是语义对账：不判断事实是否被正文支持，那是 state_check 的事；
 - 数值、在场、关系按正文最后一次明确交代为准。
 
+## 资源
+
+- 必读：`references/state-projection.md`
+
 ## 用法
 
-操作类型与边界由本技能 references 提供；这一节点只读本技能。
+操作类型与边界以 `references/state-projection.md` 为准。

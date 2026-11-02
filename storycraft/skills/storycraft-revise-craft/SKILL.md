@@ -47,3 +47,8 @@ description: 修订方法：只改点名的位置、按模式控制改动幅度�
 - 不要调用落盘动作；委派时只调用 `story_submit`，手动时不要调用动作；
 - 不要新增情节、人物或设定；
 - 不要把「改不动」的地方用同义句糊过去。
+
+## 资源
+
+- 按需（deslop 模式）：`references/deslop.md`
+- 按需（判断推进/余波时）：`../storycraft-long-prose/references/reader-contract-and-progression.md`

@@ -18,7 +18,7 @@ check('writer follows the form craft', (() => {
 const planner = roleSkills('planner', 'longform')
 check('planner loads craft and method skill', planner.includes('storycraft-long-prose') && planner.includes('storycraft-long-plan'), JSON.stringify(planner))
 const architect = roleSkills('architect', 'longform')
-check('architect loads architect and foundation skills', architect.includes('storycraft-architect') && architect.includes('storycraft-long-foundation'), JSON.stringify(architect))
+check('architect loads only its role skill', architect.length === 1 && architect[0] === 'storycraft-architect', JSON.stringify(architect))
 check('fixed roles route to their skills', roleSkills('reviewer', 'longform')[0] === 'storycraft-review'
   && roleSkills('reviser', 'longform')[0] === 'storycraft-revise-craft'
   && roleSkills('settler', 'longform')[0] === 'storycraft-state-settler'
@@ -32,9 +32,11 @@ check('planner evidence has two ids', evidenceRows.length === 2, JSON.stringify(
 check('revisions are short stable hashes', evidenceRows.every(row => /^[0-9a-f]{12}$/u.test(row.revision)), JSON.stringify(evidenceRows))
 check('reference-owning skill revision is recorded', evidenceRows.some(row => row.id === 'storycraft-long-plan')
   && evidenceRows.some(row => row.id === 'storycraft-long-plan' && row.revision === skillRevision('storycraft-long-plan')), JSON.stringify(evidenceRows))
-check('architect evidence includes foundation revision', skillEvidence(roleSkills('architect', 'longform')).some(row => row.id === 'storycraft-long-foundation'))
+check('architect evidence includes the architect revision', skillEvidence(roleSkills('architect', 'longform')).some(row => row.id === 'storycraft-architect'))
 
 check('roleMethod points at the planner reference', roleMethod('planner', 'longform')?.reference === 'references/chapter-plan.md')
+check('story_outline routes to the outline skill', methodForStep('story_outline', 'longform')?.skill === 'storycraft-long-outline'
+  && methodForStep('story_outline', 'longform')?.reference === 'references/outline-design.md')
 check('methodForStep keeps story_next routing', methodForStep('story_write', 'short')?.skill === 'storycraft-short-prose'
   && methodForStep('story_settle', 'longform')?.reference === 'references/state-projection.md')
 

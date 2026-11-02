@@ -12,6 +12,11 @@ description: 长篇章正文的方法：场景构造、对话压力、信息释�
 - 每段都要改变冲突、证据、情绪、关系、认知或处境，否则删掉而不是注水；
 - 保留作者的视角、口吻与禁区。
 
+## 资源
+
+- 必读：`references/scene-dialogue-and-length-budget.md`
+- 按需（需要读者契约时）：`references/reader-contract-and-progression.md`
+
 ## 用法
 
-字数口径与场景预算由本技能 references 提供；这一节点只读本技能。
+字数口径与场景预算以 `references/scene-dialogue-and-length-budget.md` 为准；推进与读者契约按需读 `references/reader-contract-and-progression.md`。

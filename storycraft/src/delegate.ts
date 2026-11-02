@@ -672,7 +672,8 @@ function architectPrompt({ work, stage, instruction, delegationId, manifest, fou
   if (stage === 'cards' && foundation.rolesIndex !== undefined) context.push(`## 角色索引\n${JSON.stringify(foundation.rolesIndex, null, 2)}`)
   return [
     `你是《${manifest.title}》（${manifest.workId}）的架构师子代理，负责基础设定：${labels[stage]}。`,
-    `开工前先调用 skill 工具加载 ${roleSkills('architect', formOf(manifest)).map(id => `\`${id}\``).join('、')}，严格按它们的契约与 longform foundation-design 参考执行。`,
+    `开工前先调用 skill 工具加载 ${roleSkills('architect', formOf(manifest)).map(id => `\`${id}\``).join('、')}，按其契约执行；` +
+      '方法参考是本技能目录下的 `references/foundation-design.md`，提交前必须先读它。',
     ...(proposal === undefined ? [] : ['', '## 作者已确认的提案', `前提：${proposal.premise}`, `人物：${proposal.characters}`, '只依据本任务的提案与已确认材料工作；不得延续其它会话或其它作品的内容。']),
     '',
     '## 本次任务',
