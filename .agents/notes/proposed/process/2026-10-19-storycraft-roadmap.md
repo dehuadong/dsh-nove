@@ -6,7 +6,7 @@ Status: proposed
 
 故事工坊的能力面、阶段排期和差距登记此前混在一张表里：旧 P/R 阶段与新的 A0 → L → S → D 整改路线并存，已交付项和待办项互相干扰，导致“迁移切片完成”被误读成“产品阶段完成”。
 
-本记录只保留**新路线**：阶段、依赖、退出条件与当前队列。能力面的完整清单、备选与状态归工作项 `#4`；逐项设计归各 Agent Note。三者分工如下，不再各写一套状态。
+本记录只保留**新路线**：阶段、依赖、退出条件与当前队列。能力面完整清单/状态以本表与 `.agents/notes/implemented/` 为准；`#4` 只是历史清单，不再拥有新工作。逐项设计归各 Agent Note。
 
 ## 对拍参考
 
@@ -17,32 +17,38 @@ Status: proposed
 
 ## 提案
 
+> **2026-11-02 基线重置**：本表历史行中的“已交付/已关闭/已迁移”均按**旧对拍口径**产生，不能证明新基线完成。R0b 已完成 90 篇盘点：77 `revalidate-only`、11 `rework-required`、2 `legacy-delivered`（结构相关合计 13），明细见[交付状态盘点](../../implemented/process/2026-11-02-storycraft-delivery-status-inventory.md)；未重验前不冒充 `revalidated`。
+
 ### 阶段路线
 
 | 阶段 | 目标 | 退出条件 | 工作项 |
 | --- | --- | --- | --- |
+| R0 | 对拍基线重审与角色职责边界 | parity-matrix/roadmap 与当前代码一致；architect 四段与 design/cards 偏差**已裁决：B 不保留为目标**；角色 prompt/schema/agent 边界有目标结构 | [重审 Note](../architecture/2026-11-02-storycraft-parity-rebaseline.md)（规划完成） |
+| R0b | 交付状态重审与重排期 | 90 篇 implemented Note 与 roadmap 已交付行完成 `legacy-delivered/revalidate-only/rework-required/cancelled` 分类；受影响 Note 有处置；旧“L 完成”撤回 | [交付状态盘点](../../implemented/process/2026-11-02-storycraft-delivery-status-inventory.md)（已完成盘点） |
 | A0 | 全量产物合同 v2 | 字段/权威/消费者/生命周期/初始化合同通过；真实生产者归 L | #45–#49（已交付） |
 | L 迁移切片 | 长篇生产者/消费者迁移、foundation、observation、settle | 各切片实现与离线契约通过 | #51–#61（已交付） |
-| L 产品收口 | planner、多章/重开/删除重排、上下文预算与 trace、面板消费、导出 | `#62` 的全部条目有裁决；`#66`、`#67` 关闭 | #62（已交付） |
-| L 真实验收 | 真实模型、真实宿主、真实存储、真实面板；含多章/重开/删除重排、卷、备份恢复、导出打开 | `#50` 的 L 场景通过（EPUB 打开由作者豁免） | #50（已关闭 2026-10-30） |
+| L 产品收口 | planner、多章/重开/删除重排、上下文预算与 trace、面板消费、导出 | `#62` 条目有裁决；旧口径交付，待 R4 重验 | #62（旧口径，待重验） |
+| L 真实验收 | 真实模型、真实宿主、真实存储、真实面板；含多章/重开/删除重排、卷、备份恢复、导出打开 | 旧口径 L 场景通过；**不声称 L 完成**，待 R4 | #50（旧口径，待重验） |
 | S 短篇 | 独立短篇流水线 | outline → batch draft → review → revision plan → package 全部落地并验收 | 待立 |
 | D 剧本 | 独立剧本流水线 | spec/script、场次/集、导出验收 | 待立 |
 
-依赖：A0 完成前不实现 L/S/D；L 先于 S、D；S/D 流水线未落地前不跑各自真实测试。
+依赖：R0 基线裁决先于 R0b 状态盘点；R0b 完成前不把旧“已交付”当新基线完成；之后 R1→R2→R3→R4；A0/L 旧口径不再作为 S/D 的完成前提，S/D 需 R4 后重新排期。
 
 ### 当前队列
 
-1. `#62`（已完成）L 产品收口总表：差距表裁决 + 回写；
-2. P0 已完成：`#63` planner 委派 → `#64` 上下文预算/trace → `#65` 多章确定性验收；
-3. `#66` 面板统一状态（已关闭）、`#67` 死表清理（已关闭）；
-4. `#50` L 真实验收（已关闭 2026-10-30；EPUB 打开由作者豁免；长篇完成收口）；
-5. 已交付：`#85` A10 恢复、`#86` A12 版本、`#87` F13 性能、`#88` F8 调用观测；`#77`/`#78`/`#79`/`#4` 于 2026-10-31 关闭；
-6. **后续工作项不再新建 GitHub issue**：新提案/工作项使用 `.agents/notes/proposed/`，按 `write-agent-notes` 的 proposed 格式；issue 只保留历史档案；
-7. **长篇剩余收口（S 之前）**：F14 失败重试/成本上限 → A9 技能加载证据 → E1/E4/E5 面板 → B1 epub/pdf、B2 技能参考 → A1b/F5/R5；`store-db-row-types` 作为技术清理穿插。长篇余项收敛后，才进入 **S 短篇**（outline → batch draft → review → revision → package），随后 D 剧本。
+1. **R0 对拍基线重审**：parity-matrix/roadmap 已更新；architect 四段 vs design/cards 已裁决——B 不保留为目标，R1 回到同 architect 四段/等价 runtime；角色边界已定义；
+2. **R0b 交付状态重审（已完成盘点）**：90 篇 implemented Note 分类为 77 `revalidate-only` / 11 `rework-required` / 2 `legacy-delivered`（结构相关合计 13）；本批不归档，替代在 R1/R2 落地后逐篇处理；旧“L 完成”撤回；
+3. `#62`（旧口径，待 R4 重验）L 产品收口总表：差距表裁决 + 回写；
+4. P0 旧口径：`#63` planner 委派 → `#64` 上下文预算/trace → `#65` 多章确定性验收；
+5. `#66` 面板统一状态（旧口径）、`#67` 死表清理（旧口径）；
+6. `#50` L 真实验收（旧口径 2026-10-30；EPUB 打开由作者豁免；**不再声称长篇完成**）；
+7. 旧交付：`#85` A10 恢复、`#86` A12 版本、`#87` F13 性能、`#88` F8 调用观测；`#77`/`#78`/`#79`/`#4` 于 2026-10-31 关闭；R0b 已分类，待 R1–R4；
+8. **后续工作项不再新建 GitHub issue**：新提案/工作项使用 `.agents/notes/proposed/`，按 `write-agent-notes` 的 proposed 格式；issue 只保留历史档案；
+9. **长篇剩余（S 之前）**：R0 → R0b → R1 architect → R2 角色边界 → R3 基础设施 → R4 重验 → R5-a/c/d；B1/F14/A9/B2/B2b/F5 为旧交付，待重验；`store-db-row-types` 作为技术清理穿插。R4 完成前不进入 S/D 产品阶段。
 
-### 完整待办（并入 `#4`，2026-10-31）
+### 完整待办（历史 #4 已并入，2026-10-31）
 
-`#4` 的完整清单已并入本表；状态以这里为准，未开工项在开工时写 proposed Note，不再立 issue。
+历史 `#4` 的清单已并入本表；状态以这里与 implemented Note 为准，未开工项在开工时写 proposed Note，不再立 issue。
 
 | 域 | 条目 | 状态 / 下一步 |
 | --- | --- | --- |
@@ -84,7 +90,7 @@ Status: proposed
 | `implemented/bug-fix/2026-10-27-storycraft-gate-panel-architect-remediation.md` | 已迁移（#79） |
 | `implemented/feature/2026-10-27-storycraft-action-gates.md` | 已迁移（#77） |
 
-已落地的 8 篇已按 `write-agent-notes` 迁到 `implemented/`；`proposed/` 现有 skill-organization v2（部分）、store-db-row-types（待开）、F14（规划中）与 roadmap/parity 两篇 living 文档。
+`proposed/` 现有 roadmap/parity 两篇 living 文档、`skill-organization-v2`（部分）、`store-db-row-types`（待开）、F14 已迁 implemented，以及 R0 [对拍基线重审](../architecture/2026-11-02-storycraft-parity-rebaseline.md)。
 
 ### 技能与资源基线
 
@@ -92,30 +98,30 @@ Status: proposed
 
 | 资源 | 现状 | 缺口 |
 | --- | --- | --- |
-| `storycraft-long-writing` + 4 refs | 已用于规划/写作/审稿/主编 | 与 artifact v2 的 hook 生命周期说明需同步 |
-| `storycraft-short-writing` + production-checklist | 已有方法与形态契约 | 独立短篇流水线未接，S 阶段再验 |
-| `storycraft-script-writing` + episode-scene-craft | 已有方法与形态契约 | 独立剧本 spec/场次流水线未接，D 阶段再验 |
-| 审稿/修订/状态技能 | 已有 review dimensions、deslop、state-check/settler | 行号/前后 revision 证据按 `#62` 的 L-G2 裁决不做（触发后立）；技能正文与 artifact v2 同步、加载证据归 L-G14，排在 `#50` 之后 |
+| `storycraft-long-prose` + reader-contract/scene-dialogue；`long-outline` + outline-design；`long-plan` + chapter-plan；`long-settle` + state-projection；`architect` + foundation-design | 当前 18 技能、17 refs；每个带 refs 技能有 `## 资源`、最多一个必读 | 与参考 `inkos-long-writing` 的分层不同；R0 重审 |
+| `storycraft-short-prose` + production-checklist；`short-outline` + outline；`short-story` 形态契约 | 已有方法与契约 | 独立短篇流水线未接，S 阶段再验 |
+| `storycraft-script-scene` + episode-scene-craft；`script-spec` + spec；`short-drama` 形态契约 | 已有方法与契约 | 独立剧本 spec/场次流水线未接，D 阶段再验 |
+| 审稿/修订/状态技能 | `storycraft-review`、`revise-craft`、`state-check`、`state-settler` | 行号/前后 revision 证据未做；技能加载证据已有，但 prompt/schema 边界未拆 |
 | 分析/市场/同人/导入资源 | 未建 | R7/R7b/R7c 单独立项，不提前铺目录 |
-| 技能路由与检索 | writer 按 form 追加技能；reviewer/reviser 只加载角色技能 | 无技能加载证据；技能参考未进统一检索 |
+| 技能路由与检索 | writer 按 form 追加技能；reviewer/reviser 只加载角色技能；A9 记录 skill revision 证据 | 技能参考未进统一检索；R0 重审加载与 prompt/schema 边界 |
 
 ### 已交付能力索引
 
-旧 P1–P6、R1–R11、E3/E19/E20 与 A0/L 迁移切片的明细不再抄进路线图，避免和 `#4` 的状态重复：
+旧 P1–P6、R1–R11、E3/E19/E20 与 A0/L 迁移切片的明细不再抄进路线图，避免和当前状态重复：
 
-- 能力面与状态：`#4`；
+- 当前能力面与状态：本表 + `.agents/notes/implemented/`（`#4` 只保留历史）；
 - 阶段与依赖：本记录；
 - 逐项设计、决定与验证：`.agents/notes/implemented/`；
-- 工作项验收与批准：GitHub Issues。
+- 工作项范围、评审与批准证据：本 Note/roadmap + 对应 Agent Note，不再新开 issue。
 
-任何“已交付”判断以对应工作项关闭与 Note 的 `## 验证` 节为准，路线图只记录它属于哪个阶段。
+新基线完成以 R0b 状态 + R4 新证据为准；旧 Note 的 `## Testing`/CI 只算回归，路线图只记录它属于哪个阶段。
 ### 横向能力
 
 R7 分析、R7b 市场研究、R7c 衍生、R8 分镜/封面/翻译/互动影游不进入当前队列；按各自触发条件单独立项，不因未排期从能力面删除。
 
 ### 台账分工
 
-- `#4`：能力面完整清单、状态、备选与不可行项；
+- `#4`：历史能力清单，不再拥有新工作；当前状态以本表与 implemented Note 为准；
 - 本记录：阶段顺序、依赖、退出条件、当前队列；
 - Agent Note：逐项设计、决定、备选与验证；
 - 工作项：本次范围、验收、评审与批准证据。
@@ -124,7 +130,7 @@ R7 分析、R7b 市场研究、R7c 衍生、R8 分镜/封面/翻译/互动影游
 
 ## 历史基线（旧 P/R 阶段）
 
-旧版 P1–P6、R1–R11、E3/E19/E20 的逐项交付表已从路线图移出，内容仍保留在 `#4` 与 `.agents/notes/implemented/`，不丢失：
+旧版 P1–P6、R1–R11、E3/E19/E20 的逐项交付表已从路线图移出，内容仍保留在历史 `#4` 与 `.agents/notes/implemented/`，不丢失：
 
 - P1–P4：真值/上下文、阶段闸门、两阶段提交、卷与窗口、质量层；
 - P5–P6：单预设、形态数据化、面板两级、角色化；
@@ -137,18 +143,18 @@ R7 分析、R7b 市场研究、R7c 衍生、R8 分镜/封面/翻译/互动影游
 ## 备选方案
 
 - **继续用旧 P/R + 新 A0/L/S/D 混排**：信息密度高但状态互相干扰；否决。
-- **只保留 #4、不保留路线图**：能力清单没有阶段依赖与退出条件；否决。
-- **路线图按能力项逐条排期**：会变成第二份 #4；否决。
+- **只保留历史 #4、不保留路线图**：能力清单没有阶段依赖与退出条件；否决（#4 已关闭，不再拥有新工作）。
+- **路线图按能力项逐条排期**：会变成第二份能力清单；否决。
 
 ## 验收条件
 
-1. 路线图只保留 A0 → L → S → D，不再列旧 P/R 已交付项；
+1. 路线图按 R0 → A0 → L → S → D 组织，不再列旧 P/R 已交付项；
 2. 每个阶段有唯一退出条件与工作项；
-3. `#62` 关闭前不声称 L 产品完成，不开始 S/D 真实测试；
+3. R0b 分类与 R4 重验完成前不声称 L 产品完成，不开始 S/D 真实测试；
 4. 台账分工被后续更新遵守。
 
 ## 风险
 
-- 路线图仍可能被当成能力清单使用；正文已明确指向 `#4`。
+- 路线图仍可能被当成能力清单使用；正文已明确当前状态以本表与 implemented Note 为准，`#4` 仅历史。
 - S/D 的“待立”状态可能再次被跳过；依赖段已写明“流水线未落地前不跑真实测试”。
 

@@ -13,15 +13,29 @@ Status: proposed
 
 > 2026-10-19：角色不再各自成预设。派发由主编用官方 `subagent` 完成，角色由任务提示与技能区分；上下文由只读动作 `story_context` 交付（见 [#12](https://github.com/dehuadong/dsh-nove/issues/12)）。
 
-> 2026-10-23 复核基线：`inkos-master` 2.0.0（无 `.git`，以 `package.json` 与源码为准）。本轮只补**方法、Skill/资源组织、Agent 编排与交接**；2.0 源码增量见 `docs/report/inkos/2.0-harness-delta.md`，研究索引见 `docs/report/inkos/readme.md`。路线图见 `workspace/2026-10-19-storycraft-roadmap.md`。
+> 2026-10-23 复核基线：`inkos-master` 2.0.0（无 `.git`，以 `package.json` 与源码为准）。本轮只补**方法、Skill/资源组织、Agent 编排与交接**；2.0 源码增量见 `docs/report/inkos/2.0-harness-delta.md`，研究索引见 `docs/report/inkos/readme.md`。路线图见 `2026-10-19-storycraft-roadmap.md`。
+
+> **2026-11-02 重审：本表以下多处为历史状态，已不准确。**
+> 当前事实：18 个技能、17 份 references（13 个技能带 references）；architect 正常派发为 `design` + `cards` 两次；参考 `architect.ts` 是同一 agent 内四段顺序调用，不是四个子代理。角色职责边界整改见 [对拍基线重审与角色职责边界整改](../architecture/2026-11-02-storycraft-parity-rebaseline.md)。下文“已对齐/14 技能”等旧行保留作历史，不再作为当前依据。
+
+### 交付状态盘点（R0b）
+
+90 篇 implemented Note 已完成分类，明细见[交付状态盘点](../../implemented/process/2026-11-02-storycraft-delivery-status-inventory.md)：
+
+- `revalidate-only` 77；
+- `rework-required` 11（另有 2 `legacy-delivered`，结构相关合计 13）；
+- `legacy-delivered` 2；
+- 本批不归档：R1/R2 替代尚未落地，旧 Note 仍含 active 证据。
+
+本表是状态表属主；roadmap 只链接，不复制明细。
 
 ## 2026-10-23 复核结论
 
 - **最强差距不在「有没有角色」，而在三处交接**：
-  1. 委派只到 writer / reviewer / reviser / summarizer；architect、planner 没有委派角色；
+  1. 历史：委派只到 writer / reviewer / reviser / summarizer；当前 architect/planner 已委派（#44/#63）；
   2. `story_state` 是手工写入口；R11 已有 `story_settle` 自动抽取与一次重算，未解决时不自动定稿；
   3. writer 委派硬编码「长篇小说」和长篇技能，短篇/剧本子代理拿不到形态技能。
-- **Skill 不是数量问题，是资源深度与路由问题**：11 个技能覆盖主干；长篇三份方法参考（foundation / 读者承诺 / 状态投影）已在 `storycraft-longform-method`；分析与市场研究仍没有 lens/rubric。
+- **Skill 不是数量问题，是资源深度与路由问题**：历史基线为 11 个技能；2026-11-02 当前为 18 个技能、17 份 references（13 个技能带 references）；旧 `storycraft-longform-method` 已不存在；分析与市场研究仍没有 lens/rubric。
 - **不复制 InkOS 的权限层**：capability gating、`propose_action`、Profile 注入、`skills-applied` 证据是它 2.0 的宿主模型；DSH 已有自己的动作、作者闸门与委派回执，只借方法与资源组织。
 
 ### 运行时整改（逐项）
@@ -43,9 +57,9 @@ Status: proposed
 
 | 参考角色 | 职责 | 我们的落点 | 状态 |
 | --- | --- | --- | --- |
-| architect | 书级设计（世界观、卷、人物弧、初始伏笔） | 规划角色 + `story_delegate` architect 四阶段 | 已采纳：frame/rules/roles/cards 由 #44 生产；planner 仍未委派 |
-| planner | 单章计划（目标/阻力/代价/变化） | 规划角色 + `story_context` + 章纲 | 部分：`story_delegate` 仍不含 planner，章纲由主编写 |
-| writer | 写正文 | 写手子代理 + 形态 craft（`storycraft-*-writing`）+ 形态契约 | 已采纳：form 路由已接；定稿时由 `story_settle` 自动抽取 |
+| architect | 书级设计（世界观、卷、人物弧、初始伏笔）；参考同一 agent 内四段顺序调用 | 正常 `design` + `cards` 两次；手动 frame/rules/roles 兼容 | **已裁决：B 不保留为目标**；R1 恢复同 architect 四段/等价 runtime；见 [重审 Note](../architecture/2026-11-02-storycraft-parity-rebaseline.md) |
+| planner | 单章计划（目标/阻力/代价/变化） | `story_delegate` planner + `storycraft-long-plan`；全书计划单独 `story_outline` | **已委派**；与参考的 ChapterMemo 对象仍不同 |
+| writer | 写正文 | 写手子代理 + 形态 craft（`storycraft-long-prose` / `storycraft-short-prose` / `storycraft-script-scene`）+ 形态契约 | 已采纳；方法名按当前技能 |
 | auditor / reviewer | 审稿清单与证据 | 审稿子代理 + `storycraft-review` | 部分：已有 observation code/quote/sourceRefs；行号与前后 revision 对比仍缺 |
 | reviser | 按条目改稿 | 修订者子代理 + `storycraft-revise-craft` | 已采纳：按 observation id 处理，可标 resolved |
 | settler | 把事实与伏笔归档 | `story_settle` + `storycraft-state-settler` | 已采纳：定稿时自动抽取；未解决回退 `story_state` |
@@ -56,32 +70,49 @@ Status: proposed
 | short-fiction | 短篇专门流水线 | `storycraft-short-story` + 同一动作 | 部分：R6b 形态路由已接；独立短篇流水线未落地 |
 | script-storyboard | 剧本/分镜 | 剧本形态 | 部分：有短剧技能；独立 spec/场次流水线与分镜对象未落地 |
 
+### 角色职责边界（2026-11-02 重审）
+
+| 责任 | 参考实现 | 我们当前 | 结论 |
+|---|---|---|---|
+| architect 编排 | `agents/architect.ts` 一个 agent 内四段顺序调用 | `delegate.ts` 分支 + design/cards 两次子代理 | **偏差** |
+| architect prompt | 代码 `buildFoundationProtocol` + cast/cards 专用 prompt | `architectPrompt` + skills/references | 分层不同 |
+| architect schema | `architect-tool.ts` 按阶段/角色生成 | `submission.ts` + `tools.ts` 统一枚举 | 职责混杂 |
+| planner | `planner.ts` + `planner-prompts.ts` + `planner-tool.ts` | `delegate.ts` + `tools.ts` + `store-db.ts` | 未按角色拆 |
+| writer | `writer.ts` + `writer-prompts.ts` + `writer-tool.ts` | `delegate.ts` + `submission.ts` + `tools.ts` | 未按角色拆 |
+| reviewer | `continuity.ts` + `review-tool.ts` | `delegate.ts` + `submission.ts` + `store-db.ts` | 未按角色拆 |
+| reviser | `reviser.ts` + `reviser-tool.ts` | `delegate.ts` + `submission.ts` | 未按角色拆 |
+| settler/validator | `settler-tool.ts` + `state-validator.ts` | `state-settle.ts` + `store-db.ts` | 边界部分 |
+| composer | `composer.ts` | `context.ts` + `bible.ts` + `store-db.ts` | 未独立 |
+| 存储/阶段 | `state/` + pipeline | `store-db.ts` 230 KB | 未拆 |
+
+结论：**当前不是“个别 prompt 位置不同”，而是角色、prompt、schema、存储四层没有按参考的职责边界拆分。** 整改顺序与目标见 [重审 Note](../architecture/2026-11-02-storycraft-parity-rebaseline.md)。
+
 ### 技能对拍
 
-参考 `inkos-master/packages/core/skills` 共 20 个技能、18 份 references；我们 14 个技能、9 份 references（A0-5 共享方法落地后）。
+参考 `inkos-master/packages/core/skills` 共 20 个技能、18 份 references；我们当前 18 个技能、17 份 references（其中 13 个技能带 references）。旧“14 技能、9 份”已过时。
 
 | 参考技能（refs） | 我们的落点 | 状态 |
 | --- | --- | --- |
-| 长篇写法（4） | `storycraft-long-writing` + 4 refs；角色技能读共享方法 | A0-5 已合并；`storycraft-longform-method` 只留迁移别名，L 下线 |
-| 短篇写法（1） | `storycraft-short-writing` + `production-checklist.md`；`storycraft-short-story` 只留形态契约 | A0-5 已落地；S 阶段接批量流水线 |
-| 剧本写法（1） | `storycraft-script-writing` + `episode-scene-craft.md`；`storycraft-short-drama` 只留形态契约 | A0-5 已落地；D 阶段接 spec/场次 |
+| 长篇写法（4） | `storycraft-long-prose`（reader-contract/scene-dialogue）、`storycraft-long-outline`（outline-design）、`storycraft-long-plan`（chapter-plan）、`storycraft-long-settle`（state-projection）；foundation 方法在 `storycraft-architect/references` | 当前 18 技能/17 refs；旧 `long-writing`/`longform-method` 名称已不存在 |
+| 短篇写法（1） | `storycraft-short-prose` + `production-checklist.md`；`storycraft-short-outline` + `outline.md`；`storycraft-short-story` 只留形态契约 | S 阶段接独立流水线 |
+| 剧本写法（1） | `storycraft-script-scene` + `episode-scene-craft.md`；`storycraft-script-spec` + `spec.md`；`storycraft-short-drama` 只留形态契约 | D 阶段接 spec/场次 |
 | 审稿（1） | `storycraft-review` + `review-dimensions.md` | 已采纳 |
 | 状态对账（0） | `storycraft-state-check` + `story_state_check` | 已采纳：只读、advisory；R11 的 `story_settle` 已接自动 settler + 一次重算 |
-| 去 AI 味（1） | `storycraft-revise-craft` + `deslop.md` | 已采纳；`deslop.md` 未在正文点名 |
+| 去 AI 味（1） | `storycraft-revise-craft` + `deslop.md` | 已采纳；资源段已点名 |
 | 续写（0） | 长篇「承接上一章」一句 | 部分：无正典重建、续写点 |
-| 导入（1） | `story_bible_import`（仅旧 `design/` 真值） | 部分：不导入章节，`bible.js:240` 还阻断 outline |
+| 导入（1） | `story_bible_import`（仅旧 `design/` 真值） | 部分：不导入章节，`bible.ts:41` 还阻断 plan |
 | 长篇/短篇分析（2） | 无 | 缺失（R7） |
 | 长篇/短篇市场研究（2） | 无 | 缺失、暂缓（R7b） |
 | 同人 / 仿写 / 番外（3） | 无 | 缺失、暂缓（R7c） |
 | 分镜 / 封面 / 翻译 / 互动影游 / Play（5） | 无 | 不适用（R8 再评估） |
-| `skills/SKILL.md` 路由 | `storycraft-studio-orchestration` + 预设 persona | 部分：有单一入口，无按 form 的技能路由 |
+| `skills/SKILL.md` 路由 | `storycraft-studio-entry` + 预设 persona | 部分：有单一入口，无按 form 的技能路由 |
 
 ### Skill 资源组织对拍
 
 | 维度 | 参考实现 | 我们当前 | 状态 | 决定 |
 | --- | --- | --- | --- | --- |
-| 主文件 / references | 主体短，长篇 4 份，正文链接 3 份 | 14 技能 9 份；long-writing 4 份、short/script 各 1 份；9 份均有正文点名 | 已采纳 | A0-5 共享方法与角色薄契约已落地；不复制参考实现字段 |
-| 激活与证据 | Profile 必需技能注入并记 `skills-applied` | `mode: all`；子代理按提示自己 `skill`，无加载证据 | 部分 | 保留模型加载；补技能名存在性测试，不复制注入层 |
+| 主文件 / references | 主体短，长篇 4 份，正文链接 3 份 | 18 技能 17 refs（13 技能带 refs）；每个带 refs 技能有 `## 资源`、最多一个必读 | 已采纳格式 | 统一加载契约已落地；不复制参考实现字段 |
+| 激活与证据 | Profile 必需技能注入并记 `skills-applied` | `mode: all`；子代理按提示加载；A9 已有 skill revision 证据 | 部分 | 不复制注入层；补强引用/加载一致性 |
 | 形态→技能 | Profile 按作品类型绑定必需技能 | writer 按 `form` 追加形态技能；reviewer/reviser 按设计不加 | 部分 | writer 路由已接；reviewer/reviser 只加载角色技能；short-story 输出契约已由 R6b-fix 修正 |
 | 技能来源 | 包内 + 外部目录 + 项目技能 | 插件包内技能 | 部分 | 暂不开放外部导入；先保证内置技能自洽 |
 | 资源检索 | 统一检索内核按 scope/kind 检索 | `story_context` 检索段 + 材料库 | 部分 | 先做确定性召回与 trace；语义选择待 R12 |
@@ -91,17 +122,17 @@ Status: proposed
 | 交接点 | 参考实现 | 我们当前 | 差距 | 状态 | 决定 |
 | --- | --- | --- | --- | --- | --- |
 | 结构化提交 | 模型经 typed tool 提交，宿主校验后落盘 | `story_submit` + `submission.js` 校验 | 无 | 对齐 | 保留 |
-| 委派角色 | architect / planner / writer / reviser / settler / validator | architect / writer / reviewer / reviser / summarizer / settler / validator | architect 已补；planner 仍缺 | 部分 | 补 planner |
+| 委派角色 | architect / planner / writer / reviser / settler / validator | architect / planner / writer / reviewer / reviser / summarizer / settler / validator | planner 已委派（#63） | 已补 | 保留 |
 | 作者闸门 | 计划/章纲确认 + 提案确认 | 面板确认 + 提案同意 | 无 | 对齐 | 确认后不自动发送 |
 | 完成证据 | 只认 ActionResult / artifact revision | 委派回执 + revision | 回执有，artifact 证据弱 | 部分 | 回执补 artifact id/版本 |
-| foundation 交接 | 三段式 submit + 原子写 story_frame/volume_map/book_rules/role cards | `story_delegate` architect 四阶段 | 已对齐 | 已采纳 | #44 |
+| foundation 交接 | 同一 agent 内四段顺序 submit + 原子写 story_frame/volume_map/book_rules/role cards + hooks | `story_delegate` design（五件）+ cards；手 frame/rules/roles | **已裁决：B 不保留为目标**；两次独立子代理是临时偏差，R1 恢复四段/等价 runtime | 未对齐 | [重审 Note](../architecture/2026-11-02-storycraft-parity-rebaseline.md) |
 | 章计划交接 | planner 产出 ChapterIntent + ChapterMemo | 章纲五字段 | 无独立 memo | 部分 | 保留章纲，不新增对象 |
 | 上下文装配 | composer：半窗预算、语义选择、trace | `story_context` 固定段 + 8000 字符 | 无 token 预算/trace | 部分 | R12 |
 | 状态投影 | writer 提交后自动 factOps/hookOps + baseline | `story_settle` 自动抽取 + R9b 校验 + 一次重算；未解决不定稿 | 部分：定稿时抽取，不提前持久化候选 | 已采纳 | #43 |
 | 状态对账 | validator 比较旧/新投影与权威，最多一次重投影 | 确定性预检 + 只读 `story_state_check` + `story_settle` | 已对齐：一次重算，未解决不定稿 | 已采纳 | R9/R9b/R11 已交付 |
 | 连续性证据 | observation code + 行号 + revision | 审稿问题文本 | 无结构化证据 | 部分 | 后续补 code/行号 |
 | 失败策略 | 错误码回给子代理修正；失败保留正史 | 重试/回退；误报可触发整章重写 | 分类不统一 | 部分 | 统一失败码 |
-| 技能加载 | Profile + 每动作默认技能合并 | 子代理按提示加载；writer 已按 form 追加技能 | 无加载证据 | 部分 | R6b 已交付；证据后续 |
+| 技能加载 | Profile + 每动作默认技能合并 | 子代理按提示加载；A9 skill evidence 记录 revision；writer 按 form | 有加载证据，无 Profile 注入 | 部分 | 保留 DSH 加载；不复制注入层 |
 
 ### 明确不采纳
 
