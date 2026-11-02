@@ -26,9 +26,9 @@ const ctx = {
 tools.apply(ctx, { mode: 'longform' })
 const byName = new Map(registered.map(definition => [definition.name, definition]))
 
-function seed(db, artifactId, kind, content) {
+function seed(db, artifactId, kind, content, contentType = 'text') {
   db.prepare(`INSERT INTO artifacts (artifact_id, revision_id, kind, scope_chapter, content_type, content, provenance, created_at)
-    VALUES (?, 'rev1', ?, NULL, 'text', ?, 'generated', ?)`).run(artifactId, kind, content, new Date().toISOString())
+    VALUES (?, 'rev1', ?, NULL, ?, ?, 'generated', ?)`).run(artifactId, kind, contentType, content, new Date().toISOString())
 }
 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-approve-tool-'))
@@ -41,6 +41,7 @@ try {
     seed(db, 'bible:volume_map', 'volume_map', '卷一')
     seed(db, 'bible:current_focus', 'current_focus', '焦点')
     seed(db, 'bible:book_rules', 'book_rules', '{}')
+    seed(db, 'bible:hooks', 'hooks', JSON.stringify({ hooks: [{ hookId: 'ledger', type: '物件', expectedPayoff: '第二卷翻出旧账', notes: '', text: '旧账本' }], markdown: '# 初始伏笔\n\n| hook_id |\n| --- |\n| ledger |\n' }), 'json')
     seed(db, 'roles:index', 'role_index', JSON.stringify({ roles: [{ name: '甲', tier: 'major' }] }))
     seed(db, 'role:甲', 'role_card', JSON.stringify({ slug: 'jia', name: '甲', tier: 'major', motivation: 'm', knowledge: 'k', relationshipPressure: 'r', limits: 'l', markdown: '# 甲' }))
   } finally {

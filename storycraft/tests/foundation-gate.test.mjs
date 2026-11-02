@@ -16,9 +16,9 @@ function check(name, condition, detail) {
 }
 
 /** Insert an artifact row directly: the test cares about the gate, not the schema. */
-function seed(db, artifactId, kind, content) {
+function seed(db, artifactId, kind, content, contentType = 'text') {
   db.prepare(`INSERT INTO artifacts (artifact_id, revision_id, kind, scope_chapter, content_type, content, provenance, created_at)
-    VALUES (?, ?, ?, NULL, 'text', ?, 'generated', ?)`).run(artifactId, 'rev1', kind, content, new Date().toISOString())
+    VALUES (?, ?, ?, NULL, ?, ?, 'generated', ?)`).run(artifactId, 'rev1', kind, contentType, content, new Date().toISOString())
 }
 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-foundation-gate-'))
@@ -30,6 +30,7 @@ try {
     seed(db, 'bible:volume_map', 'volume_map', '卷一')
     seed(db, 'bible:current_focus', 'current_focus', '焦点')
     seed(db, 'bible:book_rules', 'book_rules', '{}')
+    seed(db, 'bible:hooks', 'hooks', JSON.stringify({ hooks: [{ hookId: 'ledger', type: '物件', expectedPayoff: '第二卷翻出旧账', notes: '', text: '旧账本' }], markdown: '# 初始伏笔\n\n| hook_id |\n| --- |\n| ledger |\n' }), 'json')
     seed(db, 'roles:index', 'role_index', JSON.stringify({ roles: [{ name: '甲', tier: 'major' }] }))
     seed(db, 'role:甲', 'role_card', JSON.stringify({ slug: 'jia', name: '甲', tier: 'major', motivation: 'm', knowledge: 'k', relationshipPressure: 'r', limits: 'l', markdown: '# 甲' }))
   } finally {
@@ -37,7 +38,7 @@ try {
   }
 
   const state = s.readFoundationState(root, work)
-  check('four complete stages are reported complete', state.complete === true, JSON.stringify(state.stages))
+  check('five complete stages are reported complete', state.complete === true, JSON.stringify(state.stages))
 
   const pending = await s.nextStep(root, work)
   check('a complete but unconfirmed foundation blocks at the gate',
@@ -45,9 +46,10 @@ try {
   const items = pending.ask?.present?.[0]?.items ?? []
   check('the foundation ask carries one sentence per stage and one question',
     pending.ask?.question?.includes('确认基础设定') === true
-    && items.length === 4
+    && items.length === 5
     && items[0].startsWith('故事框架：') && items[1].startsWith('作品规则：')
-    && items[2].startsWith('角色：') && items[3].startsWith('角色卡：'),
+    && items[2].startsWith('初始伏笔：1 条')
+    && items[3].startsWith('角色：') && items[4].startsWith('角色卡：'),
     JSON.stringify(pending.ask))
 
   s.approveFoundation(root, { work })

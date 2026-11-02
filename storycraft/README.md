@@ -104,16 +104,16 @@ materials         作者素材（txt/md/epub/pdf；用途 setting/character/scen
 | `story_rename` | 改标题或作品 id；改 id 时库文件一起移，冲突拒绝 |
 | `story_delete` | 移入 `.storycraft/trash/`，不再出现在列表 |
 | `story_restore` | 恢复回收站里最近一次的同名作品 |
-| `story_export` | 导出为 `export:<workId>`；作者从只读 `/exports` 路由取目录，内容含 manifest v6、`book.txt` 与 `book.epub`、各版正文、章纲、摘要、各轮审稿、真值、`foundation/`（story_frame/volume_map/book_rules/roles/current_focus）、卷、事件、提案与 `materials/<id>.<format>` |
+| `story_export` | 导出为 `export:<workId>`；作者从只读 `/exports` 路由取目录，内容含 manifest v6、`book.txt` 与 `book.epub`、各版正文、章纲、摘要、各轮审稿、真值、`foundation/`（story_frame/volume_map/book_rules/hooks/roles/current_focus）、卷、事件、提案与 `materials/<id>.<format>` |
 | `story_backup` | 生成单作品 DB + 素材 sidecar（无素材时仅 DB），返回 `integrity_check` |
 
 导出是给作者在系统文件管理器里取用的，不是让模型读库；`.storycraft` 仍整体拒绝工具直接访问。
 
 ## 基础设定（architect）
 
-新作品在写全书计划前，先由 `architect` 一个子代理在同一上下文内分四段提交基础设定：`outline`（故事框架 / 卷图 / 当前焦点）→ `details`（作品规则）→ `cast_index`（姓名 + 层级索引）→ `cards`（每人一张角色卡，major/minor）。`story_next` 给出 `delegate:{role:'architect',stage:'foundation'}`；子代理用同一 delegation 调用四次 `story_submit`，宿主四段全部校验后一次性写入 artifact（任一失败整批不落）。
+新作品在写全书计划前，先由 `architect` 一个子代理在同一上下文内分四段提交基础设定（共五类产物）：`outline`（故事框架 / 卷图 / 当前焦点）→ `details`（作品规则 + 初始伏笔 `pendingHooks`）→ `cast_index`（姓名 + 层级索引）→ `cards`（每人一张角色卡，major/minor）。`story_next` 给出 `delegate:{role:'architect',stage:'foundation'}`；子代理用同一 delegation 调用四次 `story_submit`，宿主四段全部校验后一次性写入 artifact（任一失败整批不落）。
 
-四段都完成后 `story_next` 返回 `blocked:['foundation-approval']`，作者在面板「基础设定」里查看并点「确认基础设定」；确认只由面板触发，不通知模型自动继续。`story_outline` 仍可手动调用（architect 不可用时的回退），已写全书计划的作品不再提示基础设定。基础设定会进入 `story_brief`、`story_context`、检索、审稿/结算约束与导出；初始 hooks 不在这里生成。
+四段都提交完成后 `story_next` 返回 `blocked:['foundation-approval']`，作者在面板「基础设定」里查看并点「确认基础设定」；确认只由面板触发，不通知模型自动继续。`story_outline` 仍可手动调用（architect 不可用时的回退），已写全书计划的作品不再提示基础设定。基础设定会进入 `story_brief`、`story_context`、检索、审稿/结算约束与导出。初始伏笔在 `details` 里以 chapter 0 的搁置伏笔写进 v2 事件账本，同时产出一份可读的 `bible:hooks`（阶段格与文档区都显示「初始伏笔」）；它进入 foundation 完整性（五类产物缺一不可），确认前可重跑，重跑按 hookId 差量更新。章节里新埋的伏笔仍由 settler 在结算时铸 id。
 
 ## 阶段机
 

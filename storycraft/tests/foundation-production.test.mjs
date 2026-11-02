@@ -84,6 +84,9 @@ const rolesIndex = {
     { name: '乙', tier: 'minor' },
   ],
 }
+const pendingHooks = [
+  { hookId: 'ledger-debt', type: '关系债', expectedPayoff: '第三卷由乙亲口承认账本的来历', notes: '开篇埋', text: '那本没人认领的旧账本' },
+]
 const card = {
   slug: 'jia', name: '甲', tier: 'major', motivation: '救父', knowledge: '知道账本',
   relationshipPressure: '欠人情', limits: '不杀人', arc: '学会求助', markdown: '# 甲\n\n主角。\n',
@@ -100,7 +103,7 @@ try {
   const foundationWork = (await s.initWork(root, { title: '四段提交' })).workId
   const foundationPhases = {
     outline: { ...frame },
-    details: { bookRules },
+    details: { bookRules, pendingHooks },
     cast_index: { rolesIndex },
     cards: { roleCards: [card, minorCard] },
   }
@@ -110,14 +113,16 @@ try {
   })
   check('foundation starts one architect child', foundationService.activations() === 1, String(foundationService.activations()))
   check('foundation lands four phases in one dispatch', foundationReceipt.foundationStage === 'foundation'
-    && foundationReceipt.foundation.complete === true && foundationReceipt.artifacts.length === 7, JSON.stringify(foundationReceipt))
+    && foundationReceipt.foundation.complete === true && foundationReceipt.artifacts.length === 8, JSON.stringify(foundationReceipt))
   check('the foundation bundle is complete', s.readFoundationState(root, foundationWork).complete === true)
+  check('the bundle writes the initial-hooks artifact', foundationReceipt.artifacts.some(artifact => artifact.artifactId === 'bible:hooks')
+    && readFoundationDocuments(root, foundationWork).hooks.content.markdown.startsWith('# 初始伏笔'))
 
   const partialWork = (await s.initWork(root, { title: '缺段' })).workId
   await rejects('a missing foundation phase lands nothing', 'delegation-no-submission', () => delegateRole(root, {
     work: partialWork, role: 'architect', stage: 'foundation',
   }, {
-    service: fakeFoundationService({ outline: { ...frame }, details: { bookRules }, cast_index: { rolesIndex } }), agent, signal,
+    service: fakeFoundationService({ outline: { ...frame }, details: { bookRules, pendingHooks }, cast_index: { rolesIndex } }), agent, signal,
   }))
   check('a missing phase leaves no foundation artifact', s.readFoundationState(root, partialWork).complete === false)
 
@@ -168,7 +173,8 @@ try {
   const designState = s.readFoundationState(root, designWork)
   check('design marks the first three stages', designState.stages.frame === true
     && designState.stages.rules === true && designState.stages.roles === true
-    && designState.stages.cards === false && designState.dispatchStage === 'foundation', JSON.stringify(designState))
+    && designState.stages.hooks === false && designState.stages.cards === false
+    && designState.dispatchStage === 'foundation', JSON.stringify(designState))
   const afterDesign = await s.nextStep(root, designWork)
   check('design advances to foundation', afterDesign.action === 'story_architect'
     && afterDesign.foundationStage === 'foundation', JSON.stringify(afterDesign))
@@ -239,6 +245,11 @@ try {
   await delegateRole(root, { work, role: 'architect', stage: 'roles' }, {
     service: fakeService([{ payload: { rolesIndex } }]), agent, signal,
   })
+  const hooksLanding = await delegateRole(root, { work, role: 'architect', stage: 'hooks' }, {
+    service: fakeService([{ payload: { pendingHooks } }]), agent, signal,
+  })
+  check('the manual hooks stage lands the initial hooks', hooksLanding.artifacts.length === 1
+    && hooksLanding.foundation.stages.hooks === true, JSON.stringify(hooksLanding))
   await rejects('a partial card set lands nothing', 'artifact-invalid', () => delegateRole(root, {
     work, role: 'architect', stage: 'cards',
   }, { service: fakeService([{ payload: { roleCards: [card] } }]), agent, signal }))

@@ -1122,14 +1122,15 @@ const DELEGATE_OUTPUT: DshToolOutput = {
             properties: {
               frame: { type: 'boolean' },
               rules: { type: 'boolean' },
+              hooks: { type: 'boolean' },
               roles: { type: 'boolean' },
               cards: { type: 'boolean' },
             },
-            required: ['frame', 'rules', 'roles', 'cards'],
+            required: ['frame', 'rules', 'hooks', 'roles', 'cards'],
           },
           complete: { type: 'boolean' },
           writtenAt: { type: 'string' },
-          nextStage: { type: 'string', enum: ['frame', 'rules', 'roles', 'cards'] },
+          nextStage: { type: 'string', enum: ['frame', 'rules', 'hooks', 'roles', 'cards'] },
           dispatchStage: { type: 'string', enum: ['foundation'] },
           approvedAt: { type: 'string' },
         },
@@ -2761,7 +2762,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
       name: 'story_delegate',
       mutates: true,
       description: '宿主侧委派一个角色完成单步：writer 写首版正文、reviewer 审稿并落清单、reviser 按未处理条目修订、summarizer 写本章摘要、'
-        + 'architect 按 stage 生成基础设定（foundation 四 phase；design/cards/frame/rules/roles 手动兼容），planner 写首次章纲。'
+        + 'architect 按 stage 生成基础设定（foundation 四 phase，details 带初始伏笔；design/cards/frame/rules/hooks/roles 手动兼容），planner 写首次章纲。'
         + ' 主编只收回执（版本/字数/审稿计数/警告/阶段），不接触正文与上下文；子代理通过 story_submit 提交，失败返回 delegation-no-submission。',
       parameters: {
         type: 'object',

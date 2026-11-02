@@ -280,6 +280,7 @@ export function readFoundationPreview(root: string, workId: string) {
     ['story_frame', documents.storyFrame],
     ['volume_map', documents.volumeMap],
     ['book_rules', documents.bookRules],
+    ['hooks', documents.hooks],
     ['roles_index', documents.rolesIndex],
     ['current_focus', documents.currentFocus],
   ]

@@ -16,6 +16,7 @@ export const ARTIFACT_KINDS = [
   'outline', 'plan', 'chapter', 'summary', 'review', 'state', 'context', 'trace',
   'world', 'style', 'intent', 'current_focus', 'story_frame', 'volume_map', 'book_rules',
   'role_index', 'role_card', 'state_draft', 'volume', 'material', 'export', 'backup',
+  'hooks',
   'short_story', 'script', 'storyboard', 'interactive_film', 'play_world', 'cover', 'translation',
 ]
 
@@ -402,6 +403,46 @@ export function assertHookTransition(from: string, to: string): string {
   return to
 }
 
+/** The exact fields the architect may submit for one initial hook. */
+export const INITIAL_HOOK_FIELDS = ['hookId', 'type', 'expectedPayoff', 'notes', 'text'] as const
+
+/** Heading every readable initial-hooks document starts with. */
+export const INITIAL_HOOKS_HEADING = '# 初始伏笔'
+
+/**
+ * Validate the architect's `pendingHooks` seed. The architect owns the identity
+ * (`hookId`) and the display line (`text`); status and chapters are host-owned,
+ * so they are rejected here. There is no count cap.
+ */
+export function validateInitialHooks(value: any): Array<{ hookId: string, type: string, expectedPayoff: string, notes: string, text: string }> {
+  if (!Array.isArray(value)) invalid('pendingHooks 必须是数组')
+  const ids = new Set<string>()
+  return value.map((item: any, index: number) => {
+    const hook = object(item, `pendingHooks[${index}]`)
+    keys(hook, INITIAL_HOOK_FIELDS, `pendingHooks[${index}]`)
+    const hookId = text(hook.hookId, `pendingHooks[${index}].hookId`).trim()
+    const type = text(hook.type, `pendingHooks[${index}].type`).trim()
+    const expectedPayoff = text(hook.expectedPayoff, `pendingHooks[${index}].expectedPayoff`).trim()
+    const notes = textAllowEmpty(hook.notes, `pendingHooks[${index}].notes`).trim()
+    const display = text(hook.text, `pendingHooks[${index}].text`).trim()
+    if (ids.has(hookId)) invalid(`pendingHooks 的 hookId 重复：${hookId}`, 'foundation-hooks-duplicate')
+    ids.add(hookId)
+    return { hookId, type, expectedPayoff, notes, text: display }
+  })
+}
+
+/** Validate the `bible:hooks` artifact: the seed plus its readable projection. */
+export function validateHooksArtifact(value: any): { hooks: ReturnType<typeof validateInitialHooks>, markdown: string } {
+  const input = object(value, 'hooks')
+  keys(input, ['hooks', 'markdown'], 'hooks')
+  const hooks = validateInitialHooks(input.hooks)
+  const markdown = text(input.markdown, 'hooks.markdown')
+  if (!markdown.trimStart().startsWith(INITIAL_HOOKS_HEADING)) {
+    invalid(`hooks.markdown 必须以 ${INITIAL_HOOKS_HEADING} 开头`)
+  }
+  return { hooks, markdown }
+}
+
 /** Validate a projected fact. */
 export function validateFact(value: ArtifactRecord): ArtifactRecord {
   const input = object(value, 'fact')
@@ -646,6 +687,7 @@ export const ARTIFACT_CONTENT_VALIDATORS = {
   book_rules: validateBookRules,
   role_index: validateRolesIndex,
   role_card: validateRoleCard,
+  hooks: validateHooksArtifact,
   state_draft: validateStateDraft,
   review: validateReviewObservations,
   trace: validateChapterTrace,
@@ -659,6 +701,7 @@ export const ARTIFACT_IDENTITY = {
   volume_map: { artifactId: 'bible:volume_map' },
   book_rules: { artifactId: 'bible:book_rules' },
   role_index: { artifactId: 'roles:index' },
+  hooks: { artifactId: 'bible:hooks' },
   role_card: { pattern: /^role:[^\s:]+$/u },
   state_draft: { pattern: /^state:draft:([1-9]\d*):r([1-9]\d*)$/u, chapterScoped: true },
   plan: { pattern: /^plan:([1-9]\d*)$/u, chapterScoped: true },

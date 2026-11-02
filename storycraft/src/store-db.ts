@@ -90,7 +90,7 @@ import {
   formOf, now, planApprovalPolicy, stageOf, summaryAdmissible, trimSummary, unitOf, workIdOf,
 } from './domain.ts'
 import { assertRevisionMode } from './revision.ts'
-import { validateArtifactRecord } from './artifact-contract.ts'
+import { INITIAL_HOOKS_HEADING, assertHookTransition, validateArtifactRecord, validateHook, validateInitialHooks } from './artifact-contract.ts'
 import {
   artifactRevision, deleteArtifactOnDb, dropRoleCardsOnDb, FOUNDATION_DOCUMENTS, indexTiersOf, latestRoleCardsOnDb, putArtifactOnDb, remapChapterArtifacts, renderChapterMemo, renderFoundationContent,
   writeChapterMemoOnDb, writeChapterObservationsOnDb, writeChapterSummaryOnDb, writeTextArtifactOnDb, readTextArtifactOnDb,
@@ -334,7 +334,7 @@ function openObservationLines(review: any): string[] {
 function foundationRevisionOf(db: any): string {
   const entries: string[] = []
   const latest = db.prepare('SELECT artifact_id, revision_id FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
-  for (const artifactId of [...FOUNDATION_STAGE_ARTIFACTS.frame, ...FOUNDATION_STAGE_ARTIFACTS.rules, ...FOUNDATION_STAGE_ARTIFACTS.roles]) {
+  for (const artifactId of [...FOUNDATION_STAGE_ARTIFACTS.frame, ...FOUNDATION_STAGE_ARTIFACTS.rules, ...FOUNDATION_STAGE_ARTIFACTS.hooks, ...FOUNDATION_STAGE_ARTIFACTS.roles]) {
     const revision = artifactRevisionOf(db, artifactId)
     if (revision !== undefined) entries.push(`${artifactId}@${revision}`)
   }
@@ -450,9 +450,18 @@ function foundationSummaryOf(db: any): string[] {
     roleCount = 0
   }
   const cards = db.prepare("SELECT COUNT(*) AS n FROM artifacts WHERE kind = 'role_card'").get()
+  let hookCount = 0
+  try {
+    const hooksRow = db.prepare('SELECT content FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1').get('bible:hooks')
+    const parsed = hooksRow === undefined ? undefined : JSON.parse(String(hooksRow.content))
+    hookCount = Array.isArray(parsed?.hooks) ? parsed.hooks.length : 0
+  } catch {
+    hookCount = 0
+  }
   return [
     `故事框架：${line(read('bible:story_frame')) || '已生成'}`,
     `作品规则：${line(read('bible:book_rules')) || '已生成'}`,
+    `初始伏笔：${hookCount} 条`,
     `角色：${roleCount} 人`,
     `角色卡：${Number(cards?.n ?? 0)} 张`,
   ]
@@ -1101,16 +1110,17 @@ function delegateOf(step: any, last: any, candidate: any) {
 // ---------------------------------------------------------------------------
 
 /** Architect state stages in order. */
-export const FOUNDATION_STAGES = ['frame', 'rules', 'roles', 'cards']
+export const FOUNDATION_STAGES = ['frame', 'rules', 'hooks', 'roles', 'cards']
 
 /** Normal architect dispatch is one foundation bundle; manual stages remain for repair. */
 export const FOUNDATION_DISPATCH_STAGES = ['foundation']
-export const FOUNDATION_WRITE_STAGES = ['design', 'frame', 'rules', 'roles', 'cards']
+export const FOUNDATION_WRITE_STAGES = ['design', 'frame', 'rules', 'hooks', 'roles', 'cards']
 
 /** Artifacts each stage produces, in write order. */
 const FOUNDATION_STAGE_ARTIFACTS = {
   frame: ['bible:story_frame', 'bible:volume_map', 'bible:current_focus'],
   rules: ['bible:book_rules'],
+  hooks: ['bible:hooks'],
   roles: ['roles:index'],
   cards: null,
 }
@@ -1141,6 +1151,7 @@ function foundationStateOf(db: any) {
   const stages = {
     frame: FOUNDATION_STAGE_ARTIFACTS.frame.every(has),
     rules: FOUNDATION_STAGE_ARTIFACTS.rules.every(has),
+    hooks: FOUNDATION_STAGE_ARTIFACTS.hooks.every(has),
     roles: FOUNDATION_STAGE_ARTIFACTS.roles.every(has),
     cards: foundationCardsComplete(db),
   }
@@ -1225,6 +1236,121 @@ function proposalTokensOf(root: any, workId: string): string[] {
   return [...new Set(tokens)]
 }
 
+/** Escape one hook table cell so the readable projection stays a valid table. */
+function hooksTableCell(value: any): string {
+  return String(value ?? '').replace(/\r?\n/gu, ' ').replace(/\|/gu, '\\|').trim()
+}
+
+/** Render the architect seed as the readable table stored in `bible:hooks`. */
+export function renderInitialHooksMarkdown(hooks: ReadonlyArray<any>): string {
+  const head = '| hook_id | 起始章节 | 类型 | 状态 | 最近推进 | 预期回收 | 备注 | text |'
+  const rule = '| --- | --- | --- | --- | --- | --- | --- | --- |'
+  const rows = hooks.map(hook => `| ${[
+    hook.hookId, '开篇', hook.type, 'deferred', '开篇', hook.expectedPayoff, hook.notes, hook.text,
+  ].map(hooksTableCell).join(' | ')} |`)
+  return [INITIAL_HOOKS_HEADING, '', head, rule, ...rows, ''].join('\n')
+}
+
+/** The `bible:hooks` payload: the seed fields plus their readable table. */
+function initialHooksArtifact(hooks: ReadonlyArray<any>) {
+  return { hooks: hooks.map(hook => ({ ...hook })), markdown: renderInitialHooksMarkdown(hooks) }
+}
+
+/** Latest architect seed, read from `bible:hooks`; empty when never seeded. */
+function initialHooksSeedOf(db: any): any[] {
+  const row = db.prepare("SELECT content_type, content FROM artifacts WHERE artifact_id = 'bible:hooks' ORDER BY rowid DESC LIMIT 1").get()
+  if (row === undefined) return []
+  try {
+    const content = row.content_type === 'json' ? JSON.parse(String(row.content)) : undefined
+    return Array.isArray(content?.hooks) ? content.hooks : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Plant the architect's initial hooks in the v2 event log at chapter 0.
+ *
+ * Settlement may only create `open` hooks inside a written chapter; the
+ * architect plants promises before any chapter exists, so this path writes the
+ * seed directly with `deferred`. Re-seeding diffs by hookId: changed metadata is
+ * upserted (the current status is kept), a removed seed is superseded, a new
+ * seed is created. Events are never deleted: chapter hookOps refer to ids.
+ * The caller owns the transaction and therefore the rollback.
+ */
+function seedFoundationHooksOnDb(db: any, input: { hooks: ReadonlyArray<any>, previous: ReadonlyArray<any>, at: string }): number {
+  const state = foldedOf(db)
+  // A hook id belongs to the seed when its first upsert landed at chapter 0;
+  // chapter-minted ids come from settlement at chapter >= 1. Ownership is read
+  // from the event log, not the latest artifact, so a removed seed stays known.
+  const seedIds = new Set<string>()
+  for (const event of eventsOf(db)) {
+    if (event.kind === 'hook' && event.op === 'upsert' && Number(event.chapter) === 0 && event.hook !== undefined) {
+      seedIds.add(String(event.hook.hookId))
+    }
+  }
+  const previousIds = new Set(input.previous.map((hook: any) => String(hook?.hookId ?? '')))
+  const nextIds = new Set(input.hooks.map((hook: any) => String(hook.hookId)))
+  for (const hook of input.hooks) {
+    const current = state.hooks.find((item: any) => String(item.hookId) === String(hook.hookId))
+    if (current === undefined) continue
+    if (!seedIds.has(String(hook.hookId))) {
+      throw new StoryError(
+        'foundation-hooks-conflict',
+        `初始伏笔 id 与已有伏笔冲突：${hook.hookId}`,
+        '换一个 hookId；章节内的伏笔由结算铸造，不能复用',
+      )
+    }
+    if (current.status === 'superseded') {
+      throw new StoryError(
+        'foundation-hooks-retired',
+        `初始伏笔 id 已退役：${hook.hookId}`,
+        '换一个 hookId；被移除的初始伏笔不能复活',
+      )
+    }
+  }
+  let seq = Number((db.prepare('SELECT max(seq) AS n FROM events').get() as { n?: number } | undefined)?.n ?? 0)
+  const push = (payload: any): void => {
+    seq += 1
+    const text = JSON.stringify(payload)
+    db.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
+      .run(seq, input.at, 0, 'hook', text)
+    syncSearchDoc(db, `event:${seq}`, 'hook', 'state/events', 0, text)
+  }
+  let written = 0
+  for (const hook of input.hooks) {
+    const current = state.hooks.find((item: any) => String(item.hookId) === String(hook.hookId))
+    const record = validateHook({
+      hookId: hook.hookId,
+      startChapter: current?.startChapter ?? 0,
+      type: hook.type,
+      status: current?.status ?? 'deferred',
+      lastAdvancedChapter: current?.lastAdvancedChapter ?? 0,
+      expectedPayoff: hook.expectedPayoff,
+      notes: hook.notes,
+      text: hook.text,
+      dependsOn: current?.dependsOn ?? [],
+      ...(current?.paysOffInArc === undefined ? {} : { paysOffInArc: current.paysOffInArc }),
+    })
+    if (current !== undefined) {
+      const unchanged = ['type', 'expectedPayoff', 'notes', 'text']
+        .every(key => String(current[key] ?? '') === String(record[key] ?? ''))
+      if (unchanged) continue
+    }
+    push({ op: 'upsert', hook: record })
+    written += 1
+  }
+  for (const hookId of previousIds) {
+    if (nextIds.has(hookId)) continue
+    const current = state.hooks.find((item: any) => String(item.hookId) === hookId)
+    if (current === undefined || current.status === 'superseded') continue
+    assertHookTransition(String(current.status), 'superseded')
+    push({ op: 'supersede', hookId, chapter: 0 })
+    written += 1
+  }
+  return written
+}
+
 export function writeFoundationStage(root: any, input: any) {
   const workId = String(input.work)
   const stage = String(input.stage)
@@ -1255,6 +1381,8 @@ export function writeFoundationStage(root: any, input: any) {
         return { envelope, source, text: renderFoundationContent(content) }
       }
       let records
+      /** Architect seed to plant after the artifacts land. */
+      let seed: { hooks: any[], previous: any[] } | undefined
       if (stage === 'design') {
         const tokens = proposalTokensOf(root, workId)
         const frameText = `${String(payload.storyFrame ?? '')}\n${String(payload.volumeMap ?? '')}\n${String(payload.currentFocus ?? '')}`
@@ -1332,6 +1460,10 @@ export function writeFoundationStage(root: any, input: any) {
         records = [record('bible:book_rules', 'book_rules', payload.bookRules, 'foundation/book_rules')]
       } else if (stage === 'roles') {
         records = [record('roles:index', 'role_index', payload.rolesIndex, 'foundation/roles/index')]
+      } else if (stage === 'hooks') {
+        const hooks = validateInitialHooks(payload.pendingHooks)
+        seed = { hooks, previous: initialHooksSeedOf(db) }
+        records = [record('bible:hooks', 'hooks', initialHooksArtifact(hooks), 'foundation/hooks')]
       } else {
         const cards = Array.isArray(payload.roleCards) ? payload.roleCards : []
         if (cards.length === 0) throw new StoryError('artifact-invalid', '角色卡至少需要一张')
@@ -1392,6 +1524,9 @@ export function writeFoundationStage(root: any, input: any) {
         // The index is the person list and the tier authority; stale cards go.
         dropRoleCardsOnDb(db, indexTiersOf(payload.rolesIndex))
       }
+      if (seed !== undefined) {
+        seedFoundationHooksOnDb(db, { hooks: seed.hooks, previous: seed.previous, at })
+      }
       return { workId, stage, artifacts, foundation: foundationStateOf(db) }
     })
   } finally {
@@ -1418,6 +1553,8 @@ export function writeFoundationBundle(root: any, input: any) {
         }
         return { envelope: validateArtifactRecord(value), source, text: renderFoundationContent(content) }
       }
+      const initialHooks = validateInitialHooks(details.pendingHooks)
+      const previousHooks = initialHooksSeedOf(db)
       const frameText = `${String(outline.storyFrame ?? '')}\n${String(outline.volumeMap ?? '')}\n${String(outline.currentFocus ?? '')}`
       const tokens = proposalTokensOf(root, workId)
       if (tokens.length > 0 && !tokens.some(token => frameText.includes(token))) {
@@ -1446,6 +1583,7 @@ export function writeFoundationBundle(root: any, input: any) {
         record('bible:volume_map', 'volume_map', String(outline.volumeMap ?? ''), 'foundation/volume_map'),
         record('bible:current_focus', 'current_focus', focus, 'foundation/current_focus'),
         record('bible:book_rules', 'book_rules', details.bookRules, 'foundation/book_rules'),
+        record('bible:hooks', 'hooks', initialHooksArtifact(initialHooks), 'foundation/hooks'),
         record('roles:index', 'role_index', castIndex.rolesIndex, 'foundation/roles/index'),
       ]
       const tiers = indexTiersOf(castIndex.rolesIndex)
@@ -1492,6 +1630,7 @@ export function writeFoundationBundle(root: any, input: any) {
         }
         artifacts.push({ artifactId: item.envelope.artifactId, revisionId: item.envelope.revisionId, kind: item.envelope.kind })
       }
+      seedFoundationHooksOnDb(db, { hooks: initialHooks, previous: previousHooks, at })
       const foundation = foundationStateOf(db)
       if (!foundation.complete) throw new StoryError('foundation-incomplete', '基础设定 bundle 写入后仍不完整')
       return { workId, stage: 'foundation', artifacts, foundation }
@@ -1505,7 +1644,7 @@ export function approveFoundation(root: any, input: any) {
   try {
     return transaction(db, () => {
       const state = foundationStateOf(db)
-      if (state.complete !== true) throw new StoryError('foundation-incomplete', 'foundation 还没生成完整：先跑完 foundation 四段')
+      if (state.complete !== true) throw new StoryError('foundation-incomplete', 'foundation 还没生成完整：先跑完 foundation（框架/规则/初始伏笔/角色索引/角色卡）')
       const at = now()
       const source = approvalSourceOf(input)
       db.prepare('UPDATE meta SET foundation_approved_at = ?, foundation_approved_revision = ?, foundation_approved_source = ?, foundation_approved_reason = ?, updated_at = ? WHERE id = 1').run(at, foundationRevisionOf(db), source, approvalReasonOf(input), at)
@@ -4364,6 +4503,13 @@ export function exportWork(root: string, work: unknown, destination?: string): a
       }
       const focus = readTextArtifactOnDb(db, 'bible:current_focus')
       if (focus !== undefined) put(join('foundation', 'current_focus.md'), focus.content)
+      const hooksDocument = db.prepare('SELECT content_type, content FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
+        .get('bible:hooks')
+      if (hooksDocument !== undefined) {
+        // The seed snapshot; current hooks stay in state/events.jsonl.
+        const content = hooksDocument.content_type === 'json' ? JSON.parse(String(hooksDocument.content)) : String(hooksDocument.content)
+        put(join('foundation', 'hooks.md'), `${renderFoundationContent(content).trimEnd()}\n`)
+      }
       const rolesIndex = db.prepare(`SELECT content_type, content FROM artifacts
         WHERE artifact_id = 'roles:index' ORDER BY rowid DESC LIMIT 1`).get()
       if (rolesIndex !== undefined) {

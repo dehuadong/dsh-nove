@@ -71,7 +71,8 @@ test.describe('故事工坊看板', () => {
     await page.getByRole('button', { name: '基础设定', exact: true }).evaluate(node => node.click())
     await expect(page.locator('.sc-main-tab[aria-selected="true"]')).toHaveText('真值')
     await expect(page.locator('.sc-foundation')).toBeVisible({ timeout: 10_000 })
-    await expect(page.locator('.sc-foundation .sc-stage')).toHaveCount(4)
+    await expect(page.locator('.sc-foundation .sc-stage')).toHaveCount(5)
+    await expect(page.locator('.sc-foundation .sc-stage').filter({ hasText: '初始伏笔' })).toHaveCount(1)
   })
 })
 

@@ -2,7 +2,7 @@
 
 export const FOUNDATION_PHASES = ['outline', 'details', 'cast_index', 'cards'] as const
 
-export const FOUNDATION_STAGES = ['foundation', 'design', 'frame', 'rules', 'roles', 'cards'] as const
+export const FOUNDATION_STAGES = ['foundation', 'design', 'frame', 'rules', 'hooks', 'roles', 'cards'] as const
 
 export type FoundationStage = typeof FOUNDATION_STAGES[number]
 

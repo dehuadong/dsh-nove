@@ -307,6 +307,7 @@ export function readFoundationDocuments(root: any, work: any) {
       storyFrame: read('bible:story_frame'),
       volumeMap: read('bible:volume_map'),
       bookRules: read('bible:book_rules'),
+      hooks: read('bible:hooks'),
       rolesIndex: read('roles:index'),
       currentFocus: read('bible:current_focus'),
     }

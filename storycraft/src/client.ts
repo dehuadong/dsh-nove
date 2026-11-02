@@ -438,7 +438,7 @@ window.__ModuleLoader__.load({
     }
 
     interface FoundationState {
-      stages?: { frame?: boolean, rules?: boolean, roles?: boolean, cards?: boolean }
+      stages?: { frame?: boolean, rules?: boolean, hooks?: boolean, roles?: boolean, cards?: boolean }
       complete: boolean
       nextStage?: string
       dispatchStage?: string
@@ -904,8 +904,8 @@ window.__ModuleLoader__.load({
     }
 
     const BIBLE_LABELS: Record<string, string> = { world: '世界观', characters: '人物档案', style: '文风基准', plan: '全书计划', intent: '作者意图' }
-const FOUNDATION_STAGE_LABELS: Record<string, string> = { frame: '故事框架', rules: '作品规则', roles: '角色索引', cards: '角色卡' }
-const FOUNDATION_DOC_LABELS: Record<string, string> = { story_frame: '故事框架', volume_map: '卷图', book_rules: '作品规则', roles_index: '角色索引' }
+const FOUNDATION_STAGE_LABELS: Record<string, string> = { frame: '故事框架', rules: '作品规则', hooks: '初始伏笔', roles: '角色索引', cards: '角色卡' }
+const FOUNDATION_DOC_LABELS: Record<string, string> = { story_frame: '故事框架', volume_map: '卷图', book_rules: '作品规则', hooks: '初始伏笔', roles_index: '角色索引' }
 function foundationDocLabel(name: string): string {
   if (name === 'current_focus') return '当前焦点'
   if (FOUNDATION_DOC_LABELS[name] !== undefined) return FOUNDATION_DOC_LABELS[name]
@@ -1036,7 +1036,7 @@ function hookStatusLabel(status: string): string {
 .sc-foundation{display:flex;flex-direction:column;gap:12px;padding:14px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1)}
 .sc-foundation-head{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:10px}
 .sc-foundation-head .sc-section-title{margin:0 0 2px}
-.sc-foundation-stages{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.sc-foundation-stages{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
 .sc-stage{display:flex;flex-direction:column;gap:3px;padding:9px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2)}
 .sc-stage-done{border-color:var(--dsw-alias-brand-primary)}
 .sc-stage-mark{font-weight:700;color:var(--dsw-alias-label-secondary)}
@@ -3518,7 +3518,7 @@ function hookStatusLabel(status: string): string {
                       groups.size === 0
                         ? h('p', { className: 'sc-muted' }, '没有未解伏笔。')
                         : h('div', null, ...[...groups.entries()].map(([start, hooks]) => h('div', { className: 'sc-hook-group', key: String(start) },
-                          h('div', { className: 'sc-hook-group-head' }, '第 ' + start + ' 章起的伏笔'),
+                          h('div', { className: 'sc-hook-group-head' }, start === 0 ? '开篇伏笔' : '第 ' + start + ' 章起的伏笔'),
                           ...hooks.map(hook => h('div', { className: 'sc-hook', key: hook.hookId },
                             h('div', { className: 'sc-hook-main' },
                               h('span', { className: 'sc-item-name' }, hook.text),
@@ -3981,7 +3981,7 @@ function hookStatusLabel(status: string): string {
                   h('div', { className: 'sc-item-head' },
                     h('span', { className: 'sc-item-name' }, hook.text),
                     h('span', { className: ['resolved', 'superseded'].includes(hook.status) ? 'sc-done' : 'sc-open' }, hook.status),
-                    h('span', { className: 'sc-badge' }, `第 ${hook.startChapter} 章埋`),
+                    h('span', { className: 'sc-badge' }, hook.startChapter === 0 ? '开篇埋' : `第 ${hook.startChapter} 章埋`),
                   ),
                 )),
             )

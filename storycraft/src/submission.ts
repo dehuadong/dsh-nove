@@ -11,7 +11,7 @@ import { StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, countWords, trimSummary 
 import { STATE_LIMITS } from './state-projection.ts'
 import { assertRevisionMode } from './revision.ts'
 import {
-  validateBookRules, validateRoleCard, validateRolesIndex, validateStoryFrame, validateVolumeMap,
+  validateBookRules, validateInitialHooks, validateRoleCard, validateRolesIndex, validateStoryFrame, validateVolumeMap,
 } from './artifact-contract.ts'
 import { checkWordRange } from './landing.ts'
 import { readChapter } from './storage.ts'
@@ -217,6 +217,9 @@ export function validateSubmissionShape(role: string, payload: any, stage: strin
         validateVolumeMap(payload.volumeMap)
       } else if (stage === 'rules' || stage === 'details') {
         validateBookRules(payload.bookRules)
+        if (stage === 'details') validateInitialHooks(payload.pendingHooks)
+      } else if (stage === 'hooks') {
+        validateInitialHooks(payload.pendingHooks)
       } else if (stage === 'roles' || stage === 'cast_index') {
         validateRolesIndex(payload.rolesIndex)
       } else if (stage === 'design') {

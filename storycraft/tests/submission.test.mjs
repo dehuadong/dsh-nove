@@ -62,6 +62,7 @@ try {
     },
     details: {
       bookRules: { version: '2', narrativePerson: '第三人称', prohibitions: ['禁止'], protagonist: { name: '甲', personalityLock: [], behavioralConstraints: [] }, genreLock: { primary: '都市', forbidden: [] }, enableFullCastTracking: false, allowedDeviations: [], markdown: '# 作品规则' },
+      pendingHooks: [{ hookId: 'ledger', type: '物件', expectedPayoff: '第二卷翻出旧账', notes: '', text: '旧账本' }],
     },
     cast_index: { rolesIndex: { roles: [{ name: '甲', tier: 'major' }] } },
     cards: { roleCards: [{ slug: 'jia', name: '甲', tier: 'major', motivation: 'm', knowledge: 'k', relationshipPressure: 'r', limits: 'l', markdown: '# 甲' }] },
@@ -87,6 +88,12 @@ try {
   check('foundation retries are per phase', badDetails.ok === false && badDetailsAgain.ok === false
     && goodDetails.ok === true, JSON.stringify({ badDetails, badDetailsAgain, goodDetails }))
   closeSubmission(retryFoundation.delegationId)
+
+  const hookShape = openSubmission({ role: 'architect', workId: work, stage: 'foundation' })
+  await submitPayload({ delegationId: hookShape.delegationId, depth: 1, root, phase: 'outline', payload: foundationPhases.outline })
+  const badHooks = await submitPayload({ delegationId: hookShape.delegationId, depth: 1, root, phase: 'details', payload: { ...foundationPhases.details, pendingHooks: [{ hookId: 'x' }] } })
+  check('details rejects an incomplete initial hook', badHooks.ok === false && badHooks.error.code === 'submit-invalid', JSON.stringify(badHooks))
+  closeSubmission(hookShape.delegationId)
 
   const largeFoundation = openSubmission({ role: 'architect', workId: work, stage: 'foundation' })
   const hugeOutline = { ...foundationPhases.outline, storyFrame: '# 故事框架\n## 前提\n' + 'x'.repeat(70 * 1024) + '\n## 核心冲突\nc\n## 主角动机\nm\n## 约束\nk\n## 因果解决\nr\n' }
