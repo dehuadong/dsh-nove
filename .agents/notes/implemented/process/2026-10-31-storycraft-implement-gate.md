@@ -67,7 +67,8 @@ Status: implemented
 - 项目根存在 `.agents/implement-gate.json`（`{"enabled":true}`）才启用；无此文件完全 pass-through，不干扰其他项目；
 - 状态按 `(workspaceRoot, sessionId)` 存放在 `.agents/state/implement-gate/<session-hash>.json`，并行会话互不共享，插件重载后从文件恢复；
 - 状态机：`discuss`（默认）→ planning 命令 → `planning` → `implement_gate({action:'end-planning'})` → `discuss`；implement 命令/审批 → `implement` → `complete`；
-- `discuss` 下源码和 `.agents/notes/**` 都拒绝；`planning` 只放行规划 Note；`implement` 放行源码与 Note；`complete` 源码拒绝、文档仍可写；
+- 文档治理命令 `批准，执行文档治理 {文件或目录}` 只设置 `docScope`，不改变 phase；`end-docs`、`complete`、新的 planning/implement 命令清除它；
+- 源码只在 `implement` 放行；`planning` 放行文档与规划 Note；`discuss`/`complete` 的文档只在 `docScope` 内放行；propose Note 只在 planning/implement 放行；
 - `.agents/implement-gate.json` 与 `.agents/state/implement-gate/**` 是守护路径，模型不可写；状态由插件自己写。
 
 - 无记录默认 `discuss`；
@@ -79,16 +80,17 @@ Status: implemented
 
 ```json
 {
-  "action": "authorize | end-planning | block | complete | status",
+  "action": "authorize | end-planning | end-docs | block | complete | status",
   "reason": "string?"
 }
 ```
 
 - `authorize`：走审批模式；不可用时返回 `approval-unavailable`，命令模式无需调用；
-- `end-planning`：planning 结束后显式回到 `discuss`，之后 Note 写也被拒绝；
+- `end-planning`：planning 结束后显式回到 `discuss`，之后 propose Note 写被拒绝；
+- `end-docs`：清除 `docScope`；
 - `block`：`work='blocked'`，源码写全部拒绝；
-- `complete`：Verify PASS 且 Note/roadmap 迁移完成后结束任务；`complete` 之后文档写仍放行，源码写恢复拒绝；
-- `status`：只读返回 enabled/phase/work/task。
+- `complete`：Verify PASS 且 Note/roadmap 迁移完成后结束任务，并清除 `docScope`；
+- `status`：只读返回 enabled/phase/work/task/docScope。
 
 该工具自身不受写守卫限制；`plugin_manager` 仍可禁用整个插件，这是本方案的残余风险（见 Risks）。
 
@@ -100,13 +102,13 @@ Status: implemented
 | --- | --- | --- | --- | --- |
 | 源码/测试/脚本 | 拒绝 | 拒绝 | 允许 | 拒绝 |
 | `.agents/notes/proposed/**` | 拒绝 | 允许 | 允许 | 拒绝 |
-| 其他 `.agents/notes/**`、`docs/**`、根文档、skills | 允许 | 允许 | 允许 | 允许 |
-| shell 写命令 | 仅非-proposed docs | 仅 docs-only | 允许 | 仅非-proposed docs |
+| 文档（代码之外任意路径） | 仅 `docScope` 内 | 允许 | 允许 | 仅 `docScope` 内 |
+| shell 文档写命令 | 仅 `docScope` 内 | 仅 docs-only | 允许 | 仅 `docScope` 内 |
 | 状态/启用标记 | 拒绝 | 拒绝 | 拒绝 | 拒绝 |
 
-文档与仓库治理绕过工程状态门禁：README、AGENTS、GATES、docs、skills、已归档/已实现 Note 在 discuss 与 complete 下也可写；只有 **propose 规划 Note** 仍要求 planning/implement。`trash.mjs`、`git add/commit/mv` 按目标路径分类，混入源码或 propose Note 时拒绝；`git push` 不改工作树，放行。工作区外写入始终拒绝。
+文档范围由 `批准，执行文档治理 {文件或目录}` 设置，范围外仍拒绝；不进入 planning/implement，也不解锁源码。文档是“代码之外”的路径，不维护文档白名单；源码边界由 code roots/文件集固定。`trash.mjs`、`git add/commit/mv` 按目标路径分类，混入源码或 propose Note 时拒绝；`git push` 不改工作树，放行。工作区外写入始终拒绝。
 
-Agent Notes 的 `proposed → implemented` 迁移是路径级例外：`write` 新文件、`edit` 状态/标题、`trash.mjs` 旧 Note 都不需要 implement 授权，也不会被 `complete` 之后误拦。`.trash/` 作为这些文档移动的目的地同样放行；只有源码/测试/脚本/配置路径受授权约束。
+Agent Notes 的 `proposed → implemented` 迁移：propose 文件只在 planning/implement 可写；`complete` 后修改已实现 Note 需要先给文档治理范围。`.trash/` 作为文档移动目的地可由范围覆盖。
 
 拒绝原因固定写明：
 
@@ -143,8 +145,8 @@ Agent Notes 的 `proposed → implemented` 迁移是路径级例外：`write` �
 
 ## Testing
 
-- `tools/implement-gate/test.mjs`：纯分类/命令用例 + mock Host 用例，覆盖 discuss 拒绝源码和 Note、planning 放行 Note、end-planning 回 discuss、implement/block/complete、approval allowed/rejected、无 marker 项目 pass-through、复合命令、重定向、构建、docs-only git mv/trash、工作区外路径；
-- 已安装到 desktop profile 后实测：无 marker 的其他 workspace 不拦截；本 workspace 无授权源码 `write` 被拒绝；docs `write` 与 `trash.mjs` 放行；`implement_gate status` 返回当前会话 phase；
+- `tools/implement-gate/test.mjs`：纯分类/命令用例 + mock Host 用例，覆盖 discuss 拒绝源码和无范围文档、文档治理命令设置 `docScope`、范围外拒绝、范围内容器内 Note/shell 放行、end-docs、planning 放行 propose Note、implement/block/complete、approval allowed/rejected、无 marker 项目 pass-through、复合命令、重定向、构建、docs-only git mv/trash、工作区外路径；
+- 已安装到 desktop profile 后实测：无 marker 的其他 workspace 不拦截；本 workspace 无授权源码 `write` 被拒绝；无 `docScope` 的文档写被拒绝；`implement_gate status` 返回当前会话 phase 与 `docScope`；
 - `storycraft/scripts/ci.mjs` 加入 `tools/implement-gate/test.mjs`，完整单元 CI 通过（94 文件）。
 
 ## Consequences

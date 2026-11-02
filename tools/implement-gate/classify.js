@@ -24,19 +24,42 @@ export function gateCommand(message, header) {
   if (implement !== null && implement[1].trim() !== '') return { kind: 'implement', task: implement[1].trim() }
   const planning = /^批准，使用(?:技能\s*)?planning\s+执行规划\s+(.+)$/u.exec(text)
   if (planning !== null && planning[1].trim() !== '') return { kind: 'planning', task: planning[1].trim() }
+  const docs = /^批准，执行文档治理\s+(.+)$/u.exec(text)
+  if (docs !== null && docs[1].trim() !== '') return { kind: 'docs', task: docs[1].trim() }
   return undefined
 }
 
-/** Whether a relative path is documentation/repository governance. */
-function isDocs(relative) {
-  return relative === 'AGENTS.md'
-    || relative === 'GATES.md'
-    || relative === 'README.md'
-    || relative === 'docs' || relative.startsWith('docs/')
-    || relative === '.agents/notes' || relative.startsWith('.agents/notes/')
-    || relative === '.agents/skills' || relative.startsWith('.agents/skills/')
-    || relative === '.trash' || relative.startsWith('.trash/')
-    || (relative.startsWith('tools/') && relative.endsWith('/README.md'))
+const CODE_PREFIXES = [
+  'storycraft/src',
+  'storycraft/tests',
+  'storycraft/scripts',
+  'storycraft/e2e',
+  'storycraft/lib',
+  'tools',
+  'scripts',
+  '.github',
+  'deepseek-harness',
+]
+const CODE_FILES = new Set([
+  'package.json',
+  'package-lock.json',
+  'pnpm-lock.yaml',
+  'tsconfig.json',
+  'tsconfig.client.json',
+  'cordis.patch.yml',
+  '.gitignore',
+  'storycraft/package.json',
+  'storycraft/package-lock.json',
+  'storycraft/tsconfig.json',
+  'storycraft/tsconfig.client.json',
+])
+const DOC_EXT = /\.(?:md|mdx|txt|rst|adoc)$/iu
+
+/** Code/config paths; documentation suffixes inside a code directory stay docs. */
+function isCode(relative) {
+  if (CODE_FILES.has(relative)) return true
+  const underCodeDir = CODE_PREFIXES.some(prefix => relative === prefix || relative.startsWith(`${prefix}/`))
+  return underCodeDir && !DOC_EXT.test(relative)
 }
 
 /** Classify a file target relative to the workspace root. */
@@ -48,7 +71,17 @@ export function classifyPath(root, value) {
   const proposed = !outside && (relative === '.agents/notes/proposed' || relative.startsWith('.agents/notes/proposed/'))
   const protectedPath = !outside && (relative === '.agents/implement-gate.json'
     || relative === '.agents/state/implement-gate' || relative.startsWith('.agents/state/implement-gate/'))
-  return { absolute, relative, outside, notes, proposed, protected: protectedPath, docs: !outside && isDocs(relative) }
+  const code = !outside && isCode(relative)
+  return {
+    absolute,
+    relative,
+    outside,
+    notes,
+    proposed,
+    code,
+    protected: protectedPath,
+    docs: !outside && !code && !protectedPath,
+  }
 }
 
 /** Write verbs and explicit shell redirection, excluding `=>` and `2>&1`. */
@@ -60,7 +93,7 @@ function pathArgs(text) {
     .filter(value => value !== undefined && !value.startsWith('-'))
 }
 
-/** Aggregate docs/proposed classification for explicit path arguments. */
+/** Aggregate docs/proposed classification and explicit targets for a shell segment. */
 function pathInfo(root, values) {
   let docsOnly = values.length > 0
   let touchesProposed = false
@@ -69,12 +102,12 @@ function pathInfo(root, values) {
     if (target.outside || !target.docs) docsOnly = false
     if (target.proposed) touchesProposed = true
   }
-  return { docsOnly, touchesProposed }
+  return { docsOnly, touchesProposed, targets: values }
 }
 
 function stagedInfo(root) {
   const result = spawnSync('git', ['diff', '--cached', '--name-only'], { cwd: root, encoding: 'utf8' })
-  if (result.error !== undefined || result.status !== 0) return { docsOnly: false, touchesProposed: false }
+  if (result.error !== undefined || result.status !== 0) return { docsOnly: false, touchesProposed: false, targets: [] }
   const files = String(result.stdout ?? '').split(/\r?\n/u).map(line => line.trim()).filter(Boolean)
   return pathInfo(root, files)
 }
@@ -86,7 +119,7 @@ function segments(text) {
 
 /** Decide one shell segment; `write` means it mutates the workspace. */
 function segmentAccess(text, root) {
-  if (/\bgit\s+push\b/iu.test(text)) return { write: false, docsOnly: false, touchesProposed: false }
+  if (/\bgit\s+push\b/iu.test(text)) return { write: false, docsOnly: false, touchesProposed: false, targets: [] }
   const add = /\bgit\s+add\b([\s\S]*)$/iu.exec(text)
   if (add !== null) {
     const info = pathInfo(root, pathArgs(add[1]))
@@ -106,13 +139,13 @@ function segmentAccess(text, root) {
     const info = pathInfo(root, pathArgs(trash[1]))
     return { write: true, ...info }
   }
-  return { write: WRITE_COMMAND.test(text), docsOnly: false, touchesProposed: false }
+  return { write: WRITE_COMMAND.test(text), docsOnly: false, touchesProposed: false, targets: [] }
 }
 
 /**
  * Decide whether a shell command needs an implement authorization.
- * `docsOnly` marks documentation/governance operations; `touchesProposed`
- * keeps proposed planning notes inside the planning phase.
+ * `docsOnly` marks documentation operations; `targets` lets the caller enforce
+ * a document scope, and `touchesProposed` keeps proposed notes planning-gated.
  */
 export function shellAccess(command, root) {
   const writes = segments(command).map(part => segmentAccess(part, root)).filter(item => item.write)
@@ -120,6 +153,7 @@ export function shellAccess(command, root) {
     write: writes.length > 0,
     docsOnly: writes.length > 0 && writes.every(item => item.docsOnly),
     touchesProposed: writes.some(item => item.touchesProposed),
+    targets: writes.flatMap(item => item.targets ?? []),
   }
 }
 

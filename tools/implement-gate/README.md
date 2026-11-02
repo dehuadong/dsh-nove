@@ -34,7 +34,8 @@ Host 插件：仅在已启用的项目里，按**会话**控制源码与规划 N
   "phase": "discuss | planning | implement | complete",
   "work": "active | blocked",
   "task": "...",
-  "blockReason": null
+  "blockReason": null,
+  "docScope": "docs | docs/notes | null"
 }
 ```
 
@@ -45,6 +46,7 @@ Host 插件：仅在已启用的项目里，按**会话**控制源码与规划 N
 - 真实用户整条消息中的规范命令：
   - `批准，使用技能 planning 执行规划 {工作项}` → planning；
   - `批准，使用技能 implement 执行实现 {工作项}` → implement；
+  - `批准，执行文档治理 {文件或目录}` → 只设置文档范围 `docScope`，不进入 planning/implement；
 - `implement_gate({action:'authorize'})` 调用 DSH approval 服务，获得任务级批准；
 - 审批不可用/被策略禁止/被拒绝时返回 `approval-unavailable`、`approval-disabled` 或 `approval-rejected`，回退规范命令。
 
@@ -56,14 +58,16 @@ Host 插件：仅在已启用的项目里，按**会话**控制源码与规划 N
 | --- | --- | --- | --- | --- |
 | 源码/测试/脚本 | 拒绝 | 拒绝 | 允许 | 拒绝 |
 | `.agents/notes/proposed/**` | 拒绝 | 允许 | 允许 | 拒绝 |
-| 其他 `.agents/notes/**`、`docs/**`、根文档、skills | 允许 | 允许 | 允许 | 允许 |
-| shell 写命令 | 仅非-proposed docs | 仅 docs-only | 允许 | 仅非-proposed docs |
+| 文档（代码之外任意路径） | 仅 `docScope` 内 | 允许 | 允许 | 仅 `docScope` 内 |
+| shell 文档写命令 | 仅 `docScope` 内 | 仅 docs-only | 允许 | 仅 `docScope` 内 |
 | 状态/启用标记 | 拒绝 | 拒绝 | 拒绝 | 拒绝 |
 
-文档和仓库治理不经过工程状态门禁：README、AGENTS、GATES、docs、skills、已归档/已实现 Note 在 discuss 与 complete 下也可写；只有 **propose 规划 Note** 仍要求 planning/implement。`trash.mjs`、`git add/commit/mv` 按目标路径分类，混入源码或 propose Note 时拒绝。
+文档范围由 `批准，执行文档治理 {文件或目录}` 设置，范围外仍拒绝；它不进入 planning/implement，也不解锁源码。文档是“代码之外”的路径，不维护文档白名单；源码边界由 `classify.js` 的 code roots/文件集固定。`trash.mjs`、`git add/commit/mv` 按目标路径分类，混入源码或 propose Note 时拒绝。
+
 - `git push` 不改工作树，放行；
-- `implement_gate block` 冻结源码写，文档仍可写；
-- `implement_gate complete` 结束任务，源码写恢复拒绝，文档仍可写。
+- `implement_gate block` 冻结源码写，文档范围仍有效；
+- `implement_gate complete` 结束任务并清除 `docScope`，源码写恢复拒绝；
+- `implement_gate end-docs` 提前清除文档范围。
 
 ## 文件
 

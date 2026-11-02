@@ -28,9 +28,9 @@
 
 源码写入另由 Host 插件 `@dsh-nove/implement-gate`（源码 `tools/implement-gate/`）在 `tools/pre-execute` 强制执行。它只在项目根存在 `.agents/implement-gate.json`（`{"enabled":true}`）时启用；其他项目完全 pass-through。状态按 `(workspaceRoot, sessionId)` 存放在 `.agents/state/implement-gate/<session-hash>.json`，并行会话互不影响，插件重载后从文件恢复。
 
-状态机：`discuss`（默认；源码和 propose 规划 Note 拒绝）→ planning 命令 → `planning`（允许 propose Note，源码仍拒绝）→ `implement_gate({action:'end-planning'})` → `discuss`；implement 命令/审批 → `implement`（允许源码与 Note）→ `complete`（源码与 propose Note 拒绝）。Planning 结束后必须显式 `end-planning`，用户随口提问不会让代理改 propose Note。
+状态机：`discuss`（默认；源码和 propose 规划 Note 拒绝）→ planning 命令 → `planning`（允许文档与 propose Note，源码仍拒绝）→ `implement_gate({action:'end-planning'})` → `discuss`；implement 命令/审批 → `implement`（允许源码与文档）→ `complete`（源码与 propose Note 拒绝）。
 
-文档与仓库治理绕过工程状态门禁：README、AGENTS、GATES、docs、skills、已归档/已实现 Note 在 discuss 与 complete 下也可写；只有 `.agents/notes/proposed/**` 仍要求 planning/implement。授权来自 owner 用户整条消息中的规范 planning/implement 命令，或 `implement_gate({action:'authorize'})` 的任务级审批；`.agents/implement-gate.json` 与 `.agents/state/implement-gate/**` 是守护路径，模型不可写。合同变化时调用 `implement_gate({action:'block',reason})`，Verify 后调用 `complete`。
+文档治理使用独立命令 `批准，执行文档治理 {文件或目录}`：只设置 `docScope`，不进入 planning/implement，也不解锁源码。`discuss`/`complete` 下只有范围内容器内的文档可写；文档是“代码之外”的路径，不维护文档白名单；源码边界由 code roots/文件集固定。`.agents/notes/proposed/**`、`.agents/implement-gate.json`、`.agents/state/implement-gate/**` 始终例外；文档任务结束调用 `implement_gate({action:'end-docs'})`。授权来自 owner 用户整条消息中的规范 planning/implement/文档治理命令，或 `implement_gate({action:'authorize'})` 的任务级审批。合同变化时调用 `implement_gate({action:'block',reason})`，Verify 后调用 `complete`。
 
 ## 工程工作流 
 
@@ -129,7 +129,6 @@
 - 遇到实现、流程、节点或验收问题时，**先查对拍项目如何实现**：读它的源码、文档、CI、技能、角色资源与测试，再决定我们的做法；不得先改提示词或凭直觉自创。
 - **提案必须带对拍证据**：任何提案/设计 Note 必须有“对拍参考”段，写清参考工程 `inkos-master` 的证据位置（文件、类型、流程或测试）及其实现方式；有参考实现时，再写我们的实现方式与裁决（采纳/等价适配/不采用及原因）。没有可对照实现时，写“无参考实现”、检索范围和理由。不得只用“超出范围/成本高”作为不采用理由。提案改变结构时，还必须给出偏差行（参考做法 / 我们的做法 / 原因 / 裁决 / 验证）；没有偏差行的结构变化不得进入实现。
 - 每次对拍先提取可验证的不变量；再写“参考证据 / 我们落点 / 差异原因 / 验证命令”。查不到或不能照做时，记录约束与原因，必要时先取得用户许可。
-- 不直接复制参考代码；优先吸收采纳其中好的方面，按我们的领域语言和职责边界改写，不把参考文件当成项目源文件。
 - 新发现先更新对照表，再决定是否立工单；不要把聊天里的分析当成已完成的对拍。
 - **四层对拍**：每次同时核对 Agent/角色（输入、输出、失败）、Skill/资源（方法正文、references、加载方式）、产物/数据（字段、权威、消费者、生命周期、旧 schema 拒绝）、宿主/编排（阶段、闸门、确认、证据）。只对流程/编排不算完成。
 - **结构优先**：参考实现的产物、角色、技能或数据模型更完整时，按原结构采纳或等价适配；不得为了少改现有代码把多份产物压进一个文件、把结构化字段降为文本、把独立流水线塞进现有阶段机。
@@ -137,7 +136,7 @@
 - **方法共享，角色薄契约**：长篇/短篇/剧本的创作方法各归一份共享技能 + references，由相关角色共同加载；角色技能只写提交内容、闸门与失败回退，不复制或改写方法正文。审稿/修订等角色专属标准可以独立。
 - **三形态独立**：长篇、短篇、剧本各有独立产物与流水线（短篇 outline/batch draft/review/revision/package；剧本 spec/script/场次集）；共享底层存储与合同，不共享阶段机。
 - **范围删除需裁决**：参考能力若不属于当前产品，先在 Issue/Note 写明并由作者裁决；实现不得以“当前没排期/成本高”自行裁剪。
-- **宿主差异要等价**：DSH 没有的 capability/profile/confirmation 等机制，用本 Harness 的等价行为实现并记录约束；不复制参考代码，也不静默省略。
+- **宿主差异要等价**：DSH 没有的 capability/profile/confirmation 等机制，用本 Harness 的等价行为实现并记录约束；
 - **消费者与证据**：产物对拍同时看 brief/context、检索、审稿/结算、UI、导出/备份、旧 schema 拒绝；只验证“能写入/能读回”不算对拍。参考实现自身有弱点时，记录弱点与我们补强，结构采纳不等于复制缺陷。
 - 对拍整改先立产物合同，再按形态推进；合同未定前不按旧格式实现新角色/生成链。当前顺序：A0 全量产物合同 → L 长篇 → S 短篇 → D 剧本。
 
