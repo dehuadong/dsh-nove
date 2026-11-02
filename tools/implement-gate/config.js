@@ -1,4 +1,4 @@
-/** Load and validate one workspace's implement-gate policy. */
+/** Load and validate one workspace's implement-gate policy (version 2). */
 
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -6,25 +6,40 @@ import path from 'node:path'
 export const MARKER = '.agents/implement-gate.json'
 export const STATE_DIR = '.agents/state/implement-gate'
 export const DEFAULT_PROTECTED = [MARKER, STATE_DIR]
-const ALLOWED_KEYS = new Set(['enabled', 'version', 'codeRoots', 'codeFiles', 'protected', 'proposed', 'commands'])
-const COMMAND_KEYS = ['planning', 'implement', 'docs']
+const ALLOWED_KEYS = new Set(['enabled', 'version', 'codeExtensions', 'codePaths', 'protected', 'proposed', 'commands'])
+const COMMAND_KEYS = ['planning', 'implement']
 
-function normalizePath(value, label) {
+function normalizePath(value, { allowTrailingSlash = false } = {}) {
   if (typeof value !== 'string') return undefined
-  const text = value.trim().replaceAll('\\', '/').replace(/\/+$/u, '')
-  if (text === '' || text === '.') return text === '' ? undefined : '.'
-  if (path.isAbsolute(text) || /^[A-Za-z]:/u.test(text) || text.startsWith('//')) return undefined
+  const raw = value.trim().replaceAll('\\', '/')
+  if (raw === '' || raw === '.' || raw.startsWith('//')) return undefined
+  const trailing = allowTrailingSlash && raw.endsWith('/')
+  const text = raw.replace(/\/+$/u, '')
+  if (text === '' || text === '.') return undefined
+  if (path.isAbsolute(text) || /^[A-Za-z]:/u.test(text)) return undefined
   if (text.split('/').includes('..') || /[*?[\]{}]/u.test(text)) return undefined
-  return text
+  return trailing ? `${text}/` : text
 }
 
-function normalizeList(value, label) {
+function normalizeList(value, options) {
   if (!Array.isArray(value)) return undefined
   const result = []
   for (const item of value) {
-    const normalized = normalizePath(item, label)
+    const normalized = normalizePath(item, options)
     if (normalized === undefined) return undefined
     if (!result.includes(normalized)) result.push(normalized)
+  }
+  return result
+}
+
+function normalizeExtensions(value) {
+  if (!Array.isArray(value) || value.length === 0) return undefined
+  const result = []
+  for (const item of value) {
+    if (typeof item !== 'string') return undefined
+    const text = item.trim().toLowerCase()
+    if (!/^\.[a-z0-9]+$/u.test(text)) return undefined
+    if (!result.includes(text)) result.push(text)
   }
   return result
 }
@@ -46,10 +61,7 @@ function compileCommands(value) {
   return commands
 }
 
-/**
- * Resolve the marker for a workspace.
- * missing: no marker (pass-through); disabled: enabled:false; invalid: fail closed; ok: policy.
- */
+/** Resolve the marker for a workspace. */
 export function loadConfig(root) {
   const configPath = path.join(root, MARKER)
   let raw
@@ -76,22 +88,22 @@ export function loadConfig(root) {
   if (Object.keys(value).some(key => !ALLOWED_KEYS.has(key))) {
     return { kind: 'invalid', configPath, reason: `${MARKER} has an unknown key` }
   }
-  if (value.version !== 1) {
-    return { kind: 'invalid', configPath, reason: `${MARKER}.version must be 1` }
+  if (value.version !== 2) {
+    return { kind: 'invalid', configPath, reason: `${MARKER}.version must be 2` }
   }
-  const codeRoots = normalizeList(value.codeRoots, 'codeRoots')
-  if (codeRoots === undefined || codeRoots.length === 0) {
-    return { kind: 'invalid', configPath, reason: `${MARKER}.codeRoots must be a non-empty list` }
+  const codeExtensions = normalizeExtensions(value.codeExtensions)
+  if (codeExtensions === undefined) {
+    return { kind: 'invalid', configPath, reason: `${MARKER}.codeExtensions must be a non-empty list like ".ts"` }
   }
-  const codeFiles = value.codeFiles === undefined ? [] : normalizeList(value.codeFiles, 'codeFiles')
-  if (codeFiles === undefined) {
-    return { kind: 'invalid', configPath, reason: `${MARKER}.codeFiles must be a path list` }
+  const codePaths = value.codePaths === undefined ? [] : normalizeList(value.codePaths, { allowTrailingSlash: true })
+  if (codePaths === undefined) {
+    return { kind: 'invalid', configPath, reason: `${MARKER}.codePaths must be a relative path list` }
   }
-  const configuredProtected = value.protected === undefined ? [] : normalizeList(value.protected, 'protected')
+  const configuredProtected = value.protected === undefined ? [] : normalizeList(value.protected)
   if (configuredProtected === undefined) {
     return { kind: 'invalid', configPath, reason: `${MARKER}.protected must be a path list` }
   }
-  const proposed = value.proposed === undefined ? undefined : normalizePath(value.proposed, 'proposed')
+  const proposed = value.proposed === undefined ? undefined : normalizePath(value.proposed)
   if (value.proposed !== undefined && proposed === undefined) {
     return { kind: 'invalid', configPath, reason: `${MARKER}.proposed must be a relative path` }
   }
@@ -100,5 +112,9 @@ export function loadConfig(root) {
     return { kind: 'invalid', configPath, reason: `${MARKER}.commands must define a valid implement regex` }
   }
   const protectedPaths = [...new Set([...DEFAULT_PROTECTED, ...configuredProtected])]
-  return { kind: 'ok', configPath, policy: { version: 1, codeRoots, codeFiles, protected: protectedPaths, proposed, commands } }
+  return {
+    kind: 'ok',
+    configPath,
+    policy: { version: 2, codeExtensions, codePaths, protected: protectedPaths, proposed, commands },
+  }
 }

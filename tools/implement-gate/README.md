@@ -1,6 +1,6 @@
 # implement-gate
 
-Host 插件：仅在已启用的项目里，按**会话**控制源码与规划 Note 的写入。
+Host 插件：仅在已启用的项目里，按**会话**控制**代码文件**的写入；文档、普通 JSON/YAML、git 操作不进入代码门禁。
 
 ## 为什么存在
 
@@ -15,23 +15,23 @@ Host 插件：仅在已启用的项目里，按**会话**控制源码与规划 N
 ```json
 {
   "enabled": true,
-  "version": 1,
-  "codeRoots": ["src", "tests", "tools"],
-  "codeFiles": ["package.json", "tsconfig.json"],
-  "protected": [".agents/state"],
+  "version": 2,
+  "codeExtensions": [".ts", ".js", ".py", ".rs", ".go", ".sh"],
+  "codePaths": ["package.json", "tsconfig.json", "cordis.patch.yml"],
+  "protected": [".agents/implement-gate.json", ".agents/state/implement-gate"],
   "proposed": ".agents/notes/proposed",
   "commands": {
     "planning": "^批准，使用(?:技能\\s*)?planning\\s+执行规划\\s+(.+)$",
-    "implement": "^批准，使用(?:技能\\s*)?implement\\s+执行实现\\s+(.+)$",
-    "docs": "^批准，执行文档治理\\s+(.+)$"
+    "implement": "^批准，使用(?:技能\\s*)?implement\\s+执行实现\\s+(.+)$"
   }
 }
 ```
 
 - 没有 marker 或 `enabled:false`：pass-through；
-- marker JSON 坏、`enabled` 非布尔、缺 `version:1`/`codeRoots`/`commands.implement`、含绝对路径/`..`/通配符/未知键：`misconfigured`，所有写拒绝；
+- marker JSON 坏、`enabled` 非布尔、缺 `version:2`/`codeExtensions`/`commands.implement`、含绝对路径/`..`/通配符/未知键：`misconfigured`，所有写拒绝；
 - `.agents/implement-gate.json` 与 `.agents/state/implement-gate/**` **无条件 protected**，配置只能追加；
-- `codeRoots`/`codeFiles` 之外的路径是文档；文档不再维护白名单；
+- `codeExtensions` 之外的路径是文档；`codePaths` 只列执行入口（package/lock/tsconfig/cordis/CI workflow）；
+- `codePaths` 不带尾斜杠是精确文件，带尾斜杠是目录前缀；
 - 配置按 workspace 根、每次调用读取；不同项目互不影响。
 
 ## 会话状态
@@ -49,19 +49,17 @@ Host 插件：仅在已启用的项目里，按**会话**控制源码与规划 N
   "phase": "discuss | planning | implement | complete",
   "work": "active | blocked",
   "task": "...",
-  "blockReason": null,
-  "docScope": "docs | docs/notes | null"
+  "blockReason": null
 }
 ```
 
-`discuss` 是默认态：不写源码，也不写规划 Note；用户随口提问不会导致 Note 被改。Planning 结束通过 `implement_gate({action:'end-planning'})` 显式回到 discuss。
+`discuss` 是默认态：不写代码文件，也不写规划 Note；普通文档、JSON、YAML、git 不受影响。Planning 结束通过 `implement_gate({action:'end-planning'})` 显式回到 discuss。
 
 ## 授权来源
 
 - 真实用户整条消息中的规范命令：
   - `批准，使用技能 planning 执行规划 {工作项}` → planning；
   - `批准，使用技能 implement 执行实现 {工作项}` → implement；
-  - `批准，执行文档治理 {文件或目录}` → 只设置文档范围 `docScope`，不进入 planning/implement；
 - `implement_gate({action:'authorize'})` 调用 DSH approval 服务，获得任务级批准；
 - 审批不可用/被策略禁止/被拒绝时返回 `approval-unavailable`、`approval-disabled` 或 `approval-rejected`，回退规范命令。
 
@@ -71,18 +69,18 @@ Host 插件：仅在已启用的项目里，按**会话**控制源码与规划 N
 
 | 目标 | discuss | planning | implement | complete |
 | --- | --- | --- | --- | --- |
-| 源码/测试/脚本 | 拒绝 | 拒绝 | 允许 | 拒绝 |
+| 代码文件（`codeExtensions`/`codePaths`） | 拒绝 | 拒绝 | 允许 | 拒绝 |
+| 普通文档/JSON/YAML | 允许 | 允许 | 允许 | 允许 |
 | `.agents/notes/proposed/**` | 拒绝 | 允许 | 允许 | 拒绝 |
-| 文档（代码之外任意路径） | 仅 `docScope` 内 | 允许 | 允许 | 仅 `docScope` 内 |
-| shell 文档写命令 | 仅 `docScope` 内 | 仅 docs-only | 允许 | 仅 `docScope` 内 |
+| `git status/add/commit/push` | 允许 | 允许 | 允许 | 允许 |
+| `git checkout/reset/clean` | 拒绝 | 拒绝 | 允许 | 拒绝 |
 | 状态/启用标记 | 拒绝 | 拒绝 | 拒绝 | 拒绝 |
 
-文档范围由 `批准，执行文档治理 {文件或目录}` 设置，范围外仍拒绝；它不进入 planning/implement，也不解锁源码。文档是“代码之外”的路径，不维护文档白名单；源码边界由项目和 `.agents/implement-gate.json` 的 `codeRoots`/`codeFiles` 固定。`trash.mjs`、`git add/commit/mv` 按目标路径分类，混入源码或 propose Note 时拒绝。
+不按路径白名单判断文档；只有代码扩展名与少量执行入口 `codePaths` 进入 implement 门禁。`pwsh`/`bash` 只检查显式代码目标与重定向，不再把整条命令当代码写。
 
-- `git push` 不改工作树，放行；
-- `implement_gate block` 冻结源码写，文档范围仍有效；
-- `implement_gate complete` 结束任务并清除 `docScope`，源码写恢复拒绝；
-- `implement_gate end-docs` 提前清除文档范围。
+- `implement_gate block` 冻结代码写；
+- `implement_gate complete` 结束任务，代码写恢复拒绝；
+- `implement_gate end-docs` 返回 `not-supported`；文档不再需要范围授权。
 
 ## 文件
 

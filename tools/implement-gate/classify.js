@@ -1,6 +1,5 @@
 /** Pure decisions for the implement gate; the Host plugin owns state and dispatch. */
 
-import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 
 /** Normalize a user message before exact gate matching. */
@@ -21,10 +20,7 @@ export function isWithin(relative, base) {
   return child === parent || child.startsWith(`${parent}/`)
 }
 
-/**
- * Match a gate command only from an owner-authored, whole user message.
- * `parentSession` is historical and does not classify a subagent; `origin` does.
- */
+/** Match a gate command only from an owner-authored, whole user message. */
 export function gateCommand(message, header, commands) {
   if (message === undefined || message === null) return undefined
   if (message.source?.kind !== 'user' || message.source.principal !== undefined) return undefined
@@ -33,7 +29,7 @@ export function gateCommand(message, header, commands) {
     .filter(block => block?.type === 'text')
     .map(block => block.text)
     .join(''))
-  for (const kind of ['implement', 'planning', 'docs']) {
+  for (const kind of ['implement', 'planning']) {
     const pattern = commands?.[kind]
     if (pattern === undefined) continue
     const match = pattern.exec(text)
@@ -43,13 +39,13 @@ export function gateCommand(message, header, commands) {
   return undefined
 }
 
-const DOC_EXT = /\.(?:md|mdx|txt|rst|adoc)$/iu
-
 function isCode(relative, policy) {
-  const target = foldPath(relative)
-  if (policy.codeFiles.some(file => foldPath(file) === target)) return true
-  const underRoot = policy.codeRoots.some(root => isWithin(relative, root))
-  return underRoot && !DOC_EXT.test(relative)
+  const normalized = relative.replace(/[. ]+$/u, '')
+  const ext = path.extname(normalized).toLowerCase()
+  if (policy.codeExtensions.includes(ext)) return true
+  return policy.codePaths.some(entry => entry.endsWith('/')
+    ? isWithin(relative, entry.slice(0, -1))
+    : foldPath(relative) === foldPath(entry))
 }
 
 function isProtected(relative, policy) {
@@ -61,7 +57,6 @@ export function classifyPath(root, value, policy) {
   const absolute = path.resolve(root, String(value ?? ''))
   const relative = path.relative(root, absolute).replaceAll('\\', '/')
   const outside = relative === '..' || relative.startsWith('../') || path.isAbsolute(relative)
-  const notes = !outside && (relative === '.agents/notes' || relative.startsWith('.agents/notes/'))
   const proposed = !outside && policy.proposed !== undefined && isWithin(relative, policy.proposed)
   const protectedPath = !outside && isProtected(relative, policy)
   const code = !outside && isCode(relative, policy)
@@ -69,7 +64,6 @@ export function classifyPath(root, value, policy) {
     absolute,
     relative,
     outside,
-    notes,
     proposed,
     code,
     protected: protectedPath,
@@ -77,8 +71,7 @@ export function classifyPath(root, value, policy) {
   }
 }
 
-/** Write verbs and explicit shell redirection, excluding `=>` and `2>&1`. */
-const WRITE_COMMAND = /(?:^|[\s;(])(Set-Content|Add-Content|Out-File|New-Item|Remove-Item|Move-Item|Copy-Item|Rename-Item|Clear-Content|Set-Item|rm|mv|cp|sed\s+-i)\b|(?:^|\s)>{1,2}(?!&)|git\s+(?:clean|checkout|reset)|(?:npm|pnpm)\s+(?:install|ci|run\s+build|build)|node\s+\S*build/iu
+const WRITE_VERB = /(?:^|[\s;(])(Set-Content|Add-Content|Out-File|New-Item|Remove-Item|Move-Item|Copy-Item|Rename-Item|Clear-Content|Set-Item|rm|mv|cp|sed\s+-i)\b/iu
 
 function pathArgs(text) {
   const beforePipe = String(text).split('|')[0]
@@ -87,89 +80,85 @@ function pathArgs(text) {
     .filter(value => value !== undefined && !value.startsWith('-'))
 }
 
-/** Aggregate docs/proposed/protected classification and explicit targets. */
-function pathInfo(root, values, policy, cwd) {
-  let docsOnly = values.length > 0
-  let touchesProposed = false
-  const protectedTargets = []
+/** Simple same-command assignment map; anything else stays unresolved. */
+function assignments(text) {
+  const map = new Map()
+  for (const match of String(text).matchAll(/(?:^|[;\n])\s*\$?([A-Za-z_]\w*)\s*=\s*(?:'([^']*)'|"([^"]*)"|(\S+))/gu)) {
+    map.set(match[1], match[2] ?? match[3] ?? match[4])
+  }
+  return map
+}
+
+function resolveToken(token, map) {
+  const variable = /^\$([A-Za-z_]\w*)$/u.exec(token)
+  if (variable === null) return token
+  return map.get(variable[1]) ?? token
+}
+
+function redirectionTargets(text) {
+  return [...String(text).matchAll(/(?:^|\s)>{1,2}\s*(?:'([^']+)'|"([^"]+)"|([^\s;&|]+))/gu)]
+    .map(match => match[1] ?? match[2] ?? match[3])
+}
+
+function addTarget(targets, token, map) {
+  if (token === undefined || token === '') return
+  if (token.startsWith('$')) {
+    const resolved = resolveToken(token, map)
+    if (resolved !== token) targets.push(resolved)
+    return
+  }
+  targets.push(token)
+}
+
+/** Decide one shell statement: which explicit paths it writes and whether it is code. */
+function segmentAccess(text, root, policy, cwd, map) {
+  if (/\bgit\s+(?:status|add|commit|push)\b/iu.test(text)) {
+    return { write: false, forceCode: false, targets: [], codeTargets: [], protectedTargets: [], outsideTargets: [] }
+  }
+  if (/\bgit\s+(?:checkout|reset|clean)\b/iu.test(text)) {
+    return { write: true, forceCode: true, targets: [], codeTargets: [], protectedTargets: [], outsideTargets: [] }
+  }
+  const raw = []
+  const trash = /(?:^|\s)(?:node\s+)?[^\s]*trash\.mjs\b([\s\S]*)$/iu.exec(text)
+  if (trash !== null) {
+    for (const token of pathArgs(trash[1])) addTarget(raw, token, map)
+  } else {
+    const verb = WRITE_VERB.exec(text)
+    if (verb !== null) {
+      const tail = text.slice(verb.index + verb[0].length)
+      for (const token of pathArgs(tail)) addTarget(raw, token, map)
+    }
+    for (const token of redirectionTargets(text)) addTarget(raw, token, map)
+  }
   const targets = []
-  for (const value of values) {
+  const codeTargets = []
+  const protectedTargets = []
+  const outsideTargets = []
+  for (const value of raw) {
     const target = classifyPath(root, path.resolve(cwd, value), policy)
-    if (target.outside || !target.docs) docsOnly = false
-    if (target.proposed) touchesProposed = true
-    if (target.protected) protectedTargets.push(target.relative)
+    if (target.outside) { outsideTargets.push(target.absolute); continue }
     targets.push(target.absolute)
+    if (target.protected) protectedTargets.push(target.relative)
+    if (target.code) codeTargets.push(target.relative)
   }
-  return { docsOnly, touchesProposed, protectedTargets, targets }
+  return { write: raw.length > 0 || WRITE_VERB.test(text), forceCode: false, targets, codeTargets, protectedTargets, outsideTargets }
 }
 
-function stagedInfo(root, policy) {
-  const result = spawnSync('git', ['diff', '--cached', '--name-only'], { cwd: root, encoding: 'utf8' })
-  if (result.error !== undefined || result.status !== 0) {
-    return { docsOnly: false, touchesProposed: false, protectedTargets: [], targets: [] }
-  }
-  const files = String(result.stdout ?? '').split(/\r?\n/u).map(line => line.trim()).filter(Boolean)
-  return pathInfo(root, files, policy, root)
-}
-
-/** Split on statement boundaries, but keep a pipeline as one statement. */
+/** Split statements; pipelines stay in one statement. */
 function segments(text) {
   return String(text).split(/&&|\|\||;|\r?\n/u).map(part => part.trim()).filter(Boolean)
 }
 
-/** Decide one shell segment; `write` means it mutates the workspace. */
-function segmentAccess(text, root, policy, cwd) {
-  if (/\bgit\s+push\b/iu.test(text)) {
-    return { write: false, docsOnly: false, touchesProposed: false, protectedTargets: [], targets: [] }
-  }
-  const add = /\bgit\s+add\b([\s\S]*)$/iu.exec(text)
-  if (add !== null) {
-    const info = pathInfo(root, pathArgs(add[1]), policy, cwd)
-    return { write: true, ...info }
-  }
-  const move = /\bgit\s+mv\b([\s\S]*)$/iu.exec(text)
-  if (move !== null) {
-    const info = pathInfo(root, pathArgs(move[1]), policy, cwd)
-    return { write: true, ...info }
-  }
-  if (/\bgit\s+commit\b/iu.test(text)) {
-    const info = stagedInfo(root, policy)
-    return { write: true, ...info }
-  }
-  const trash = /(?:^|\s)(?:node\s+)?[^\s]*trash\.mjs\b([\s\S]*)$/iu.exec(text)
-  if (trash !== null) {
-    const info = pathInfo(root, pathArgs(trash[1]), policy, cwd)
-    return { write: true, ...info }
-  }
-  return { write: WRITE_COMMAND.test(text), docsOnly: false, touchesProposed: false, protectedTargets: [], targets: [] }
-}
-
-/**
- * Decide whether a shell command needs an implement authorization.
- * `docsOnly` marks documentation operations; `targets` lets the caller enforce
- * a document scope; protected/proposed remain explicit exceptions.
- */
+/** Summarize explicit writes and whether any target is code. */
 export function shellAccess(command, root, policy, cwd = root) {
-  const writes = segments(command).map(part => segmentAccess(part, root, policy, cwd)).filter(item => item.write)
+  const map = assignments(command)
+  const parts = segments(command).map(part => segmentAccess(part, root, policy, cwd, map)).filter(item => item.write)
   return {
-    write: writes.length > 0,
-    docsOnly: writes.length > 0 && writes.every(item => item.docsOnly),
-    touchesProposed: writes.some(item => item.touchesProposed),
-    protectedTargets: writes.flatMap(item => item.protectedTargets ?? []),
-    targets: writes.flatMap(item => item.targets ?? []),
+    write: parts.length > 0,
+    forceCode: parts.some(item => item.forceCode),
+    targets: parts.flatMap(item => item.targets ?? []),
+    codeTargets: parts.flatMap(item => item.codeTargets ?? []),
+    protectedTargets: parts.flatMap(item => item.protectedTargets ?? []),
+    outsideTargets: parts.flatMap(item => item.outsideTargets ?? []),
   }
-}
-
-/** Detect an absolute/outside write target in a shell line. */
-export function shellOutside(command, root) {
-  // A here-string is script content, not shell path syntax; scanning its
-  // imports would flag relative specifiers like ../src as outside writes.
-  const text = String(command ?? '').replace(/@'[\s\S]*?'@/gu, ' ').replace(/@"[\s\S]*?"@/gu, ' ')
-  for (const match of text.matchAll(/(?:^|[\s'"])(?:[A-Za-z]:\\[^\s"']+|\/[A-Za-z][^\s"']*|\.[.][/\\][^\s"']*)/gu)) {
-    const raw = match[0].replace(/^[\s'"]+/u, '')
-    const target = path.resolve(root, raw)
-    const relative = path.relative(root, target).replaceAll('\\', '/')
-    if (relative === '..' || relative.startsWith('../') || path.isAbsolute(relative)) return true
-  }
-  return false
 }

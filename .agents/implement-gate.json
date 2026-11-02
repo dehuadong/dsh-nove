@@ -1,25 +1,48 @@
 {
   "enabled": true,
-  "version": 1,
-  "codeRoots": [
-    "storycraft/src",
-    "storycraft/tests",
-    "storycraft/scripts",
-    "storycraft/e2e",
-    "storycraft/lib",
-    "tools",
-    "scripts",
-    ".github",
-    "deepseek-harness"
+  "version": 2,
+  "codeExtensions": [
+    ".rs",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs",
+    ".py",
+    ".go",
+    ".java",
+    ".kt",
+    ".kts",
+    ".c",
+    ".h",
+    ".cc",
+    ".cpp",
+    ".hpp",
+    ".cs",
+    ".rb",
+    ".php",
+    ".swift",
+    ".scala",
+    ".lua",
+    ".sh",
+    ".ps1",
+    ".sql",
+    ".css",
+    ".scss",
+    ".html",
+    ".vue",
+    ".svelte",
+    ".astro"
   ],
-  "codeFiles": [
+  "codePaths": [
     "package.json",
     "package-lock.json",
     "pnpm-lock.yaml",
     "tsconfig.json",
     "tsconfig.client.json",
     "cordis.patch.yml",
-    ".gitignore",
+    ".github/workflows/",
     "storycraft/package.json",
     "storycraft/package-lock.json",
     "storycraft/tsconfig.json",
@@ -32,7 +55,6 @@
   "proposed": ".agents/notes/proposed",
   "commands": {
     "planning": "^批准，使用(?:技能\\s*)?planning\\s+执行规划\\s+(.+)$",
-    "implement": "^批准，使用(?:技能\\s*)?implement\\s+执行实现\\s+(.+)$",
-    "docs": "^批准，执行文档治理\\s+(.+)$"
+    "implement": "^批准，使用(?:技能\\s*)?implement\\s+执行实现\\s+(.+)$"
   }
 }

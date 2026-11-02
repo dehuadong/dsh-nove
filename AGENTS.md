@@ -26,11 +26,11 @@
 
 边界说明：守卫装在当前 profile，只覆盖经由本 Harness 工具发起的命令；作者自己终端里的操作不在其内。因此删除一律走 `trash.mjs`，不要因为“有守卫”就放宽命令行。
 
-源码写入另由 Host 插件 `@dsh-nove/implement-gate`（源码 `tools/implement-gate/`）在 `tools/pre-execute` 强制执行。它只在项目根存在 `.agents/implement-gate.json` 时启用；其他项目完全 pass-through。配置定义 `codeRoots`/`codeFiles`、`protected`、`proposed` 与 `commands`；缺配置或配置非法时 `misconfigured`，所有写拒绝。状态按 `(workspaceRoot, agent.id)`（即 SessionId）存放在 `.agents/state/implement-gate/<session-hash>.json`，并行会话互不影响，插件重载后从文件恢复。
+代码写入另由 Host 插件 `@dsh-nove/implement-gate`（源码 `tools/implement-gate/`）在 `tools/pre-execute` 强制执行。它只在项目根存在 `.agents/implement-gate.json` 时启用；其他项目完全 pass-through。配置定义 `codeExtensions`、少量执行入口 `codePaths`、`protected`、`proposed` 与 `commands`；缺配置或配置非法时 `misconfigured`，所有写拒绝。状态按 `(workspaceRoot, agent.id)`（即 SessionId）存放在 `.agents/state/implement-gate/<session-hash>.json`，并行会话互不影响，插件重载后从文件恢复。
 
-状态机：`discuss`（默认；源码和 propose 规划 Note 拒绝）→ planning 命令 → `planning`（允许文档与 propose Note，源码仍拒绝）→ `implement_gate({action:'end-planning'})` → `discuss`；implement 命令/审批 → `implement`（允许源码与文档）→ `complete`（源码与 propose Note 拒绝）。
+状态机：`discuss`（默认；代码文件和 propose 规划 Note 拒绝）→ planning 命令 → `planning`（允许文档与 propose Note，代码仍拒绝）→ `implement_gate({action:'end-planning'})` → `discuss`；implement 命令/审批 → `implement`（允许代码）→ `complete`（代码与 propose Note 拒绝）。
 
-文档治理使用独立命令 `批准，执行文档治理 {文件或目录}`：只设置 `docScope`，不进入 planning/implement，也不解锁源码。`discuss`/`complete` 下只有范围内容器内的文档可写；文档是“代码之外”的路径，不维护文档白名单；源码边界由 code roots/文件集固定。`.agents/notes/proposed/**`、`.agents/implement-gate.json`、`.agents/state/implement-gate/**` 始终例外；文档任务结束调用 `implement_gate({action:'end-docs'})`。授权来自 owner 用户整条消息中的规范 planning/implement/文档治理命令，或 `implement_gate({action:'authorize'})` 的任务级审批。合同变化时调用 `implement_gate({action:'block',reason})`，Verify 后调用 `complete`。
+文档、普通 JSON/YAML、`git status/add/commit/push` 不进入代码门禁；`git checkout/reset/clean` 仍视为代码写。`.agents/notes/proposed/**`、`.agents/implement-gate.json`、`.agents/state/implement-gate/**` 始终例外；`implement_gate({action:'end-docs'})` 返回 `not-supported`。授权来自 owner 用户整条消息中的规范 planning/implement 命令，或 `implement_gate({action:'authorize'})` 的任务级审批。合同变化时调用 `implement_gate({action:'block',reason})`，Verify 后调用 `complete`。
 
 ## 工程工作流 
 

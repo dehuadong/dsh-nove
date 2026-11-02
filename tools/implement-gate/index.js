@@ -1,13 +1,12 @@
 /**
- * Source-write gate with project opt-in, per-project config, and per-session
- * persisted state. See .agents/implement-gate.json for the policy that defines
- * code roots, protected paths, proposed notes, and gate commands.
+ * Code-write gate with project opt-in, per-project config, and per-session
+ * persisted state. Policy comes from .agents/implement-gate.json (version 2).
  */
 
 import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { classifyPath, foldPath, gateCommand, isWithin, shellAccess, shellOutside } from './classify.js'
+import { classifyPath, gateCommand, shellAccess } from './classify.js'
 import { loadConfig, STATE_DIR } from './config.js'
 
 export const inject = ['tools']
@@ -31,7 +30,7 @@ function stateFile(root, agent) {
 }
 
 function defaultState() {
-  return { phase: 'discuss', work: 'active', task: null, blockReason: null, docScope: null, updatedAt: null }
+  return { phase: 'discuss', work: 'active', task: null, blockReason: null, updatedAt: null }
 }
 
 function loadState(root, agent) {
@@ -43,7 +42,6 @@ function loadState(root, agent) {
       work: value?.work === 'blocked' ? 'blocked' : 'active',
       task: typeof value?.task === 'string' ? value.task : null,
       blockReason: typeof value?.blockReason === 'string' ? value.blockReason : null,
-      docScope: typeof value?.docScope === 'string' ? value.docScope : null,
       updatedAt: typeof value?.updatedAt === 'string' ? value.updatedAt : null,
     }
   } catch {
@@ -71,31 +69,9 @@ function misconfigured(config) {
 
 function sourceDeny(state) {
   if (state.work === 'blocked') return deny('当前任务已 blocked：先解决合同阻塞，再输入规范 implement 命令。')
-  if (state.phase === 'discuss') return deny('当前处于 discuss：只允许沟通与阅读，不允许写源码或规划 Note。')
-  if (state.phase === 'complete') return deny('当前任务已完成：源码写需要新的 implement 授权。')
+  if (state.phase === 'discuss') return deny('当前处于 discuss：只允许沟通与阅读，不允许写代码文件。')
+  if (state.phase === 'complete') return deny('当前任务已完成：代码写需要新的 implement 授权。')
   return deny('当前任务没有 implement 授权：先输入「批准，使用技能 implement 执行实现 {工作项}」。')
-}
-
-function protectedCommand(command, policy) {
-  const text = foldPath(command)
-  return policy.protected.some(entry => text.includes(foldPath(entry)))
-}
-
-function normalizeScope(root, raw, policy) {
-  const text = String(raw ?? '').trim().replace(/^['"]|['"]$/gu, '')
-  if (text === '' || text === '.' || ['*', '?', '[', ']', '{', '}'].some(char => text.includes(char))) return null
-  const target = classifyPath(root, text, policy)
-  if (target.outside || target.protected || target.proposed) return null
-  const relative = target.relative.replace(/\/+$/u, '')
-  if (relative === '' || relative === '.') return null
-  return relative
-}
-
-function targetsInScope(root, scope, targets, policy) {
-  return targets.length > 0 && targets.every(value => {
-    const target = classifyPath(root, value, policy)
-    return !target.outside && !target.code && !target.protected && !target.proposed && isWithin(target.relative, scope)
-  })
 }
 
 function toolOutput(value) {
@@ -116,27 +92,18 @@ export function apply(ctx) {
     }
     if (transition !== undefined) {
       const state = loadState(root, agent)
-      if (transition.kind === 'docs') {
-        const scope = normalizeScope(root, transition.task, config.policy)
-        if (scope !== null) {
-          state.docScope = scope
-          try { saveState(root, agent, state) } catch { /* fail closed; old state stays */ }
-        }
-      } else {
-        state.phase = transition.kind
-        state.work = 'active'
-        state.task = transition.task
-        state.blockReason = null
-        state.docScope = null
-        try { saveState(root, agent, state) } catch { /* fail closed; old state stays */ }
-      }
+      state.phase = transition.kind
+      state.work = 'active'
+      state.task = transition.task
+      state.blockReason = null
+      try { saveState(root, agent, state) } catch { /* fail closed; old state stays */ }
     }
     return next()
   })
 
   ctx.tools.register({
     name: 'implement_gate',
-    description: 'Session and workspace authorization state. authorize asks the approval service for task-level source permission; end-planning returns to discuss; end-docs clears document scope; block freezes source writes; complete ends the task; status is read-only. Policy comes from .agents/implement-gate.json.',
+    description: 'Session and workspace authorization state for code files. authorize asks the approval service for task-level permission; end-planning returns to discuss; block freezes code writes; complete ends the task; status is read-only. Policy comes from .agents/implement-gate.json.',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -164,6 +131,7 @@ export function apply(ctx) {
           ...loadState(root, exec.agent),
         }
       }
+      if (args.action === 'end-docs') return { ok: false, code: 'not-supported', next: '文档不再需要范围授权' }
       if (config.kind === 'invalid') return { ok: false, code: 'misconfigured', reason: config.reason, configPath: config.configPath }
       if (config.kind !== 'ok') return { ok: false, code: 'not-enabled', next: '当前项目没有 .agents/implement-gate.json 或未启用' }
       const state = loadState(root, exec.agent)
@@ -173,14 +141,9 @@ export function apply(ctx) {
         state.blockReason = null
         return { ok: true, enabled: true, ...saveState(root, exec.agent, state) }
       }
-      if (args.action === 'end-docs') {
-        state.docScope = null
-        return { ok: true, enabled: true, ...saveState(root, exec.agent, state) }
-      }
       if (args.action === 'complete') {
         state.phase = 'complete'
         state.blockReason = null
-        state.docScope = null
         return { ok: true, enabled: true, ...saveState(root, exec.agent, state) }
       }
       if (args.action === 'block') {
@@ -203,10 +166,10 @@ export function apply(ctx) {
           toolName: 'implement_gate',
           reason: typeof args.reason === 'string' && args.reason.trim() !== ''
             ? args.reason
-            : `授权任务「${state.task ?? '当前任务'}」后续源码写入，直到 Verify 完成`,
+            : `授权任务「${state.task ?? '当前任务'}」后续代码写入，直到 Verify 完成`,
           displayReason: {
-            en: `Authorize source writes for task ${state.task ?? 'current task'} until Verify completes`,
-            zh: `授权任务「${state.task ?? '当前任务'}」后续源码写入，直到 Verify 完成`,
+            en: `Authorize code writes for task ${state.task ?? 'current task'} until Verify completes`,
+            zh: `授权任务「${state.task ?? '当前任务'}」后续代码写入，直到 Verify 完成`,
           },
           signal: exec.signal,
         })
@@ -240,40 +203,26 @@ export function apply(ctx) {
         if (state.phase !== 'planning' && state.phase !== 'implement') return deny('propose 规划 Note 只在 planning/implement 阶段可写；要修改请先输入 planning 命令。')
         return next()
       }
-      if (target.code) {
-        if (state.phase === 'implement' && state.work === 'active') return next()
-        return sourceDeny(state)
-      }
-      if (target.docs) {
-        if (state.phase === 'planning' || state.phase === 'implement') return next()
-        if (state.docScope !== null && isWithin(target.relative, state.docScope)) return next()
-        return deny('文档写需要范围授权：先输入「批准，执行文档治理 <范围>」。')
-      }
+      if (!target.code) return next()
+      if (state.phase === 'implement' && state.work === 'active') return next()
       return sourceDeny(state)
     }
 
     if (exec.name === 'pwsh' || exec.name === 'bash') {
       const command = exec.arguments?.command
       if (typeof command !== 'string' || command.trim() === '') return next()
-      if (protectedCommand(command, policy)) return deny('implement-gate 的状态与启用标记不允许模型写入')
       const requested = exec.arguments?.workdir
       const cwd = typeof requested === 'string' && requested !== '' ? path.resolve(root, requested) : root
-      if (classifyPath(root, cwd, policy).outside) return deny('工作区外写入被拒绝')
-      if (shellOutside(command, cwd)) return deny('工作区外写入被拒绝')
       const access = shellAccess(command, root, policy, cwd)
       if (!access.write) return next()
       if (access.protectedTargets.length > 0) return deny('implement-gate 的状态与启用标记不允许模型写入')
-      if (access.docsOnly) {
-        if (access.touchesProposed) {
-          if (state.phase === 'planning' || state.phase === 'implement') return next()
-          return deny('propose 规划 Note 只在 planning/implement 阶段可写。')
-        }
-        if (state.phase === 'planning' || state.phase === 'implement') return next()
-        if (state.docScope !== null && targetsInScope(root, state.docScope, access.targets, policy)) return next()
-        return deny('文档写需要范围授权：先输入「批准，执行文档治理 <范围>」。')
+      if (access.outsideTargets.length > 0) return deny('工作区外写入被拒绝')
+      if (classifyPath(root, cwd, policy).outside) return deny('工作区外写入被拒绝')
+      if (access.codeTargets.length > 0 || access.forceCode) {
+        if (state.phase === 'implement' && state.work === 'active') return next()
+        return sourceDeny(state)
       }
-      if (state.phase === 'implement' && state.work === 'active') return next()
-      return sourceDeny(state)
+      return next()
     }
     return next()
   })
