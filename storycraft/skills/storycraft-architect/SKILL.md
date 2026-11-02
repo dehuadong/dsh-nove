@@ -1,6 +1,6 @@
 ---
 name: storycraft-architect
-description: 长篇基础设定（architect）：正常 design/cards 两阶段产出故事框架/卷图/当前焦点、作品规则、角色索引与角色卡，只通过 story_submit 提交；frame/rules/roles 仅作手动兼容。不写正文、不写状态。只出方法与提交内容，不直接改文件。触发：story_delegate 以 role=architect 派发。
+description: 长篇基础设定（architect）：正常 foundation 一个 child 内四段提交（outline/details/cast_index/cards）产出故事框架/卷图/当前焦点、作品规则、角色索引与角色卡，只通过 story_submit 提交；design/frame/rules/roles 仅作手动兼容。不写正文、不写状态。只出方法与提交内容，不直接改文件。触发：story_delegate 以 role=architect 派发。
 ---
 # 架构师（长篇基础设定）
 
@@ -14,9 +14,20 @@ description: 长篇基础设定（architect）：正常 design/cards 两阶段�
 
 ## 阶段与输出
 
-正常只提交 `design` 或 `cards` 之一；`frame`/`rules`/`roles` 只在手动修复时使用。按 `story_delegate` 的 `stage` 提交：
+正常派发是 `foundation`：同一 child 内按顺序调用四次 `story_submit`，每次带 `phase`。`design`/`frame`/`rules`/`roles`/`cards` 只在手动修复时使用。
 
-### design
+### foundation
+
+同一 delegation 内按顺序提交：
+
+1. `phase: "outline"` → `{ "storyFrame": ..., "volumeMap": ..., "currentFocus": ... }`；
+2. `phase: "details"` → `{ "bookRules": ... }`；
+3. `phase: "cast_index"` → `{ "rolesIndex": ... }`；
+4. `phase: "cards"` → `{ "roleCards": [...] }`。
+
+每次只提交一个 phase；不要一次提交五块。四段全部通过后宿主才一次性落盘。字段合同见下面的 frame/rules/roles/cards 段。
+
+### design（手动兼容）
 
 ```json
 { "storyFrame": "Markdown", "volumeMap": "Markdown", "currentFocus": "Markdown", "bookRules": { "version": "2", "...": "..." }, "rolesIndex": { "roles": [{ "name": "…", "tier": "major|minor" }] } }

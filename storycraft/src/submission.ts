@@ -15,9 +15,12 @@ import {
 } from './artifact-contract.ts'
 import { checkWordRange } from './landing.ts'
 import { readChapter } from './storage.ts'
+import { FOUNDATION_PHASES } from './roles/architect/contract.ts'
+import { ARCHITECT_STAGE_SPEC } from './roles/architect/tool-schema.ts'
 
 /** Entries live long enough for a slow child, never beyond the host run. */
 const SUBMISSION_TTL_MS = 10 * 60 * 1000
+export const FOUNDATION_TTL_MS = 30 * 60 * 1000
 const MAX_ATTEMPTS = 3
 const MAX_PAYLOAD_BYTES = 64 * 1024
 
@@ -39,6 +42,8 @@ interface SubmissionEntry {
   mode?: string
   wordRange?: WordRange
   payload: SubmissionPayload | undefined
+  phases?: Map<string, SubmissionPayload>
+  phaseAttempts?: Map<string, number>
   attempts: number
   consumed: boolean
   bytes: number
@@ -51,6 +56,7 @@ interface SubmissionBinding {
   workId: string
   chapter?: number
   stage?: string
+  phase?: string
   mode?: string
   wordRange?: WordRange
 }
@@ -64,6 +70,7 @@ interface SubmissionHandle {
 /** Accepted payload handed back to the landing path. */
 interface ConsumedSubmission {
   payload: SubmissionPayload | undefined
+  phases?: Map<string, SubmissionPayload>
   attempts: number
   bytes: number
   consumed: boolean
@@ -97,12 +104,14 @@ interface SubmitSuccess {
   submitted: true
   bytes: number
   words?: number
+  phase?: string
 }
 
 /** One `story_submit` call from a child. */
 interface SubmitInput {
   delegationId: string
   payload: SubmissionPayload
+  phase?: string
   depth: number
   root: string
 }
@@ -130,13 +139,14 @@ export function openSubmission(input: SubmissionBinding): SubmissionHandle {
     workId: String(input.workId),
     chapter: input.chapter === undefined ? null : Number(input.chapter),
     ...(input.stage === undefined ? {} : { stage: String(input.stage) }),
+    ...(input.stage === 'foundation' ? { phases: new Map(), phaseAttempts: new Map() } : {}),
     ...(input.mode === undefined ? {} : { mode: String(input.mode) }),
     ...(input.wordRange === undefined ? {} : { wordRange: input.wordRange }),
     payload: undefined,
     attempts: 0,
     consumed: false,
     bytes: 0,
-    expiresAt: Date.now() + SUBMISSION_TTL_MS,
+    expiresAt: Date.now() + (input.stage === 'foundation' ? FOUNDATION_TTL_MS : SUBMISSION_TTL_MS),
   })
   return { delegationId, attempts: 0 }
 }
@@ -183,13 +193,7 @@ export function validateSubmissionShape(role: string, payload: any, stage: strin
     return 'payload 必须是对象'
   }
   if (role === 'architect') {
-    const stages: Record<string, { keys: string[], label: string }> = {
-      design: { keys: ['storyFrame', 'volumeMap', 'currentFocus', 'bookRules', 'rolesIndex'], label: 'design' },
-      frame: { keys: ['storyFrame', 'volumeMap', 'currentFocus'], label: 'frame' },
-      rules: { keys: ['bookRules'], label: 'rules' },
-      roles: { keys: ['rolesIndex'], label: 'roles' },
-      cards: { keys: ['roleCards'], label: 'cards' },
-    }
+    const stages = ARCHITECT_STAGE_SPEC
     const spec = stage === undefined ? undefined : stages[stage]
     if (spec === undefined) return `未知的 architect stage：${String(stage)}`
     for (const key of spec.keys) {
@@ -198,7 +202,7 @@ export function validateSubmissionShape(role: string, payload: any, stage: strin
     for (const key of Object.keys(payload)) {
       if (!spec.keys.includes(key)) return `architect ${spec.label} 不接受字段 ${key}`
     }
-    if (stage === 'frame' || stage === 'design') {
+    if (stage === 'frame' || stage === 'design' || stage === 'outline') {
       for (const key of ['storyFrame', 'volumeMap', 'currentFocus']) {
         if (typeof payload[key] !== 'string' || payload[key].trim() === '') return `architect ${stage} 的 ${key} 必须是非空字符串`
       }
@@ -208,12 +212,12 @@ export function validateSubmissionShape(role: string, payload: any, stage: strin
       if (!Array.isArray(payload.roleCards) || payload.roleCards.length === 0) return 'architect cards 的 roleCards 必须是非空数组'
     }
     try {
-      if (stage === 'frame') {
+      if (stage === 'frame' || stage === 'outline') {
         validateStoryFrame(payload.storyFrame)
         validateVolumeMap(payload.volumeMap)
-      } else if (stage === 'rules') {
+      } else if (stage === 'rules' || stage === 'details') {
         validateBookRules(payload.bookRules)
-      } else if (stage === 'roles') {
+      } else if (stage === 'roles' || stage === 'cast_index') {
         validateRolesIndex(payload.rolesIndex)
       } else if (stage === 'design') {
         validateStoryFrame(payload.storyFrame)
@@ -374,6 +378,55 @@ export function validateSubmissionShape(role: string, payload: any, stage: strin
   return undefined
 }
 
+/** Whether a foundation phase has its required predecessor. */
+function phasePrerequisite(phase: string): string | undefined {
+  if (phase === 'details') return 'outline'
+  if (phase === 'cast_index') return 'details'
+  if (phase === 'cards') return 'cast_index'
+  return undefined
+}
+
+/** Submit one phase of a foundation delegation; phases accumulate until bundle. */
+function submitFoundationPhase(input: SubmitInput, entry: SubmissionEntry): FailureEnvelope | SubmitSuccess {
+  const phases = entry.phases as Map<string, SubmissionPayload>
+  const attempts = entry.phaseAttempts as Map<string, number>
+  entry.attempts += 1
+  const phase = String(input.phase ?? '')
+  if (!(FOUNDATION_PHASES as readonly string[]).includes(phase)) {
+    return failure('submit-invalid', `未知的 foundation phase：${phase || '（缺失）'}`, { retryable: true })
+  }
+  if (phases.has(phase)) return failure('submit-already-accepted', `foundation phase 已接受：${phase}`)
+  const prerequisite = phasePrerequisite(phase)
+  if (prerequisite !== undefined && !phases.has(prerequisite)) {
+    return failure('submit-phase-order', `foundation phase ${phase} 需要先提交 ${prerequisite}`, { retryable: true })
+  }
+  const count = (attempts.get(phase) ?? 0) + 1
+  attempts.set(phase, count)
+  if (count > MAX_ATTEMPTS) return failure('submit-attempts-exhausted', `${phase} 提交尝试超过 ${MAX_ATTEMPTS} 次`)
+  const payload = input.payload
+  const shapeError = validateSubmissionShape('architect', payload, phase)
+  if (shapeError !== undefined) {
+    return count >= MAX_ATTEMPTS
+      ? failure('submit-attempts-exhausted', `${phase} 提交尝试超过 ${MAX_ATTEMPTS} 次：${shapeError}`)
+      : failure('submit-invalid', shapeError, { retryable: true })
+  }
+  let bytes: number
+  try {
+    bytes = Buffer.byteLength(JSON.stringify(payload), 'utf8')
+  } catch {
+    return failure('submit-invalid', 'payload 无法序列化', { retryable: true })
+  }
+  if (bytes > MAX_PAYLOAD_BYTES) {
+    return count >= MAX_ATTEMPTS
+      ? failure('submit-attempts-exhausted', `${phase} 提交尝试超过 ${MAX_ATTEMPTS} 次`)
+      : failure('submit-too-large', `${phase} payload ${bytes} 字节，超过 ${MAX_PAYLOAD_BYTES}`)
+  }
+  phases.set(phase, payload)
+  entry.bytes += bytes
+  entry.expiresAt = Date.now() + FOUNDATION_TTL_MS
+  return { ok: true, submitted: true, bytes, phase }
+}
+
 /**
  * Accept one submission from a child and validate it before consumption.
  * Validation failures are returned, not thrown, so the child keeps the
@@ -387,6 +440,8 @@ export async function submitPayload(input: SubmitInput): Promise<FailureEnvelope
   const entry = purge(id, submissions.get(id))
   if (entry === undefined) return failure('submit-unknown-delegation', 'delegationId 不存在或已过期')
   if (entry.consumed) return failure('submit-already-consumed', '该 delegationId 已提交')
+  if (entry.stage === 'foundation') return submitFoundationPhase(input, entry)
+  if (input.phase !== undefined) return failure('submit-invalid', 'phase 只用于 architect foundation')
 
   entry.attempts += 1
   if (entry.attempts > MAX_ATTEMPTS) return failure('submit-attempts-exhausted', `提交尝试超过 ${MAX_ATTEMPTS} 次`)
@@ -472,6 +527,20 @@ export async function submitPayload(input: SubmitInput): Promise<FailureEnvelope
   entry.bytes = bytes
   entry.consumed = true
   return { ok: true, submitted: true, bytes, ...(entry.role === 'writer' || entry.role === 'reviser' ? { words: countWords(payload.body) } : {}) }
+}
+
+/** Mark a foundation entry consumed only after the bundle landed. */
+export function markFoundationConsumed(delegationId: string): void {
+  const entry = purge(String(delegationId), submissions.get(String(delegationId)))
+  if (entry !== undefined) entry.consumed = true
+}
+
+/** Consume all four foundation phases; only the host calls this after the child ends. */
+export function consumeFoundationSubmission(delegationId: string): ConsumedSubmission | undefined {
+  const entry = purge(String(delegationId), submissions.get(String(delegationId)))
+  if (entry === undefined || entry.phases === undefined) return undefined
+  if (entry.phases.size !== FOUNDATION_PHASES.length) return undefined
+  return { payload: undefined, phases: new Map(entry.phases), attempts: entry.attempts, bytes: entry.bytes, consumed: false }
 }
 
 /**

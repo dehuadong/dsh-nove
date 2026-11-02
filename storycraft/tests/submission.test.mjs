@@ -3,7 +3,8 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { closeSubmission, consumeSubmission, openSubmission, submitPayload } from '../src/submission.ts'
+import { closeSubmission, consumeFoundationSubmission, consumeSubmission, FOUNDATION_TTL_MS, openSubmission, submitPayload } from '../src/submission.ts'
+import { FOUNDATION_DELEGATE_TIMEOUT_MS } from '../src/delegate.ts'
 import { SUBMIT_OUTPUT } from '../src/tools.ts'
 import * as s from '../src/storage.ts'
 import { reviewFixture } from './review-fixture.mjs'
@@ -50,6 +51,67 @@ try {
   check('accepted submission is consumable once', consumed?.consumed === true
     && consumed.payload.body.length === 60 && consumeSubmission(writer.delegationId) === undefined, JSON.stringify(consumed))
   closeSubmission(writer.delegationId)
+
+
+  const foundation = openSubmission({ role: 'architect', workId: work, stage: 'foundation' })
+  const foundationPhases = {
+    outline: {
+      storyFrame: '# 故事框架\n## 前提\n甲在修表。\n## 核心冲突\n旧账。\n## 主角动机\n还账。\n## 约束\n不骗人。\n## 因果解决\n归零。\n',
+      volumeMap: '## 第一卷\n- 卷目标：查账。\n- 起止章：1–3。\n- 关键节拍：翻账。\n- 卷末承诺：选择。\n',
+      currentFocus: '# 当前焦点\n\n先查甲。',
+    },
+    details: {
+      bookRules: { version: '2', narrativePerson: '第三人称', prohibitions: ['禁止'], protagonist: { name: '甲', personalityLock: [], behavioralConstraints: [] }, genreLock: { primary: '都市', forbidden: [] }, enableFullCastTracking: false, allowedDeviations: [], markdown: '# 作品规则' },
+    },
+    cast_index: { rolesIndex: { roles: [{ name: '甲', tier: 'major' }] } },
+    cards: { roleCards: [{ slug: 'jia', name: '甲', tier: 'major', motivation: 'm', knowledge: 'k', relationshipPressure: 'r', limits: 'l', markdown: '# 甲' }] },
+  }
+  const outOfOrderFoundation = await submitPayload({ delegationId: foundation.delegationId, depth: 1, root, phase: 'details', payload: foundationPhases.details })
+  check('foundation phases enforce order', outOfOrderFoundation.ok === false && outOfOrderFoundation.error.code === 'submit-phase-order', JSON.stringify(outOfOrderFoundation))
+  for (const [phase, payload] of Object.entries(foundationPhases)) {
+    const receipt = await submitPayload({ delegationId: foundation.delegationId, depth: 1, root, phase, payload })
+    check(`foundation accepts ${phase}`, receipt.ok === true && receipt.phase === phase, JSON.stringify(receipt))
+  }
+  const duplicatePhase = await submitPayload({ delegationId: foundation.delegationId, depth: 1, root, phase: 'cards', payload: foundationPhases.cards })
+  check('an accepted foundation phase cannot be replaced', duplicatePhase.ok === false && duplicatePhase.error.code === 'submit-already-accepted', JSON.stringify(duplicatePhase))
+  const consumedFoundation = consumeFoundationSubmission(foundation.delegationId)
+  check('foundation consumes all four phases', consumedFoundation?.consumed === false && consumedFoundation.phases?.size === 4, JSON.stringify(consumedFoundation))
+  closeSubmission(foundation.delegationId)
+
+
+  const retryFoundation = openSubmission({ role: 'architect', workId: work, stage: 'foundation' })
+  await submitPayload({ delegationId: retryFoundation.delegationId, depth: 1, root, phase: 'outline', payload: foundationPhases.outline })
+  const badDetails = await submitPayload({ delegationId: retryFoundation.delegationId, depth: 1, root, phase: 'details', payload: {} })
+  const badDetailsAgain = await submitPayload({ delegationId: retryFoundation.delegationId, depth: 1, root, phase: 'details', payload: {} })
+  const goodDetails = await submitPayload({ delegationId: retryFoundation.delegationId, depth: 1, root, phase: 'details', payload: foundationPhases.details })
+  check('foundation retries are per phase', badDetails.ok === false && badDetailsAgain.ok === false
+    && goodDetails.ok === true, JSON.stringify({ badDetails, badDetailsAgain, goodDetails }))
+  closeSubmission(retryFoundation.delegationId)
+
+  const largeFoundation = openSubmission({ role: 'architect', workId: work, stage: 'foundation' })
+  const hugeOutline = { ...foundationPhases.outline, storyFrame: '# 故事框架\n## 前提\n' + 'x'.repeat(70 * 1024) + '\n## 核心冲突\nc\n## 主角动机\nm\n## 约束\nk\n## 因果解决\nr\n' }
+  const phaseTooLarge = await submitPayload({ delegationId: largeFoundation.delegationId, depth: 1, root, phase: 'outline', payload: hugeOutline })
+  check('foundation cap is per phase', phaseTooLarge.ok === false && phaseTooLarge.error.code === 'submit-too-large', JSON.stringify(phaseTooLarge))
+  closeSubmission(largeFoundation.delegationId)
+
+
+  check('foundation TTL covers the delegate timeout', FOUNDATION_TTL_MS > FOUNDATION_DELEGATE_TIMEOUT_MS)
+  const realNow = Date.now
+  let fakeNow = realNow()
+  Date.now = () => fakeNow
+  const ttlFoundation = openSubmission({ role: 'architect', workId: work, stage: 'foundation' })
+  try {
+    fakeNow += 20 * 60 * 1000
+    await submitPayload({ delegationId: ttlFoundation.delegationId, depth: 1, root, phase: 'outline', payload: foundationPhases.outline })
+    fakeNow += 25 * 60 * 1000
+    const refreshed = await submitPayload({ delegationId: ttlFoundation.delegationId, depth: 1, root, phase: 'details', payload: foundationPhases.details })
+    fakeNow += 25 * 60 * 1000
+    const refreshedAgain = await submitPayload({ delegationId: ttlFoundation.delegationId, depth: 1, root, phase: 'cast_index', payload: foundationPhases.cast_index })
+    check('a successful foundation phase refreshes TTL', refreshed.ok === true && refreshedAgain.ok === true, JSON.stringify({ refreshed, refreshedAgain }))
+  } finally {
+    Date.now = realNow
+    closeSubmission(ttlFoundation.delegationId)
+  }
 
   const planner = openSubmission({ role: 'planner', workId: work, chapter: 2 })
   const plannerMissing = await submitPayload({

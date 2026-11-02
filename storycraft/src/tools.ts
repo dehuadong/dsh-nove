@@ -38,6 +38,7 @@ import { delegateRole } from './delegate.ts'
 import { checkChapterState } from './state-check.ts'
 import { settleChapterState } from './state-settle.ts'
 import { submitPayload } from './submission.ts'
+import { FOUNDATION_PHASES, FOUNDATION_STAGES } from './roles/architect/contract.ts'
 import { checkDraft } from './landing.ts'
 import { clearCurrent, getCurrent, hydrate as hydrateCurrent, markHydrated, resolveWork, setCurrent, shouldHydrate } from './current.ts'
 import { scanWork, scanWorkspace } from './recovery.ts'
@@ -932,7 +933,7 @@ const NEXT_OUTPUT: DshToolOutput = {
     additionalProperties: false,
     properties: {
       ...OUTPUT_PROPERTIES,
-      foundationStage: { type: 'string', enum: ['design', 'frame', 'rules', 'roles', 'cards'] },
+      foundationStage: { type: 'string', enum: [...FOUNDATION_STAGES] },
       blocked: {
         type: 'array',
         description: 'Author or host actions that must happen before the action can run.',
@@ -946,7 +947,7 @@ const NEXT_OUTPUT: DshToolOutput = {
         additionalProperties: false,
         properties: {
           role: { type: 'string', enum: ['writer', 'reviewer', 'reviser', 'summarizer', 'architect', 'planner'] },
-          stage: { type: 'string', enum: ['design', 'frame', 'rules', 'roles', 'cards'] },
+          stage: { type: 'string', enum: [...FOUNDATION_STAGES] },
         },
         required: ['role'],
       },
@@ -1062,6 +1063,7 @@ export const SUBMIT_OUTPUT: DshToolOutput = {
       submitted: { type: 'boolean' },
       bytes: { type: 'integer' },
       words: { type: 'integer' },
+      phase: { type: 'string', enum: [...FOUNDATION_PHASES] },
       error: {
         type: 'object',
         additionalProperties: false,
@@ -1096,7 +1098,7 @@ const DELEGATE_OUTPUT: DshToolOutput = {
       chapter: OUTPUT_PROPERTIES.chapter,
       role: { type: 'string', enum: ['writer', 'reviewer', 'reviser', 'summarizer', 'architect', 'planner'] },
       stage: OUTPUT_PROPERTIES.stage,
-      foundationStage: { type: 'string', enum: ['design', 'frame', 'rules', 'roles', 'cards'] },
+      foundationStage: { type: 'string', enum: [...FOUNDATION_STAGES] },
       artifacts: {
         type: 'array',
         items: {
@@ -1128,7 +1130,7 @@ const DELEGATE_OUTPUT: DshToolOutput = {
           complete: { type: 'boolean' },
           writtenAt: { type: 'string' },
           nextStage: { type: 'string', enum: ['frame', 'rules', 'roles', 'cards'] },
-          dispatchStage: { type: 'string', enum: ['design', 'cards'] },
+          dispatchStage: { type: 'string', enum: ['foundation'] },
           approvedAt: { type: 'string' },
         },
         required: ['stages', 'complete'],
@@ -2738,6 +2740,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
         additionalProperties: false,
         properties: {
           delegationId: { type: 'string', description: 'story_delegate 注入的一次性身份。' },
+          phase: { type: 'string', enum: [...FOUNDATION_PHASES], description: 'architect foundation 的 phase；仅 stage=foundation 使用。' },
           payload: { type: 'object', additionalProperties: true, description: '角色结构化结果。' },
         },
         required: ['delegationId', 'payload'],
@@ -2746,6 +2749,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
       async execute(args, exec) {
         return submitPayload({
           delegationId: args.delegationId,
+          ...(args.phase === undefined ? {} : { phase: String(args.phase) }),
           payload: args.payload,
           depth: delegationDepthOf(exec),
           root: workspaceOf(exec),
@@ -2757,7 +2761,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
       name: 'story_delegate',
       mutates: true,
       description: '宿主侧委派一个角色完成单步：writer 写首版正文、reviewer 审稿并落清单、reviser 按未处理条目修订、summarizer 写本章摘要、'
-        + 'architect 按 stage 生成基础设定（design/cards，手动兼容 frame/rules/roles），planner 写首次章纲。'
+        + 'architect 按 stage 生成基础设定（foundation 四 phase；design/cards/frame/rules/roles 手动兼容），planner 写首次章纲。'
         + ' 主编只收回执（版本/字数/审稿计数/警告/阶段），不接触正文与上下文；子代理通过 story_submit 提交，失败返回 delegation-no-submission。',
       parameters: {
         type: 'object',
@@ -2766,7 +2770,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
           work: { type: 'string', description: '作品 id。' },
           chapter: { type: 'integer', description: '章号；architect 不需要。' },
           role: { type: 'string', enum: ['writer', 'reviewer', 'reviser', 'summarizer', 'architect', 'planner'], description: '本次要跑的角色。' },
-          stage: { type: 'string', enum: ['design', 'frame', 'rules', 'roles', 'cards'], description: 'architect 的阶段；design 合并 frame/rules/roles；其他角色忽略。' },
+          stage: { type: 'string', enum: [...FOUNDATION_STAGES], description: 'architect 的阶段；foundation 为同一 child 四 phase；其他角色忽略。' },
           instruction: { type: 'string', description: '作者本轮要求，会并入子代理任务。' },
           mode: {
             type: 'string',

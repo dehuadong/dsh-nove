@@ -1103,8 +1103,9 @@ function delegateOf(step: any, last: any, candidate: any) {
 /** Architect state stages in order. */
 export const FOUNDATION_STAGES = ['frame', 'rules', 'roles', 'cards']
 
-/** Normal architect dispatches: design merges frame/rules/roles; cards stays separate. */
-export const FOUNDATION_DISPATCH_STAGES = ['design', 'cards']
+/** Normal architect dispatch is one foundation bundle; manual stages remain for repair. */
+export const FOUNDATION_DISPATCH_STAGES = ['foundation']
+export const FOUNDATION_WRITE_STAGES = ['design', 'frame', 'rules', 'roles', 'cards']
 
 /** Artifacts each stage produces, in write order. */
 const FOUNDATION_STAGE_ARTIFACTS = {
@@ -1145,8 +1146,7 @@ function foundationStateOf(db: any) {
   }
   const complete = FOUNDATION_STAGES.every(stage => (stages as Record<string, boolean>)[stage] === true)
   const nextStage = FOUNDATION_STAGES.find(stage => (stages as Record<string, boolean>)[stage] !== true)
-  const designReady = stages.frame && stages.rules && stages.roles
-  const dispatchStage = !designReady ? FOUNDATION_DISPATCH_STAGES[0] : stages.cards ? undefined : FOUNDATION_DISPATCH_STAGES[1]
+  const dispatchStage = complete ? undefined : FOUNDATION_DISPATCH_STAGES[0]
   return {
     stages,
     complete,
@@ -1228,7 +1228,7 @@ function proposalTokensOf(root: any, workId: string): string[] {
 export function writeFoundationStage(root: any, input: any) {
   const workId = String(input.work)
   const stage = String(input.stage)
-  if (!new Set([...FOUNDATION_DISPATCH_STAGES, ...FOUNDATION_STAGES]).has(stage)) throw new StoryError('foundation-stage-invalid', `未知的 foundation stage：${stage}`)
+  if (!FOUNDATION_WRITE_STAGES.includes(stage)) throw new StoryError('foundation-stage-invalid', `未知的 foundation stage：${stage}`)
   const payload = input.payload ?? {}
   const db = openWork(root, workId)
   try {
@@ -1399,13 +1399,113 @@ export function writeFoundationStage(root: any, input: any) {
   }
 }
 
+/** Land all four architect phases in one transaction; any failure leaves no artifact. */
+export function writeFoundationBundle(root: any, input: any) {
+  const workId = String(input.work)
+  const phases = input.phases ?? {}
+  const outline = phases.outline ?? {}
+  const details = phases.details ?? {}
+  const castIndex = phases.cast_index ?? {}
+  const cardPhase = phases.cards ?? {}
+  const db = openWork(root, workId)
+  try {
+    return transaction(db, () => {
+      const at = now()
+      const record = (artifactId: any, kind: any, content: any, source: any) => {
+        const value = {
+          workId, artifactId, kind,
+          revisionId: artifactRevision(content), content, provenance: 'generated', createdAt: at,
+        }
+        return { envelope: validateArtifactRecord(value), source, text: renderFoundationContent(content) }
+      }
+      const frameText = `${String(outline.storyFrame ?? '')}\n${String(outline.volumeMap ?? '')}\n${String(outline.currentFocus ?? '')}`
+      const tokens = proposalTokensOf(root, workId)
+      if (tokens.length > 0 && !tokens.some(token => frameText.includes(token))) {
+        throw new StoryError('foundation-mismatch', '基础设定与提案没有一处对得上：提案里的关键人物或前提没有出现在故事框架里', '按提案重写基础设定，或先说明为什么改方向')
+      }
+      const focus = String(outline.currentFocus ?? '')
+      if ([...focus].length > 600) throw new StoryError('artifact-invalid', 'current_focus 超过 600 字')
+      const protagonist = String(details.bookRules?.protagonist?.name ?? '').trim()
+      const rulesFrameText = String(outline.storyFrame ?? '')
+      if (protagonist !== '') {
+        const proposal = acceptedProposalOf(root, workId)
+        const known = new Set<string>()
+        try {
+          const list = JSON.parse(proposal?.characters ?? '[]')
+          for (const item of Array.isArray(list) ? list : []) {
+            const name = typeof item === 'string' ? item : item?.name
+            if (typeof name === 'string' && name !== '') known.add(name)
+          }
+        } catch {}
+        if (rulesFrameText !== '' && [...known].some(name => rulesFrameText.includes(name)) && !rulesFrameText.includes(protagonist)) {
+          throw new StoryError('foundation-inconsistent', `作品规则的主角「${protagonist}」没有出现在故事框架里`, '按框架改规则里的主角名；确实要换主角时，先说明为什么改方向')
+        }
+      }
+      const baseRecords = [
+        record('bible:story_frame', 'story_frame', String(outline.storyFrame ?? ''), 'foundation/story_frame'),
+        record('bible:volume_map', 'volume_map', String(outline.volumeMap ?? ''), 'foundation/volume_map'),
+        record('bible:current_focus', 'current_focus', focus, 'foundation/current_focus'),
+        record('bible:book_rules', 'book_rules', details.bookRules, 'foundation/book_rules'),
+        record('roles:index', 'role_index', castIndex.rolesIndex, 'foundation/roles/index'),
+      ]
+      const tiers = indexTiersOf(castIndex.rolesIndex)
+      const cards = Array.isArray(cardPhase.roleCards) ? cardPhase.roleCards : []
+      if (cards.length === 0) throw new StoryError('artifact-invalid', '角色卡至少需要一张')
+      const names = new Set<string>()
+      const slugs = new Set<string>()
+      const cardRecords = cards.map((card: any) => {
+        const name = String(card?.name ?? '')
+        if (!tiers.has(name)) throw new StoryError('artifact-invalid', `角色卡 ${name} 不在 roles 索引里`)
+        if (card?.tier !== tiers.get(name)) throw new StoryError('artifact-invalid', `角色卡 ${name} 的 tier 必须等于索引里的 ${tiers.get(name)}`)
+        const slug = String(card?.slug ?? '').trim()
+        if (names.has(name) || slugs.has(slug)) throw new StoryError('artifact-invalid', `角色卡重复：${name}/${slug}`)
+        names.add(name); slugs.add(slug)
+        return record(`role:${slug}`, 'role_card', card, `foundation/roles/${slug}`)
+      })
+      for (const [name] of tiers) if (!names.has(name)) throw new StoryError('artifact-invalid', `角色卡缺少索引人物：${name}`)
+      const existingCards = latestRoleCardsOnDb(db)
+      const slugByName = new Map<string, string>(cards.map((item: any) => [String(item?.name ?? ''), String(item?.slug ?? '').trim()]))
+      const nameBySlug = new Map<string, string>(cards.map((item: any) => [String(item?.slug ?? '').trim(), String(item?.name ?? '')]))
+      for (const row of existingCards) {
+        let old: any
+        try { old = JSON.parse(String(row.content)) } catch { continue }
+        const oldName = String(old?.name ?? '')
+        const oldSlug = String(old?.slug ?? '')
+        if (slugs.has(oldSlug) && nameBySlug.get(oldSlug) !== oldName) {
+          throw new StoryError('artifact-invalid', `slug 已被其他姓名占用：${oldSlug}`)
+        }
+        if (names.has(oldName) && String(row.artifact_id) !== `role:${slugByName.get(oldName) ?? ''}`) {
+          deleteArtifactOnDb(db, String(row.artifact_id))
+        }
+      }
+      const artifacts = []
+      for (const item of baseRecords) {
+        if (db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ? AND revision_id = ?').get(item.envelope.artifactId, item.envelope.revisionId) === undefined) {
+          putArtifactOnDb(db, item.envelope, { search: { docId: item.envelope.artifactId, kind: item.envelope.kind, source: item.source, text: item.text } })
+        }
+        artifacts.push({ artifactId: item.envelope.artifactId, revisionId: item.envelope.revisionId, kind: item.envelope.kind })
+      }
+      dropRoleCardsOnDb(db, tiers)
+      for (const item of cardRecords) {
+        if (db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ? AND revision_id = ?').get(item.envelope.artifactId, item.envelope.revisionId) === undefined) {
+          putArtifactOnDb(db, item.envelope, { search: { docId: item.envelope.artifactId, kind: item.envelope.kind, source: item.source, text: item.text } })
+        }
+        artifacts.push({ artifactId: item.envelope.artifactId, revisionId: item.envelope.revisionId, kind: item.envelope.kind })
+      }
+      const foundation = foundationStateOf(db)
+      if (!foundation.complete) throw new StoryError('foundation-incomplete', '基础设定 bundle 写入后仍不完整')
+      return { workId, stage: 'foundation', artifacts, foundation }
+    })
+  } finally { db.close() }
+}
+
 /** Author confirmation of a complete foundation; panel-only in the product. */
 export function approveFoundation(root: any, input: any) {
   const db = openWork(root, String(input.work))
   try {
     return transaction(db, () => {
       const state = foundationStateOf(db)
-      if (state.complete !== true) throw new StoryError('foundation-incomplete', 'foundation 还没生成完整：先跑完 design/cards')
+      if (state.complete !== true) throw new StoryError('foundation-incomplete', 'foundation 还没生成完整：先跑完 foundation 四段')
       const at = now()
       const source = approvalSourceOf(input)
       db.prepare('UPDATE meta SET foundation_approved_at = ?, foundation_approved_revision = ?, foundation_approved_source = ?, foundation_approved_reason = ?, updated_at = ? WHERE id = 1').run(at, foundationRevisionOf(db), source, approvalReasonOf(input), at)
@@ -1449,7 +1549,7 @@ export function nextStep(root: any, work: any) {
           if (formOf(manifest) === 'longform') {
             const foundation = foundationStateOf(db)
             if (foundation.complete !== true) {
-              const dispatchStage = foundation.dispatchStage ?? foundation.nextStage
+              const dispatchStage = foundation.dispatchStage
               return {
                 chapter, stage: 'planned', action: 'story_architect', foundationStage: dispatchStage,
                 reason: `还没有基础设定（${dispatchStage}）：让 architect 生成故事框架、规则与角色，再写全书计划`,

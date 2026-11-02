@@ -27,6 +27,26 @@ async function rejects(name, code, fn) {
 }
 
 let lastPrompt = ''
+function fakeFoundationService(phases) {
+  let activations = 0
+  return {
+    activations: () => activations,
+    startActivation(spec) {
+      activations += 1
+      return {
+        result: (async () => {
+          const id = /delegationId 是 ([0-9a-f-]+)/u.exec(spec.request.prompt[0].text)?.[1]
+          for (const [phase, payload] of Object.entries(phases)) {
+            await submitPayload({ delegationId: id, depth: 1, root: spec.request.cwd, phase, payload })
+          }
+          return { stopReason: 'completed' }
+        })(),
+        dispose: async () => {},
+      }
+    },
+  }
+}
+
 function fakeService(results) {
   return {
     startActivation(spec) {
@@ -76,12 +96,67 @@ const minorCard = {
 const root = await mkdtemp(join(tmpdir(), 'storycraft-foundation-production-'))
 try {
   const work = (await s.initWork(root, { title: '基础生成', wordRange: { min: 50, max: 5000 } })).workId
+
+  const foundationWork = (await s.initWork(root, { title: '四段提交' })).workId
+  const foundationPhases = {
+    outline: { ...frame },
+    details: { bookRules },
+    cast_index: { rolesIndex },
+    cards: { roleCards: [card, minorCard] },
+  }
+  const foundationService = fakeFoundationService(foundationPhases)
+  const foundationReceipt = await delegateRole(root, { work: foundationWork, role: 'architect', stage: 'foundation' }, {
+    service: foundationService, agent, signal,
+  })
+  check('foundation starts one architect child', foundationService.activations() === 1, String(foundationService.activations()))
+  check('foundation lands four phases in one dispatch', foundationReceipt.foundationStage === 'foundation'
+    && foundationReceipt.foundation.complete === true && foundationReceipt.artifacts.length === 7, JSON.stringify(foundationReceipt))
+  check('the foundation bundle is complete', s.readFoundationState(root, foundationWork).complete === true)
+
+  const partialWork = (await s.initWork(root, { title: '缺段' })).workId
+  await rejects('a missing foundation phase lands nothing', 'delegation-no-submission', () => delegateRole(root, {
+    work: partialWork, role: 'architect', stage: 'foundation',
+  }, {
+    service: fakeFoundationService({ outline: { ...frame }, details: { bookRules }, cast_index: { rolesIndex } }), agent, signal,
+  }))
+  check('a missing phase leaves no foundation artifact', s.readFoundationState(root, partialWork).complete === false)
+
+  const badBundleWork = (await s.initWork(root, { title: '坏卡 bundle' })).workId
+  await rejects('a bad card rolls back the whole bundle', 'artifact-invalid', () => delegateRole(root, {
+    work: badBundleWork, role: 'architect', stage: 'foundation',
+  }, {
+    service: fakeFoundationService({ ...foundationPhases, cards: { roleCards: [{ ...card, tier: 'minor' }] } }), agent, signal,
+  }))
+  check('a failed bundle writes no frame', s.readFoundationState(root, badBundleWork).stages.frame === false)
+
+
+
+  const missingCardWork = (await s.initWork(root, { title: '缺角色卡 bundle' })).workId
+  await rejects('a bundle missing an indexed card rolls back', 'artifact-invalid', async () => {
+    s.writeFoundationBundle(root, { work: missingCardWork, phases: {
+      ...foundationPhases,
+      cast_index: { rolesIndex: { roles: [{ name: '甲', tier: 'major' }, { name: '乙', tier: 'minor' }] } },
+      cards: { roleCards: [card] },
+    } })
+  })
+  check('a missing-card bundle writes no frame', s.readFoundationState(root, missingCardWork).stages.frame === false)
+  const rerunWork = (await s.initWork(root, { title: '角色卡改 slug' })).workId
+  await delegateRole(root, { work: rerunWork, role: 'architect', stage: 'foundation' }, {
+    service: fakeFoundationService(foundationPhases), agent, signal,
+  })
+  const renamed = { ...card, slug: 'jia-renamed' }
+  const rerunReceipt = await delegateRole(root, { work: rerunWork, role: 'architect', stage: 'foundation' }, {
+    service: fakeFoundationService({ ...foundationPhases, cards: { roleCards: [renamed, minorCard] } }), agent, signal,
+  })
+  check('a card slug rename replaces the old card', rerunReceipt.foundation.complete === true
+    && s.readFoundationState(root, rerunWork).complete === true)
+
   const shortWork = (await s.initWork(root, { title: '短篇不生成基础', form: 'short' })).workId
   const shortNext = await s.nextStep(root, shortWork)
   check('short works skip foundation', shortNext.action !== 'story_architect', JSON.stringify(shortNext))
   const first = await s.nextStep(root, work)
-  check('a new work starts with the architect design', first.action === 'story_architect'
-    && first.foundationStage === 'design' && first.delegate?.role === 'architect', JSON.stringify(first))
+  check('a new work starts with the architect foundation', first.action === 'story_architect'
+    && first.foundationStage === 'foundation' && first.delegate?.role === 'architect', JSON.stringify(first))
 
   const designWork = (await s.initWork(root, { title: '合并设计' })).workId
   const designPayload = { ...frame, bookRules, rolesIndex }
@@ -93,10 +168,10 @@ try {
   const designState = s.readFoundationState(root, designWork)
   check('design marks the first three stages', designState.stages.frame === true
     && designState.stages.rules === true && designState.stages.roles === true
-    && designState.stages.cards === false && designState.dispatchStage === 'cards', JSON.stringify(designState))
+    && designState.stages.cards === false && designState.dispatchStage === 'foundation', JSON.stringify(designState))
   const afterDesign = await s.nextStep(root, designWork)
-  check('design advances to cards', afterDesign.action === 'story_architect'
-    && afterDesign.foundationStage === 'cards', JSON.stringify(afterDesign))
+  check('design advances to foundation', afterDesign.action === 'story_architect'
+    && afterDesign.foundationStage === 'foundation', JSON.stringify(afterDesign))
   check('design prompt carries the five-field shape', lastPrompt.includes('bookRules')
     && lastPrompt.includes('rolesIndex') && lastPrompt.includes('一次提交五块'), lastPrompt.slice(0, 300))
   await delegateRole(root, { work: designWork, role: 'architect', stage: 'cards' }, {

@@ -120,6 +120,8 @@ storycraft/src/
 
 **R1 architect 试点**
 
+runtime 合同见 [architect 多阶段提交与原子落地](../../implemented/architecture/2026-11-02-storycraft-architect-multistage-runtime.md)。
+
 - 按 R0 裁决拆出 architect agent/prompt/schema/contract；
 - 目标恢复四段顺序：`outline → details → cast index → cards`，同 architect 上下文；
 - 若 DSH 一次提交限制不可绕开，先立 runtime 适配，不把 B 当完成；

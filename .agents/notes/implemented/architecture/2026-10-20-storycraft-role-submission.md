@@ -4,6 +4,8 @@ Status: implemented
 
 > 2026-10-20 部分替代：`implemented/architecture/2026-10-20-storycraft-host-delegation.md` 中“子代理最终文本作为角色结果、父代理解析文本”的传输段由本项替换；DSH subagent、宿主侧编排、`subagent-cannot-land` 保留。
 
+> **2026-11-02 R1a 部分取代**：architect 的 foundation 不再走本 Note 的一次 payload/一次 consume；改为同一 child 四 phase + bundle 单事务。单 payload 规则仍适用于其他角色。见 [architect 多阶段提交与原子落地](2026-11-02-storycraft-architect-multistage-runtime.md)。
+
 > 2026-10-21 扩展：新增 `summarizer` 角色，沿用本 Note 的 `story_submit` 通道、3 次尝试与失败 envelope；角色枚举、摘要 payload 与回执见 `implemented/architecture/2026-10-21-storycraft-summary-transport.md`。writer/reviewer/reviser 契约不变。
 
 ## 问题

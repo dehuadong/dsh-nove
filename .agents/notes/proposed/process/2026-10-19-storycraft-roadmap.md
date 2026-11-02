@@ -25,6 +25,8 @@ Status: proposed
 | --- | --- | --- | --- |
 | R0 | 对拍基线重审与角色职责边界 | parity-matrix/roadmap 与当前代码一致；architect 四段与 design/cards 偏差**已裁决：B 不保留为目标**；角色 prompt/schema/agent 边界有目标结构 | [重审 Note](../architecture/2026-11-02-storycraft-parity-rebaseline.md)（规划完成） |
 | R0b | 交付状态重审与重排期 | 90 篇 implemented Note 与 roadmap 已交付行完成 `legacy-delivered/revalidate-only/rework-required/cancelled` 分类；受影响 Note 有处置；旧“L 完成”撤回 | [交付状态盘点](../../implemented/process/2026-11-02-storycraft-delivery-status-inventory.md)（已完成盘点） |
+| R1 | architect 多阶段提交与原子落地 | 一个 architect child 四 phase；bundle 单事务；architect agent/prompt/schema 拆分 | [运行时合同](../../implemented/architecture/2026-11-02-storycraft-architect-multistage-runtime.md)（已实现） |
+| R1b | architect hooks | `pendingHooks` 纳入 details 与状态；R1a 后另立 | 待规划 |
 | A0 | 全量产物合同 v2 | 字段/权威/消费者/生命周期/初始化合同通过；真实生产者归 L | #45–#49（已交付） |
 | L 迁移切片 | 长篇生产者/消费者迁移、foundation、observation、settle | 各切片实现与离线契约通过 | #51–#61（已交付） |
 | L 产品收口 | planner、多章/重开/删除重排、上下文预算与 trace、面板消费、导出 | `#62` 条目有裁决；旧口径交付，待 R4 重验 | #62（旧口径，待重验） |
@@ -38,13 +40,14 @@ Status: proposed
 
 1. **R0 对拍基线重审**：parity-matrix/roadmap 已更新；architect 四段 vs design/cards 已裁决——B 不保留为目标，R1 回到同 architect 四段/等价 runtime；角色边界已定义；
 2. **R0b 交付状态重审（已完成盘点）**：90 篇 implemented Note 分类为 77 `revalidate-only` / 11 `rework-required` / 2 `legacy-delivered`（结构相关合计 13）；本批不归档，替代在 R1/R2 落地后逐篇处理；旧“L 完成”撤回；
-3. `#62`（旧口径，待 R4 重验）L 产品收口总表：差距表裁决 + 回写；
-4. P0 旧口径：`#63` planner 委派 → `#64` 上下文预算/trace → `#65` 多章确定性验收；
-5. `#66` 面板统一状态（旧口径）、`#67` 死表清理（旧口径）；
-6. `#50` L 真实验收（旧口径 2026-10-30；EPUB 打开由作者豁免；**不再声称长篇完成**）；
-7. 旧交付：`#85` A10 恢复、`#86` A12 版本、`#87` F13 性能、`#88` F8 调用观测；`#77`/`#78`/`#79`/`#4` 于 2026-10-31 关闭；R0b 已分类，待 R1–R4；
-8. **后续工作项不再新建 GitHub issue**：新提案/工作项使用 `.agents/notes/proposed/`，按 `write-agent-notes` 的 proposed 格式；issue 只保留历史档案；
-9. **长篇剩余（S 之前）**：R0 → R0b → R1 architect → R2 角色边界 → R3 基础设施 → R4 重验 → R5-a/c/d；B1/F14/A9/B2/B2b/F5 为旧交付，待重验；`store-db-row-types` 作为技术清理穿插。R4 完成前不进入 S/D 产品阶段。
+3. **R1 architect runtime（已实现）**：[多阶段提交与原子落地](../../implemented/architecture/2026-11-02-storycraft-architect-multistage-runtime.md)，一个 child 四 phase；R1b hooks 另立；
+4. `#62`（旧口径，待 R4 重验）L 产品收口总表：差距表裁决 + 回写；
+5. P0 旧口径：`#63` planner 委派 → `#64` 上下文预算/trace → `#65` 多章确定性验收；
+6. `#66` 面板统一状态（旧口径）、`#67` 死表清理（旧口径）；
+7. `#50` L 真实验收（旧口径 2026-10-30；EPUB 打开由作者豁免；**不再声称长篇完成**）；
+8. 旧交付：`#85` A10 恢复、`#86` A12 版本、`#87` F13 性能、`#88` F8 调用观测；`#77`/`#78`/`#79`/`#4` 于 2026-10-31 关闭；R0b 已分类，待 R1–R4；
+9. **后续工作项不再新建 GitHub issue**：新提案/工作项使用 `.agents/notes/proposed/`，按 `write-agent-notes` 的 proposed 格式；issue 只保留历史档案；
+10. **长篇剩余（S 之前）**：R0 → R0b → R1 architect → R2 角色边界 → R3 基础设施 → R4 重验 → R5-a/c/d；B1/F14/A9/B2/B2b/F5 为旧交付，待重验；`store-db-row-types` 作为技术清理穿插。R4 完成前不进入 S/D 产品阶段。
 
 ### 完整待办（历史 #4 已并入，2026-10-31）
 

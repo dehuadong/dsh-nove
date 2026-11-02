@@ -57,7 +57,7 @@ Status: proposed
 
 | 参考角色 | 职责 | 我们的落点 | 状态 |
 | --- | --- | --- | --- |
-| architect | 书级设计（世界观、卷、人物弧、初始伏笔）；参考同一 agent 内四段顺序调用 | 正常 `design` + `cards` 两次；手动 frame/rules/roles 兼容 | **已裁决：B 不保留为目标**；R1 恢复同 architect 四段/等价 runtime；见 [重审 Note](../architecture/2026-11-02-storycraft-parity-rebaseline.md) |
+| architect | 书级设计（世界观、卷、人物弧、初始伏笔）；参考同一 agent 内四段顺序调用 | R1a：一个 child 四 phase（outline/details/cast_index/cards），bundle 单事务；design/cards 仅手动兼容 | **结构已落地，hooks 待 R1b**；见 [R1a Note](../../implemented/architecture/2026-11-02-storycraft-architect-multistage-runtime.md) |
 | planner | 单章计划（目标/阻力/代价/变化） | `story_delegate` planner + `storycraft-long-plan`；全书计划单独 `story_outline` | **已委派**；与参考的 ChapterMemo 对象仍不同 |
 | writer | 写正文 | 写手子代理 + 形态 craft（`storycraft-long-prose` / `storycraft-short-prose` / `storycraft-script-scene`）+ 形态契约 | 已采纳；方法名按当前技能 |
 | auditor / reviewer | 审稿清单与证据 | 审稿子代理 + `storycraft-review` | 部分：已有 observation code/quote/sourceRefs；行号与前后 revision 对比仍缺 |
@@ -125,7 +125,7 @@ Status: proposed
 | 委派角色 | architect / planner / writer / reviser / settler / validator | architect / planner / writer / reviewer / reviser / summarizer / settler / validator | planner 已委派（#63） | 已补 | 保留 |
 | 作者闸门 | 计划/章纲确认 + 提案确认 | 面板确认 + 提案同意 | 无 | 对齐 | 确认后不自动发送 |
 | 完成证据 | 只认 ActionResult / artifact revision | 委派回执 + revision | 回执有，artifact 证据弱 | 部分 | 回执补 artifact id/版本 |
-| foundation 交接 | 同一 agent 内四段顺序 submit + 原子写 story_frame/volume_map/book_rules/role cards + hooks | `story_delegate` design（五件）+ cards；手 frame/rules/roles | **已裁决：B 不保留为目标**；两次独立子代理是临时偏差，R1 恢复四段/等价 runtime | 未对齐 | [重审 Note](../architecture/2026-11-02-storycraft-parity-rebaseline.md) |
+| foundation 交接 | 同一 agent 内四段顺序 submit + 原子写 story_frame/volume_map/book_rules/role cards + hooks | `story_delegate(stage=foundation)` 一个 child 四 phase；`writeFoundationBundle` 单事务 | 四段/原子已实现；hooks 缺，R1b | 部分 | [R1a Note](../../implemented/architecture/2026-11-02-storycraft-architect-multistage-runtime.md) |
 | 章计划交接 | planner 产出 ChapterIntent + ChapterMemo | 章纲五字段 | 无独立 memo | 部分 | 保留章纲，不新增对象 |
 | 上下文装配 | composer：半窗预算、语义选择、trace | `story_context` 固定段 + 8000 字符 | 无 token 预算/trace | 部分 | R12 |
 | 状态投影 | writer 提交后自动 factOps/hookOps + baseline | `story_settle` 自动抽取 + R9b 校验 + 一次重算；未解决不定稿 | 部分：定稿时抽取，不提前持久化候选 | 已采纳 | #43 |

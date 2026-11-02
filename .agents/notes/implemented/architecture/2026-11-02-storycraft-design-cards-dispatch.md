@@ -2,6 +2,8 @@
 
 Status: implemented
 
+> **2026-11-02 R1a 部分取代**：本 Note 的 `design` + `cards` 两次子代理不再是正常派发；R1a 改为同一 architect child 四 phase + 单事务 bundle。`design`/`cards` 仅作手动兼容。见 [architect 多阶段提交与原子落地](2026-11-02-storycraft-architect-multistage-runtime.md)。
+
 工作项：当前任务（不新建 GitHub issue）。把 architect 的 frame/rules/roles 三个派发合并为一次 `design` 派发，cards 仍独立，形成两次子代理调用。
 
 ## Problem
