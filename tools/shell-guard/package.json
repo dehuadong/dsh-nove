@@ -12,6 +12,7 @@
   "files": [
     "index.js",
     "classify.js",
+    "path-boundary.js",
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg"

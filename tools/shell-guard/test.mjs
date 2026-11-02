@@ -40,6 +40,21 @@ const cases = [
   ['allow', 'node --check x.js; "exit=$LASTEXITCODE"'],
   ['deny', 'node --version\nRemove-Item -Recurse -Force "C:\\Users\\MyPC\\.ssh"'],
   ['deny', 'echo hi; Remove-Item -Recurse -Force "C:\\Users\\MyPC\\.dsh"'],
+
+  // Read-only outside paths are allowed; write/create outside is not.
+  ['allow', 'Test-Path C:\\Users\\MyPC\\.dsh'],
+  ['allow', 'Get-ChildItem C:\\Users\\MyPC'],
+  ['allow', 'git status'],
+  ['deny', 'New-Item -ItemType Directory -Force C:\\Users\\MyPC\\_dsh-apicheck'],
+  ['deny', 'Set-Content C:\\Users\\MyPC\\x.txt -Value hello'],
+  ['deny', 'npm install --prefix C:\\Users\\MyPC\\_dsh-apicheck left-pad'],
+  ['deny', 'git clone https://example.com/x.git C:\\Users\\MyPC\\repo'],
+  ['deny', 'echo hello > C:\\Users\\MyPC\\x.txt'],
+
+  // Here-string data is not executable; executable here-string is.
+  ['allow', "@'\nunlinkSync('x')\n'@ | Set-Content .\\notes.md"],
+  ['deny', "@'\nrm -rf C:\\Users\\MyPC\\_dsh-apicheck\n'@ | bash"],
+  ['deny', 'node -e "require(\'fs\').unlinkSync(\'C:/Users/MyPC/x\')"'],
 ]
 
 let failed = 0

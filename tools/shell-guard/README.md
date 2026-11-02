@@ -1,6 +1,6 @@
 # shell-guard
 
-Host 插件：在工具派发前拒绝“删除/移动工作区外路径”的 shell 命令。
+Host 插件：在工具派发前拒绝“删除/移动/复制/创建/写入工作区外路径”的 shell 命令。
 
 ## 为什么存在
 
@@ -12,19 +12,20 @@ Host 插件：在工具派发前拒绝“删除/移动工作区外路径”的 s
 | 文件 | 作用 |
 | --- | --- |
 | `index.js` | 插件入口；从 `sandboxPolicy.resolve({ session }).workspaceRoot` 取工作区边界 |
+| `path-boundary.js` | 路径展开、realpath、symlink/大小写边界 |
 | `classify.js` | 纯函数分类器：动词识别、目标提取、越界判定、拒绝文案 |
-| `test.mjs` | 19 条用例，`node tools/shell-guard/test.mjs`，不依赖 Harness |
+| `test.mjs` | 30 条用例，`node tools/shell-guard/test.mjs`，不依赖 Harness |
 | `cordis.patch.yml` | 插入 `shell-guard` 行（`package.json` 的 `dsh.bundle.patch` 指向它） |
 
 ## 判定规则
 
-命中任一删除/移动动词（`Remove-Item`、`rm`、`rmdir`/`rd`、`del`/`erase`、`Move-Item`、`robocopy /mir|/purge|/move`、`.NET ::Delete`、`shutil.rmtree`、`os.remove`、`fs.rmSync`、`git clean -xdf`），并且：
+命中写/删/移动/复制/创建动词（`Remove-Item`、`Set-Content`、`New-Item`、`Copy-Item`、`rm`、`mv`、`cp`、`mkdir`、`touch`、`dd`、`truncate`、`sed -i`、`git clone/clean/checkout/reset`、`robocopy /mir|/purge|/move`、`.NET ::Delete`、`shutil.rmtree`、`os.remove`、`fs.*Sync`、`xargs rm`、`find -delete`、`npm install --prefix` 等），并且：
 
 - 目标解析后不在工作区根内 → `deny`
 - 目标含通配符，或由变量拼接导致无法静态确定 → `deny`
 - 管道喂给动词（真实目标不可见）→ `deny`
 
-工作区内的删除照常放行。命中时回执给出 `scripts/trash.mjs` 的替代路径。
+只读命令（`Test-Path`、`Get-ChildItem`、`git status`）放行。here-string 作为 `Set-Content`/`Out-File` 数据时不扫描正文；被 `bash`/`node` 执行时正文仍参与检查。工作区内的写/删照常放行；命中时回执给出 `scripts/trash.mjs` 替代路径与 `.artifacts/` 提示。
 
 ## 修改后如何生效
 
