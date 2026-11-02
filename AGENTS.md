@@ -26,7 +26,7 @@
 
 边界说明：守卫装在当前 profile，只覆盖经由本 Harness 工具发起的命令；作者自己终端里的操作不在其内。因此删除一律走 `trash.mjs`，不要因为“有守卫”就放宽命令行。
 
-源码写入另由 Host 插件 `@dsh-nove/implement-gate`（源码 `tools/implement-gate/`）在 `tools/pre-execute` 强制执行。它只在项目根存在 `.agents/implement-gate.json`（`{"enabled":true}`）时启用；其他项目完全 pass-through。状态按 `(workspaceRoot, sessionId)` 存放在 `.agents/state/implement-gate/<session-hash>.json`，并行会话互不影响，插件重载后从文件恢复。
+源码写入另由 Host 插件 `@dsh-nove/implement-gate`（源码 `tools/implement-gate/`）在 `tools/pre-execute` 强制执行。它只在项目根存在 `.agents/implement-gate.json` 时启用；其他项目完全 pass-through。配置定义 `codeRoots`/`codeFiles`、`protected`、`proposed` 与 `commands`；缺配置或配置非法时 `misconfigured`，所有写拒绝。状态按 `(workspaceRoot, agent.id)`（即 SessionId）存放在 `.agents/state/implement-gate/<session-hash>.json`，并行会话互不影响，插件重载后从文件恢复。
 
 状态机：`discuss`（默认；源码和 propose 规划 Note 拒绝）→ planning 命令 → `planning`（允许文档与 propose Note，源码仍拒绝）→ `implement_gate({action:'end-planning'})` → `discuss`；implement 命令/审批 → `implement`（允许源码与文档）→ `complete`（源码与 propose Note 拒绝）。
 

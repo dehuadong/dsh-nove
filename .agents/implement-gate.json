@@ -1,3 +1,38 @@
 {
-  "enabled": true
+  "enabled": true,
+  "version": 1,
+  "codeRoots": [
+    "storycraft/src",
+    "storycraft/tests",
+    "storycraft/scripts",
+    "storycraft/e2e",
+    "storycraft/lib",
+    "tools",
+    "scripts",
+    ".github",
+    "deepseek-harness"
+  ],
+  "codeFiles": [
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "tsconfig.json",
+    "tsconfig.client.json",
+    "cordis.patch.yml",
+    ".gitignore",
+    "storycraft/package.json",
+    "storycraft/package-lock.json",
+    "storycraft/tsconfig.json",
+    "storycraft/tsconfig.client.json"
+  ],
+  "protected": [
+    ".agents/implement-gate.json",
+    ".agents/state/implement-gate"
+  ],
+  "proposed": ".agents/notes/proposed",
+  "commands": {
+    "planning": "^批准，使用(?:技能\\s*)?planning\\s+执行规划\\s+(.+)$",
+    "implement": "^批准，使用(?:技能\\s*)?implement\\s+执行实现\\s+(.+)$",
+    "docs": "^批准，执行文档治理\\s+(.+)$"
+  }
 }

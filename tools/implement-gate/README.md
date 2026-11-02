@@ -8,16 +8,31 @@ Host 插件：仅在已启用的项目里，按**会话**控制源码与规划 N
 
 ## 项目启用
 
-只有项目根存在：
+只有项目根存在 `.agents/implement-gate.json` 才启用本守卫。没有该文件的项目**完全 pass-through**，不会被拦截，`implement_gate status` 返回 `enabled:false`。
 
-```text
-.agents/implement-gate.json
-{"enabled": true}
+配置示例：
+
+```json
+{
+  "enabled": true,
+  "version": 1,
+  "codeRoots": ["src", "tests", "tools"],
+  "codeFiles": ["package.json", "tsconfig.json"],
+  "protected": [".agents/state"],
+  "proposed": ".agents/notes/proposed",
+  "commands": {
+    "planning": "^批准，使用(?:技能\\s*)?planning\\s+执行规划\\s+(.+)$",
+    "implement": "^批准，使用(?:技能\\s*)?implement\\s+执行实现\\s+(.+)$",
+    "docs": "^批准，执行文档治理\\s+(.+)$"
+  }
+}
 ```
 
-才启用本守卫。没有该文件的项目**完全 pass-through**，不会被拦截，`implement_gate status` 返回 `enabled:false`。
-
-该文件和 `.agents/state/implement-gate/` 是守护路径，模型不能通过 `write`/`edit`/shell 修改；状态文件由插件自己写。
+- 没有 marker 或 `enabled:false`：pass-through；
+- marker JSON 坏、`enabled` 非布尔、缺 `version:1`/`codeRoots`/`commands.implement`、含绝对路径/`..`/通配符/未知键：`misconfigured`，所有写拒绝；
+- `.agents/implement-gate.json` 与 `.agents/state/implement-gate/**` **无条件 protected**，配置只能追加；
+- `codeRoots`/`codeFiles` 之外的路径是文档；文档不再维护白名单；
+- 配置按 workspace 根、每次调用读取；不同项目互不影响。
 
 ## 会话状态
 
@@ -62,7 +77,7 @@ Host 插件：仅在已启用的项目里，按**会话**控制源码与规划 N
 | shell 文档写命令 | 仅 `docScope` 内 | 仅 docs-only | 允许 | 仅 `docScope` 内 |
 | 状态/启用标记 | 拒绝 | 拒绝 | 拒绝 | 拒绝 |
 
-文档范围由 `批准，执行文档治理 {文件或目录}` 设置，范围外仍拒绝；它不进入 planning/implement，也不解锁源码。文档是“代码之外”的路径，不维护文档白名单；源码边界由 `classify.js` 的 code roots/文件集固定。`trash.mjs`、`git add/commit/mv` 按目标路径分类，混入源码或 propose Note 时拒绝。
+文档范围由 `批准，执行文档治理 {文件或目录}` 设置，范围外仍拒绝；它不进入 planning/implement，也不解锁源码。文档是“代码之外”的路径，不维护文档白名单；源码边界由项目和 `.agents/implement-gate.json` 的 `codeRoots`/`codeFiles` 固定。`trash.mjs`、`git add/commit/mv` 按目标路径分类，混入源码或 propose Note 时拒绝。
 
 - `git push` 不改工作树，放行；
 - `implement_gate block` 冻结源码写，文档范围仍有效；
@@ -74,6 +89,7 @@ Host 插件：仅在已启用的项目里，按**会话**控制源码与规划 N
 | 文件 | 作用 |
 | --- | --- |
 | `index.js` | 插件入口、项目启用、会话状态、`implement_gate` 工具、pre-execute 拦截 |
+| `config.js` | 读取与校验 `.agents/implement-gate.json` 项目策略 |
 | `classify.js` | 纯分类：命令、路径、shell 写动作 |
 | `test.mjs` | 纯函数 + mock Host 用例 |
 | `cordis.patch.yml` | 插入 `implement-gate` 行 |

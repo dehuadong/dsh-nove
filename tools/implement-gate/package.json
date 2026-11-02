@@ -10,6 +10,7 @@
   "files": [
     "index.js",
     "classify.js",
+    "config.js",
     "cordis.patch.yml",
     "README.md"
   ],
