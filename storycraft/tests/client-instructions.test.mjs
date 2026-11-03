@@ -12,7 +12,11 @@ function check(name, condition, detail) {
   }
 }
 
-const source = await readFile(new URL('../src/client.ts', import.meta.url), 'utf8')
+const source = [
+  await readFile(new URL('../src/client.ts', import.meta.url), 'utf8'),
+  await readFile(new URL('../src/client/instructions.ts', import.meta.url), 'utf8'),
+  await readFile(new URL('../src/client/panels/empty.ts', import.meta.url), 'utf8'),
+].join('\n')
 
 check('summary instruction states the exact delegate call',
   source.includes('只有返回 delegate.role=summarizer 时才用 story_delegate(role: summarizer)')
