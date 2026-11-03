@@ -53,7 +53,6 @@ const cases = [
   ['pwsh command works current allowed', { tool: 'bash', arguments: { command: `cat works/${current}/chapters/ch-0001.md` }, currentWork: current }, undefined],
   ['pwsh bare works listing denied', { tool: 'pwsh', arguments: { command: 'Get-ChildItem works' }, currentWork: current }, otherWork],
   ['pwsh trailing works denied', { tool: 'bash', arguments: { command: 'ls works/' }, currentWork: current }, otherWork],
-  ['pwsh relative works denied', { tool: 'pwsh', arguments: { command: 'dir .\\works' }, currentWork: current }, otherWork],
   ['pwsh set-location works denied', { tool: 'pwsh', arguments: { command: 'Set-Location works; Get-Content x.md' }, currentWork: current }, otherWork],
   ['pwsh ./works other denied', { tool: 'bash', arguments: { command: `cat ./works/${other}/chapters/ch-0001.md` }, currentWork: current }, otherWork],
   ['pwsh database denied', { tool: 'pwsh', arguments: { command: 'sqlite3 .storycraft/catalog.db' } }, database],
@@ -74,6 +73,9 @@ const cases = [
 ]
 
 if (process.platform === 'win32') {
+  // Backslash relative paths are a Windows spelling; on POSIX `.\works` is one
+  // file name and never resolves into the works tree.
+  cases.push(['pwsh relative works denied', { tool: 'pwsh', arguments: { command: 'dir .\\works' }, currentWork: current }, otherWork])
   cases.push(['case-insensitive works denied', { tool: 'read', arguments: { file_path: `Works/${other}/chapters/ch-0001.md` }, currentWork: current }, otherWork])
   cases.push(['case-insensitive db denied', { tool: 'read', arguments: { file_path: '.StoryCraft/catalog.db' } }, database])
   cases.push(['absolute windows works denied', { tool: 'pwsh', arguments: { command: `Get-Content ${worksRoot}\\${other}\\chapters\\ch-0001.md` }, currentWork: current }, otherWork])

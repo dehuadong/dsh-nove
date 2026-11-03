@@ -22,6 +22,19 @@ const check = (name, ok, detail) => {
     console.log(`FAIL ${name}${detail === undefined ? '' : ` — ${detail}`}`)
   }
 }
+/**
+ * Time budgets are a local regression line. A shared runner's disk and CPU make
+ * the numbers meaningless, so CI reports them as skips: the work still runs, the
+ * millisecond verdict does not.
+ */
+const inCi = process.env.CI === 'true' || process.env.CI === '1'
+const timing = (name, ok, detail) => {
+  if (inCi) {
+    console.log(`skip ${name}${detail === undefined ? '' : ` — ${detail}`}`)
+    return
+  }
+  check(name, ok, detail)
+}
 async function median(fn, before, samples = 3) {
   if (before !== undefined) await before()
   await fn()
@@ -36,7 +49,7 @@ async function median(fn, before, samples = 3) {
 }
 async function budget(name, fn, limit) {
   const ms = await median(fn)
-  check(`${name} under ${limit}ms`, ms < limit, `${ms.toFixed(1)}ms`)
+  timing(`${name} under ${limit}ms`, ms < limit, `${ms.toFixed(1)}ms`)
 }
 try {
   const fixture = await buildPerfFixture(root, { chapters: 250, smallWorks: 20, smallChapters: 10 })
@@ -51,13 +64,13 @@ try {
   const selfCheckStarted = performance.now()
   const selfCheckReport = selfCheck(root, work)
   const selfCheckMs = performance.now() - selfCheckStarted
-  check('250-chapter self-check under 1000ms', selfCheckMs < 1000, selfCheckMs.toFixed(1) + 'ms')
+  timing('250-chapter self-check under 1000ms', selfCheckMs < 1000, selfCheckMs.toFixed(1) + 'ms')
   check('250-chapter self-check has no body text', !JSON.stringify(selfCheckReport).includes('周砚'))
   const analysisStarted = performance.now()
   const analysis = await readAnalysis(root, work)
   const analysisMs = performance.now() - analysisStarted
   const analysisJson = JSON.stringify(analysis)
-  check('250-chapter analysis under 300ms', analysisMs < 300, analysisMs.toFixed(1) + 'ms')
+  timing('250-chapter analysis under 300ms', analysisMs < 300, analysisMs.toFixed(1) + 'ms')
   check('250-chapter analysis carries counts only', !analysisJson.includes('"observations"') && !analysisJson.includes('"summary"') && !analysisJson.includes('周砚'), analysisJson.slice(0, 200))
   await budget('250-chapter listWorks (21 works)', () => store.listWorks(root), 500)
   await budget('chapter-250 assembleBrief', () => bible.assembleBrief(root, work, 250), 400)
@@ -65,9 +78,9 @@ try {
   const searchStarted = performance.now()
   const searchResult = searchUnified(root, work, '场景')
   const searchMs = performance.now() - searchStarted
-  check('250-chapter unified search under 500ms', searchMs < 500, searchMs.toFixed(1) + 'ms')
+  timing('250-chapter unified search under 500ms', searchMs < 500, searchMs.toFixed(1) + 'ms')
   check('unified search returns groups without full text', searchResult.groups.length === 3 && !JSON.stringify(searchResult).includes('"text":'), JSON.stringify(searchResult).slice(0, 120))
-  check('bulk append 250 chapters stays reasonable', fixture.bulkAppendMs < 5000, `${fixture.bulkAppendMs.toFixed(0)}ms`)
+  timing('bulk append 250 chapters stays reasonable', fixture.bulkAppendMs < 5000, `${fixture.bulkAppendMs.toFixed(0)}ms`)
 
   let appendOne = Number.POSITIVE_INFINITY
   for (const chapter of [251, 252, 253]) {
@@ -77,13 +90,13 @@ try {
     store.writeChapter(root, { work, chapter, body: `第 ${chapter} 章正文。` })
     appendOne = Math.min(appendOne, performance.now() - started)
   }
-  check('append one chapter under 50ms', appendOne < 50, `${appendOne.toFixed(1)}ms`)
+  timing('append one chapter under 50ms', appendOne < 50, `${appendOne.toFixed(1)}ms`)
 
   const retrieval = await median(() => {
     const candidates = store.searchMemory(root, work, '井台 旧钥匙', { beforeChapter: 251 })
     return select(candidates, { excludeIds: [], limit: 5, budget: 1200 })
   })
-  check('250-chapter retrieval fits 400ms', retrieval < 400, `${retrieval.toFixed(1)}ms`)
+  timing('250-chapter retrieval fits 400ms', retrieval < 400, `${retrieval.toFixed(1)}ms`)
   const retrievalHits = select(store.searchMemory(root, work, '井台 旧钥匙', { beforeChapter: 251 }), { excludeIds: [], limit: 5, budget: 1200 })
   check('retrieval stays bounded', retrievalHits.hits.filter(hit => hit.sent).length <= 5 && retrievalHits.chars <= 1200, JSON.stringify({ hits: retrievalHits.hits.length, chars: retrievalHits.chars }))
 
@@ -100,19 +113,19 @@ try {
     const candidates = store.searchMemory(root, work, '专属素材词', { beforeChapter: 251 })
     return select(candidates, { excludeIds: [], limit: 5, budget: 1200 })
   })
-  check('material retrieval with a 512KB file fits 400ms', materialRetrieval < 400, `${materialRetrieval.toFixed(1)}ms`)
+  timing('material retrieval with a 512KB file fits 400ms', materialRetrieval < 400, `${materialRetrieval.toFixed(1)}ms`)
   const materialHits = store.searchMemory(root, work, '专属素材词', { beforeChapter: 251 })
   check('material snippets stay bounded', materialHits.filter(item => item.kind === 'material').every(item => [...item.text].length <= 400), JSON.stringify(materialHits.map(item => [item.id, item.text.length])))
 
   const briefWithMaterialMs = await median(() => bible.assembleBrief(root, work, 250))
-  check('full brief with 512KB material under 400ms', briefWithMaterialMs < 400, `${briefWithMaterialMs.toFixed(1)}ms`)
+  timing('full brief with 512KB material under 400ms', briefWithMaterialMs < 400, `${briefWithMaterialMs.toFixed(1)}ms`)
   const briefWithMaterial = await bible.assembleBrief(root, work, 250)
   check('brief with material stays within its token budget', briefWithMaterial.budget.used <= 8192, String(briefWithMaterial.budget.used))
   check('brief includes material within budget', briefWithMaterial.retrieval.enabled === true && briefWithMaterial.retrieval.hits.some(hit => hit.kind === 'material' && hit.sent === true), JSON.stringify(briefWithMaterial.retrieval))
 
   const exportTarget = join(exportsDir(root), work)
   const exportMs = await median(() => store.exportWorkAtomic(root, work), () => rmSync(exportTarget, { recursive: true, force: true }))
-  check('250-chapter atomic export under 3000ms', exportMs < 3000, `${exportMs.toFixed(0)}ms`)
+  timing('250-chapter atomic export under 3000ms', exportMs < 3000, `${exportMs.toFixed(0)}ms`)
 
   const probePath = join(import.meta.dirname, 'perf-memory-probe.mjs')
   const probes = []
