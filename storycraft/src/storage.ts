@@ -12,7 +12,7 @@ export * from './storage/types.ts'
  */
 
 export * from './domain.ts'
-export * from './store-db.ts'
+export * from './storage/repositories/shared.ts'
 export * from './storage/repositories/materials.ts'
 export * from './storage/repositories/works.ts'
 export * from './storage/repositories/search.ts'
