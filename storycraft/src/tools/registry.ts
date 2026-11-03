@@ -1,7 +1,13 @@
-/** Tool registry surface: stable error envelopes for every action. */
+/** Tool registry surface: plugin metadata and stable error envelopes for every action. */
 
 import { StoryError } from '../domain.ts'
 import type { FailureEnvelope } from './types.ts'
+
+/** Services this plugin injects. */
+export const inject: string[] = ['tools']
+
+/** Provider label used in diagnostics. */
+export const name: string = 'storycraft-tools'
 
 export function storeErrorCodeOf(error: unknown): string | undefined {
   return (error as { code?: unknown } | null | undefined)?.code as string | undefined

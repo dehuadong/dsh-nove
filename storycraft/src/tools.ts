@@ -103,13 +103,8 @@ import type {
   ActionDefinition,
 } from './tools/types.ts'
 
-import { failureOf, storeErrorCodeOf } from './tools/registry.ts'
-export { failureOf } from './tools/registry.ts'
-
-export const inject: string[] = ['tools']
-
-/** Provider label used in diagnostics. */
-export const name: string = 'storycraft-tools'
+import { failureOf, inject, name, storeErrorCodeOf } from './tools/registry.ts'
+export { failureOf, inject, name } from './tools/registry.ts'
 
 /** Workspace directory for one call. */
 function workspaceOf(exec: DshToolExecution): string {
