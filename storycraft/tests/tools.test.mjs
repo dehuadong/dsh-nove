@@ -2,7 +2,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import * as tools from '../src/tools.ts'
+import * as tools from '../src/tools/index.ts'
 import * as s from '../src/storage.ts'
 import { openWork } from '../src/storage/db.ts'
 import { writeContextTrace } from '../src/artifact-store.ts'

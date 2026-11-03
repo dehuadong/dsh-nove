@@ -406,7 +406,7 @@ try {
     () => delegateRole(root, { work, chapter: 4, role: 'reviser' }, { service: fakeService([]), agent, signal }))
 
   // The model-visible action wires the same delegation path through ctx.get.
-  const { apply } = await import('../src/tools.ts')
+  const { apply } = await import('../src/tools/index.ts')
   const registered = []
   const hostService = fakeService([completed({
     structured: { items: [] },

@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../src/storage.ts'
-import * as tools from '../src/tools.ts'
+import * as tools from '../src/tools/index.ts'
 import { setCurrent } from '../src/current.ts'
 
 let failures = 0

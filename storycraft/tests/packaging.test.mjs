@@ -59,7 +59,7 @@ check('no source suppresses type checking', suppressed.length === 0, suppressed.
 const entry = await import('../src/index.ts')
 check('package entry exports apply and inject',
   typeof entry.apply === 'function' && Array.isArray(entry.inject), Object.keys(entry).join(','))
-const actions = await import('../src/tools.ts')
+const actions = await import('../src/tools/index.ts')
 check('tool entry exports apply', typeof actions.apply === 'function', Object.keys(actions).join(','))
 const skills = await import('../src/skills.ts')
 check('skill entry exports apply, name and inject',

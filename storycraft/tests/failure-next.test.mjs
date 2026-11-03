@@ -1,6 +1,6 @@
 // Failure receipts carry the next step, so callers do not parse prose.
 import { StoryError } from '../src/domain.ts'
-import { failureOf } from '../src/tools.ts'
+import { failureOf } from '../src/tools/index.ts'
 
 let failures = 0
 function check(name, condition, detail) {

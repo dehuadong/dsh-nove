@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { closeSubmission, consumeFoundationSubmission, consumeSubmission, FOUNDATION_TTL_MS, openSubmission, submitPayload } from '../src/runtime/submission.ts'
 import { FOUNDATION_DELEGATE_TIMEOUT_MS } from '../src/runtime/delegate-runner.ts'
-import { SUBMIT_OUTPUT } from '../src/tools.ts'
+import { SUBMIT_OUTPUT } from '../src/tools/index.ts'
 import * as s from '../src/storage.ts'
 import { reviewFixture } from './review-fixture.mjs'
 

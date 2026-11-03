@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import * as s from '../src/storage.ts'
 import { dropRoleCardsOnDb, readRoleCard } from '../src/artifact-store.ts'
 import { openWork, transaction } from '../src/storage/db.ts'
-import * as tools from '../src/tools.ts'
+import * as tools from '../src/tools/index.ts'
 import { setCurrent } from '../src/current.ts'
 
 let failures = 0

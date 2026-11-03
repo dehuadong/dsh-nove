@@ -12,7 +12,7 @@ export default defineConfig({
   name: 'see-storycraft',
   entry: {
     index: 'src/index.ts',
-    tools: 'src/tools.ts',
+    tools: 'src/tools/index.ts',
     skills: 'src/skills.ts',
   },
   outDir: 'lib',
