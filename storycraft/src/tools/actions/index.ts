@@ -39,7 +39,7 @@ import type {
   ActionSpec,
   ActionDefinition,
 } from '../types.ts'
-import { failureOf, inject, name, storeErrorCodeOf } from '../registry.ts'
+import { failureOf, storeErrorCodeOf } from '../runtime.ts'
 import {
   sessionOf,
   delegationDepthOf,
@@ -58,7 +58,7 @@ import {
   BRIEF_OUTPUT,
   SUBMIT_OUTPUT,
   action,
-} from '../../tools.ts'
+} from '../runtime.ts'
 
 export /** The long-form action set. */
 function rawDefinitions(ctx: DshContext): ActionDefinition[] {
