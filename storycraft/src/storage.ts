@@ -1,3 +1,4 @@
+export * from './storage/types.ts'
 /**
  * Public storage surface for the studio.
  *

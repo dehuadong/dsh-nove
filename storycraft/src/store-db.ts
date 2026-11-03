@@ -26,50 +26,13 @@ import type { ArtifactRow, BibleRow, ChapterRow, ChapterVersionRow, EventRow, Ma
  * rounds, 2840 words against a 3000 ceiling). The cap turns that loop into an
  * author decision instead of a token sink.
  */
-export const MAX_REVISION_ROUNDS = 3
 
 /** Revisions spent on this chapter so far (revision 1 is the first draft). */
-export function revisionRounds(currentRevision: number): number {
-  return Math.max(0, currentRevision - 1)
-}
 
-export interface WriteChapterInput {
-  work: string
-  chapter: number | string
-  title?: string
-  body: string
-  rewrite?: boolean
-  reopen?: boolean
-  requirePlanApproval?: boolean
-}
 
-export interface ReadChapterInput {
-  work: string
-  chapter: number | string
-  view?: 'body' | 'plan' | 'summary' | 'review'
-  revision?: number
-}
 
-export interface WriteReviewInput {
-  work: string
-  chapter: number | string
-  observations: Array<Record<string, any>>
-}
 
-export interface ReviseChapterInput {
-  work: string
-  chapter: number | string
-  body: string
-  mode?: string
-  reopen?: boolean
-}
 
-export interface WriteSummaryInput {
-  work: string
-  chapter: number | string
-  revision?: number
-  text?: string
-}
 import {
   backupTo, checkpoint, createWorkDatabase, exportsDir, integrityCheck, WORK_SCHEMA_VERSION,
   materialsDir, moveDatabaseFiles, openCatalog, openDatabase, openWork, removeDatabaseFiles, touchMeta, transaction,
@@ -98,6 +61,15 @@ import {
 import { reviewInputOf } from './review-binding.ts'
 import { methodForStep } from './skill-routing.ts'
 import { callSummary } from './telemetry.ts'
+import { MAX_REVISION_ROUNDS, revisionRounds } from './storage/types.ts'
+import type {
+  WriteChapterInput,
+  ReadChapterInput,
+  WriteReviewInput,
+  ReviseChapterInput,
+  WriteSummaryInput,
+} from './storage/types.ts'
+export * from './storage/types.ts'
 
 import {
   PROPOSAL_TTL_MS,
