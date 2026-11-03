@@ -6,7 +6,7 @@ Status: implemented
 
 > **2026-11-02 R1b 部分取代 §5「初始伏笔」**：architect 现在随 `details` 播种初始伏笔（v2 hook 事件、chapter 0、deferred、模型 id）并写第五段 `bible:hooks`。当时否决的是「旧 text-hook 初始化」，不是「foundation 产初始伏笔」；理由与验证见 [architect 初始伏笔（R1b）](../architecture/2026-11-02-storycraft-architect-initial-hooks.md)。本 Note 的 stage 表、确认闸门与消费段序仍有效。
 
-> **2026-10-29 修正**：`roles ≤20`、`cards ≤12`、卡仅 major 三条与参考实现不符，作者已裁决移除。角色模型按 [parity-matrix 角色卡行](../../proposed/process/2026-10-18-storycraft-parity-matrix.md) 与 [角色模型对齐参考](../architecture/2026-10-29-storycraft-role-model-parity.md) 对齐：薄索引（name+tier）+ 每人 Markdown 卡（动机/知识/关系压力/边界），major/minor 均可建卡，不设数量上限。本 Note 的对应描述、`store-db.ts` 校验、`storycraft-architect` SKILL 与测试需在同一后续工作项里同步；同步前以矩阵裁决为准。
+> **2026-10-29 修正**：`roles ≤20`、`cards ≤12`、卡仅 major 三条与参考实现不符，作者已裁决移除。角色模型按 [parity-matrix 角色卡行](../../rejected/process/2026-10-18-storycraft-parity-matrix.md) 与 [角色模型对齐参考](../architecture/2026-10-29-storycraft-role-model-parity.md) 对齐：薄索引（name+tier）+ 每人 Markdown 卡（动机/知识/关系压力/边界），major/minor 均可建卡，不设数量上限。本 Note 的对应描述、`store-db.ts` 校验、`storycraft-architect` SKILL 与测试需在同一后续工作项里同步；同步前以矩阵裁决为准。
 
 ## 问题
 

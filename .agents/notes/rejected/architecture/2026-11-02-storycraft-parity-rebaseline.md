@@ -1,6 +1,6 @@
 # Agent Note: 故事工坊：对拍基线重审与角色职责边界整改
 
-Status: proposed
+Status: rejected — 历史基线重审：诊断保留，R1–R4 计划已结束；见 implemented/process/2026-11-03-storycraft-status-evidence-ownership.md
 
 工作项：当前任务（不新建 GitHub issue）。先重审对拍基线，更新 parity-matrix 与 roadmap，再按角色职责边界分阶段整改。
 
@@ -116,7 +116,7 @@ storycraft/src/
 - 明确参考每个角色的 agent/prompt/tool schema/方法边界；
 - **裁决 architect 四段 vs design/cards**：保留并登记偏差，或回退到参考的四段；
 - 不写业务代码；
-- 旧“已交付”状态的重置与重排期拆到 [交付状态重审与对拍基线重排期](../process/2026-11-02-storycraft-delivery-status-replan.md)（R0b）；R0b 盘点已完成，见[交付状态盘点](../../implemented/process/2026-11-02-storycraft-delivery-status-inventory.md)。
+- 旧“已交付”状态的重置与重排期拆到 [交付状态重审与对拍基线重排期](../process/2026-11-02-storycraft-delivery-status-replan.md)（R0b）；R0b 盘点已完成，见[交付状态盘点](../../archived/process/2026-11-02-storycraft-delivery-status-inventory.md)。
 
 **R1 architect 试点**
 

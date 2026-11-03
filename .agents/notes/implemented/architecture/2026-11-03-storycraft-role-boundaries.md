@@ -139,7 +139,7 @@ settler 走自己的 `state-settle.ts`，只 import `roles/settler/{contract,pro
 
 ## 与既有决定
 
-- [对拍基线重审](../../proposed/architecture/2026-11-02-storycraft-parity-rebaseline.md) 的 R2 目标与目标结构由本项承接。
+- [对拍基线重审](../../rejected/architecture/2026-11-02-storycraft-parity-rebaseline.md) 的 R2 目标与目标结构由本项承接。
 - [R1a 多阶段提交](2026-11-02-storycraft-architect-multistage-runtime.md) 的 `roles/architect` 模板被复制到其余角色；architect 的行为不变。
 - [role 输入契约](2026-10-19-storycraft-role-input-contracts.md)、[host 委派](2026-10-20-storycraft-host-delegation.md)、[role-submission](2026-10-20-storycraft-role-submission.md) 等由本项**部分取代**（实施后加横幅互链），本项不改它们的已交付结论。
 

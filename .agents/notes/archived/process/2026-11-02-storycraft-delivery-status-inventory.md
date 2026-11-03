@@ -1,6 +1,7 @@
 # Agent Note: 故事工坊：交付状态盘点（R0b）
 
 Status: implemented
+Archived: 2026-11-03
 
 ## Problem
 

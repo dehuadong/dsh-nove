@@ -3,7 +3,7 @@
 Status: implemented
 
 > 承接工作项 #83；本设计取代 #81 的两条前提：minor 卡也要清理（不再是“只清 major”）、cards 不再允许部分提交（改为 1:1 覆盖）。#81 的其余行为（按 name 清理、删全部 revision、同事务删检索文档、物理删除、`artifact-not-found`）不变。产品行为与验收归工作项；本 Note 拥有技术设计与实现边界。
-> 关联：[parity-matrix 角色卡行 & 运行时整改](../../proposed/process/2026-10-18-storycraft-parity-matrix.md)、[foundation 生产](../feature/2026-10-24-storycraft-foundation-production.md)（其角色上限条目由本 Note 取代）。
+> 关联：[parity-matrix 角色卡行 & 运行时整改](../../rejected/process/2026-10-18-storycraft-parity-matrix.md)、[foundation 生产](../feature/2026-10-24-storycraft-foundation-production.md)（其角色上限条目由本 Note 取代）。
 
 ## 问题
 

@@ -1,6 +1,6 @@
 # Agent Note: 故事工坊：与参考实现的能力对拍清单
 
-Status: proposed
+Status: rejected — 历史状态表：手写的“已对齐/已实现”不再是当前依据；见 implemented/process/2026-11-03-storycraft-status-evidence-ownership.md
 
 
 > 本文件是长期跟踪表，不随交付迁移 lifecycle；能力落地后更新状态列，不另建记录。
@@ -20,7 +20,7 @@ Status: proposed
 
 ### 交付状态盘点（R0b）
 
-90 篇 implemented Note 已完成分类，明细见[交付状态盘点](../../implemented/process/2026-11-02-storycraft-delivery-status-inventory.md)：
+90 篇 implemented Note 已完成分类，明细见[交付状态盘点](../../archived/process/2026-11-02-storycraft-delivery-status-inventory.md)：
 
 - `revalidate-only` 77；
 - `rework-required` 11（另有 2 `legacy-delivered`，结构相关合计 13）；

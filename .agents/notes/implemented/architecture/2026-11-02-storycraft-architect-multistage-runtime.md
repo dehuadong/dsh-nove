@@ -152,7 +152,7 @@ outline → details → cast index → cards
 
 - **部分取代** [role-submission](2026-10-20-storycraft-role-submission.md)：单 payload/3 attempts/TTL 仍适用于非 architect 角色；architect foundation 改多 phase/按 phase 重试/刷新 TTL。
 - **部分取代** [design-cards dispatch](2026-11-02-storycraft-design-cards-dispatch.md)：B 的 design/cards 降为手动兼容，不再由 `story_next` 使用。
-- [对拍基线重审](../../proposed/architecture/2026-11-02-storycraft-parity-rebaseline.md) 的 R1 目标由本项提供 runtime 合同。
+- [对拍基线重审](../../rejected/architecture/2026-11-02-storycraft-parity-rebaseline.md) 的 R1 目标由本项提供 runtime 合同。
 
 ## Alternatives considered
 

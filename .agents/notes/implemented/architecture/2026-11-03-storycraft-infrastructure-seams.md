@@ -139,7 +139,7 @@ storycraft/src/
 
 ## 与既有决定
 
-- [对拍基线重审](../../proposed/architecture/2026-11-02-storycraft-parity-rebaseline.md) 的 R3 目标由本项承接；
+- [对拍基线重审](../../rejected/architecture/2026-11-02-storycraft-parity-rebaseline.md) 的 R3 目标由本项承接；
 - [store-db 行类型](../../proposed/architecture/2026-10-24-store-db-row-types.md) 的结论并入 S1/S2；实施后转为 implemented 并互链；
 - [上下文 token 预算与 trace](../../implemented/architecture/2026-10-26-storycraft-context-budget-trace.md) 只换模块归属，行为不变；R3 完成后按新路径复核该 Note 的「落盘只在派发时」与 trace 字段；
 - [R2 角色边界](../../implemented/architecture/2026-11-03-storycraft-role-boundaries.md) 已把角色 payload schema 移出 `submission/tools`，本项继续把动作注册与存储拆开；

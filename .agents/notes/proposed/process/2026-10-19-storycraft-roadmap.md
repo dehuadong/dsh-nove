@@ -13,18 +13,18 @@ Status: proposed
 - 参考工程 `inkos-master` 2.0.0 的三形态组织、artifact 产物与角色交接，见 `docs/report/inkos/2026-10-23-full-project-parity-audit.md`、`2026-10-23-artifact-and-resource-parity-audit.md` 与 `2.0-harness-delta.md`。
 - 采纳：A0 产物合同 → L 长篇 → S 短篇 → D 剧本的顺序；三种形态独立流水线，共享存储与合同。
 - 不采纳：参考实现的 capability/profile 注入层；本项目用 DSH 的预设、作者闸门与委派回执等价实现。
-- 边界：inkos 的产品结构与行为是规格；运行时逐项整改为 DSH 机制（Provider→宿主模型、Agent 循环→Subagent + `story_submit`、CLI→`story_*`/面板/会话、文件状态→工作区 + SQLite + artifact、调度→`story_next`/会话、server→面板 Slot）；DSH 缺的能力等价实现并登记，不删能力、不自创限制。详见 [parity-matrix 运行时整改](2026-10-18-storycraft-parity-matrix.md)。
+- 边界：inkos 的产品结构与行为是规格；运行时逐项整改为 DSH 机制（Provider→宿主模型、Agent 循环→Subagent + `story_submit`、CLI→`story_*`/面板/会话、文件状态→工作区 + SQLite + artifact、调度→`story_next`/会话、server→面板 Slot）；DSH 缺的能力等价实现并登记，不删能力、不自创限制。详见 [parity-matrix 运行时整改](../../rejected/process/2026-10-18-storycraft-parity-matrix.md)。
 
 ## 提案
 
-> **2026-11-02 基线重置**：本表历史行中的“已交付/已关闭/已迁移”均按**旧对拍口径**产生，不能证明新基线完成。R0b 已完成 90 篇盘点：77 `revalidate-only`、11 `rework-required`、2 `legacy-delivered`（结构相关合计 13），明细见[交付状态盘点](../../implemented/process/2026-11-02-storycraft-delivery-status-inventory.md)；未重验前不冒充 `revalidated`。
+> **状态规则**：当前状态只认当前代码的 CI/测试与真实会话证据，见[状态与证据的唯一来源](../../implemented/process/2026-11-03-storycraft-status-evidence-ownership.md)。本表历史行按当时口径保留，**不表示当前完成度**；不得据本表判断能力可用。
 
 ### 阶段路线
 
 | 阶段 | 目标 | 退出条件 | 工作项 |
 | --- | --- | --- | --- |
-| R0 | 对拍基线重审与角色职责边界 | parity-matrix/roadmap 与当前代码一致；architect 四段与 design/cards 偏差**已裁决：B 不保留为目标**；角色 prompt/schema/agent 边界有目标结构 | [重审 Note](../architecture/2026-11-02-storycraft-parity-rebaseline.md)（规划完成） |
-| R0b | 交付状态重审与重排期 | 90 篇 implemented Note 与 roadmap 已交付行完成 `legacy-delivered/revalidate-only/rework-required/cancelled` 分类；受影响 Note 有处置；旧“L 完成”撤回 | [交付状态盘点](../../implemented/process/2026-11-02-storycraft-delivery-status-inventory.md)（已完成盘点） |
+| R0 | 对拍基线重审与角色职责边界 | parity-matrix/roadmap 与当前代码一致；architect 四段与 design/cards 偏差**已裁决：B 不保留为目标**；角色 prompt/schema/agent 边界有目标结构 | [重审 Note](../../rejected/architecture/2026-11-02-storycraft-parity-rebaseline.md)（规划完成） |
+| R0b | 交付状态重审与重排期 | 90 篇 implemented Note 与 roadmap 已交付行完成 `legacy-delivered/revalidate-only/rework-required/cancelled` 分类；受影响 Note 有处置；旧“L 完成”撤回 | [交付状态盘点](../../archived/process/2026-11-02-storycraft-delivery-status-inventory.md)（已完成盘点） |
 | R1 | architect 多阶段提交与原子落地 | 一个 architect child 四 phase；bundle 单事务；architect agent/prompt/schema 拆分 | [运行时合同](../../implemented/architecture/2026-11-02-storycraft-architect-multistage-runtime.md)（已实现） |
 | R1b | architect 初始伏笔 | `pendingHooks` 随 details 播种进 v2 事件、第五段 `bible:hooks`、完整性/面板/导出/消费者 | [初始伏笔合同](../../implemented/architecture/2026-11-02-storycraft-architect-initial-hooks.md)（已实现） |
 | R2 | 角色边界 | 八个角色模块（`contract/prompts/tool-schema/agent`）+ `runtime/` 抽取；旧 `delegate.ts` 删除、无双入口；行为与错误码不变 | [角色边界合同](../../implemented/architecture/2026-11-03-storycraft-role-boundaries.md)（已实现） |
@@ -95,7 +95,7 @@ Status: proposed
 | `implemented/bug-fix/2026-10-27-storycraft-gate-panel-architect-remediation.md` | 已迁移（#79） |
 | `implemented/feature/2026-10-27-storycraft-action-gates.md` | 已迁移（#77） |
 
-`proposed/` 现有 roadmap/parity 两篇 living 文档、`skill-organization-v2`（部分）、`store-db-row-types`（待开）、F14 已迁 implemented，以及 R0 [对拍基线重审](../architecture/2026-11-02-storycraft-parity-rebaseline.md)。
+`proposed/` 现有 roadmap/parity 两篇 living 文档、`skill-organization-v2`（部分）、`store-db-row-types`（待开）、F14 已迁 implemented，以及 R0 [对拍基线重审](../../rejected/architecture/2026-11-02-storycraft-parity-rebaseline.md)。
 
 ### 技能与资源基线
 

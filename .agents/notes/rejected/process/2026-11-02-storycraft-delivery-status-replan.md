@@ -1,6 +1,6 @@
 # Agent Note: 故事工坊：交付状态重审与对拍基线重排期
 
-Status: proposed
+Status: rejected — 历史排期重审：状态词汇已被状态与证据唯一来源取代；见 implemented/process/2026-11-03-storycraft-status-evidence-ownership.md
 
 工作项：当前任务（不新建 GitHub issue）。对旧基线下的“已实现/已交付”做状态重置，按新基线和 `write-agent-notes` 生命周期重新排期。
 
