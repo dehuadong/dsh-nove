@@ -54,7 +54,7 @@ import {
 } from './bible.ts'
 import {
   foundationStateOf,
-} from '../../store-db.ts'
+} from './foundation.ts'
 
 // ---------------------------------------------------------------------------
 // Work manifest and listing
