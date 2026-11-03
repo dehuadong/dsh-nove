@@ -16,6 +16,8 @@ const source = [
   await readFile(new URL('../src/client.ts', import.meta.url), 'utf8'),
   await readFile(new URL('../src/client/instructions.ts', import.meta.url), 'utf8'),
   await readFile(new URL('../src/client/panels/empty.ts', import.meta.url), 'utf8'),
+  await readFile(new URL('../src/client/panels/workbench.ts', import.meta.url), 'utf8'),
+  await readFile(new URL('../src/client/panels/chapter.ts', import.meta.url), 'utf8'),
 ].join('\n')
 
 check('summary instruction states the exact delegate call',

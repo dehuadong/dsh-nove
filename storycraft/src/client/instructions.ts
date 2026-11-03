@@ -95,3 +95,6 @@ import type { Instructions } from './types'
         return `我确认这份方案，可以立项：用 story_init 建作品（带 proposal: ${proposalId}），建完停下来告诉我作品 id 与下一步，不要继续写章纲。`
       },
     }
+
+export const approvalMessage = (what: string): string =>
+  `${what}已确认。请停在这一步，不要自动继续；等作者在会话里决定下一步。`
