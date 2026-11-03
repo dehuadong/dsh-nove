@@ -13,7 +13,7 @@ A0 已交付 v6 artifact registry 与 typed 读写，但生产动作仍写旧表
 - 产物字段、权威与消费者表由 [`2026-10-23-storycraft-artifact-contract-v2.md`](2026-10-23-storycraft-artifact-contract-v2.md) 拥有；本 Note 只拥有**迁移顺序、生产者/消费者切换点、旧结构退役与延期归属**，不重写字段合同。本 Note 部分替代该 Note 验收 4 的“A0 内完成真实消费者”，改为按下方矩阵分工。
 - 路线图 [`2026-10-19-storycraft-roadmap.md`](../../proposed/process/2026-10-19-storycraft-roadmap.md) 拥有 L 的范围与退出条件；#44 是 R10b（architect 生成 foundation），#51 是本 Note 的 R10a。
 - R11 的 [`2026-10-23-storycraft-settler-auto-projection.md`](../feature/2026-10-23-storycraft-settler-auto-projection.md) 的“审稿→修订→摘要→settle”顺序与一次重算规则保留；其 settler payload `{entities,hooks}` 与 `foldState` 的阶段/事件写入由 S3 **部分替代**。替代理由：v2 合同要求 hookOp/factOp 与 fact 有效期，旧 payload 无法表达；R11 的旧引用不进入新作品。
-- R6a 的 [`2026-10-23-storycraft-longform-method-references.md`](../process/2026-10-23-storycraft-longform-method-references.md) 已部分替代；R10a 不改方法正文。
+- R6a 的 [`2026-10-23-storycraft-longform-method-references.md`](../../archived/process/2026-10-23-storycraft-longform-method-references.md) 已部分替代；R10a 不改方法正文。
 
 ## 决定
 

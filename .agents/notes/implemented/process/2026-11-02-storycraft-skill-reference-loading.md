@@ -90,6 +90,12 @@ Status: implemented
 - 子代理现有 `delegate.ts` 的“只读本节点 reference”提示保留，正好对应唯一“必读”；
 - 主会话由 SKILL 资源段负责；“按需”资源不默认注入。
 
+### 生效范围
+
+- 本文的“最多一个必读”约束**技能正文的加载入口**；检索路径仍归 [B2b 技能片段检索](../feature/2026-10-31-storycraft-b2b-context-skill-retrieval.md)：`story_context` 每个节点只取 `SKILL.md` + 命中 `roleMethod` 的一个 reference。两者是不同渠道，不能互相扩张。
+- 当前技能与 reference 的目录归属由 [基础设定资源归位与 planner 直读](../architecture/2026-11-02-storycraft-foundation-resource-relocation.md) 与 [2026-10-27 动作与技能节点](../feature/2026-10-27-storycraft-action-gates.md) 拥有；本文接管 `2026-10-23-storycraft-longform-method-references.md` 的“必读/按需”分类，后者已归档。
+- 阶段需要多份方法文档时，先改本文的加载入口边界，不通过 prompt 或技能正文绕过。
+
 ### 静态校验
 
 扩展现有 `tests/skill-references.test.mjs`（不新建文件，保持 94 单元）：
@@ -137,3 +143,5 @@ Status: implemented
 - 一个必读不能覆盖所有方法；`reader-contract` 等按需资源仍可能被跳过，后续用独立 B2b 工单解决；
 - 技能正文和 references 可能漂移；资源段只做入口，不复制正文；
 - 40 行上限可能要求精简资源段描述，不能靠扩行解决。
+
+[历史快照：故事工坊：长篇方法资源与阅读触发](../../archived/process/2026-10-23-storycraft-longform-method-references.md)

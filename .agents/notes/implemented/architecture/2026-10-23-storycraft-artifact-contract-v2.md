@@ -11,7 +11,7 @@ Status: implemented
 ## 与既有记录
 
 - **artifact 身份语法由 [`2026-10-20-storycraft-artifact-identity.md`](2026-10-20-storycraft-artifact-identity.md) 拥有**；本 Note 只扩展 kind/字段，不另起一套 ID 语法。新增/变更的 ID 在 §2 表中列明；旧表（outline/plan/chapter/summary/state/bible）在 [L-R10a 生产者/消费者迁移](2026-10-24-storycraft-consumer-migration.md) 的对应切片迁移前仍是现行运行路径，迁移后不再写读；review/reviews 由 #52 单独迁移，volume/material/export/backup 仍按现有表/路径运行、R10a 不迁移。本 Note 不把旧表当作 A0 后的长期权威。本 Note 的“静态 artifact 保留历史 revision”**部分替代**该 Note 的“upsert 不保留历史”；L 交付时更新该 Note 的状态/验收并互相链接。
-- R6a 的 [`2026-10-23-storycraft-longform-method-references.md`](../process/2026-10-23-storycraft-longform-method-references.md) 记录 hook 只有三态、text 身份、不引入 `superseded`/`lastAdvancedChapter`。本 Note 的 hookId/生命周期与该记录**部分替代**：R6a 在 L 交付前仍是现行运行契约；L 交付时更新 R6a 的状态/验收并互相链接，不提前把新字段用于现有代码。
+- R6a 的 [`2026-10-23-storycraft-longform-method-references.md`](../../archived/process/2026-10-23-storycraft-longform-method-references.md) 记录 hook 只有三态、text 身份、不引入 `superseded`/`lastAdvancedChapter`。本 Note 的 hookId/生命周期与该记录**部分替代**：R6a 在 L 交付前仍是现行运行契约；L 交付时更新 R6a 的状态/验收并互相链接，不提前把新字段用于现有代码。
 - R11 的 [`2026-10-23-storycraft-settler-auto-projection.md`](../feature/2026-10-23-storycraft-settler-auto-projection.md) 已交付；本 Note 不改变其“审稿→修订→摘要→settle”的闸门顺序，只把产物迁到新模型（L 阶段）。
 - 旧 R10 方案已 rejected：[`2026-10-23-storycraft-foundation-delegation.md`](../../rejected/architecture/2026-10-23-storycraft-foundation-delegation.md)。
 

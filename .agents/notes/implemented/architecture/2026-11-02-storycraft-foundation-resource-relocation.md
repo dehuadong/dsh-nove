@@ -2,6 +2,8 @@
 
 Status: implemented
 
+> **部分替代（2026-11-03）**：初始伏笔已由 R1b 收归 architect 产出（同一 child 的 `details` phase）。本文第 13、21、98 行“architect 不产 hooks”的结论不再成立；种子写入与投影的现行合同见 [架构师初始伏笔](../architecture/2026-11-02-storycraft-architect-initial-hooks.md)。文件归位与 planner 直读的其余决定仍有效。
+
 工作项：当前任务（不新建 GitHub issue）。把基础设定方法与全书计划方法按消费者归位，删除 `storycraft-long-foundation` 壳，planner 不再通过 architect 技能读 foundation。
 
 ## Problem

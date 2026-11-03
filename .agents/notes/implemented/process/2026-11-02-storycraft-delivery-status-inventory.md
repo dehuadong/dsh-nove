@@ -9,9 +9,10 @@ Status: implemented
 ## Decision
 
 - 90 篇 implemented Note 全部登记，不删除、不改写旧 Testing；
-- 状态使用 `legacy-delivered`、`revalidate-only`、`rework-required`、`deferred`、`cancelled`；
-- 当前盘点：**revalidate-only 77、rework-required 11、legacy-delivered 2**（结构相关合计 13）；
+- 状态使用 `legacy-delivered`、`revalidate-only`、`rework-required`、`deferred`、`cancelled`；2026-11-03 起新增 `archived`，表示盘点后已归档、不再参与重验；
+- 当前盘点：**revalidate-only 76、rework-required 11、legacy-delivered 2、archived 1**（结构相关合计 13）；
 - 受影响篇目指向 R1（architect）、R2（角色边界）、R3（基础设施）或 R4（重验）；
+- 2026-11-03 审计：`2026-10-23-storycraft-longform-method-references` 已归档，盘点存量变为 89 implemented + 1 archived，加载契约由 [统一技能 references 加载契约](./2026-11-02-storycraft-skill-reference-loading.md) 接管；
 - 不把旧“已交付”改写成新基线完成。
 
 ## Inventory
@@ -111,7 +112,7 @@ Status: implemented
 | [2026-11-01-storycraft-e18-work-chapter-filters](../feature/2026-11-01-storycraft-e18-work-chapter-filters.md) | feature | revalidate-only | R4 |
 | [2026-11-01-storycraft-r5b-threadrefs](../feature/2026-11-01-storycraft-r5b-threadrefs.md) | feature | revalidate-only | R4 |
 | [2026-10-18-storycraft-worker-skills](2026-10-18-storycraft-worker-skills.md) | process | rework-required | R3 |
-| [2026-10-23-storycraft-longform-method-references](2026-10-23-storycraft-longform-method-references.md) | process | rework-required | R2 |
+| [2026-10-23-storycraft-longform-method-references](../../archived/process/2026-10-23-storycraft-longform-method-references.md) | process | archived | — |
 | [2026-10-24-storycraft-ts-migration](2026-10-24-storycraft-ts-migration.md) | process | revalidate-only | R4 |
 | [2026-10-24-storycraft-ts-pilot](2026-10-24-storycraft-ts-pilot.md) | process | revalidate-only | R4 |
 | [2026-10-26-storycraft-bundled-build](2026-10-26-storycraft-bundled-build.md) | process | revalidate-only | R4 |

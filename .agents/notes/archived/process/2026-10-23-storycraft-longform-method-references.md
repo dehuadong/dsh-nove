@@ -1,6 +1,7 @@
 # Agent Note: 故事工坊：长篇方法资源与阅读触发
 
 Status: implemented
+Archived: 2026-11-03
 
 ## 问题
 

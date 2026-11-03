@@ -5,6 +5,8 @@ Status: proposed
 > 部分交付：A0-5 共享方法与 L 角色薄契约已落地；S/D 独立流水线未落地，保留 proposed。
 >
 > **部分替代（2026-10-27）**：§1「形态级共享方法」已被阶段技能决定替代——一个技能只装一个节点的 craft，参考只由宿主按节点选择；见 [2026-10-27-storycraft-action-gates.md](../../implemented/feature/2026-10-27-storycraft-action-gates.md)。三形态独立流水线的其余部分仍然有效。
+>
+> **审计（2026-11-03）**：§1 已完全由 action-gates 与 [基础设定资源归位](../../implemented/architecture/2026-11-02-storycraft-foundation-resource-relocation.md) 接管；本文只保留 S/D 独立流水线的 proposed 部分。`storycraft-long-writing` 与旧技能名不再存在于代码树；`2026-10-23-storycraft-longform-method-references.md` 已归档，加载契约由 [统一技能 references 加载契约](../../implemented/process/2026-11-02-storycraft-skill-reference-loading.md) 接管。
 
 ## 问题
 
@@ -14,7 +16,7 @@ Status: proposed
 
 ## 与既有记录
 
-- R6a 的 [`2026-10-23-storycraft-longform-method-references.md`](../../implemented/process/2026-10-23-storycraft-longform-method-references.md) 在 A0-5 被**部分替代**：三份 references 已迁到 `long-writing` 并新增篇幅参考；角色技能改读共享方法，`storycraft-longform-method` 只留迁移别名。运行目录的数量与路由仍以 `skills.js`/`skills.test` 为准，L 切换到 `long-writing` 后完成归档；两 Note 已互相链接。
+- R6a 的 [`2026-10-23-storycraft-longform-method-references.md`](../../archived/process/2026-10-23-storycraft-longform-method-references.md) 在 A0-5 被**部分替代**：三份 references 已迁到 `long-writing` 并新增篇幅参考；角色技能改读共享方法，`storycraft-longform-method` 只留迁移别名。运行目录的数量与路由仍以 `skills.js`/`skills.test` 为准，L 切换到 `long-writing` 后完成归档；两 Note 已互相链接。
 - R11 的 [`2026-10-23-storycraft-settler-auto-projection.md`](../../implemented/feature/2026-10-23-storycraft-settler-auto-projection.md) 的定稿顺序（审稿→修订→摘要→settle）在 L 中保留；本 Note 只把方法归并、产物迁到 v2。
 - 旧 R10 方案已 rejected：[`2026-10-23-storycraft-foundation-delegation.md`](../../rejected/architecture/2026-10-23-storycraft-foundation-delegation.md)。
 

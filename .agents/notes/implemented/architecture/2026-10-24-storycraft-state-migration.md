@@ -28,7 +28,7 @@ S3 把生产者与消费者整体切到 v2 事件，旧格式退出运行。
 - 事件形状、转移表、`hookId` 由宿主生成、fact 有效期与投影字段由 [`2026-10-23-storycraft-artifact-contract-v2.md`](2026-10-23-storycraft-artifact-contract-v2.md) §5 拥有；本 Note 只补“新建伏笔的提交面”（`newHooks`）与运行化路径。
 - `state-projection.ts`（#47）拥有 op 校验与投影；本 Note 不改它的语义，只接生产者与消费者。
 - [`2026-10-23-storycraft-settler-auto-projection.md`](../feature/2026-10-23-storycraft-settler-auto-projection.md) 的闸门顺序（审稿→修订→摘要→settle）不变。
-- [`2026-10-23-storycraft-longform-method-references.md`](../process/2026-10-23-storycraft-longform-method-references.md) 的“hook 三态、text 身份”在 L 交付时被合同 v2 §5 替代；S3 交付时同步该记录。
+- [`2026-10-23-storycraft-longform-method-references.md`](../../archived/process/2026-10-23-storycraft-longform-method-references.md) 的“hook 三态、text 身份”在 L 交付时被合同 v2 §5 替代；S3 交付时同步该记录。
 - observation/reviews 生命周期归 #52；本 Note 不改审稿链。
 
 ## 决定
