@@ -2,10 +2,11 @@ export * from './storage/types.ts'
 /**
  * Public storage surface for the studio.
  *
- * The work store is SQLite: `store-db.js` owns every read and write, `db.js`
- * owns the two schemas and connection policy, and `domain.js` owns the shared
- * vocabulary. This module is the stable facade the actions, routes and skills
- * import, so callers never depend on which module owns a query.
+ * The work store is SQLite: `storage/repositories/*` own the per-aggregate
+ * reads and writes, `storage/db.ts` owns the two schemas and connection policy,
+ * and `domain/*` owns the shared vocabulary. This module is the stable facade
+ * the actions, routes and skills import, so callers never depend on which
+ * module owns a query.
  *
  * Every returned path is a virtual `works/<workId>/...` path: work content lives
  * in `.storycraft/works/<workId>.db`, not in files on disk.

@@ -225,16 +225,23 @@ storycraft/
   cordis.patch.yml             # 入口行 + 一条预设声明（故事工坊，技能行 mode: all）
   src/                         # 源码（TypeScript）：
     index.ts                   #   只读路由 + 作者确认/素材管理/面板导出
-    tools.ts                   #   动作（注册在预设作用域）
+    tools.ts                   #   动作（注册在预设作用域；S5 将拆成 tools/registry + tools/actions）
     delegate.ts                #   宿主侧角色委派：预检、子代理、输出校验、落库、回执
     state-check.ts             #   story_state_check：只读语义对账、findings 与引文校验
     state-settle.ts            #   story_settle：settler 抽取、一次反馈重算、fold 或未解决回执
     facts.ts                   #   白名单唯一派生入口：只读已落库资料，正文与任务不参与
-    context.ts                 #   角色上下文拼装：按角色分段、保护级别、预算裁剪、检索段、轨迹、白名单摘要
-    role-input.ts              #   story_context 与 story_delegate 共用的角色输入读取
+    context/composer.ts        #   角色上下文拼装：按角色分段、保护级别、预算裁剪、检索段、轨迹、白名单摘要
+    context/brief.ts           #   写前 brief 装配：分节、预算裁剪、样式/检索段
+    context/contract.ts        #   上下文的预算、authority/standards 与返回形状
+    runtime/role-input.ts      #   story_context 与 story_delegate 共用的角色输入读取
     landing.ts                 #   落库前白名单校验（checkDraft），consistency 保持纯比较
     consistency.ts             #   输出一致性：未登记人名/地名/尺寸告警，不阻断
-    bible.ts                   #   真值、摘要与写前上下文
+    bible/index.ts             #   真值、摘要与写前 brief 的门面
+    domain/bible.ts            #   真值文件规格、解析与校验（纯函数）
+    storage/bible-content.ts   #   真值文件与摘要读写
+    storage.ts                 #   存储门面：按聚合导出的唯一入口
+    storage/repositories/      #   db 之上的聚合仓储（作品、目录、章节、审稿、状态、真值、导出、foundation…）
+    runtime/stage-machine.ts   #   下一动作推导（长篇阶段机）
     proposals.ts               #   提案：讨论与立项之间的桥
     skills.ts                  #   按模式提供技能目录
     client.ts                  #   浏览器半边：侧栏入口 + 工作台（esbuild 编译成单文件）
