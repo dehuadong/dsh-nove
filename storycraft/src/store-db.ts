@@ -1,10 +1,5 @@
 /**
- * Work-level and chapter-level store o
-
-import {
-  search,
-} from './storage/repositories/search.ts'
-n SQLite.
+ * Work-level and chapter-level store on SQLite.
  *
  * `catalog.db` owns the workspace metadata (titles, proposals, session
  * pointers); each work owns a database file under `.storycraft/works/`. Every
