@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../src/storage.ts'
 import { readRoleCard } from '../src/artifact-store.ts'
-import { validateSubmissionShape } from '../src/submission.ts'
+import { validateSubmissionShape } from '../src/runtime/submission.ts'
 
 let failures = 0
 function check(name, condition, detail) {

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { settleChapterState } from '../src/state-settle.ts'
-import { submitPayload } from '../src/submission.ts'
+import { submitPayload } from '../src/runtime/submission.ts'
 import * as s from '../src/storage.ts'
 import { reviewFixture } from './review-fixture.mjs'
 

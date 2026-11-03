@@ -1,6 +1,6 @@
 // The worker policy is a fixed snapshot: every delegated prompt carries this
 // exact text, so a task phrased differently cannot change the rules.
-import { WORKER_POLICY } from '../src/delegate.ts'
+import { WORKER_POLICY } from '../src/runtime/prompt-kit.ts'
 
 let failures = 0
 function check(name, condition, detail) {

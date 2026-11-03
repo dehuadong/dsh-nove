@@ -11,7 +11,7 @@ import { inflateRawSync } from 'node:zlib'
 import * as tools from '../src/tools.ts'
 import * as s from '../src/storage.ts'
 import { writeBible } from '../src/bible.ts'
-import { submitPayload } from '../src/submission.ts'
+import { submitPayload } from '../src/runtime/submission.ts'
 import { listArtifacts, readArtifact, writeFoundationDocument } from '../src/artifact-store.ts'
 import { setCurrent } from '../src/current.ts'
 

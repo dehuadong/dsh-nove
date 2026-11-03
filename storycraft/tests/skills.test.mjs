@@ -1,7 +1,8 @@
 // The work mode mounts one skill row that serves every form and every role.
 import { apply } from '../src/skills.ts'
 import { FORM_META, planApprovalPolicy } from '../src/domain.ts'
-import { ROLE_META, writerSkills } from '../src/delegate.ts'
+import { ROLE_META } from '../src/roles/registry.ts'
+import { writerSkills } from '../src/runtime/delegate-runner.ts'
 import { roleSkills } from '../src/skill-routing.ts'
 
 let failures = 0

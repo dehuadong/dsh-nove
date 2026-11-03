@@ -2,7 +2,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { runChild } from '../src/delegate.ts'
+import { runChild } from '../src/runtime/child-run.ts'
 import { openWork } from '../src/db.ts'
 import { initWork, updateSettings } from '../src/storage.ts'
 import { callSummary, recordCall } from '../src/telemetry.ts'

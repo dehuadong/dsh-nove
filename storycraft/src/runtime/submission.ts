@@ -7,16 +7,12 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, countWords, trimSummary } from './domain.ts'
-import { STATE_LIMITS } from './state-projection.ts'
-import { assertRevisionMode } from './revision.ts'
-import {
-  validateBookRules, validateInitialHooks, validateRoleCard, validateRolesIndex, validateStoryFrame, validateVolumeMap,
-} from './artifact-contract.ts'
-import { checkWordRange } from './landing.ts'
-import { readChapter } from './storage.ts'
-import { FOUNDATION_PHASES } from './roles/architect/contract.ts'
-import { ARCHITECT_STAGE_SPEC } from './roles/architect/tool-schema.ts'
+import { StoryError, SUMMARY_MAX_CHARS, countWords, trimSummary } from '../domain.ts'
+import { assertRevisionMode } from '../revision.ts'
+import { checkWordRange } from '../landing.ts'
+import { readChapter } from '../storage.ts'
+import { FOUNDATION_PHASES } from '../roles/architect/contract.ts'
+import { ROLES } from '../roles/registry.ts'
 
 /** Entries live long enough for a slow child, never beyond the host run. */
 const SUBMISSION_TTL_MS = 10 * 60 * 1000
@@ -166,22 +162,6 @@ function failure(code: string, message: string, extra: FailureExtra = {}): Failu
 }
 
 /** Evidence marker used when the body has no supporting passage. */
-export const STATE_CHECK_NO_EVIDENCE = '无对应段落'
-
-/** State-check finding codes accepted by the validator role. */
-const VALIDATOR_CODES = new Set([
-  'fact-unsupported',
-  'fact-ambiguous',
-  'missing-change',
-  'hook-state-mismatch',
-  'hook-evidence-weak',
-])
-
-/** Per-field character caps for one validator finding. */
-const VALIDATOR_LIMITS: Record<string, number> = { where: 120, problem: 160, evidence: 240, impact: 120, fix: 120 }
-
-/** Settler delta bounds; the host still re-normalizes and validates it. */
-
 /**
  * Validate the role-specific payload shape.
  *
@@ -192,193 +172,9 @@ export function validateSubmissionShape(role: string, payload: any, stage: strin
   if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
     return 'payload 必须是对象'
   }
-  if (role === 'architect') {
-    const stages = ARCHITECT_STAGE_SPEC
-    const spec = stage === undefined ? undefined : stages[stage]
-    if (spec === undefined) return `未知的 architect stage：${String(stage)}`
-    for (const key of spec.keys) {
-      if (payload[key] === undefined) return `architect ${spec.label} 缺少 ${key}`
-    }
-    for (const key of Object.keys(payload)) {
-      if (!spec.keys.includes(key)) return `architect ${spec.label} 不接受字段 ${key}`
-    }
-    if (stage === 'frame' || stage === 'design' || stage === 'outline') {
-      for (const key of ['storyFrame', 'volumeMap', 'currentFocus']) {
-        if (typeof payload[key] !== 'string' || payload[key].trim() === '') return `architect ${stage} 的 ${key} 必须是非空字符串`
-      }
-      if ([...payload.currentFocus].length > 600) return `architect ${stage} 的 currentFocus 超过 600 字`
-    }
-    if (stage === 'cards') {
-      if (!Array.isArray(payload.roleCards) || payload.roleCards.length === 0) return 'architect cards 的 roleCards 必须是非空数组'
-    }
-    try {
-      if (stage === 'frame' || stage === 'outline') {
-        validateStoryFrame(payload.storyFrame)
-        validateVolumeMap(payload.volumeMap)
-      } else if (stage === 'rules' || stage === 'details') {
-        validateBookRules(payload.bookRules)
-        if (stage === 'details') validateInitialHooks(payload.pendingHooks)
-      } else if (stage === 'hooks') {
-        validateInitialHooks(payload.pendingHooks)
-      } else if (stage === 'roles' || stage === 'cast_index') {
-        validateRolesIndex(payload.rolesIndex)
-      } else if (stage === 'design') {
-        validateStoryFrame(payload.storyFrame)
-        validateVolumeMap(payload.volumeMap)
-        validateBookRules(payload.bookRules)
-        validateRolesIndex(payload.rolesIndex)
-      } else {
-        for (const card of payload.roleCards) validateRoleCard(card)
-      }
-    } catch (error) {
-      return `architect ${spec.label} 不符合合同：${(error as { message?: string } | undefined)?.message ?? String(error)}`
-    }
-    return undefined
-  }
-  if (role === 'planner') {
-    const allowed = ['perspective', 'goal', 'obstacle', 'cost', 'turn', 'body', 'threadRefs']
-    for (const key of Object.keys(payload)) {
-      if (!allowed.includes(key)) return `planner 不接受字段 ${key}`
-    }
-    for (const key of ['perspective', 'goal', 'obstacle', 'cost', 'turn', 'body']) {
-      if (typeof payload[key] !== 'string' || payload[key].trim() === '') return `planner 缺少 ${key}`
-    }
-    if (!Array.isArray(payload.threadRefs) || payload.threadRefs.some((ref: unknown) => typeof ref !== 'string')) {
-      return 'planner 的 threadRefs 必须是字符串数组'
-    }
-    return undefined
-  }
-  if (role === 'writer') {
-    if (typeof payload.title !== 'string' || payload.title.trim() === '') return 'writer 缺少 title'
-    if (typeof payload.body !== 'string' || payload.body.trim() === '') return 'writer 缺少 body'
-    return undefined
-  }
-  if (role === 'reviser') {
-    if (typeof payload.body !== 'string' || payload.body.trim() === '') return 'reviser 缺少 body'
-    if (payload.resolved !== undefined) {
-      if (!Array.isArray(payload.resolved)) return 'reviser 的 resolved 必须是数组'
-      if (payload.resolved.some((id: unknown) => typeof id !== 'string' || !/^O[1-9]\d*$/u.test(id))) return 'reviser 的 resolved 必须是 observation id'
-    }
-    return undefined
-  }
-  if (role === 'summarizer') {
-    if (payload.rawText === undefined || typeof payload.rawText !== 'string' || payload.rawText.trim() === '') {
-      return 'summarizer 缺少 rawText'
-    }
-    for (const field of SUMMARY_FIELDS) {
-      if (payload[field] !== undefined && typeof payload[field] !== 'string') {
-        return `summarizer 的 ${field} 必须是字符串`
-      }
-    }
-    return undefined
-  }
-  if (role === 'settler') {
-    const bounded = (value: unknown, label: string): string | undefined => {
-      if (typeof value !== 'string' || value.trim() === '') return `${label} 必须是非空字符串`
-      if ([...value.trim()].length > STATE_LIMITS.text) return `${label} 超过 ${STATE_LIMITS.text} 字`
-      return undefined
-    }
-    const factOps = payload.factOps
-    const hookOps = payload.hookOps
-    const newHooks = payload.newHooks
-    for (const key of Object.keys(payload)) {
-      if (!['factOps', 'hookOps', 'newHooks'].includes(key)) return `settler 不接受字段 ${key}`
-    }
-    if (factOps !== undefined && (factOps === null || typeof factOps !== 'object' || Array.isArray(factOps))) return 'factOps 必须是对象'
-    if (hookOps !== undefined && (hookOps === null || typeof hookOps !== 'object' || Array.isArray(hookOps))) return 'hookOps 必须是对象'
-    if (newHooks !== undefined && !Array.isArray(newHooks)) return 'newHooks 必须是数组'
-    for (const key of Object.keys(factOps ?? {})) {
-      if (!['upsert', 'expire'].includes(key)) return `factOps 不接受字段 ${key}`
-    }
-    for (const key of Object.keys(hookOps ?? {})) {
-      if (!['progress', 'mention', 'defer', 'resolve', 'supersede'].includes(key)) return `hookOps 不接受字段 ${key}`
-    }
-    const upserts = factOps?.upsert ?? []
-    const expires = factOps?.expire ?? []
-    if (!Array.isArray(upserts) || !Array.isArray(expires)) return 'factOps.upsert/expire 必须是数组'
-    if (upserts.length > STATE_LIMITS.facts) return `factOps.upsert 最多 ${STATE_LIMITS.facts} 条`
-    if (expires.length > STATE_LIMITS.facts) return `factOps.expire 最多 ${STATE_LIMITS.facts} 条`
-    for (const [index, fact] of upserts.entries()) {
-      for (const key of ['subject', 'predicate', 'object']) {
-        const problem = bounded(fact?.[key], `factOps.upsert 第 ${index + 1} 条 ${key}`)
-        if (problem !== undefined) return problem
-      }
-      if (fact?.source !== undefined) {
-        const problem = bounded(fact.source, `factOps.upsert 第 ${index + 1} 条 source`)
-        if (problem !== undefined) return problem
-      }
-    }
-    for (const [index, selector] of expires.entries()) {
-      for (const key of ['subject', 'predicate']) {
-        const problem = bounded(selector?.[key], `factOps.expire 第 ${index + 1} 条 ${key}`)
-        if (problem !== undefined) return problem
-      }
-      if (selector?.object !== undefined) {
-        const problem = bounded(selector.object, `factOps.expire 第 ${index + 1} 条 object`)
-        if (problem !== undefined) return problem
-      }
-    }
-    let transitions = 0
-    for (const name of ['progress', 'mention', 'defer', 'resolve', 'supersede']) {
-      const list = hookOps?.[name] ?? []
-      if (!Array.isArray(list)) return `hookOps.${name} 必须是数组`
-      for (const hookId of list) {
-        const problem = bounded(hookId, `hookOps.${name} 的 hookId`)
-        if (problem !== undefined) return problem
-      }
-      transitions += list.length
-    }
-    const candidates = newHooks ?? []
-    if (transitions > STATE_LIMITS.hooks) return `hookOps 最多 ${STATE_LIMITS.hooks} 条`
-    if (candidates.length > STATE_LIMITS.newHooks) return `newHooks 最多 ${STATE_LIMITS.newHooks} 条`
-    for (const [index, candidate] of candidates.entries()) {
-      const problem = bounded(candidate?.text, `newHooks 第 ${index + 1} 条 text`)
-      if (problem !== undefined) return problem
-      for (const key of ['type', 'expectedPayoff', 'notes']) {
-        if (candidate?.[key] === undefined) continue
-        const issue = bounded(candidate[key], `newHooks 第 ${index + 1} 条 ${key}`)
-        if (issue !== undefined) return issue
-      }
-    }
-    return undefined
-  }
-  if (role === 'validator') {
-    if (!Array.isArray(payload.items)) return 'validator 缺少 items 数组'
-    if (payload.items.length > 8) return 'validator items 最多 8 条'
-    for (const [index, item] of payload.items.entries()) {
-      if (item === null || typeof item !== 'object') return `validator 第 ${index + 1} 条不是对象`
-      if (!VALIDATOR_CODES.has(item.code)) return `validator 第 ${index + 1} 条 code 非法`
-      for (const key of ['where', 'problem', 'evidence', 'impact', 'fix']) {
-        if (typeof item[key] !== 'string' || item[key].trim() === '') {
-          return `validator 第 ${index + 1} 条缺少 ${key}`
-        }
-        if ([...item[key]].length > VALIDATOR_LIMITS[key]) {
-          return `validator 第 ${index + 1} 条 ${key} 超过 ${VALIDATOR_LIMITS[key]} 字`
-        }
-      }
-      if (item.code === 'missing-change' && item.evidence.trim() === STATE_CHECK_NO_EVIDENCE) {
-        return `validator 第 ${index + 1} 条 missing-change 需要正文引文`
-      }
-      if (!['major', 'minor'].includes(item.severity)) {
-        return `validator 第 ${index + 1} 条 severity 非法`
-      }
-    }
-    return undefined
-  }
-  if (!Array.isArray(payload.items)) return 'reviewer 缺少 items 数组'
-  if (payload.items.length > 8) return 'reviewer items 最多 8 条'
-  for (const [index, item] of payload.items.entries()) {
-    if (item === null || typeof item !== 'object') return `reviewer 第 ${index + 1} 条不是对象`
-    for (const key of ['quote', 'problem', 'fix']) {
-      if (typeof item[key] !== 'string' || item[key].trim() === '') return `reviewer 第 ${index + 1} 条缺少 ${key}`
-    }
-    if (!['blocking', 'major', 'minor'].includes(item.severity)) return `reviewer 第 ${index + 1} 条 severity 非法`
-    if (!['patch', 'polish', 'rewrite', 'deslop'].includes(item.mode)) return `reviewer 第 ${index + 1} 条 mode 非法`
-    if (item.resolves !== undefined && (typeof item.resolves !== 'string' || !/^O[1-9]\d*$/u.test(item.resolves))) {
-      return `reviewer 第 ${index + 1} 条 resolves 非法`
-    }
-  }
-  return undefined
+  const module = ROLES[role]
+  if (module === undefined) return `未知角色：${role}`
+  return module.schema.validate(payload, { stage })
 }
 
 /** Whether a foundation phase has its required predecessor. */

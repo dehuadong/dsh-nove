@@ -9,7 +9,7 @@ import { writeContextTrace } from '../src/artifact-store.ts'
 import { readProposal } from '../src/proposals.ts'
 import { clearCurrent, setCurrent } from '../src/current.ts'
 import { checkDraft } from '../src/landing.ts'
-import { submitPayload } from '../src/submission.ts'
+import { submitPayload } from '../src/runtime/submission.ts'
 
 let failures = 0
 function check(name, condition, detail) {

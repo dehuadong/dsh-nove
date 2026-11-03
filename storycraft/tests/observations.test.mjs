@@ -11,7 +11,7 @@ import { openWork } from '../src/db.ts'
 import {
   readChapterMeta, readChapterObservations, writeChapterObservations,
 } from '../src/artifact-store.ts'
-import { loadRoleInput } from '../src/role-input.ts'
+import { loadRoleInput } from '../src/runtime/role-input.ts'
 
 let failures = 0
 function check(name, condition, detail) {

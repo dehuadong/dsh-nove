@@ -33,12 +33,13 @@ import {
 } from './bible.ts'
 import { readVolumes, writeVolume } from './volumes.ts'
 import { critique, findingsOf } from './critique.ts'
-import { loadRoleInput } from './role-input.ts'
-import { delegateRole } from './delegate.ts'
+import { loadRoleInput } from './runtime/role-input.ts'
+import { delegateRole } from './runtime/delegate-runner.ts'
 import { checkChapterState } from './state-check.ts'
 import { settleChapterState } from './state-settle.ts'
-import { submitPayload } from './submission.ts'
+import { submitPayload } from './runtime/submission.ts'
 import { FOUNDATION_PHASES, FOUNDATION_STAGES } from './roles/architect/contract.ts'
+import { DELEGATE_ROLES } from './roles/registry.ts'
 import { checkDraft } from './landing.ts'
 import { clearCurrent, getCurrent, hydrate as hydrateCurrent, markHydrated, resolveWork, setCurrent, shouldHydrate } from './current.ts'
 import { scanWork, scanWorkspace } from './recovery.ts'
@@ -946,7 +947,7 @@ const NEXT_OUTPUT: DshToolOutput = {
         type: 'object',
         additionalProperties: false,
         properties: {
-          role: { type: 'string', enum: ['writer', 'reviewer', 'reviser', 'summarizer', 'architect', 'planner'] },
+          role: { type: 'string', enum: [...DELEGATE_ROLES] },
           stage: { type: 'string', enum: [...FOUNDATION_STAGES] },
         },
         required: ['role'],
@@ -1096,7 +1097,7 @@ const DELEGATE_OUTPUT: DshToolOutput = {
       ok: OUTPUT_PROPERTIES.ok,
       workId: OUTPUT_PROPERTIES.workId,
       chapter: OUTPUT_PROPERTIES.chapter,
-      role: { type: 'string', enum: ['writer', 'reviewer', 'reviser', 'summarizer', 'architect', 'planner'] },
+      role: { type: 'string', enum: [...DELEGATE_ROLES] },
       stage: OUTPUT_PROPERTIES.stage,
       foundationStage: { type: 'string', enum: [...FOUNDATION_STAGES] },
       artifacts: {
@@ -2770,7 +2771,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
         properties: {
           work: { type: 'string', description: '作品 id。' },
           chapter: { type: 'integer', description: '章号；architect 不需要。' },
-          role: { type: 'string', enum: ['writer', 'reviewer', 'reviser', 'summarizer', 'architect', 'planner'], description: '本次要跑的角色。' },
+          role: { type: 'string', enum: [...DELEGATE_ROLES], description: '本次要跑的角色。' },
           stage: { type: 'string', enum: [...FOUNDATION_STAGES], description: 'architect 的阶段；foundation 为同一 child 四 phase；其他角色忽略。' },
           instruction: { type: 'string', description: '作者本轮要求，会并入子代理任务。' },
           mode: {

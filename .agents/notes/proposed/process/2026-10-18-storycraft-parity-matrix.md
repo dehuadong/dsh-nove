@@ -77,11 +77,11 @@ Status: proposed
 | architect 编排 | `agents/architect.ts` 一个 agent 内四段顺序调用 | `delegate.ts` 分支 + design/cards 两次子代理 | **偏差** |
 | architect prompt | 代码 `buildFoundationProtocol` + cast/cards 专用 prompt | `architectPrompt` + skills/references | 分层不同 |
 | architect schema | `architect-tool.ts` 按阶段/角色生成 | `submission.ts` + `tools.ts` 统一枚举 | 职责混杂 |
-| planner | `planner.ts` + `planner-prompts.ts` + `planner-tool.ts` | `delegate.ts` + `tools.ts` + `store-db.ts` | 未按角色拆 |
-| writer | `writer.ts` + `writer-prompts.ts` + `writer-tool.ts` | `delegate.ts` + `submission.ts` + `tools.ts` | 未按角色拆 |
-| reviewer | `continuity.ts` + `review-tool.ts` | `delegate.ts` + `submission.ts` + `store-db.ts` | 未按角色拆 |
-| reviser | `reviser.ts` + `reviser-tool.ts` | `delegate.ts` + `submission.ts` | 未按角色拆 |
-| settler/validator | `settler-tool.ts` + `state-validator.ts` | `state-settle.ts` + `store-db.ts` | 边界部分 |
+| planner | `planner.ts` + `planner-prompts.ts` + `planner-tool.ts` | `roles/planner/*` + `runtime/delegate-runner.ts` + `store-db.ts` | 已按角色拆（R2） |
+| writer | `writer.ts` + `writer-prompts.ts` + `writer-tool.ts` | `roles/writer/*` + `runtime/*` + `tools.ts` | 已按角色拆（R2） |
+| reviewer | `continuity.ts` + `review-tool.ts` | `roles/reviewer/*` + `runtime/*` + `store-db.ts` | 已按角色拆（R2） |
+| reviser | `reviser.ts` + `reviser-tool.ts` | `roles/reviser/*` + `runtime/*` | 已按角色拆（R2） |
+| settler/validator | `settler-tool.ts` + `state-validator.ts` + `settler-prompts.ts` | `roles/{settler,validator}/*` + `state-settle.ts`/`state-check.ts` | 已拆 prompt/schema/contract；入账仍在共享投影（R2） |
 | composer | `composer.ts` | `context.ts` + `bible.ts` + `store-db.ts` | 未独立 |
 | 存储/阶段 | `state/` + pipeline | `store-db.ts` 230 KB | 未拆 |
 

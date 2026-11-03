@@ -1,4 +1,4 @@
-/** Architect foundation contract: ordered phases and stage identity. */
+/** Architect foundation contract: ordered phases, stage identity and role identity. */
 
 export const FOUNDATION_PHASES = ['outline', 'details', 'cast_index', 'cards'] as const
 
@@ -25,3 +25,10 @@ export interface ArchitectPromptRequest {
   manifest: any
   foundation: FoundationDocuments
 }
+
+/** Architect role identity. */
+export const contract = {
+  name: 'architect',
+  label: '架构师',
+  requiresChapter: false,
+} as const
