@@ -103,6 +103,9 @@ import type {
   ActionDefinition,
 } from './tools/types.ts'
 
+import { failureOf, storeErrorCodeOf } from './tools/registry.ts'
+export { failureOf } from './tools/registry.ts'
+
 export const inject: string[] = ['tools']
 
 /** Provider label used in diagnostics. */
@@ -145,30 +148,6 @@ function sessionCurrentOf(root: string, sessionId: string | undefined): string |
 }
 
 /** The stable code of a thrown store error, at a dynamic boundary. */
-function storeErrorCodeOf(error: unknown): string | undefined {
-  return (error as { code?: unknown } | null | undefined)?.code as string | undefined
-}
-
-/** Turn a thrown value into the structured failure every action returns. */
-export function failureOf(error: unknown): FailureEnvelope {
-  if (error instanceof StoryError) {
-    const missing = error.code === 'bible-missing'
-      ? error.message.replace(/^.*?：/u, '').split('（')[0].split('、').map(name => name.trim()).filter(Boolean)
-      : undefined
-    return {
-      ok: false,
-      ...(missing === undefined ? {} : { missing }),
-      error: {
-        code: error.code,
-        message: error.message,
-        ...(error.next === undefined ? {} : { next: error.next }),
-        ...(error.retryable === undefined ? {} : { retryable: error.retryable }),
-      },
-    }
-  }
-  const message = error instanceof Error ? error.message : String(error)
-  return { ok: false, error: { code: 'internal', message } }
-}
 
 /** Contract shape of a retrieval record inside a trace. */
 const TRACE_RETRIEVAL: SchemaNode = {
