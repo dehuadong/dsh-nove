@@ -53,9 +53,9 @@ import type {
 import {
   readManifest,
   status,
-  invalidateStateDraftOnDb,
   readPlan,
 } from '../../store-db.ts'
+import { invalidateStateDraftOnDb } from './state.ts'
 import { renderReviewMarkdown } from './reviews.ts'
 
 // ---------------------------------------------------------------------------

@@ -51,8 +51,8 @@ import type {
 } from '../types.ts'
 import {
   status,
-  invalidateStateDraftOnDb,
 } from '../../store-db.ts'
+import { invalidateStateDraftOnDb } from './state.ts'
 
 // ---------------------------------------------------------------------------
 // Reviews and revision
