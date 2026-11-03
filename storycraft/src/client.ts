@@ -1,4 +1,6 @@
 import type * as ReactTypes from 'react'
+import { isStudio, stageLabel, statusBadge, unitOf } from './client/panels/shared'
+
 import { fetchOwnRoute, probe, withinDeadline } from './client/api'
 
 import type {
@@ -483,9 +485,6 @@ window.__ModuleLoader__.load({
      * @param preset - session preset id.
      * @returns {boolean} true when the session is a studio session.
      */
-    function isStudio(preset: string | undefined): boolean {
-      return typeof preset === 'string' && preset.startsWith('storycraft')
-    }
 
     /** Poll while the page is visible, plus immediate refresh on focus/reveal. */
     function useVisiblePolling(intervalMs: number, refresh: () => Promise<void>): void {
@@ -526,34 +525,10 @@ window.__ModuleLoader__.load({
      * @param form - work form.
      * @returns {string} 章 / 篇 / 集.
      */
-    function unitOf(form: string): string {
-      if (form === 'script') return '集'
-      if (form === 'short') return '篇'
-      return '章'
-    }
 
     /** Human label of a pipeline stage. */
-    function stageLabel(stage: string): string {
-      const map: Record<string, string> = {
-        planned: '已规划',
-        written: '已写',
-        reviewed: '已审',
-        revised: '已修订',
-        settled: '已定稿',
-      }
-      return map[stage] ?? stage
-    }
 
     /** Badge for a chapter state. */
-    function statusBadge(status: string): string {
-      const map: Record<string, string> = {
-        planned: '已规划',
-        written: '已写',
-        reviewed: '已审',
-        revised: '已修订',
-      }
-      return map[status] ?? status
-    }
 
     /**
      * Home view: the projects of one form, each opening into its detail page.
