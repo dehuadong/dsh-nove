@@ -28,7 +28,7 @@ Status: proposed
 | R1 | architect 多阶段提交与原子落地 | 一个 architect child 四 phase；bundle 单事务；architect agent/prompt/schema 拆分 | [运行时合同](../../implemented/architecture/2026-11-02-storycraft-architect-multistage-runtime.md)（已实现） |
 | R1b | architect 初始伏笔 | `pendingHooks` 随 details 播种进 v2 事件、第五段 `bible:hooks`、完整性/面板/导出/消费者 | [初始伏笔合同](../../implemented/architecture/2026-11-02-storycraft-architect-initial-hooks.md)（已实现） |
 | R2 | 角色边界 | 八个角色模块（`contract/prompts/tool-schema/agent`）+ `runtime/` 抽取；旧 `delegate.ts` 删除、无双入口；行为与错误码不变 | [角色边界合同](../../implemented/architecture/2026-11-03-storycraft-role-boundaries.md)（已实现） |
-| R3 | 基础设施职责拆分 | `store-db.ts`/`tools.ts`/`context.ts`+`bible.ts`/`client.ts` 拆入 storage/domain/runtime/context/tools/client；行为冻结、旧文件删除 | [基础设施合同](../architecture/2026-11-03-storycraft-infrastructure-seams.md)（实现中：S1 + S2 完成，store-db 已删除；S3–S7 待做） |
+| R3 | 基础设施职责拆分 | `store-db.ts`/`tools.ts`/`context.ts`+`bible.ts`/`client.ts` 拆入 storage/domain/runtime/context/tools/client；行为冻结、旧文件删除 | [基础设施合同](../architecture/2026-11-03-storycraft-infrastructure-seams.md)（实现中：S1–S3 完成（阶段机 + domain 拆分；domain/bible.ts 随 S4 落地）；S4–S7 待做） |
 | A0 | 全量产物合同 v2 | 字段/权威/消费者/生命周期/初始化合同通过；真实生产者归 L | #45–#49（已交付） |
 | L 迁移切片 | 长篇生产者/消费者迁移、foundation、observation、settle | 各切片实现与离线契约通过 | #51–#61（已交付） |
 | L 产品收口 | planner、多章/重开/删除重排、上下文预算与 trace、面板消费、导出 | `#62` 条目有裁决；旧口径交付，待 R4 重验 | #62（旧口径，待重验） |
