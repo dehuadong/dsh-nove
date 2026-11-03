@@ -1,10 +1,11 @@
 /**
- * Transpile the Client entry into one browser file.
+ * Bundle the Client entry into one browser file.
  *
  * The Client is not an ES module: DSH loads it through its module loader, which
  * evaluates the file and calls `window.__ModuleLoader__.load(...)` with a
- * factory. So this only transpiles one source file — no bundling, no import
- * rewriting, and the `require('react')` the loader provides stays untouched.
+ * factory. The entry may import sibling modules (`client/*`); esbuild inlines
+ * them into one IIFE so the loader still receives a single plain script, and
+ * the `require('react')` the loader provides stays untouched.
  */
 import { build } from 'esbuild'
 import { mkdirSync } from 'node:fs'
@@ -18,7 +19,9 @@ mkdirSync(dirname(outfile), { recursive: true })
 const result = await build({
   entryPoints: [join(root, 'src', 'client.ts')],
   outfile,
-  bundle: false,
+  bundle: true,
+  format: 'iife',
+  platform: 'browser',
   target: 'es2022',
   logLevel: 'warning',
   metafile: true,
