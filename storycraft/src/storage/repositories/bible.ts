@@ -44,7 +44,7 @@ import {
 } from '../../storage/repositories/reviews.ts'
 import {
   writeOutline,
-} from '../../store-db.ts'
+} from './catalog.ts'
 
 /** Artifact identity of every non-character truth entry. */
 export const TRUTH_ARTIFACTS = {

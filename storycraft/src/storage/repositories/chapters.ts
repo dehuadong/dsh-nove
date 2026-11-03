@@ -53,6 +53,8 @@ import type {
 import {
   readManifest,
   status,
+} from './catalog.ts'
+import {
   readPlan,
 } from '../../store-db.ts'
 import { invalidateStateDraftOnDb } from './state.ts'

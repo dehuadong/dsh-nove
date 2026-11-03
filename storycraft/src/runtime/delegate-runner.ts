@@ -18,7 +18,7 @@ import { readFoundationDocuments, writeContextTrace } from '../artifact-store.ts
 import { callEvidence } from '../call-evidence.ts'
 import { assertChapterBudget, finishCall, nextAttempt, recordCall } from '../telemetry.ts'
 import type { CallInput } from '../telemetry.ts'
-import { acceptedProposalOf, maxChapterTokensOf } from '../store-db.ts'
+import { acceptedProposalOf, maxChapterTokensOf } from '../storage.ts'
 import { withMechanicalFindings } from '../critique.ts'
 import { loadRoleInput } from './role-input.ts'
 import { assertChildAvailability, runChild } from './child-run.ts'

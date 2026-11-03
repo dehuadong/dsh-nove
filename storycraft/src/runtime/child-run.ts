@@ -11,7 +11,7 @@ import { StoryError } from '../domain.ts'
 import { callEvidence } from '../call-evidence.ts'
 import { assertChapterBudget, recordCall } from '../telemetry.ts'
 import type { CallInput } from '../telemetry.ts'
-import { maxChapterTokensOf } from '../store-db.ts'
+import { maxChapterTokensOf } from '../storage.ts'
 
 function abortPromise(signal: AbortSignal, message: string, code: string): Promise<never> {
   return new Promise((_, reject) => {

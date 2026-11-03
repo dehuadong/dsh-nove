@@ -51,7 +51,7 @@ import type {
 } from '../types.ts'
 import {
   status,
-} from '../../store-db.ts'
+} from './catalog.ts'
 import { invalidateStateDraftOnDb } from './state.ts'
 
 // ---------------------------------------------------------------------------
