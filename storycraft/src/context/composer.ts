@@ -33,7 +33,7 @@ import {
   TRIM_ORDER,
   AUTHORITY,
   STANDARDS,
-} from './brief.ts'
+} from './contract.ts'
 import type {
   SectionProtection,
   RoleContextInput,
@@ -47,8 +47,8 @@ import type {
   CharacterView,
   ContextManifest,
   FoldedHook,
-} from './brief.ts'
-export * from './brief.ts'
+} from './contract.ts'
+export * from './contract.ts'
 
 /** Read hook IDs from the structured chapter-plan memo. */
 function threadRefsOf(memo: any): { ids: string[], invalid: string[] } {
