@@ -9,7 +9,7 @@ import {
 import { chapterStem } from './domain.ts'
 import { materialIndexText } from './search-text.ts'
 import { dropSearchDoc, syncSearchDoc } from './search-index.ts'
-import { summarySearchText } from './store-db.ts'
+import { summarySearchText } from './storage.ts'
 import { FOUNDATION_DOCUMENTS, renderFoundationContent } from './artifact-store.ts'
 
 export type RecoveryCode =

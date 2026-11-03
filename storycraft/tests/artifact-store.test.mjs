@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { initWork } from '../src/storage.ts'
-import { writePlan } from '../src/store-db.ts'
+import { writePlan } from '../src/storage.ts'
 import { listArtifacts, putArtifact, readArtifact } from '../src/artifact-store.ts'
 
 let failures = 0

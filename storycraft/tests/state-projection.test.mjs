@@ -7,7 +7,7 @@ import { applyFactOp, applyHookOp, projectFacts, projectHooks } from '../src/sta
 import { initWork, readFoldedState } from '../src/storage.ts'
 import {
   approveChapterPlan, readEvents, settleState, writeChapter, writePlan, writeReview, writeSummary,
-} from '../src/store-db.ts'
+} from '../src/storage.ts'
 
 let failures = 0
 function check(name, condition, detail) {

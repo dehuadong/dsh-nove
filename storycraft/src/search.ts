@@ -4,7 +4,7 @@ import { snippetFor } from './retrieval.ts'
 import { searchSkillReferences } from './skill-search.ts'
 import { searchTokens } from './search-text.ts'
 import { readManifest } from './storage.ts'
-import { searchMemory } from './store-db.ts'
+import { searchMemory } from './storage.ts'
 
 export type SearchKind = 'memory' | 'material' | 'skill'
 

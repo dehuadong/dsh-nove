@@ -7,7 +7,7 @@
  */
 
 import { chapterNumber } from './domain.ts'
-import { readManifest, readVolumes as readVolumeRows, writeVolume as writeVolumeRow } from './store-db.ts'
+import { readManifest, readVolumes as readVolumeRows, writeVolume as writeVolumeRow } from './storage.ts'
 
 /**
  * Read every volume of one work.

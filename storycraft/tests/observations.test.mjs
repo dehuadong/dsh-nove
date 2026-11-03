@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { initWork } from '../src/storage.ts'
 import {
   approveChapterPlan, writeBible, writeChapter, writePlan, writeReview,
-} from '../src/store-db.ts'
+} from '../src/storage.ts'
 import { openWork } from '../src/storage/db.ts'
 import {
   readChapterMeta, readChapterObservations, writeChapterObservations,

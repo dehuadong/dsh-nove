@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../src/storage.ts'
 import { readDashboard, transitionHook } from '../src/dashboard.ts'
-import { readEvents, readFoldedState } from '../src/store-db.ts'
+import { readEvents, readFoldedState } from '../src/storage.ts'
 
 let failures = 0
 function check(name, condition, detail) {

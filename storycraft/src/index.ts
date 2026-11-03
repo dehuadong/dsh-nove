@@ -24,7 +24,7 @@ import { acceptChapter, adoptChapterRevision, approveChapterPlan, approveFoundat
 import { critique } from './critique.ts'
 import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent } from './current.ts'
 import { readVolumes } from './volumes.ts'
-import { clearSessionCurrent, readSessionCurrent, setSessionCurrent } from './store-db.ts'
+import { clearSessionCurrent, readSessionCurrent, setSessionCurrent } from './storage.ts'
 import { assembleBrief, extractStyleSamples, readBible, writeBible } from './bible.ts'
 import { listRoleCards, readFoundationDocuments, renderFoundationContent } from './artifact-store.ts'
 import { backupsDir, exportsDir } from './storage/db.ts'

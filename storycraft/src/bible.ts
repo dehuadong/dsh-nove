@@ -15,7 +15,7 @@ import {
   listBodies, listSummaries, listSummaryStates, readBibleEntries, readBibleEntry, readBibleMap, readChapter as readChapterRow, readFoldedState,
   readManifest, readPlan, readSummary as readSummaryRow, readSummaryState, readVolumes, searchMemory, virtualPath,
   writeBible as writeBibleRow, writeSummary as writeSummaryRow,
-} from './store-db.ts'
+} from './storage.ts'
 import { listRoleCards, readFoundationDocuments, renderFoundationContent } from './artifact-store.ts'
 
 /** How one truth file's content is validated. */

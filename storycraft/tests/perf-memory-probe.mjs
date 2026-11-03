@@ -1,6 +1,6 @@
 // Child process for F13 memory evidence: read a 250-chapter work cold.
 import * as bible from '../src/bible.ts'
-import * as store from '../src/store-db.ts'
+import * as store from '../src/storage.ts'
 
 const [root, work] = process.argv.slice(2)
 const start = process.resourceUsage().maxRSS

@@ -1,6 +1,6 @@
 // Shared 250-chapter fixture for F13 performance checks (public storage APIs only).
 import * as bible from '../src/bible.ts'
-import * as store from '../src/store-db.ts'
+import * as store from '../src/storage.ts'
 import { reviewFixture } from './review-fixture.mjs'
 import { recordCall } from '../src/telemetry.ts'
 

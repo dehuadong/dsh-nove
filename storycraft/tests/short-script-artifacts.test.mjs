@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { initWork } from '../src/storage.ts'
-import { readWork } from '../src/store-db.ts'
+import { readWork } from '../src/storage.ts'
 import {
   listArtifacts, putArtifact, readScript, readShortStory, writeScript, writeShortStory,
 } from '../src/artifact-store.ts'

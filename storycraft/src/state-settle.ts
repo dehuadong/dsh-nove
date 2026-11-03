@@ -18,7 +18,7 @@ import { buildSettlerPrompt } from './roles/settler/prompts.ts'
 import { assertChapterBudget, callSummary, finishCall, nextAttempt, recordCall } from './telemetry.ts'
 import { atStage, skillEvidence, type SkillEvidence } from './skill-evidence.ts'
 import { roleSkills } from './skill-routing.ts'
-import { maxChapterTokensOf } from './store-db.ts'
+import { maxChapterTokensOf } from './storage.ts'
 import { checkChapterState } from './state-check.ts'
 
 /** One chapter entry from the manifest. */

@@ -1,6 +1,6 @@
 /** Read-only analysis aggregate for the dashboard panel. */
 
-import { reviewDistribution } from './store-db.ts'
+import { reviewDistribution } from './storage.ts'
 import { callSummary } from './telemetry.ts'
 
 /** One work's review and call aggregates; no text fields and no manifest scan. */

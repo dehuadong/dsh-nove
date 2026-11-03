@@ -20,7 +20,7 @@ import {
 import {
   readBibleMap, readChapter as readChapterRow, readFoldedState, readManifest, readPlan, readPlanMemo,
   readVolumes, readSummaryState, searchMemory, virtualPath,
-} from './store-db.ts'
+} from './storage.ts'
 import { buildQuery, select, snippetFor } from './retrieval.ts'
 import { searchSkillReferences } from './skill-search.ts'
 import { searchTokens } from './search-text.ts'

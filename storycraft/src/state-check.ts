@@ -20,7 +20,7 @@ import { buildValidatorPrompt } from './roles/validator/prompts.ts'
 import { assertChapterBudget, finishCall, nextAttempt, recordCall } from './telemetry.ts'
 import { atStage, skillEvidence } from './skill-evidence.ts'
 import { roleSkills } from './skill-routing.ts'
-import { maxChapterTokensOf } from './store-db.ts'
+import { maxChapterTokensOf } from './storage.ts'
 
 /** One chapter entry from the manifest. */
 interface ManifestChapter {

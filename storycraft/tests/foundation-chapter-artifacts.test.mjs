@@ -7,7 +7,7 @@ import { validateChapterMeta } from '../src/artifact-contract.ts'
 import { initWork } from '../src/storage.ts'
 import {
   approveChapterPlan, approveOutline, readManifest, updateSettings, writeChapter, writeOutline, writePlan,
-} from '../src/store-db.ts'
+} from '../src/storage.ts'
 import {
   FOUNDATION_DOCUMENTS, artifactRevision, listArtifacts,
   putArtifact, readChapterMemo, readChapterMeta, readChapterSummary, readFoundationDocument,
