@@ -24,3 +24,40 @@ export function hookStatusLabel(status: string): string {
   if (status === 'superseded') return '已替换'
   return '未解'
 }
+
+    export const ROUTE = {
+      works: '/api/see-storycraft/works',
+      trash: '/api/see-storycraft/trash',
+      volumes: '/api/see-storycraft/volumes',
+      critique: '/api/see-storycraft/critique',
+      next: '/api/see-storycraft/next',
+      current: '/api/see-storycraft/current',
+      work: '/api/see-storycraft/work',
+      chapter: '/api/see-storycraft/chapter',
+      approve: '/api/see-storycraft/chapter/approve',
+      accept: '/api/see-storycraft/chapter/accept',
+      outlineApprove: '/api/see-storycraft/outline/approve',
+      dashboard: '/api/see-storycraft/dashboard',
+      analysis: '/api/see-storycraft/analysis',
+      selfCheck: '/api/see-storycraft/self-check',
+      search: '/api/see-storycraft/search',
+      logs: '/api/see-storycraft/logs',
+      hookTransition: '/api/see-storycraft/hooks/transition',
+      foundation: '/api/see-storycraft/foundation',
+      foundationApprove: '/api/see-storycraft/foundation/approve',
+      review: '/api/see-storycraft/review',
+      bible: '/api/see-storycraft/bible',
+      brief: '/api/see-storycraft/brief',
+      materials: '/api/see-storycraft/materials',
+      materialImport: '/api/see-storycraft/materials/import',
+      materialRename: '/api/see-storycraft/materials/rename',
+      materialDelete: '/api/see-storycraft/materials/delete',
+      materialPurpose: '/api/see-storycraft/materials/purpose',
+      exportWork: '/api/see-storycraft/export',
+      exports: '/api/see-storycraft/exports',
+      backups: '/api/see-storycraft/backups',
+    }
+
+    export const MATERIAL_PURPOSE_LABELS: Record<string, string> = {
+      setting: '设定', character: '人物', scene: '场景', style: '文风', reference: '参考',
+    }
