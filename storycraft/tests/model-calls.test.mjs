@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runChild } from '../src/runtime/child-run.ts'
 import * as s from '../src/storage.ts'
-import { openWork } from '../src/db.ts'
+import { openWork } from '../src/storage/db.ts'
 import { callSummary, finishCall, recordCall } from '../src/telemetry.ts'
 
 let failures = 0

@@ -2,7 +2,7 @@
 import { copyFile, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { WORK_SCHEMA_VERSION, openCatalog, openWork, trashDir, trashFile, workFile } from '../src/db.ts'
+import { WORK_SCHEMA_VERSION, openCatalog, openWork, trashDir, trashFile, workFile } from '../src/storage/db.ts'
 import * as store from '../src/store-db.ts'
 
 let failures = 0

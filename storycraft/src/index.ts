@@ -27,7 +27,7 @@ import { readVolumes } from './volumes.ts'
 import { clearSessionCurrent, readSessionCurrent, setSessionCurrent } from './store-db.ts'
 import { assembleBrief, extractStyleSamples, readBible, writeBible } from './bible.ts'
 import { listRoleCards, readFoundationDocuments, renderFoundationContent } from './artifact-store.ts'
-import { backupsDir, exportsDir } from './db.ts'
+import { backupsDir, exportsDir } from './storage/db.ts'
 
 /** Requires the host web server; without it the browser surface has no data. */
 export const inject = ['webServer']

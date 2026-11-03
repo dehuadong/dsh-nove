@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { mintHookId } from '../src/state-projection.ts'
 import * as s from '../src/storage.ts'
-import { openWork } from '../src/db.ts'
+import { openWork } from '../src/storage/db.ts'
 import { buildQuery, codePointLength, select, snippetFor } from '../src/retrieval.ts'
 import { reviewFixture } from './review-fixture.mjs'
 

@@ -3,7 +3,7 @@ import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../src/storage.ts'
-import { backupsDir, openWork } from '../src/db.ts'
+import { backupsDir, openWork } from '../src/storage/db.ts'
 import { chapterRemap } from '../src/chapter-edit.ts'
 import { reviewFixture } from './review-fixture.mjs'
 

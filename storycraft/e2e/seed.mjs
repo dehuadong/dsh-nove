@@ -12,7 +12,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { reviewFixture } from '../tests/review-fixture.mjs'
 import { recordCall } from '../src/telemetry.ts'
-import { openWork } from '../src/db.ts'
+import { openWork } from '../src/storage/db.ts'
 
 const projectRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
 

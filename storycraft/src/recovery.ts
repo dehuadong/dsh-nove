@@ -2,10 +2,10 @@
 
 import { existsSync, readdirSync } from 'node:fs'
 import { basename, join } from 'node:path'
-import type { Database } from './db.ts'
+import type { Database } from './storage/db.ts'
 import {
   backupsDir, exportsDir, integrityCheck, openCatalog, openWork, openWorkReadOnly, transaction, trashDir, workFile, worksDir,
-} from './db.ts'
+} from './storage/db.ts'
 import { chapterStem } from './domain.ts'
 import { materialIndexText } from './search-text.ts'
 import { dropSearchDoc, syncSearchDoc } from './search-index.ts'

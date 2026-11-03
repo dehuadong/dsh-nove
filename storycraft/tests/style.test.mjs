@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import * as s from '../src/storage.ts'
 import { assembleBrief, extractStyleSamples, readBible, writeBible } from '../src/bible.ts'
 import { mergeBlock, styleBlock, styleProfile, stripBlock, STYLE_END, STYLE_START } from '../src/style.ts'
-import { openWork } from '../src/db.ts'
+import { openWork } from '../src/storage/db.ts'
 
 let failures = 0
 function check(name, condition, detail) {

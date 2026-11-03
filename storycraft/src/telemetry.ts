@@ -1,6 +1,6 @@
 /** Per-dispatch model call telemetry stored in the work database. */
 
-import { openWork, transaction } from './db.ts'
+import { openWork, transaction } from './storage/db.ts'
 import { StoryError } from './domain.ts'
 
 export interface CallInput {

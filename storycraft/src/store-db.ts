@@ -15,7 +15,7 @@ import {
 } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import JSZip from 'jszip'
-import type { Database } from './db.ts'
+import type { Database } from './storage/db.ts'
 import type { ArtifactRow, BibleRow, ChapterRow, ChapterVersionRow, EventRow, MaterialRow, MetaRow, VolumeRow, WorkRow } from './store-rows.ts'
 
 /**
@@ -74,7 +74,7 @@ import {
   backupTo, checkpoint, createWorkDatabase, exportsDir, integrityCheck, WORK_SCHEMA_VERSION,
   materialsDir, moveDatabaseFiles, openCatalog, openDatabase, openWork, removeDatabaseFiles, touchMeta, transaction,
   trashDir, trashFile, workFile, worksDir, backupsDir,
-} from './db.ts'
+} from './storage/db.ts'
 import { MATERIAL_PURPOSES, MATERIAL_TITLE_MAX, materialMetadata, normalizeMaterialPurpose, prepareMaterial } from './materials.ts'
 import { chapterRemap } from './chapter-edit.ts'
 import { filterChapters, filterWorks, workStatus, type ChapterFilters, type WorkFilters } from './work-filters.ts'

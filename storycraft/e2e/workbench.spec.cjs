@@ -380,7 +380,7 @@ test.describe('故事工坊工作台', () => {
     const composer = page.getByRole('textbox', { name: /Describe what/ })
     const before = await composer.evaluate(node => String(node.value ?? node.textContent ?? ''))
     await page.getByRole('button', { name: '抽取文风', exact: true }).evaluate(node => node.click())
-    const { openWork } = await import('../src/db.ts')
+    const { openWork } = await import('../src/storage/db.ts')
     const { STYLE_START } = await import('../src/style.ts')
     await expect.poll(() => {
       const db = openWork(runtime.fixtureWorkspace, work)
@@ -401,7 +401,7 @@ test.describe('故事工坊工作台', () => {
 
   test('真值可以编辑、取消并拒绝坏人物', async ({ page }) => {
     const store = await import('../src/storage.ts')
-    const { openWork } = await import('../src/db.ts')
+    const { openWork } = await import('../src/storage/db.ts')
     const title = `真值编辑${Date.now()}`
     const work = store.initWork(runtime.fixtureWorkspace, { title }).workId
     const seedDb = openWork(runtime.fixtureWorkspace, work)

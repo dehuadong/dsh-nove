@@ -1,6 +1,6 @@
 /** Search projection helpers shared by the work store and artifact writers. */
 
-import type { Database } from './db.ts'
+import type { Database } from './storage/db.ts'
 import { searchTokens } from './search-text.ts'
 
 /** Remove one search document and its FTS row. */

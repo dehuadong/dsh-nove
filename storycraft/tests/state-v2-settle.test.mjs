@@ -7,7 +7,7 @@ import * as s from '../src/storage.ts'
 import * as b from '../src/bible.ts'
 import { mintHookId } from '../src/state-projection.ts'
 import { checkDraft } from '../src/landing.ts'
-import { openWork } from '../src/db.ts'
+import { openWork } from '../src/storage/db.ts'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0

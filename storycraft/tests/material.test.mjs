@@ -5,7 +5,7 @@ import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../src/storage.ts'
-import { materialsDir, openWork } from '../src/db.ts'
+import { materialsDir, openWork } from '../src/storage/db.ts'
 
 let failures = 0
 function check(name, condition, detail) {

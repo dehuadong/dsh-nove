@@ -3,7 +3,7 @@ import { mkdtemp, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../src/storage.ts'
-import { openWork, workFile } from '../src/db.ts'
+import { openWork, workFile } from '../src/storage/db.ts'
 import { selfCheck } from '../src/self-check.ts'
 
 let failures = 0

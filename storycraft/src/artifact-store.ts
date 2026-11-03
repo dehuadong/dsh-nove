@@ -2,7 +2,7 @@
 
 import { StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, chapterNumber, contentVersion, now } from './domain.ts'
 import { ARTIFACT_IDENTITY, validateArtifactRecord, validateChapterMemo, validateChapterMeta, validateChapterSummary } from './artifact-contract.ts'
-import { openWork, touchMeta, transaction } from './db.ts'
+import { openWork, touchMeta, transaction } from './storage/db.ts'
 import { dropSearchDoc, syncSearchDoc } from './search-index.ts'
 import { reviewInputOf } from './review-binding.ts'
 

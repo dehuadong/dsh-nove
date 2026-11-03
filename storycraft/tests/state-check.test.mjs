@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { checkChapterState } from '../src/state-check.ts'
 import { submitPayload } from '../src/runtime/submission.ts'
-import { openWork } from '../src/db.ts'
+import { openWork } from '../src/storage/db.ts'
 import * as s from '../src/storage.ts'
 import { reviewFixture } from './review-fixture.mjs'
 

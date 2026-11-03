@@ -7,7 +7,7 @@ import {
   readArtifact, readChapterMemo, readChapterObservations, readChapterSummary, writeChapterObservations,
   writeChapterSummary, writeContextTrace,
 } from '../src/artifact-store.ts'
-import { openWork } from '../src/db.ts'
+import { openWork } from '../src/storage/db.ts'
 
 let failures = 0
 function check(name, condition, detail) {

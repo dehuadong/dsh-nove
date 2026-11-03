@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../src/storage.ts'
 import { dropRoleCardsOnDb, readRoleCard } from '../src/artifact-store.ts'
-import { openWork, transaction } from '../src/db.ts'
+import { openWork, transaction } from '../src/storage/db.ts'
 import * as tools from '../src/tools.ts'
 import { setCurrent } from '../src/current.ts'
 

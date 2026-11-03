@@ -4,7 +4,7 @@ import { readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../src/storage.ts'
-import { openWork, materialsDir } from '../src/db.ts'
+import { openWork, materialsDir } from '../src/storage/db.ts'
 import { minimalPdf } from './pdf-fixture.mjs'
 import { minimalEpub } from './epub-fixture.mjs'
 
