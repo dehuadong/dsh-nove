@@ -70,4 +70,4 @@ $RECYCLE.BIN/
 # 文件权限诊断报告（本机，不进版本库）
 /.acl-reports/
 /.artifacts/
-tools/
+/tools/
