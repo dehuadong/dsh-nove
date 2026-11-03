@@ -70,4 +70,5 @@ $RECYCLE.BIN/
 # 文件权限诊断报告（本机，不进版本库）
 /.acl-reports/
 /.artifacts/
-/tools/
+/tools/# npm pack 产物属于构建输出，不进版本库
+*.tgz
