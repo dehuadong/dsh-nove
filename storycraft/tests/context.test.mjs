@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import * as s from '../src/storage.ts'
 import * as b from '../src/bible.ts'
 import { openWork } from '../src/storage/db.ts'
-import { assembleRoleContext } from '../src/context.ts'
+import { assembleRoleContext } from '../src/context/composer.ts'
 
 let failures = 0
 function check(name, condition, detail) {

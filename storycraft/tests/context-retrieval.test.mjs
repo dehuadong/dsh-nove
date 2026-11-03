@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import * as s from '../src/storage.ts'
 import * as b from '../src/bible.ts'
 import { openWork } from '../src/storage/db.ts'
-import { assembleRoleContext } from '../src/context.ts'
+import { assembleRoleContext } from '../src/context/composer.ts'
 import { reviewFixture } from './review-fixture.mjs'
 import { mintHookId } from '../src/state-projection.ts'
 

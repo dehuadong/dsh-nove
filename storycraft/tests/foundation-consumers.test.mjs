@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../src/storage.ts'
 import * as b from '../src/bible.ts'
-import { assembleRoleContext } from '../src/context.ts'
+import { assembleRoleContext } from '../src/context/composer.ts'
 import { putArtifact, writeFoundationDocument, writeRoleCard } from '../src/artifact-store.ts'
 import { contentVersion } from '../src/domain.ts'
 

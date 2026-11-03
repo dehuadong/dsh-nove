@@ -6,7 +6,7 @@ import { delegateRole } from '../src/runtime/delegate-runner.ts'
 import { submitPayload } from '../src/runtime/submission.ts'
 import * as s from '../src/storage.ts'
 import * as b from '../src/bible.ts'
-import { assembleRoleContext } from '../src/context.ts'
+import { assembleRoleContext } from '../src/context/composer.ts'
 import { readArtifact, readFoundationDocuments, readRoleCard, readTextArtifact } from '../src/artifact-store.ts'
 
 let failures = 0

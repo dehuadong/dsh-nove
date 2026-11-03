@@ -9,7 +9,7 @@
 
 import { StoryError, chapterNumber } from '../domain.ts'
 import { readManifest } from '../storage.ts'
-import { assembleRoleContext } from '../context.ts'
+import { assembleRoleContext } from '../context/composer.ts'
 import { ROLES } from '../roles/registry.ts'
 import type { RoleInputDeps, RoleInputState } from './role-input-kit.ts'
 
