@@ -33,7 +33,8 @@ storycraft 的门禁只有本地一条命令 `node storycraft/scripts/ci.mjs`，
 - `storycraft/` 内 `npm ci --dry-run` 报 `up to date`，锁文件与 `package.json` 一致。
 - `storycraft.yml` 用 js-yaml 解析通过，`on`、`jobs`、矩阵与步骤符合预期。
 - `storycraft/` 内搜 `tools/` 命中 0。
-- 首次推送（run 41568245635）：两个 runner 的安装、类型检查、全部测试文件、构建与打包清单都跑完；ubuntu 腿只有 `scope.test.mjs` 一条判负，windows 腿只有 `store-perf.test.mjs` 两条时间预算判负。上面两条修正即由此而来。
+- 首次推送（run 41568245635）两腿均红：ubuntu 只有 `scope.test.mjs` 一条判负，windows 只有 `store-perf.test.mjs` 两条时间预算判负，其余全过。上面两条修正即由此而来。
+- 修正后推送（run 41570657285）双绿：ubuntu 腿 1m03s，windows 腿 4m53s。
 - 修正后本机 `CI=true node storycraft/scripts/ci.mjs --no-e2e` PASS，跳过的是时间预算那几行。
 
 ## Alternatives considered
@@ -45,8 +46,8 @@ storycraft 的门禁只有本地一条命令 `node storycraft/scripts/ci.mjs`，
 
 ## Consequences
 
-- 推送后类型检查、全部单元契约、构建与打包清单有自动验证；E2E 与安装 smoke 仍只在本机跑（`node scripts/ci.mjs`、`node scripts/ci.mjs --smoke`）。
-- 本次提交尚未推送，Actions 上的运行结果还不存在；workflow 能否在两个 runner 上通过，以首次推送后的运行记录为准。
+- 推送后类型检查、全部单元契约、构建与打包清单在两个平台上自动验证；E2E 与安装 smoke 仍只在本机跑（`node scripts/ci.mjs`、`node scripts/ci.mjs --smoke`）。
+- 首次运行就抓到两条平台假设（Windows 语法的用例、共享 runner 上的毫秒预算），说明异地 runner 判的是本机测不出的东西。
 - CI 上 `storycraft/tests/presets.test.mjs` 会打印 `skip standard baseline (DSH checkout not present)`：标准预设逐行对齐要读本地 `deepseek-harness` 软链接，托管 runner 上没有它，这条契约在 CI 里不校验。
 - `engines.node` 声明的 22.18 下限没有被 CI 覆盖，runner 只跑最新 24.x；下限仍是本机承诺。
 - storycraft 的门禁不再覆盖 `tools/**`。三份工具的测试要人记得单独跑，没有 CI 兜底。
