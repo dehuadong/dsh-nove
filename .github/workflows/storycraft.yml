@@ -1,0 +1,52 @@
+name: storycraft
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'storycraft/**'
+      - '.github/workflows/storycraft.yml'
+  pull_request:
+    paths:
+      - 'storycraft/**'
+      - '.github/workflows/storycraft.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: storycraft-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: storycraft
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: storycraft/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      # The browser pass is skipped on purpose: it boots the desktop client,
+      # which a hosted runner does not have.
+      - name: Typecheck, unit contracts, build, package manifest
+        run: node scripts/ci.mjs --no-e2e

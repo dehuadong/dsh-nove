@@ -99,7 +99,7 @@ Status: implemented
 - **现在就 pnpm workspace 化**（把 storycraft 拆成 workspace 里的第一个包）：为将来的组合插件提前铺路，代价是换包管理器、lockfile、CI 与安装语义，且当前只有一个包、没有共享 core 的需求；作者 2026-10-27 决定按触发条件再迁移（见 §7）；本次不做。
 - **提交 `lib` 让安装免构建**：生成物成为第二真源，且与“`lib` 不提交”的决定冲突；否决。
 - **不做 `prepare`、只支持 npm**：已采纳（见 §2）。
-- **依赖 GitHub Actions 自动发布**：仓库没有 CI；先做可本地复现的门禁，CI 化留给后续工作项。
+- **依赖 GitHub Actions 自动发布**：仓库没有 CI；先做可本地复现的门禁，CI 化留给后续工作项（已落地：[2026-11-03-storycraft-github-ci.md](2026-11-03-storycraft-github-ci.md)）。
 - **GPL-3.0-only 并把源码放进 npm 包**：能合规，但作者选择更简单的 MIT；否决 GPL。
 - **插件市场索引与中央注册表**：作者决定本次不做；延后。
 

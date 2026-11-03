@@ -122,7 +122,7 @@ python make.py
 
 - `tools/shell-guard/test.mjs` 扩展到 33 条：写/创建/删除/移动/复制、`npm install --prefix`、`git clone`、重定向、here-string 数据/可执行、`node -e`、只读命令、变量赋值、管道与工作区外目标。
 - 本地 Windows 全部通过；`storycraft/scripts/ci.mjs --no-e2e` 通过（94 单元文件）。
-- 新增 `.github/workflows/shell-guard.yml` 的 Windows/Linux/macOS 矩阵；本地未执行 GitHub runner，macOS/Linux 仍以 CI 为准。
+- `.github/workflows/shell-guard.yml` 曾在 Windows/Linux/macOS 矩阵上跑本测试；该 workflow 于 2026-11-03 删除（`tools/**` 不配 CI，见 [2026-11-03-storycraft-github-ci.md](2026-11-03-storycraft-github-ci.md)），macOS/Linux 的覆盖回到本地执行。
 - 安装到 desktop profile 后重新加载；工作区外写入由测试覆盖，未在真实用户目录执行破坏性探测。
 
 ## Consequences
