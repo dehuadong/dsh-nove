@@ -55,8 +55,8 @@ import {
   status,
   invalidateStateDraftOnDb,
   readPlan,
-  renderReviewMarkdown,
 } from '../../store-db.ts'
+import { renderReviewMarkdown } from './reviews.ts'
 
 // ---------------------------------------------------------------------------
 // Chapter plans and bodies
