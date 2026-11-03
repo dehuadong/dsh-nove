@@ -225,7 +225,7 @@ storycraft/
   cordis.patch.yml             # 入口行 + 一条预设声明（故事工坊，技能行 mode: all）
   src/                         # 源码（TypeScript）：
     index.ts                   #   只读路由 + 作者确认/素材管理/面板导出
-    tools.ts                   #   动作（注册在预设作用域；S5 将拆成 tools/registry + tools/actions）
+    tools/                     #   动作包：types / runtime / registry / actions，入口 index.ts
     delegate.ts                #   宿主侧角色委派：预检、子代理、输出校验、落库、回执
     state-check.ts             #   story_state_check：只读语义对账、findings 与引文校验
     state-settle.ts            #   story_settle：settler 抽取、一次反馈重算、fold 或未解决回执
@@ -241,11 +241,12 @@ storycraft/
     storage/bible-content.ts   #   真值文件与摘要读写
     storage.ts                 #   存储门面：按聚合导出的唯一入口
     storage/repositories/      #   db 之上的聚合仓储（作品、目录、章节、审稿、状态、真值、导出、foundation…）
+    domain/                    #   纯函数：core / foundation / chapters / state / bible，domain.ts 为 barrel
     runtime/stage-machine.ts   #   下一动作推导（长篇阶段机）
     proposals.ts               #   提案：讨论与立项之间的桥
     skills.ts                  #   按模式提供技能目录
-    client.ts                  #   浏览器半边：侧栏入口 + 工作台（esbuild 编译成单文件）
-    …                          #   其余数据层与存储层模块
+    client.ts                  #   浏览器 loader 入口：currentContext/createFace/侧栏 tab/工作台组合
+    client/                    #   types / styles / labels / api / instructions / react + panels/*
   types/dsh.d.ts               # 本包实际使用的 DSH ctx/exec 面
   types/client.d.ts            # 浏览器加载器与 React 注入面
   lib/                         # 构建产物，不提交；prepack 构建（tsdown 出 Host 入口，esbuild 出 client.js）
@@ -295,8 +296,8 @@ Host 与 Client 都已迁到 TS 的 L0–L5 层：`scope`、叶子层、数据�
 - 包入口：`exports` 的 `.`、`./tools`、`./skills`、`./client` 全部指向 `lib/`；
 - 安装依赖：`npm install`（`tsdown`、`esbuild`、`typescript`、`@types/node`、`@types/react` 都是 devDependencies，不进安装包）；
 - 编译：`npm run build` → `scripts/build.mjs`（先 tsdown 再 esbuild）；`prepack` 自动 build；
-- Client 不是 ES module：`src/client.ts` 由 esbuild 单文件转译到 `lib/client.js`，保留 `window.__ModuleLoader__.load({ factory(require) })` 外壳，`require('react')` 原样交给宿主加载器；它不能进打包器，否则外壳与 `require` 会被改写；
-- 模块之间 import 写同层 `'./<module>.ts'`：打包器与 Node 的类型擦除都按源码路径解析；每个入口被打包成一个文件，源码模块不逐个发布；
+- Client 不是 ES module：`src/client.ts` 由 esbuild 以 **bundle + IIFE** 模式打包到 `lib/client.js`，入口可 import `client/*` 子模块；外壳 `window.__ModuleLoader__.load({ factory(require) })` 与 `require('react')` 保持不变（React 由 `client/react.ts` 的 `bindReact` 绑定一次）；不要给入口加 ESM 导出，否则外壳会被改写；
+- Host 模块之间 import 写同层 `'./<module>.ts'`：打包器与 Node 的类型擦除都按源码路径解析；Client 子模块写无扩展名 import（`'./types'`），由 esbuild 解析；每个入口被打包成一个文件，源码模块不逐个发布；
 - 测试与 e2e fixture 直接 import `src/*.ts`，因此要求 Node ≥22.18（类型擦除）；打包后不再有一对一的 `lib/<module>.js`；
 - 技能目录固定在包根 `skills/`，`lib/skills.js` 以自身位置为基准上跳一级解析（源码在 `src/` 被测试直接 import 时同样上跳一级）。
 

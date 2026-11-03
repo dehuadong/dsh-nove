@@ -28,7 +28,7 @@ Status: proposed
 | R1 | architect 多阶段提交与原子落地 | 一个 architect child 四 phase；bundle 单事务；architect agent/prompt/schema 拆分 | [运行时合同](../../implemented/architecture/2026-11-02-storycraft-architect-multistage-runtime.md)（已实现） |
 | R1b | architect 初始伏笔 | `pendingHooks` 随 details 播种进 v2 事件、第五段 `bible:hooks`、完整性/面板/导出/消费者 | [初始伏笔合同](../../implemented/architecture/2026-11-02-storycraft-architect-initial-hooks.md)（已实现） |
 | R2 | 角色边界 | 八个角色模块（`contract/prompts/tool-schema/agent`）+ `runtime/` 抽取；旧 `delegate.ts` 删除、无双入口；行为与错误码不变 | [角色边界合同](../../implemented/architecture/2026-11-03-storycraft-role-boundaries.md)（已实现） |
-| R3 | 基础设施职责拆分 | `store-db.ts`/`tools.ts`/`context.ts`+`bible.ts`/`client.ts` 拆入 storage/domain/runtime/context/tools/client；行为冻结、旧文件删除 | [基础设施合同](../architecture/2026-11-03-storycraft-infrastructure-seams.md)（实现中：S1–S4 完成（context.ts 与 bible.ts 已删除；bible 内容侧落在 storage/bible-content.ts、门面 src/bible/index.ts））；S5–S7 待做） |
+| R3 | 基础设施职责拆分 | `store-db.ts`/`tools.ts`/`context.ts`+`bible.ts`/`client.ts` 拆入 storage/domain/runtime/context/tools/client；行为冻结、旧文件删除 | [基础设施合同](../../implemented/architecture/2026-11-03-storycraft-infrastructure-seams.md)（已实现：S1–S7 完成；四个旧文件删除，CI + 安装 smoke 通过） |
 | A0 | 全量产物合同 v2 | 字段/权威/消费者/生命周期/初始化合同通过；真实生产者归 L | #45–#49（已交付） |
 | L 迁移切片 | 长篇生产者/消费者迁移、foundation、observation、settle | 各切片实现与离线契约通过 | #51–#61（已交付） |
 | L 产品收口 | planner、多章/重开/删除重排、上下文预算与 trace、面板消费、导出 | `#62` 条目有裁决；旧口径交付，待 R4 重验 | #62（旧口径，待重验） |
@@ -42,7 +42,7 @@ Status: proposed
 
 1. **R0 对拍基线重审**：parity-matrix/roadmap 已更新；architect 四段 vs design/cards 已裁决——B 不保留为目标，R1 回到同 architect 四段/等价 runtime；角色边界已定义；
 2. **R0b 交付状态重审（已完成盘点）**：90 篇 implemented Note 分类为 77 `revalidate-only` / 11 `rework-required` / 2 `legacy-delivered`（结构相关合计 13）；本批不归档，替代在 R1/R2 落地后逐篇处理；旧“L 完成”撤回；
-3. **R1 architect runtime（已实现）**：[多阶段提交与原子落地](../../implemented/architecture/2026-11-02-storycraft-architect-multistage-runtime.md)，一个 child 四 phase；**R1b 初始伏笔（已实现）**：[初始伏笔合同](../../implemented/architecture/2026-11-02-storycraft-architect-initial-hooks.md)；**R2 角色边界（已实现）**：[角色边界合同](../../implemented/architecture/2026-11-03-storycraft-role-boundaries.md)；**R3 基础设施（规划完成，待实现）**：[基础设施合同](../architecture/2026-11-03-storycraft-infrastructure-seams.md)；
+3. **R1 architect runtime（已实现）**：[多阶段提交与原子落地](../../implemented/architecture/2026-11-02-storycraft-architect-multistage-runtime.md)，一个 child 四 phase；**R1b 初始伏笔（已实现）**：[初始伏笔合同](../../implemented/architecture/2026-11-02-storycraft-architect-initial-hooks.md)；**R2 角色边界（已实现）**：[角色边界合同](../../implemented/architecture/2026-11-03-storycraft-role-boundaries.md)；**R3 基础设施（已实现）**：[基础设施合同](../../implemented/architecture/2026-11-03-storycraft-infrastructure-seams.md)；
 4. `#62`（旧口径，待 R4 重验）L 产品收口总表：差距表裁决 + 回写；
 5. P0 旧口径：`#63` planner 委派 → `#64` 上下文预算/trace → `#65` 多章确定性验收；
 6. `#66` 面板统一状态（旧口径）、`#67` 死表清理（旧口径）；

@@ -1,6 +1,6 @@
 # Agent Note: 故事工坊：基础设施职责拆分（R3）
 
-Status: proposed
+Status: implemented
 
 工作项：当前任务（不新建 GitHub issue）。把 `store-db.ts`、`tools.ts`、`context.ts` + `bible.ts`、`client.ts` 四个 monolith 拆成存储/领域/阶段机、动作注册、上下文装配与面板子模块；行为、动作名、错误码与产物不变。
 
@@ -42,7 +42,7 @@ R0b 把 `context-budget-trace`、`worker-skills` 标为 R3 的 `rework-required`
 | `studio` 多文件 React 面板 | `client/panels/*` 接收 `h`/hooks 作为参数，`client.ts` 仍为单入口 | loader 工厂内才有 `require('react')` | 等价适配 | E2E |
 | `composer` 独立选择上下文 | `context/composer.ts` 装配 + 预算 + trace；`context/brief.ts` 分段 | 两者输入不同、消费者不同 | 采纳 | context/brief 测试 |
 
-## Proposal
+## Decision
 
 ### 1. 目标结构
 
@@ -139,8 +139,8 @@ storycraft/src/
 
 ## 与既有决定
 
-- [对拍基线重审](2026-11-02-storycraft-parity-rebaseline.md) 的 R3 目标由本项承接；
-- [store-db 行类型](2026-10-24-store-db-row-types.md) 的结论并入 S1/S2；实施后转为 implemented 并互链；
+- [对拍基线重审](../../proposed/architecture/2026-11-02-storycraft-parity-rebaseline.md) 的 R3 目标由本项承接；
+- [store-db 行类型](../../proposed/architecture/2026-10-24-store-db-row-types.md) 的结论并入 S1/S2；实施后转为 implemented 并互链；
 - [上下文 token 预算与 trace](../../implemented/architecture/2026-10-26-storycraft-context-budget-trace.md) 只换模块归属，行为不变；R3 完成后按新路径复核该 Note 的「落盘只在派发时」与 trace 字段；
 - [R2 角色边界](../../implemented/architecture/2026-11-03-storycraft-role-boundaries.md) 已把角色 payload schema 移出 `submission/tools`，本项继续把动作注册与存储拆开；
 - `worker-skills` 只复核技能加载与角色模块的对应关系，不重写技能正文。
@@ -157,7 +157,7 @@ storycraft/src/
 
 **E. 不拆 client，等面板重设计。** 最强理由是 UI 行为风险高。否决原因：R0 明确列为 R3；且先拆 types/api/styles 即可降低单文件风险，E2E 已覆盖。
 
-## Acceptance criteria
+## 验证
 
 1. `store-db.ts`、`context.ts`、`bible.ts`、`tools.ts` 删除，仓库内无 import；`storage.ts` 是唯一存储门面；
 2. `storage/repositories/*` 按聚合覆盖现有全部导出；repository 不得 import 其它仓库的私有 helper，跨聚合只走公开函数或门面；跨聚合事务仍留在拥有该不变量的仓库；
@@ -179,3 +179,35 @@ storycraft/src/
 - `tools/actions` 拆分后 action 数量或 schema 漂移；用快照/计数测试锁定；
 - 行类型去掉 `@ts-nocheck` 会暴露大量 `any`；允许逐步收窄，但不得为过检引入虚假校验；
 - R3 完成后 R4 仍要重验真实链路，结构通过不等于产品完成。
+
+## Consequences
+
+S1–S7 已按切片落地；每个切片单独提交并跑完整 CI（96 单元 + 49 E2E），最终再跑 tarball 安装 smoke。
+
+| 切片 | 结果 |
+|---|---|
+| S1 | `db.ts` → `storage/db.ts`；新增 `storage/store-rows.ts`（按表单数行类型） |
+| S2 | `storage/repositories/{shared,types,materials,works,catalog,search,chapters,reviews,state,bible,export,foundation}.ts`；`store-db.ts` 删除；`storage.ts` 仅 re-export |
+| S3 | `runtime/stage-machine.ts`（`nextStep`）；`domain/{core,foundation,chapters,state}.ts` + `domain.ts` barrel |
+| S4 | `context/{composer,contract,brief}.ts`；`domain/bible.ts` + `storage/bible-content.ts` + `src/bible/index.ts`；`context.ts`、`bible.ts` 删除 |
+| S5 | `tools/{types,runtime,registry,actions/index}.ts` + `tools/index.ts` 入口；`tools.ts` 删除；`tsdown` entry 改指 `src/tools/index.ts`（产物仍 `lib/tools.js`） |
+| S6 | `client/{types,styles,labels,api,instructions,react}.ts` + `client/panels/*`；`client.ts` 缩到 705 行 loader 入口；`build-client` 改为 esbuild bundle |
+| S7 | 旧文件 grep 清零（仅仓储内部的 `./bible.ts` 同目录 import）；README/roadmap 收尾；CI、`--smoke` 复跑 |
+
+### 与合同的偏差
+
+| 参考/计划 | 实际 | 原因 | 裁决 |
+|---|---|---|---|
+| `domain/bible.ts` 在 S3 落地 | S4 才建立 | S3 时 `domain.ts` 没有 bible 专属纯函数；随 S4 真值拆分一起落 | 记录后接受 |
+| `context/brief.ts` 指上下文形状 | `context/contract.ts` 持有形状，`context/brief.ts` 是 `assembleBrief` | 契约与 brief 装配是两个职责；S4 命名已对齐 | 记录后接受 |
+| bible 内容读写进 `storage/repositories/bible.ts` | 独立 `storage/bible-content.ts` + `src/bible/index.ts` 门面 | 避免 26 处消费方跨三个模块分散 import；DB 真值仓储保持单一职责 | 记录后接受 |
+| client 子模块需要注入 `h`/hooks | `client/react.ts` live binding：入口调用一次 `bindReact(React)` | 组件模块保持普通 `h`/`useState` 写法，避免逐组件签名膨胀 | 记录后接受 |
+| `build-client` 只转译单文件 | 改为 esbuild bundle（IIFE） | 客户端子模块必须内联进 loader 脚本；module-loader 契约不变 | 记录后接受 |
+
+### 验证证据
+
+- `node storycraft/scripts/ci.mjs`：96 单元文件 + 49 E2E PASS；
+- `node storycraft/scripts/ci.mjs --smoke`：tarball → `dsh plugin add` → 冷启动临时实例，作品路由与页面加载 PASS；
+- `npm run verify-notes`：Note 树与相对链接 PASS；
+- 旧文件：`store-db.ts`、`context.ts`、`bible.ts`、`tools.ts` 均已删除，仓库无引用；`client.ts` 按合同保留为入口。
+
