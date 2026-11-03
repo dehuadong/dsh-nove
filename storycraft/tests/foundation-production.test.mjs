@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { delegateRole } from '../src/runtime/delegate-runner.ts'
 import { submitPayload } from '../src/runtime/submission.ts'
 import * as s from '../src/storage.ts'
-import * as b from '../src/bible.ts'
+import * as b from '../src/bible/index.ts'
 import { assembleRoleContext } from '../src/context/composer.ts'
 import { readArtifact, readFoundationDocuments, readRoleCard, readTextArtifact } from '../src/artifact-store.ts'
 

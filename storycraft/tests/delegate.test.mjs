@@ -7,7 +7,7 @@ import { checkWordRange } from '../src/landing.ts'
 import { submitPayload } from '../src/runtime/submission.ts'
 import * as s from '../src/storage.ts'
 import { readArtifact } from '../src/artifact-store.ts'
-import { writeBible } from '../src/bible.ts'
+import { writeBible } from '../src/bible/index.ts'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0

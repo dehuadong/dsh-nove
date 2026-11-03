@@ -30,7 +30,7 @@ import { listRoleCards, readArtifact, readChapterMemo, readChapterSummary, readF
 import {
   assembleBrief as assembleBriefFor, readBible as readBibleEntries,
   writeBible as writeBibleEntry, writeSummary as writeSummaryEntry,
-} from './bible.ts'
+} from './bible/index.ts'
 import { readVolumes, writeVolume } from './volumes.ts'
 import { critique, findingsOf } from './critique.ts'
 import { loadRoleInput } from './runtime/role-input.ts'

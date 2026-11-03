@@ -8,7 +8,7 @@
  * own inventions.
  */
 
-import { parseCharacters } from './bible.ts'
+import { parseCharacters } from './bible/index.ts'
 import { chapterNumber } from './domain.ts'
 import {
   listBodies, listSummaries, readBibleEntry, readBibleMap, readFoldedState, readManifest, readPlan, readVolumes,

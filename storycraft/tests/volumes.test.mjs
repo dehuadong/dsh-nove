@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../src/storage.ts'
-import * as b from '../src/bible.ts'
+import * as b from '../src/bible/index.ts'
 import { readVolumes, volumeOf, writeVolume } from '../src/volumes.ts'
 
 let failures = 0

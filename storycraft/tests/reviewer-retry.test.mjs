@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { delegateRole } from '../src/runtime/delegate-runner.ts'
 import { submitPayload } from '../src/runtime/submission.ts'
 import * as s from '../src/storage.ts'
-import { writeBible } from '../src/bible.ts'
+import { writeBible } from '../src/bible/index.ts'
 
 let failures = 0
 function check(name, condition, detail) {

@@ -3,7 +3,7 @@ import { mkdtemp, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../src/storage.ts'
-import * as b from '../src/bible.ts'
+import * as b from '../src/bible/index.ts'
 import { openWork } from '../src/storage/db.ts'
 
 let failures = 0

@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../src/storage.ts'
-import { assertEditableBible, EDITABLE_BIBLE_FILES, readBible, writeBible } from '../src/bible.ts'
+import { assertEditableBible, EDITABLE_BIBLE_FILES, readBible, writeBible } from '../src/bible/index.ts'
 
 let failures = 0
 function check(name, condition, detail) {

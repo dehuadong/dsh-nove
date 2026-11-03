@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../src/storage.ts'
-import * as b from '../src/bible.ts'
+import * as b from '../src/bible/index.ts'
 import { openDatabase, workFile } from '../src/storage/db.ts'
 import { reviewFixture } from './review-fixture.mjs'
 

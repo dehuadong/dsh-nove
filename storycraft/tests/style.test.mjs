@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../src/storage.ts'
-import { assembleBrief, extractStyleSamples, readBible, writeBible } from '../src/bible.ts'
+import { assembleBrief, extractStyleSamples, readBible, writeBible } from '../src/bible/index.ts'
 import { mergeBlock, styleBlock, styleProfile, stripBlock, STYLE_END, STYLE_START } from '../src/style.ts'
 import { openWork } from '../src/storage/db.ts'
 
