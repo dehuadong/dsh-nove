@@ -12,3 +12,4 @@
 
 export * from './domain.ts'
 export * from './store-db.ts'
+export * from './storage/repositories/materials.ts'

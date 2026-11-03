@@ -1,7 +1,7 @@
 /** SQLite row types: one interface per table, matching the schema in db.ts. */
 
 /** Row of the `materials` table. */
-export interface MaterialsRow {
+export interface MaterialRow {
   id: string
   title: string
   format: string
@@ -48,7 +48,7 @@ export interface SessionCurrentRow {
 }
 
 /** Row of the `artifacts` table. */
-export interface ArtifactsRow {
+export interface ArtifactRow {
   artifact_id: string
   revision_id: string
   kind: string
@@ -85,7 +85,7 @@ export interface MetaRow {
 }
 
 /** Row of the `chapters` table. */
-export interface ChaptersRow {
+export interface ChapterRow {
   number: number
   title: string
   status: string
@@ -103,7 +103,7 @@ export interface ChaptersRow {
 }
 
 /** Row of the `chapter_versions` table. */
-export interface ChapterVersionsRow {
+export interface ChapterVersionRow {
   number: number
   revision: number
   body: string
@@ -112,7 +112,7 @@ export interface ChapterVersionsRow {
 }
 
 /** Row of the `events` table. */
-export interface EventsRow {
+export interface EventRow {
   seq: number
   at: string
   chapter: number
@@ -121,7 +121,7 @@ export interface EventsRow {
 }
 
 /** Row of the `volumes` table. */
-export interface VolumesRow {
+export interface VolumeRow {
   id: string
   title: string
   from_ch: number
@@ -138,7 +138,7 @@ export interface BibleRow {
 }
 
 /** Row of the `search_docs` table. */
-export interface SearchDocsRow {
+export interface SearchDocRow {
   doc_id: string
   kind: string
   source: string
@@ -148,7 +148,7 @@ export interface SearchDocsRow {
 }
 
 /** Row of the `model_calls` table. */
-export interface ModelCallsRow {
+export interface ModelCallRow {
   id: number
   chapter: number | null
   role: string

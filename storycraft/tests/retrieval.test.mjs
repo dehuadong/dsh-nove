@@ -108,7 +108,7 @@ try {
     .run(JSON.stringify(summaryContent), summaryRow.artifact_id, summaryRow.revision_id)
   events.close()
 
-  const { searchMemory } = await import('../src/store-db.ts')
+  const { searchMemory } = await import('../src/storage.ts')
   const hook = searchMemory(root, work, '备用钥匙', { beforeChapter: 5 })
   check('unresolved hook is retrieved', hook.some(item => item.kind === 'hook' && item.text.startsWith('备用钥匙') && item.sourceIds[0] === 'state'), JSON.stringify(hook))
   const resolved = searchMemory(root, work, '旧井的水位', { beforeChapter: 5 })

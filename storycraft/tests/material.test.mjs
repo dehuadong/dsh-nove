@@ -184,7 +184,7 @@ try {
   const prepared = await (await import('../src/materials.ts')).prepareMaterial({ name: 'fail.md', contentBase64: b64('x') })
   let partialFailure
   try {
-    (await import('../src/store-db.ts')).writeManagedCopy(root, prepared, () => { throw new Error('disk full') })
+    (await import('../src/storage.ts')).writeManagedCopy(root, prepared, () => { throw new Error('disk full') })
   } catch (error) {
     partialFailure = error.code
   }
