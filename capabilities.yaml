@@ -1,0 +1,310 @@
+# 能力账本：全量能力清单，初始化全部 missing，只追加不删除。
+# status 只能由 `npm run check-capabilities -- --write` 依据证据生成；人工只能写 missing。
+# verified 需要三份证据同时成立：implementation 与 consumer 路径存在、
+# 消费者的通过记录、artifacts/real-runs/<id>.json 含日期／session id／关键回执。
+version: 1
+capabilities:
+  - id: runtime.load
+    title: 插件／预设加载，注册 story_next，client 骨架可见
+    reference: "inkos:packages/core/src/harness/runtime.ts"
+    dsh: bundle/preset + client
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: runtime.session-binding
+    title: 当前作品绑定、面板进入作品
+    reference: "inkos:packages/core/src/harness/session-binding.ts"
+    dsh: storage + client
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: runtime.commands
+    title: DSH command/headless 入口（init/export 至少一条）
+    reference: "inkos:packages/cli/src/commands/"
+    dsh: commands
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: runtime.telemetry
+    title: 每次委派的 usage／耗时／失败回执
+    reference: "inkos:packages/core/src/harness/execution-evidence.ts"
+    dsh: session log + events
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: runtime.recovery
+    title: 自检／恢复（workspace/work 索引重建）
+    reference: "inkos:packages/core/src/pipeline/chapter-state-recovery.ts"
+    dsh: jobs + storage
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: foundation.architect
+    title: architect 单 child 四段（outline/details/cast_index/cards），每段 tool schema
+    reference: "inkos:packages/core/src/agents/architect.ts"
+    dsh: subagents
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: foundation.hooks
+    title: pendingHooks 种子、id/status 语义、投影一致
+    reference: "inkos:packages/core/src/state/state-reducer.ts"
+    dsh: storage
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: foundation.approval
+    title: 作者确认闸门与回执
+    reference: "inkos:packages/core/src/interaction/session.ts"
+    dsh: client + tools.register
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: cast.single-authority
+    title: roles:index／role:* 唯一人物权威，major/minor 均进入 brief/context
+    reference: "inkos:packages/core/src/references/reference-context.ts"
+    dsh: storage + systemPrompt.context()
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: plan.outline
+    title: 全书计划／卷图
+    reference: "inkos:packages/core/src/pipeline/persisted-governed-plan.ts"
+    dsh: tools.register + storage
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: plan.chapter
+    title: 章纲 memo/threadRefs、闸门
+    reference: "inkos:packages/core/src/agents/planner.ts"
+    dsh: tools.register
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: context.brief
+    title: 角色 brief 装配、预算、trace、whitelist
+    reference: "inkos:packages/core/src/harness/context-compiler.ts"
+    dsh: systemPrompt.context()
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: context.retrieval
+    title: 摘要／伏笔／卷／素材检索与来源标注
+    reference: "inkos:packages/core/src/retrieval/local-search.ts"
+    dsh: tools.register
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: chapter.write
+    title: 首版正文
+    reference: "inkos:packages/core/src/agents/writer.ts"
+    dsh: subagents
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: chapter.review
+    title: observations/severity/quote 校验
+    reference: "inkos:packages/core/src/pipeline/chapter-review.ts"
+    dsh: subagents
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: chapter.revise
+    title: patch/polish/rewrite/deslop
+    reference: "inkos:packages/core/src/agents/reviser.ts"
+    dsh: subagents
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: chapter.summary
+    title: 结构化摘要
+    reference: "inkos:packages/core/src/pipeline/chapter-persistence.ts"
+    dsh: storage
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: chapter.settle
+    title: fact/hook 抽取、状态草案、conflict 校验
+    reference: "inkos:packages/core/src/agents/settler-tool.ts"
+    dsh: tools.register + storage
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: chapter.finalize
+    title: 定稿与阶段推进
+    reference: "inkos:packages/core/src/pipeline/runner.ts"
+    dsh: tools.register
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: chapter.reopen
+    title: 重开与回滚
+    reference: "inkos:packages/core/src/state/chapter-workspace.ts"
+    dsh: storage
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: chapter.move-delete
+    title: 删章／移章重排、引用与检索同步
+    reference: "inkos:packages/core/src/state/chapter-delete.ts"
+    dsh: storage
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: state.check
+    title: 语义对账，只读 findings
+    reference: "inkos:packages/core/src/state/state-validator.ts"
+    dsh: tools.register
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: artifact.identity
+    title: 虚拟路径、artifactId/revision、跨作品隔离
+    reference: "inkos:packages/core/src/harness/artifact-revisions.ts"
+    dsh: storage
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: export.work
+    title: 导出（原子替换）
+    reference: "inkos:packages/core/src/interaction/export-artifact.ts"
+    dsh: commands
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: backup.restore
+    title: 备份／恢复含素材 sidecar
+    reference: "inkos:packages/cli/src/book-backup.ts"
+    dsh: commands
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: materials.import
+    title: EPUB/PDF/文本导入、去重、用途
+    reference: "inkos:packages/core/src/materials/ingest.ts"
+    dsh: tools.register
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: search.unified
+    title: 记忆／素材／技能统一检索
+    reference: "inkos:packages/core/src/retrieval/local-search.ts"
+    dsh: tools.register
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: panel.workbench
+    title: 工作台、阶段按钮、作者确认
+    reference: "inkos:packages/studio/src/pages/"
+    dsh: client
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: panel.logs
+    title: 调用日志
+    reference: "inkos:packages/studio/src/components/"
+    dsh: client
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: panel.analysis
+    title: 分析／节奏
+    reference: "inkos:packages/studio/src/pages/"
+    dsh: client
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: short.outline
+    title: 短篇大纲（v1 后）
+    reference: "inkos:packages/core/src/pipeline/short-fiction-runner.ts"
+    dsh: tools.register
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: short.batch-draft
+    title: 短篇批量草稿（v1 后）
+    reference: "inkos:packages/core/src/agents/short-fiction.ts"
+    dsh: subagents
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: short.review-revise
+    title: 短篇审校与修订（v1 后）
+    reference: "inkos:packages/core/src/pipeline/detection-runner.ts"
+    dsh: subagents
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: short.package
+    title: 短篇打包（v1 后）
+    reference: "inkos:packages/core/src/pipeline/short-production-state.ts"
+    dsh: commands
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: script.spec
+    title: 剧本规格（v1 后）
+    reference: "inkos:packages/core/src/interactive-film/graph-schema.ts"
+    dsh: tools.register
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: script.scenes
+    title: 剧本分场（v1 后）
+    reference: "inkos:packages/core/src/agents/script-storyboard.ts"
+    dsh: tools.register
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: script.scriptset
+    title: 剧本集（v1 后）
+    reference: "inkos:packages/core/src/interactive-film/authoring-store.ts"
+    dsh: storage
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing
+  - id: script.review-revise
+    title: 剧本审校与修订（v1 后）
+    reference: "inkos:packages/core/src/pipeline/script-storyboard-runner.ts"
+    dsh: subagents
+    implementation: null
+    consumer: null
+    realRun: null
+    status: missing

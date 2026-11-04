@@ -4,10 +4,27 @@
 
 > inkos-master项目是参考复刻对象。具体见 &对拍工作法
 
+## 项目铁律
+
+1. **一个 PR 只做一个纵向能力**：对应 `capabilities.yaml` 的 `id`，同时包含参考证据 → DSH 落点 → 实现 → 消费者 → 契约测试；缺一项 CI 拒绝。禁止只拆文件／只改文档／只改存储的 PR。
+2. **状态只来自证据**：`capabilities.yaml` 的 `status` 只能由 `check-capabilities` 依据测试与真实运行证据生成；人工只能写 `missing`。不建第二套状态表、交付盘点、进度看板、“已实现／已验收”清单。
+3. **只用 DSH 运行时**：
+   - Provider → DSH `llm`；
+   - Agent 循环 → DSH agent loop + `subagents`；
+   - CLI → DSH command / headless；
+   - 存储 → 作品内容落盘为文档，DSH storage/session 或既有 SQLite 只做索引（一作品一库，不新建独立存储服务）；
+   - 调度 → DSH jobs/schedule；
+   - 技能 → DSH `skills` 服务 + 文件系统；
+   - 上下文注入 → DSH `systemPrompt.context()`，不自定义 prompt 拼装层重复方法正文。
+4. **状态只有两种**：`missing` 与 `verified`；不设待重验、旧口径等中间状态。能力状态只由第 2 条的证据生成。
+
 ## 文档与约定
 
 仓库管理根是本文件所在目录，下文路径都从该根解析。
 
+- 产品范围与非目标：[docs/scope.md](docs/scope.md)；
+- InkOS 机制 → DSH 的映射与偏差：[docs/dsh-mapping.md](docs/dsh-mapping.md)；
+- 全量能力账本：[capabilities.yaml](capabilities.yaml)；校验入口 `npm run check-capabilities`；
 - 文档类型、属主与写作标准：[docs/AGENTS.md](docs/AGENTS.md)。
 - 长期技术提案与决定的记录范围、生命周期和格式：`.agents/notes/`；规则由 `write-agent-notes` Skill 拥有，根范围与校验入口见 [.agents/notes/AGENTS.md](.agents/notes/AGENTS.md)。
 - 重要改动必须留笔记 见 &Agent Notes 
