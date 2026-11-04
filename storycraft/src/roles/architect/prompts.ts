@@ -2,6 +2,7 @@
 
 import { formOf } from '../../domain.ts'
 import { roleSkills } from '../../skill-routing.ts'
+import { architectReferences, renderReferenceBlock, type SkillReference } from '../../skill-references.ts'
 import type { ArchitectPromptRequest } from './contract.ts'
 
 /** Build the architect child prompt for one foundation stage. */
@@ -20,15 +21,21 @@ export function architectPrompt({ work, stage, instruction, delegationId, manife
   const context = []
   if (stage !== 'frame' && stage !== 'cards' && foundation.storyFrame !== undefined) context.push(`## 故事框架\n${foundation.storyFrame}`)
   if (stage === 'cards' && foundation.rolesIndex !== undefined) context.push(`## 角色索引\n${JSON.stringify(foundation.rolesIndex, null, 2)}`)
+  const references: SkillReference[] = architectReferences(stage)
+  const referenceBlock = renderReferenceBlock(references)
   return [
     `你是《${manifest.title}》（${manifest.workId}）的架构师子代理，负责基础设定：${labels[stage]}。`,
     `开工前先调用 skill 工具加载 ${roleSkills('architect', formOf(manifest)).map(id => `\`${id}\``).join('、')}，按其契约执行；` +
-      '方法参考是本技能目录下的 `references/foundation-design.md`，提交前必须先读它。',
+      (references.length === 0
+        ? '方法参考是本技能目录下的 `references/foundation-design.md`，提交前必须先读它。'
+        : `本阶段的 ${references.length} 份方法参考已由运行时加载在下方（${references.map(reference => `\`${reference.path}\``).join('、')}），不要再自行查找或读取其它参考。`),
     ...(proposal === undefined ? [] : ['', '## 作者已确认的提案', `前提：${proposal.premise}`, `人物：${proposal.characters}`, '只依据本任务的提案与已确认材料工作；不得延续其它会话或其它作品的内容。']),
     '',
     '## 本次任务',
     instruction.trim() === '' ? `生成${labels[stage]}。` : instruction.trim(),
     ...(context.length === 0 ? [] : ['', '## 已生成的基础设定', ...context]),
+    '',
+    referenceBlock,
     '',
     '## 输出契约',
     `必须调用 story_submit，delegationId 是 ${delegationId}。`,

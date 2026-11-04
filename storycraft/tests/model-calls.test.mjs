@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runChild } from '../src/runtime/child-run.ts'
+import { callEvidence } from '../src/call-evidence.ts'
 import * as s from '../src/storage.ts'
 import { openWork } from '../src/storage/db.ts'
 import { callSummary, finishCall, recordCall } from '../src/telemetry.ts'
@@ -85,6 +86,38 @@ try {
   })
   check('missing sessions yields unavailable usage', noSessions.call.usage.usageSource === 'unavailable' && noSessions.call.usage.totalTokens === null)
   await noSessions.dispose()
+
+  // A finished one-shot child can be released by the session store; the live
+  // agent registry still holds the session with its usage events.
+  const releasedSessions = { get: () => undefined }
+  const liveSession = {
+    ownEvents: () => [
+      { type: 'assistant/message', data: { message: { content: [{ type: 'text', text: '已提交' }] }, usage: { inputTokens: 7, outputTokens: 2, totalTokens: 9 } } },
+    ],
+    requestContext: () => ({ provider: 'fixture', model: 'fixture-model' }),
+  }
+  const agents = { get: (id) => id === 'child-1' ? { session: liveSession } : undefined }
+  const fromAgents = await runChild({
+    service, agent: { id: 'parent' }, cwd: root, prompt: '写正文', label: 'fixture', timeoutMs: 5000,
+    sessions: releasedSessions, agents,
+    telemetry: {
+      work, chapter: 1, role: 'writer', scope: 'writer:r5', attempt: 1, trigger: 'first',
+      sessions: releasedSessions, agents, sink: (call) => recordCall(root, work, call),
+    },
+  })
+  check('released child session is read from the agent registry',
+    fromAgents.call.usage.usageSource === 'session' && fromAgents.call.usage.modelCalls === 1 && fromAgents.call.usage.inputTokens === 7,
+    JSON.stringify(fromAgents.call.usage))
+  await fromAgents.dispose()
+
+  const viaEvents = callEvidence({
+    events: () => [{ type: 'assistant/message', data: { message: { content: [{ type: 'text', text: 'ok' }] }, usage: { inputTokens: 2, outputTokens: 1, totalTokens: 3 } } }],
+  }, { output: [] }, 0)
+  check('a session-like events() accessor is counted', viaEvents.usageSource === 'session' && viaEvents.modelCalls === 1 && viaEvents.totalTokens === 3,
+    JSON.stringify(viaEvents))
+  const noHistory = callEvidence({}, { output: [{ type: 'text', text: '已提交' }] }, 0)
+  check('a session without history falls back to the dispatch output', noHistory.outputChars === 3 && noHistory.modelCalls === 0,
+    JSON.stringify(noHistory))
 
   const clamped = recordCall(root, work, {
     chapter: 1, role: 'writer', scope: 'writer:r4', attempt: 1, trigger: 'first',

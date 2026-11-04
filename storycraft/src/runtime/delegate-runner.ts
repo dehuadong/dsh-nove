@@ -253,7 +253,7 @@ async function delegateArchitect(root: string, input: ArchitectInput, host: Dele
       availability: false,
       telemetry: {
         work, chapter: null, role: 'architect', scope: `architect:${stage}`, attempt: nextAttempt(root, work, null, 'architect', `architect:${stage}`), trigger: 'first',
-        delegationId: opened.delegationId, sessions: host.sessions,
+        delegationId: opened.delegationId, sessions: host.sessions, agents: host.agents,
         sink: (call) => recordCall(root, work, call),
       },
     })
@@ -377,7 +377,7 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
         work, chapter, role,
         scope: `${role}:r${manifest.chapters.find(item => item.number === chapter)?.currentRevision ?? 0}`,
         attempt: nextAttempt(root, work, chapter, role, `${role}:r${manifest.chapters.find(item => item.number === chapter)?.currentRevision ?? 0}`), trigger: 'first', delegationId: opened.delegationId,
-        sessions: host.sessions, sink: (call) => recordCall(root, work, call),
+        sessions: host.sessions, agents: host.agents, sink: (call) => recordCall(root, work, call),
         assertBudget: () => assertChapterBudget(root, work, chapter, maxChapterTokensOf(root, work)),
       },
     })
@@ -438,7 +438,7 @@ export async function delegateRole(root: string, input: DelegateInput, host: Del
           telemetry: {
             work, chapter, role, scope: `${role}:r${revision}`,
             attempt: nextAttempt(root, work, chapter, role, `${role}:r${revision}`),
-            trigger: 'reviewer-quote-retry', delegationId: retryOpened.delegationId, sessions: host.sessions,
+            trigger: 'reviewer-quote-retry', delegationId: retryOpened.delegationId, sessions: host.sessions, agents: host.agents,
             sink: (call) => recordCall(root, work, call),
             assertBudget: () => assertChapterBudget(root, work, chapter, maxChapterTokensOf(root, work)),
           },

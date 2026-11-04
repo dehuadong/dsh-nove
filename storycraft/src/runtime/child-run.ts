@@ -79,6 +79,7 @@ export interface CallTelemetry {
   trigger: string
   delegationId?: string
   sessions?: any
+  agents?: any
   sink?: (call: CallInput) => number | undefined
   /** Called before every start attempt; chapter roles use it for the token cap. */
   assertBudget?: () => void
@@ -112,6 +113,8 @@ export interface DelegateHost {
   timeoutMs?: number
   /** Live session store used to read child usage before dispose. */
   sessions?: any
+  /** Live agent registry; child sessions are held here after the store releases them. */
+  agents?: any
 }
 
 /** One child run's request; service and agent reuse the host boundary. */
@@ -125,6 +128,22 @@ export interface ChildRunInput extends DelegateHost {
   failedCode?: string
   unavailableMessage?: string
   telemetry?: CallTelemetry
+}
+
+/** Resolve the live child session: the store first, then the agent registry. */
+function resolveChildSession(telemetry: CallTelemetry | undefined, childId: string | undefined): any {
+  if (childId === undefined) return undefined
+  try {
+    const session = telemetry?.sessions?.get?.(childId)
+    if (session !== undefined) return session
+  } catch {
+    // The store is a dynamic boundary; fall through to the agent registry.
+  }
+  try {
+    return telemetry?.agents?.get?.(childId)?.session
+  } catch {
+    return undefined
+  }
 }
 
 /**
@@ -156,6 +175,7 @@ export async function runChild(input: ChildRunInput): Promise<ChildRun> {
         ? undefined
         : () => assertChapterBudget(cwd, telemetry.work, telemetry.chapter, maxChapterTokensOf(cwd, telemetry.work)))
   let activation: ChildActivation | undefined
+  let childSession: any
   let timer: ReturnType<typeof setTimeout> | undefined
   let started = Date.now()
   let startedAt = new Date(started).toISOString()
@@ -179,7 +199,7 @@ export async function runChild(input: ChildRunInput): Promise<ChildRun> {
   const record = (outcome: string, result: ChildResult | undefined, errorCode?: string | null): ChildCall => {
     recorded = true
     const ended = Date.now()
-    const usage = callEvidence(telemetry?.sessions, activation?.childId, result, promptChars)
+    const usage = callEvidence(childSession ?? resolveChildSession(telemetry, activation?.childId), result, promptChars)
     let callId: number | undefined
     if (telemetry?.sink !== undefined) {
       try {
@@ -231,6 +251,8 @@ export async function runChild(input: ChildRunInput): Promise<ChildRun> {
           signal: combined,
           delivery: 'caller',
         })
+        // The store may release a finished one-shot child; keep the live object.
+        childSession = resolveChildSession(telemetry, activation?.childId)
         break
       } catch (error: any) {
         const message = String(error?.message ?? error)

@@ -100,6 +100,8 @@ interface StateCheckHost {
   timeoutMs?: number
   /** Live session store for child usage. */
   sessions?: any
+  /** Live agent registry; child sessions are held here after the store releases them. */
+  agents?: any
 }
 
 /** The prompt input assembled from the store and the proposed delta. */
@@ -260,7 +262,7 @@ export async function checkChapterState(
       telemetry: {
         work, chapter, role: 'validator',
         scope: `validate:r${revision}`, attempt: nextAttempt(root, work, chapter, 'validator', `validate:r${revision}`), trigger: input.trigger ?? 'first',
-        delegationId: opened.delegationId, sessions: host.sessions,
+        delegationId: opened.delegationId, sessions: host.sessions, agents: host.agents,
         sink: (call) => recordCall(root, work, call),
         assertBudget: () => assertChapterBudget(root, work, chapter, maxChapterTokensOf(root, work)),
       },

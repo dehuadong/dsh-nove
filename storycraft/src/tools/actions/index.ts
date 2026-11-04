@@ -521,6 +521,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
           service,
           agent: exec.agent,
           sessions: typeof ctx?.get === 'function' ? ctx.get('sessions') : undefined,
+          agents: typeof ctx?.get === 'function' ? ctx.get('agents') : undefined,
           signal: exec.signal,
         })
       },
@@ -550,6 +551,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
           agent: exec.agent,
           signal: exec.signal,
           sessions: typeof ctx?.get === 'function' ? ctx.get('sessions') : undefined,
+          agents: typeof ctx?.get === 'function' ? ctx.get('agents') : undefined,
         })
       },
     }),
@@ -805,7 +807,10 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
               ...expected,
               ...(args.revisionId === undefined ? {} : { revisionId: String(args.revisionId) }),
             })
-            content = String(read.artifact.content)
+            // Structured truth files (hooks) keep their shape; text files pass through.
+            content = typeof read.artifact.content === 'string'
+              ? read.artifact.content
+              : JSON.stringify(read.artifact.content, null, 2)
             ref = { ...ref, ...expected, revisionId: read.artifact.revisionId as string }
           }
         } else if (kind === 'roles') {
@@ -1347,6 +1352,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
           agent: exec.agent,
           signal: exec.signal,
           sessions: typeof ctx?.get === 'function' ? ctx.get('sessions') : undefined,
+          agents: typeof ctx?.get === 'function' ? ctx.get('agents') : undefined,
         })
       },
     }),

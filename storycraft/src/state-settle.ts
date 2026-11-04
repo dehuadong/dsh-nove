@@ -75,6 +75,8 @@ interface SettleHost {
   timeoutMs?: number
   /** Live session store for child usage. */
   sessions?: any
+  /** Live agent registry; child sessions are held here after the store releases them. */
+  agents?: any
   /** Whole-settlement budget override; defaults to SETTLE_TOTAL_TIMEOUT_MS. */
   settleTimeoutMs?: number
 }
@@ -292,7 +294,7 @@ async function runSettler(root: string, input: SettlerInput, host: SettleHost, t
       telemetry: {
         work: input.workId, chapter: input.chapter, role: 'settler',
         scope: `settle:r${input.revision}`, attempt: nextAttempt(root, input.workId, input.chapter, 'settler', `settle:r${input.revision}`), trigger: input.trigger ?? 'first',
-        delegationId: opened.delegationId, sessions: host.sessions,
+        delegationId: opened.delegationId, sessions: host.sessions, agents: host.agents,
         sink: (call) => recordCall(root, input.workId, call),
         assertBudget: () => assertChapterBudget(root, input.workId, input.chapter, maxChapterTokensOf(root, input.workId)),
       },
@@ -457,7 +459,7 @@ export async function settleChapterState(
         service: host.service,
         agent: host.agent,
         signal: host.signal,
-        sessions: host.sessions,
+        sessions: host.sessions, agents: host.agents,
         timeoutMs: Math.min(Number.isFinite(host.timeoutMs) ? host.timeoutMs! : STATE_SETTLE_TIMEOUT_MS, remaining()),
       })
       trace.perAttempt.push({ stage: 'validator', ms: Date.now() - checkStart })

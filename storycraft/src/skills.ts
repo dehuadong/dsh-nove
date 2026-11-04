@@ -30,7 +30,7 @@ export const inject = ['skills']
 const HERE = dirname(fileURLToPath(import.meta.url))
 
 /** Package root, the directory that owns `skills/`. */
-const SKILLS_ROOT = join(HERE, '..')
+export const SKILLS_ROOT = join(HERE, '..')
 
 /** A mode that serves every catalog: the work mode mounts this. */
 const ALL = 'all'

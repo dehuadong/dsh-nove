@@ -18,18 +18,12 @@ function textLength(value: unknown): number {
 }
 
 /** Sum usage and character counts from a live child session before it is disposed. */
-export function callEvidence(sessions: any, childId: string | undefined, result: any, promptChars: number): CallUsage {
+export function callEvidence(session: any, result: any, promptChars: number): CallUsage {
   const evidence: CallUsage = {
     inputTokens: null, outputTokens: null, totalTokens: null, cacheReadTokens: null, cacheWriteTokens: null,
     usageSource: 'unavailable', modelCalls: 0, outputChars: 0, model: null, provider: null,
   }
-  let session: any
-  try {
-    session = childId === undefined ? undefined : sessions?.get?.(childId)
-  } catch {
-    session = undefined
-  }
-  if (session === undefined) {
+  if (session === undefined || session === null) {
     for (const block of result?.output ?? []) evidence.outputChars += textLength(block?.text)
     return evidence
   }
@@ -42,7 +36,15 @@ export function callEvidence(sessions: any, childId: string | undefined, result:
   let cacheWrite = 0
   let usageRows = 0
   let events: any[] = []
-  try { events = session.ownEvents?.() ?? [] } catch { events = [] }
+  // The live Session exposes ownEvents(); lighter session-like objects in the
+  // host use events()/snapshotEvents(). Only an object with none of them falls
+  // back to the dispatch output.
+  try {
+    events = session.ownEvents?.() ?? session.events?.() ?? session.snapshotEvents?.() ?? []
+  } catch {
+    events = []
+  }
+  if (!Array.isArray(events)) events = []
   for (const event of events) {
     if (event?.type === 'assistant/message') {
       messages += 1
@@ -60,6 +62,10 @@ export function callEvidence(sessions: any, childId: string | undefined, result:
     } else if (event?.type === 'tool/call') {
       evidence.outputChars += textLength(event.data?.arguments)
     }
+  }
+  if (messages === 0) {
+    // A session-like object without event history still reports the dispatch output.
+    for (const block of result?.output ?? []) evidence.outputChars += textLength(block?.text)
   }
   evidence.modelCalls = messages
   if (usageRows === 0) return evidence
