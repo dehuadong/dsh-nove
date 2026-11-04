@@ -57,7 +57,7 @@ Status: rejected — 历史状态表：手写的“已对齐/已实现”不再�
 
 | 参考角色 | 职责 | 我们的落点 | 状态 |
 | --- | --- | --- | --- |
-| architect | 书级设计（世界观、卷、人物弧、初始伏笔）；参考同一 agent 内四段顺序调用 | R1a：一个 child 四 phase（outline/details/cast_index/cards），bundle 单事务；R1b：`details.pendingHooks` 播种 + 第五段 `bible:hooks`；design/cards 仅手动兼容 | **五段已实现（R1a+R1b）**；见 [R1a Note](../../implemented/architecture/2026-11-02-storycraft-architect-multistage-runtime.md)、[R1b Note](../../implemented/architecture/2026-11-02-storycraft-architect-initial-hooks.md) |
+| architect | 书级设计（世界观、卷、人物弧、初始伏笔）；参考同一 agent 内四段顺序调用 | R1a：一个 child 四 phase（outline/details/cast_index/cards），bundle 单事务；R1b：`details.pendingHooks` 播种 + 第五段 `bible:hooks`；design/cards 仅手动兼容 | **五段已实现（R1a+R1b）**；见 [R1a Note](../../archived/architecture/2026-11-02-storycraft-architect-multistage-runtime.md)、[R1b Note](../../archived/architecture/2026-11-02-storycraft-architect-initial-hooks.md) |
 | planner | 单章计划（目标/阻力/代价/变化） | `story_delegate` planner + `storycraft-long-plan`；全书计划单独 `story_outline` | **已委派**；与参考的 ChapterMemo 对象仍不同 |
 | writer | 写正文 | 写手子代理 + 形态 craft（`storycraft-long-prose` / `storycraft-short-prose` / `storycraft-script-scene`）+ 形态契约 | 已采纳；方法名按当前技能 |
 | auditor / reviewer | 审稿清单与证据 | 审稿子代理 + `storycraft-review` | 部分：已有 observation code/quote/sourceRefs；行号与前后 revision 对比仍缺 |
@@ -125,7 +125,7 @@ Status: rejected — 历史状态表：手写的“已对齐/已实现”不再�
 | 委派角色 | architect / planner / writer / reviser / settler / validator | architect / planner / writer / reviewer / reviser / summarizer / settler / validator | planner 已委派（#63） | 已补 | 保留 |
 | 作者闸门 | 计划/章纲确认 + 提案确认 | 面板确认 + 提案同意 | 无 | 对齐 | 确认后不自动发送 |
 | 完成证据 | 只认 ActionResult / artifact revision | 委派回执 + revision | 回执有，artifact 证据弱 | 部分 | 回执补 artifact id/版本 |
-| foundation 交接 | 同一 agent 内四段顺序 submit + 原子写 story_frame/volume_map/book_rules/role cards + hooks | `story_delegate(stage=foundation)` 一个 child 四 phase；`writeFoundationBundle` 单事务写五类产物；`details.pendingHooks` 播种 chapter 0 的 deferred 伏笔 | 五段/原子已实现；hooks 播种快照与当前投影为两表示（已登记） | 已采纳 | [R1a Note](../../implemented/architecture/2026-11-02-storycraft-architect-multistage-runtime.md)、[R1b Note](../../implemented/architecture/2026-11-02-storycraft-architect-initial-hooks.md) |
+| foundation 交接 | 同一 agent 内四段顺序 submit + 原子写 story_frame/volume_map/book_rules/role cards + hooks | `story_delegate(stage=foundation)` 一个 child 四 phase；`writeFoundationBundle` 单事务写五类产物；`details.pendingHooks` 播种 chapter 0 的 deferred 伏笔 | 五段/原子已实现；hooks 播种快照与当前投影为两表示（已登记） | 已采纳 | [R1a Note](../../archived/architecture/2026-11-02-storycraft-architect-multistage-runtime.md)、[R1b Note](../../archived/architecture/2026-11-02-storycraft-architect-initial-hooks.md) |
 | 章计划交接 | planner 产出 ChapterIntent + ChapterMemo | 章纲五字段 | 无独立 memo | 部分 | 保留章纲，不新增对象 |
 | 上下文装配 | composer：半窗预算、语义选择、trace | `story_context` 固定段 + 8000 字符 | 无 token 预算/trace | 部分 | R12 |
 | 状态投影 | writer 提交后自动 factOps/hookOps + baseline | `story_settle` 自动抽取 + R9b 校验 + 一次重算；未解决不定稿 | 部分：定稿时抽取，不提前持久化候选 | 已采纳 | #43 |
@@ -179,9 +179,9 @@ Status: rejected — 历史状态表：手写的“已对齐/已实现”不再�
 | story_frame | 独立可读 Markdown | 压在 `world` + `plan.mainline` | 框架/世界职责混用 | 待合同 | A0 |
 | volume_map | 独立可读 Markdown | `plan` 的卷划分文字 | 无独立身份；与结构化卷易双源 | 待合同 | A0 |
 | book_rules | 可读 + JSON（人称/主角锁/禁区等） | 无，规则散在 world | writer/settler 无机器可读规则 | 待合同 | A0 |
-| 角色卡 | 每人 Markdown（动机/知识/关系压力/边界）；索引只含 name+tier；major/minor 均可建卡；一人一卡；无数量上限 | 六字段 JSON 索引；卡仅 major；索引 ≤20 人、卡 ≤12 张 | 索引重复卡内容；minor 无卡；无 1:1 覆盖；数量上限无参考依据 | 已实现并真实验收（2026-10-29，#83）；设计与验收见 [角色模型对齐参考](../../implemented/architecture/2026-10-29-storycraft-role-model-parity.md) | A0 后续 |
+| 角色卡 | 每人 Markdown（动机/知识/关系压力/边界）；索引只含 name+tier；major/minor 均可建卡；一人一卡；无数量上限 | 六字段 JSON 索引；卡仅 major；索引 ≤20 人、卡 ≤12 张 | 索引重复卡内容；minor 无卡；无 1:1 覆盖；数量上限无参考依据 | 已实现并真实验收（2026-10-29，#83）；设计与验收见 [角色模型对齐参考](../../archived/architecture/2026-10-29-storycraft-role-model-parity.md) | A0 后续 |
 | 章节摘要 | 结构化 7 字段 | 纯文本 ≤400 字 | 无法按 hookActivity/mood 检索 | 待合同 | P1 |
-| hooks | hookId + 生命周期/预期兑现/依赖；foundation 播种初始伏笔，章节内宿主铸 id | v2 事件账本：五态、hookOps、expectedPayoff/notes/dependsOn；foundation 用模型 hookId 播种 chapter 0 的 deferred 伏笔；章节内由 `mintHookId(text)` 铸 id | 章节内 id 仍由文本派生，改写即新伏笔 | 已实现（R1b）；章节内 id 偏差保留 | [R1b Note](../../implemented/architecture/2026-11-02-storycraft-architect-initial-hooks.md) |
+| hooks | hookId + 生命周期/预期兑现/依赖；foundation 播种初始伏笔，章节内宿主铸 id | v2 事件账本：五态、hookOps、expectedPayoff/notes/dependsOn；foundation 用模型 hookId 播种 chapter 0 的 deferred 伏笔；章节内由 `mintHookId(text)` 铸 id | 章节内 id 仍由文本派生，改写即新伏笔 | 已实现（R1b）；章节内 id 偏差保留 | [R1b Note](../../archived/architecture/2026-11-02-storycraft-architect-initial-hooks.md) |
 | facts | subject/predicate/object + 有效期 | 字符串数组 | 无法 expire/覆盖 | 待合同 | P2 |
 | observations | code/evidence/sourceRefs/assessment | review 文本条目 | 无证据结构/可审计语义 | 待合同 | P1 |
 | chapter memo | goal/body/threadRefs | 五项章纲 | 缺 threadRefs | 待合同 | P2 |

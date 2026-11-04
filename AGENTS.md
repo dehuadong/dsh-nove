@@ -120,7 +120,7 @@
 
 
 ### 对拍工作法
-- InkOS 仓库分析研究文档 `docs\report\inkos\readme.md`；全量对拍证据见 `docs/report/inkos/2026-10-23-full-project-parity-audit.md`，产物专项见 `docs/report/inkos/2026-10-23-artifact-and-resource-parity-audit.md`；三形态执行计划归 `.agents/notes/proposed/process/2026-10-19-storycraft-roadmap.md`，报告不拥有排期。
+- InkOS 仓库分析研究文档 `docs\report\inkos\readme.md`；全量对拍证据见 `docs/report/inkos/2026-10-23-full-project-parity-audit.md`，产物专项见 `docs/report/inkos/2026-10-23-artifact-and-resource-parity-audit.md`；三形态执行计划归 `.agents/notes/proposed/architecture/2026-11-03-storycraft-v2-longform-slice.md`（V2 切片）与后续 S/D 工作项，报告不拥有排期。
 - 只使用本 Harness 的 Skill、Preset、Plugin、Subagent 与文件状态；不引入 LLM Provider、独立 Harness/SDK、资源管理服务或额外子 Agent 运行时。
 - **参考是目标产品的规格**：`inkos-master` 的产品结构与行为按它复现；结构差异必须写进对照表并裁决，未登记的偏差视为越界。其运行时机制（Provider、Agent 循环、CLI、存储、调度）逐项整改为 DSH 的运行机制，用 Skill/Preset/Plugin/Subagent/文件状态等价实现；不 import、不运行 inkos 的代码，也不引入它自带的运行时。DSH 缺少的机制不得删能力，必须给出等价实现并逐项登记验证（历史对照表冻结在 `rejected/process/2026-10-18-storycraft-parity-matrix.md`，只作历史证据，不写当前完成状态）。
 - **不得自创产品限制**：数量上限、白名单、格式限制等，参考实现没有、作者也未裁决的，不得写进合同或校验；工程预算问题只能在消费层（选择、截断）解决。
@@ -130,15 +130,6 @@
 - **提案必须带对拍证据**：任何提案/设计 Note 必须有“对拍参考”段，写清参考工程 `inkos-master` 的证据位置（文件、类型、流程或测试）及其实现方式；有参考实现时，再写我们的实现方式与裁决（采纳/等价适配/不采用及原因）。没有可对照实现时，写“无参考实现”、检索范围和理由。不得只用“超出范围/成本高”作为不采用理由。提案改变结构时，还必须给出偏差行（参考做法 / 我们的做法 / 原因 / 裁决 / 验证）；没有偏差行的结构变化不得进入实现。
 - 每次对拍先提取可验证的不变量；再写“参考证据 / 我们落点 / 差异原因 / 验证命令”。查不到或不能照做时，记录约束与原因，必要时先取得用户许可。
 - 新发现先更新对照表，再决定是否立工单；不要把聊天里的分析当成已完成的对拍。
-- **四层对拍**：每次同时核对 Agent/角色（输入、输出、失败）、Skill/资源（方法正文、references、加载方式）、产物/数据（字段、权威、消费者、生命周期、旧 schema 拒绝）、宿主/编排（阶段、闸门、确认、证据）。只对流程/编排不算完成。
-- **结构优先**：参考实现的产物、角色、技能或数据模型更完整时，按原结构采纳或等价适配；不得为了少改现有代码把多份产物压进一个文件、把结构化字段降为文本、把独立流水线塞进现有阶段机。
-- **能力迁移不是否决**：参考实现的能力迁移成本是工作量与排序，不是不采用理由；不得静默裁掉字段、消费者或阶段。这条不适用于作品数据迁移——本项目没有旧作品，不做数据迁移/兼容（见下条）。
-- **方法共享，角色薄契约**：长篇/短篇/剧本的创作方法各归一份共享技能 + references，由相关角色共同加载；角色技能只写提交内容、闸门与失败回退，不复制或改写方法正文。审稿/修订等角色专属标准可以独立。
-- **三形态独立**：长篇、短篇、剧本各有独立产物与流水线（短篇 outline/batch draft/review/revision/package；剧本 spec/script/场次集）；共享底层存储与合同，不共享阶段机。
-- **范围删除需裁决**：参考能力若不属于当前产品，先在 Issue/Note 写明并由作者裁决；实现不得以“当前没排期/成本高”自行裁剪。
-- **宿主差异要等价**：DSH 没有的 capability/profile/confirmation 等机制，用本 Harness 的等价行为实现并记录约束；
-- **消费者与证据**：产物对拍同时看 brief/context、检索、审稿/结算、UI、导出/备份、旧 schema 拒绝；只验证“能写入/能读回”不算对拍。参考实现自身有弱点时，记录弱点与我们补强，结构采纳不等于复制缺陷。
-- 对拍整改先立产物合同，再按形态推进；合同未定前不按旧格式实现新角色/生成链。当前顺序：A0 全量产物合同 → L 长篇 → S 短篇 → D 剧本。
 
 ### 执行、测试与约定
 - 不能把任务工作量“成本高”而作为裁剪、简单实现的理由，应该去规划分阶段排期。
@@ -156,16 +147,6 @@
 
 在开发deepseek-harness 插件时遇到问题可参阅deepseek-harness官方源码工程包 `E:\workspace\DSH\deepseek-harness\packages`
 
-改插件或预设前，按顺序读：包内流程技能 → 目标包 README → 源码。不要凭记忆写 Loader 行或 Config 字段。
-
-- 流程技能（随 `@deepseek-ai/dsh-agent-preset` 出货，会话中也可用 `skill` 工具直接加载）：
-  - [cordis-plugin-development](deepseek-harness/packages/preset/agent-preset/skills/cordis-plugin-development/SKILL.md) — 新增或修改 Host、Client、MCP、UI 插件的流程；`references/` 是按需读的细节与可复制模板。
-  - [editing-cordis-compositions](deepseek-harness/packages/preset/agent-preset/skills/editing-cordis-compositions/SKILL.md) — 预设的声明、覆盖、旧格式迁移与验证；写 `cordis.patch.yml` 前先读它。
-  - [cordis-composition-reference](deepseek-harness/packages/preset/agent-preset/skills/cordis-composition-reference/SKILL.md) — Loader patch 方言（`insert`、按 id 覆盖、`group`、`isolate`、`!!js`）与 `references/packages.md` 的可安装插件包清单。
-- 包契约：[agent-preset](deepseek-harness/packages/preset/agent-preset/README.zh.md)、[agent-preset-registry](deepseek-harness/packages/preset/agent-preset-registry/README.zh.md)、[persona](deepseek-harness/packages/preset/persona/README.zh.md)、[subagent](deepseek-harness/packages/subagent/subagent/README.zh.md)、[tool-subagent](deepseek-harness/packages/subagent/tool-subagent/README.zh.md)；标准预设蓝本 [standard.patch.yml](deepseek-harness/packages/bundle/web-app/presets/standard.patch.yml)。
-- 子系统与生成目录：[core.zh.md](deepseek-harness/docs/subsystems/core.zh.md)（`agentPresets`）、[subagent.zh.md](deepseek-harness/docs/subsystems/subagent.zh.md)、[system-prompt.zh.md](deepseek-harness/docs/subsystems/system-prompt.zh.md)、[scope.zh.md](deepseek-harness/docs/subsystems/scope.zh.md)；[config-catalog.zh.md](deepseek-harness/docs/config-catalog.zh.md)、[tool-catalog.zh.md](deepseek-harness/docs/tool-catalog.zh.md)。
-- 版本变更：`deepseek-harness/docs/upgrade-guide/`；涉及子代理与预设先看 [subagent-preset-composition](deepseek-harness/docs/upgrade-guide/v0.2.1-alpha.1/subagent-preset-composition/guide.zh.md)。
-
 约定：
 
 - 源码以 `deepseek-harness/`（指向 DSH checkout 的符号链接）为准；安装版在 `app.asar` 内，shell 读不到。两处版本不一致时，以实际运行版本的 README 与 Config schema 为准。
@@ -181,5 +162,5 @@
 2. 写之前先检索 .agents/notes/ 里的同主题旧笔记：有归属就地更新；新想法先放 proposed/，落地随同代码改动转 implemented/；新方案彻底取代旧决策时，同批归档旧篇并标明被谁取代。
 3. 被放弃的方案先写它最强的理由，再解释为什么不用。
 4. 提交前跑 npm run verify-notes，红了先修再交。
-5. **工作项入口**：2026-10-31 起新提案/工作项使用 `.agents/notes/proposed/`（proposed 格式，状态与验收写在 Note），不再新建 GitHub issue；issue 只保留历史档案，排期以 `proposed/process/2026-10-19-storycraft-roadmap.md` 为准。
+5. **工作项入口**：2026-10-31 起新提案/工作项使用 `.agents/notes/proposed/`（proposed 格式，状态与验收写在 Note），不再新建 GitHub issue；issue 只保留历史档案，排期以 `proposed/architecture/2026-11-03-storycraft-v2-longform-slice.md` 的 V2-S0–S3 切片为准。
 6. **状态与证据**：当前状态的唯一证据是当前代码的自动测试/CI 与真实链路会话证据；Note 的 lifecycle 与 `## Testing` 只表示记录是否落地、当时跑过什么，不表示能力当前可用。禁止新建/维护 `delivery-status-*`、`parity-matrix` 式手写完成状态表；工作项验收必须包含消费者与真实链路证据。旧状态文档已冻结，规则见 [状态与证据的唯一来源](.agents/notes/implemented/process/2026-11-03-storycraft-status-evidence-ownership.md)。

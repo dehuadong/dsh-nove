@@ -3,7 +3,7 @@
 Status: rejected — superseded by 基础设定资源归位与 planner 直读
 
 > **2026-11-02 状态更新：已被取代（superseded），不再作为实现合同。**
-> 本项原“阶段技能集”方向放弃；真实会话确认 `storycraft-long-foundation` 空壳与方法混放，先做[基础设定资源归位与 planner 直读](../../implemented/architecture/2026-11-02-storycraft-foundation-resource-relocation.md)，并按[统一技能 references 加载契约](../../implemented/process/2026-11-02-storycraft-skill-reference-loading.md)补加载入口。本文的“roles/cards 只加载 architect”不执行。
+> 本项原“阶段技能集”方向放弃；真实会话确认 `storycraft-long-foundation` 空壳与方法混放，先做[基础设定资源归位与 planner 直读](../../archived/architecture/2026-11-02-storycraft-foundation-resource-relocation.md)，并按[统一技能 references 加载契约](../../archived/process/2026-11-02-storycraft-skill-reference-loading.md)补加载入口。本文的“roles/cards 只加载 architect”不执行。
 
 工作项：当前任务（不新建 GitHub issue）。只优化 architect 四个 foundation stage 的技能加载范围，不改变四阶段提交合同。
 
@@ -30,8 +30,8 @@ Status: rejected — superseded by 基础设定资源归位与 planner 直读
 
 > 以下“部分取代”在本项暂停期间**不生效**；A9/role-model 仍按现状。恢复执行前先完成 references 加载契约并重新评审。
 
-- **部分取代** [2026-10-29 role-model-parity](../../implemented/architecture/2026-10-29-storycraft-role-model-parity.md):75：该篇要求 roles/cards 的 150–250 字与四要素写法移入 foundation-design，architect 只留 payload/闸门/失败回退。本项把**最小 roles/cards 写法**收回 architect skill，是为了让 roles/cards 不再加载 foundation 方法；其余 payload/闸门仍归 architect。
-- **部分取代** [2026-10-31 A9 skill evidence](../../implemented/feature/2026-10-31-storycraft-a9-skill-evidence.md):35,41：该篇把 `skill-routing.ts` 作为唯一来源，architect 固定为 architect+long-foundation。本项改为 `roleSkills('architect')` 只给基技能，`architectStageSkills(stage)` 是阶段唯一来源；A9 的“单一来源”仍成立，只是来源从 role 级变为 stage 级。
+- **部分取代** [2026-10-29 role-model-parity](../../archived/architecture/2026-10-29-storycraft-role-model-parity.md):75：该篇要求 roles/cards 的 150–250 字与四要素写法移入 foundation-design，architect 只留 payload/闸门/失败回退。本项把**最小 roles/cards 写法**收回 architect skill，是为了让 roles/cards 不再加载 foundation 方法；其余 payload/闸门仍归 architect。
+- **部分取代** [2026-10-31 A9 skill evidence](../../archived/feature/2026-10-31-storycraft-a9-skill-evidence.md):35,41：该篇把 `skill-routing.ts` 作为唯一来源，architect 固定为 architect+long-foundation。本项改为 `roleSkills('architect')` 只给基技能，`architectStageSkills(stage)` 是阶段唯一来源；A9 的“单一来源”仍成立，只是来源从 role 级变为 stage 级。
 
 ## 对拍参考
 

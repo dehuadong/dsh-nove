@@ -4,7 +4,7 @@ Status: implemented
 
 ## Problem
 
-storycraft 的门禁只有本地一条命令 `node storycraft/scripts/ci.mjs`，推送后没有任何检查；[2026-10-26-storycraft-release-packaging.md](2026-10-26-storycraft-release-packaging.md) 把 CI 化留给后续工作项。
+storycraft 的门禁只有本地一条命令 `node storycraft/scripts/ci.mjs`，推送后没有任何检查；[2026-10-26-storycraft-release-packaging.md](../../archived/process/2026-10-26-storycraft-release-packaging.md) 把 CI 化留给后续工作项。
 
 同一条命令里还代跑了 `tools/implement-gate/test.mjs` 与 `tools/shell-guard/test.mjs`。这两个是独立工具，不是 storycraft 的一部分：它们的红会让 storycraft 的门禁红，而改动 `tools/**` 又不在 storycraft 的路径范围内。
 
