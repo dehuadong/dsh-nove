@@ -50,8 +50,8 @@ capabilities:
     dsh: subagents
     implementation: storycraft/src/roles/architect/agent.ts
     consumer: storycraft/tests/foundation-production.test.mjs
-    realRun: null
-    status: missing
+    realRun: artifacts/real-runs/foundation.architect.json
+    status: verified
   - id: foundation.hooks
     title: pendingHooks 种子、id/status 语义、投影一致
     reference: inkos:packages/core/src/state/state-reducer.ts

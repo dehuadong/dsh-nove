@@ -1,0 +1,28 @@
+{
+  "date": "2026-11-03",
+  "sessionId": "session-4604579f-a577-4ea1-88a1-51d867f3d7b6",
+  "tests": { "passed": true },
+  "receipts": [
+    {
+      "kind": "delegate",
+      "role": "architect",
+      "stage": "foundation",
+      "ok": true,
+      "durationMs": 247867,
+      "retries": 0,
+      "artifacts": 18,
+      "note": "single child completed outline/details/cast_index/cards"
+    },
+    {
+      "kind": "foundation-state",
+      "complete": true,
+      "artifacts": 18,
+      "nextBlocked": ["foundation-approval"]
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/tests/foundation-production.test.mjs",
+      "ok": true
+    }
+  ]
+}
