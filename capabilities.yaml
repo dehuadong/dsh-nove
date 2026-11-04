@@ -74,8 +74,8 @@ capabilities:
     dsh: storage + systemPrompt.context()
     implementation: storycraft/src/artifact-store.ts
     consumer: storycraft/tests/context.test.mjs
-    realRun: null
-    status: missing
+    realRun: artifacts/real-runs/cast.single-authority.json
+    status: verified
   - id: plan.outline
     title: 全书计划／卷图
     reference: inkos:packages/core/src/pipeline/persisted-governed-plan.ts

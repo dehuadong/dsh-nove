@@ -37,7 +37,7 @@ Status: implemented
 ## Consequences
 
 - **收益**：人物来源收敛到角色索引与卡；minor 与 major 走同一路径；`bible` 不再保存第二套人物。
-- **代价与已知上限**：short/script 目前没有人物段，这是非目标；面板 bible 编辑器只显示四个真值；真实 brief trace 尚未采集，所以 `capabilities.yaml` 的 `cast.single-authority` 仍保持 `missing`，等待一次真实 longform 章纲 brief 回执。
+- **代价与已知上限**：short/script 目前没有人物段，这是非目标；面板 bible 编辑器只显示四个真值。真实回执来自 2026-11-04 的 `story_brief`，安装中的插件版本早于本轮六字段删除；消费者路径已按角色卡验证，但每次插件重建后仍需重跑该 brief。
 - **触发重访**：short/script 需要角色消费、或 `roles:index` 字段合同变化时，重访本决定。
 
 ## Verification
@@ -50,3 +50,5 @@ node storycraft/tests/tools.test.mjs            # ALL CHECKS PASSED
 node storycraft/scripts/ci.mjs --no-e2e         # PASS: 98 unit files
 npm run verify                                  # notes + capabilities
 ```
+
+真实回执：`session-4604579f-a577-4ea1-88a1-51d867f3d7b6`（2026-11-04）的 `story_brief` 第 1 章 characters 段 sourceIds 为 `roles`，包含 `何丽`（minor）；`artifacts/real-runs/cast.single-authority.json` 记录了该 trace，`check-capabilities --write` 已把 `cast.single-authority` 置为 `verified`。

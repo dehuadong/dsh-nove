@@ -1,0 +1,27 @@
+{
+  "date": "2026-11-04",
+  "sessionId": "session-4604579f-a577-4ea1-88a1-51d867f3d7b6",
+  "tests": { "passed": true },
+  "receipts": [
+    {
+      "kind": "brief-trace",
+      "workId": "签字前我重生了-这次换他们进去",
+      "chapter": 1,
+      "charactersSourceIds": ["roles"],
+      "characters": ["周晴", "罗建斌", "何丽", "高建平"],
+      "minor": ["何丽"],
+      "note": "story_brief characters section came from foundation/roles; 何丽 is tier=minor"
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/tests/context.test.mjs",
+      "ok": true
+    },
+    {
+      "kind": "code-check",
+      "command": "node storycraft/scripts/ci.mjs --no-e2e",
+      "ok": true,
+      "unitFiles": 98
+    }
+  ]
+}
