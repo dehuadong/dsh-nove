@@ -18,6 +18,21 @@
 - 会话与调用证据留在 DSH session。
 - 长任务用 jobs／schedule 调度，不建队列；`story_*` 工具按阶段注册独立 tool schema。
 
+## 实施顺序
+
+按能力纵向交付，顺序如下；每一步以对应能力行的证据为准，不以文字进度为准。
+
+- **P0**：`runtime.load` —— 最小 bundle/preset/tool/skill/client 骨架，CI 通过，真实加载一次。
+- **P1**：`foundation.architect` + `cast.single-authority` + `foundation.approval` —— 第一条真实链路（立项 → 基础设定 → 角色进入 brief）。
+- **P2**：`plan.outline` + `plan.chapter` + `context.brief`。
+- **P3**：`chapter.write` + `chapter.review` + `chapter.revise`。
+- **P4**：`chapter.summary` + `chapter.settle` + `chapter.finalize`。
+- **P5**：`export.work` + `backup.restore` + `materials.import` + `search.unified` + `panel.*`。
+- **P6**：短篇流水线（独立）。
+- **P7**：剧本流水线（独立）。
+
+每个阶段结束时只允许 `check-capabilities --write` 更新状态；不写进度文档。
+
 ## 非目标（v1）
 
 - **短篇与剧本流水线**：v1 之后独立推进；账本中已登记，不占 v1 交付。
