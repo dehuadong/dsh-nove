@@ -10,8 +10,8 @@ capabilities:
     dsh: bundle/preset + client
     implementation: storycraft/src/index.ts
     consumer: storycraft/tests/tools.test.mjs
-    realRun: null
-    status: missing
+    realRun: artifacts/real-runs/runtime.load.json
+    status: verified
   - id: runtime.session-binding
     title: 当前作品绑定、面板进入作品
     reference: inkos:packages/core/src/harness/session-binding.ts

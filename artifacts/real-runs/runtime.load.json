@@ -1,0 +1,12 @@
+{
+  "date": "2026-11-03",
+  "sessionId": "session-4604579f-a577-4ea1-88a1-51d867f3d7b6",
+  "tests": { "passed": true },
+  "receipts": [
+    { "kind": "tool-call", "tool": "story_current", "ok": true, "sessionId": "session-4604579f-a577-4ea1-88a1-51d867f3d7b6" },
+    { "kind": "tool-call", "tool": "story_init", "ok": true, "workId": "签字前我重生了-这次换他们进去" },
+    { "kind": "tool-call", "tool": "story_next", "ok": true, "action": "story_architect" },
+    { "kind": "tool-call", "tool": "story_delegate", "ok": true, "role": "architect", "stage": "foundation", "durationMs": 247867 },
+    { "kind": "smoke", "date": "2026-11-04", "sessionId": "session-30cf3a2d-9912-4655-ab8c-29a09331a390", "install": "ok", "coldStart": "ok", "route": "ok", "command": "node storycraft/scripts/ci.mjs --smoke" }
+  ]
+}
