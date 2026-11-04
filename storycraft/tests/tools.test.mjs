@@ -8,6 +8,7 @@ import { openWork } from '../src/storage/db.ts'
 import { writeContextTrace } from '../src/artifact-store.ts'
 import { readProposal } from '../src/proposals.ts'
 import { clearCurrent, setCurrent } from '../src/current.ts'
+import { seedCast } from './cast.mjs'
 import { checkDraft } from '../src/landing.ts'
 import { submitPayload } from '../src/runtime/submission.ts'
 
@@ -252,12 +253,13 @@ try {
   check('chapter status written', afterWrite.chapters[0].status === 'written', afterWrite.chapters[0].status)
   check('chapter words recorded', afterWrite.chapters[0].words > 0, String(afterWrite.chapters[0].words))
   // The role context is the dispatch input: sections, trace, whitelist summary.
+  seedCast(s, root, work, [{ name: '林澈', tier: 'major' }])
   const cards = await byName.get('story_bible_write').execute({
     work,
     file: 'characters',
     content: JSON.stringify([{ name: '林澈', role: '司机', want: '把灯还回去', fear: '再丢一次', limit: '不撒谎', voice: '短句' }]),
   }, exec)
-  check('character cards written', cards.ok === true, JSON.stringify(cards))
+  check('six-field characters are rejected', cards.ok === false && cards.error.code === 'bible-invalid', JSON.stringify(cards))
   const style = await byName.get('story_bible_write').execute({ work, file: 'style', content: '# 文风\n短句。' }, exec)
   check('style written', style.ok === true, JSON.stringify(style))
   const afterBodyNext = await byName.get('story_next').execute({ work }, exec)
@@ -380,8 +382,7 @@ try {
   check('duplicate init refused', duplicates.ok === false && duplicates.error.code === 'work-exists', JSON.stringify(duplicates))
 
   const written = await byName.get('story_bible_write').execute({
-    work, file: 'characters',
-    content: JSON.stringify([{ name: '林澈', role: '主角', want: '拿回合同', fear: '失去妹妹', limit: '不伤人', voice: '短句' }]),
+    work, file: 'world', content: '# 世界观\n\n荒原。\n',
   }, exec)
   check('story_bible_write ok', written.ok === true && typeof written.version === 'string', JSON.stringify(written))
 
@@ -389,7 +390,7 @@ try {
   check('story_bible_write rejects invalid', invalidBible.ok === false && invalidBible.error.code === 'bible-invalid', JSON.stringify(invalidBible))
 
   const bibleRead = await byName.get('story_bible').execute({ work }, exec)
-  check('story_bible reads five files', bibleRead.ok === true && bibleRead.files.length === 5, JSON.stringify(bibleRead.files?.map(file => file.name)))
+  check('story_bible reads four files', bibleRead.ok === true && bibleRead.files.length === 4, JSON.stringify(bibleRead.files?.map(file => file.name)))
 
   const brief = await byName.get('story_brief').execute({ work, chapter: 1 }, exec)
   check('story_brief returns thirteen sections', brief.ok === true && brief.sections.length === 13, JSON.stringify(brief.sections?.map(section => section.name)))
@@ -587,7 +588,7 @@ try {
   const briefRead = await byName.get('story_brief').execute({ work, chapter: 2 }, exec)
   check('story_brief exposes sourceIds, not paths', briefRead.ok === true
     && briefRead.sections.every(section => section.source === undefined && Array.isArray(section.sourceIds))
-    && briefRead.sections.some(section => section.sourceIds.includes('bible:characters')), JSON.stringify(briefRead))
+    && briefRead.sections.some(section => section.sourceIds.includes('roles')), JSON.stringify(briefRead))
   const contextRead = await byName.get('story_context').execute({ work, chapter: 2, role: 'reviewer' }, exec)
   check('story_context exposes sourceIds, not paths', contextRead.ok === true
     && contextRead.sections.every(section => section.source === undefined && Array.isArray(section.sourceIds)), JSON.stringify(contextRead))

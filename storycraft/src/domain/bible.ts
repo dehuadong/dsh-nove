@@ -13,7 +13,6 @@ import { listRoleCards, readFoundationDocuments, renderFoundationContent } from 
 
 export const BIBLE_FILES: Record<string, BibleFileSpec> = {
   world: { file: 'bible/world.md', kind: 'markdown' },
-  characters: { file: 'bible/characters.json', kind: 'characters' },
   style: { file: 'bible/style.md', kind: 'markdown' },
   plan: { file: 'outline/plan.md', kind: 'markdown' },
   intent: { file: 'bible/intent.md', kind: 'markdown' },
@@ -49,34 +48,6 @@ export function byteLength(text: unknown): number {
   return Buffer.byteLength(String(text), 'utf8')
 }
 
-export function parseCharacters(text: string): CharacterRecord[] {
-  let records: unknown
-  try {
-    records = JSON.parse(text)
-  } catch {
-    throw new StoryError('bible-invalid', 'characters.json 不是合法 JSON')
-  }
-  if (!Array.isArray(records)) throw new StoryError('bible-invalid', 'characters.json 必须是数组')
-  const seen = new Set<string>()
-  // Author-supplied JSON is a dynamic boundary: each record is validated field
-  // by field at runtime, so the parsed value stays `any` until the checks pass.
-  for (const [index, record] of records.entries()) {
-    if (record === null || typeof record !== 'object' || Array.isArray(record)) {
-      throw new StoryError('bible-invalid', `第 ${index + 1} 条人物不是对象`)
-    }
-    for (const field of ['name', 'role', 'want', 'fear', 'limit', 'voice']) {
-      const value = record[field]
-      if (typeof value !== 'string' || value.trim() === '') {
-        throw new StoryError('bible-invalid', `第 ${index + 1} 条人物缺少 ${field}`)
-      }
-    }
-    const name = record.name.trim()
-    if (seen.has(name)) throw new StoryError('bible-invalid', `人物名重复：${name}`)
-    seen.add(name)
-  }
-  return records
-}
-
 export function validateBibleContent(name: string, content: unknown): void {
   const spec = bibleSpec(name)
   if (spec === undefined) throw new StoryError('bible-invalid', `未知的真值文件：${String(name)}`)
@@ -87,21 +58,11 @@ export function validateBibleContent(name: string, content: unknown): void {
   if (name === 'world' && /(^|[\s：:])(TODO|待定)([\s：:，。]|$)/mu.test(text)) {
     throw new StoryError('bible-invalid', 'world.md 不能把待定事项写成已定事实（去掉 TODO/待定标记后再写入）')
   }
-  if (spec.kind === 'characters') parseCharacters(text)
 }
 
 export interface BibleFileSpec {
   file: string
-  kind: 'markdown' | 'characters'
-}
-
-export interface CharacterRecord {
-  name: string
-  role: string
-  want: string
-  fear: string
-  limit: string
-  voice: string
+  kind: 'markdown'
 }
 
 export interface BibleFile {

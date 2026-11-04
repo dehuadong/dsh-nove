@@ -33,7 +33,7 @@ export function unitOf(form: string): string {
       return typeof preset === 'string' && preset.startsWith('storycraft')
     }
 
-    export const BIBLE_LABELS: Record<string, string> = { world: '世界观', characters: '人物档案', style: '文风基准', plan: '全书计划', intent: '作者意图' }
+    export const BIBLE_LABELS: Record<string, string> = { world: '世界观', style: '文风基准', plan: '全书计划', intent: '作者意图' }
 
     export const CHAPTER_PAGE_SIZE = 20
 

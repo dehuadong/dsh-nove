@@ -37,7 +37,7 @@ try {
   try {
     check('world/style/intent/plan leave the bible table',
       db.prepare("SELECT count(*) AS n FROM bible WHERE name IN ('world','style','intent','plan')").get().n === 0)
-    check('characters stay in the bible table', db.prepare("SELECT count(*) AS n FROM bible WHERE name = 'characters'").get().n === 1)
+    check('characters no longer live in the bible table', db.prepare("SELECT count(*) AS n FROM bible WHERE name = 'characters'").get().n === 0)
     check('truth entries are artifacts',
       ['bible:world', 'bible:style', 'bible:intent', 'outline'].every(id => db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ?').get(id) !== undefined))
   } finally {
@@ -98,11 +98,13 @@ try {
   check('export projects truth artifacts', worldFile.includes('荒原上以前有过城') && outlineFile.includes('改过的计划'), JSON.stringify({ worldFile, outlineFile }))
   check('export no longer writes bible/plan.md', legacyPlanMissing)
 
-  const characters = await b.writeBible(root, work, 'characters', JSON.stringify([
-    { name: '林澈', role: '主角', want: '活下来', fear: '塌方', limit: '不拿人命换进度', voice: '短句' },
-  ]))
-  check('characters still use the six-field table contract',
-    typeof characters.version === 'string' && JSON.parse(s.readBibleEntry(root, work, 'characters').content)[0].name === '林澈')
+  let charactersCode
+  try {
+    await b.writeBible(root, work, 'characters', '[]')
+  } catch (error) {
+    charactersCode = error?.code
+  }
+  check('characters truth file is refused', charactersCode === 'bible-invalid', String(charactersCode))
 
   throwsCode('writeBible refuses plan', 'approval-moved', () => s.writeBible(root, { work, name: 'plan', content: 'x' }))
 

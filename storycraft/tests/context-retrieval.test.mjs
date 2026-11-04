@@ -8,6 +8,7 @@ import { openWork } from '../src/storage/db.ts'
 import { assembleRoleContext } from '../src/context/composer.ts'
 import { reviewFixture } from './review-fixture.mjs'
 import { mintHookId } from '../src/state-projection.ts'
+import { seedCast } from './cast.mjs'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -23,9 +24,7 @@ try {
   const work = (await s.initWork(root, { title: '检索上下文', wordRange: { min: 200, max: 400 } })).workId
   await s.writeOutline(root, { work, mainline: '旧井与钥匙' })
   await s.approveOutline(root, { work })
-  await b.writeBible(root, work, 'characters', JSON.stringify([
-    { name: '甲', role: '主视角', want: '找旧井', fear: '失去钥匙', limit: '不伤人', voice: '短句' },
-  ]))
+  seedCast(s, root, work, [{ name: '甲', tier: 'major' }])
   for (const number of [1, 2, 3, 4]) {
     await s.writePlan(root, { work, chapter: number, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
     await s.approveChapterPlan(root, { work, chapter: number })
@@ -119,7 +118,7 @@ try {
   const emptyWork = (await s.initWork(root, { title: '无命中检索', wordRange: { min: 100, max: 200 } })).workId
   await s.writeOutline(root, { work: emptyWork, mainline: '无命中' })
   await s.approveOutline(root, { work: emptyWork })
-  await b.writeBible(root, emptyWork, 'characters', JSON.stringify([{ name: '乙', role: '主视角', want: '走', fear: '停', limit: '不回头', voice: '短句' }]))
+  seedCast(s, root, emptyWork, [{ name: '乙', tier: 'major' }])
   for (const number of [1, 2, 3]) {
     await s.writePlan(root, { work: emptyWork, chapter: number, perspective: '乙', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
     await s.approveChapterPlan(root, { work: emptyWork, chapter: number })
@@ -130,7 +129,7 @@ try {
   await s.approveChapterPlan(root, { work: emptyWork, chapter: 4 })
   const { workId: refWork } = s.initWork(root, { title: '定向伏笔' })
   await s.writeOutline(root, { work: refWork, mainline: '深井与钥匙' })
-  await b.writeBible(root, refWork, 'characters', JSON.stringify([{ name: '甲', role: '主视角', want: '找钥匙', fear: '失去', limit: '不伤人', voice: '短句' }]))
+  seedCast(s, root, refWork, [{ name: '甲', tier: 'major' }])
   for (const chapter of [1, 2, 3]) {
     await s.writePlan(root, { work: refWork, chapter, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
     await s.approveChapterPlan(root, { work: refWork, chapter })

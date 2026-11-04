@@ -15,7 +15,7 @@ function check(name, condition, detail) {
 }
 
 check('editable set excludes plan', !EDITABLE_BIBLE_FILES.includes('plan')
-  && EDITABLE_BIBLE_FILES.join(',') === 'world,characters,style,intent', EDITABLE_BIBLE_FILES.join(','))
+  && EDITABLE_BIBLE_FILES.join(',') === 'world,style,intent', EDITABLE_BIBLE_FILES.join(','))
 let plan
 try {
   assertEditableBible('plan')
@@ -54,10 +54,7 @@ try {
   } catch (error) {
     characters = error.code
   }
-  check('bad characters are bible-invalid', characters === 'bible-invalid', String(characters))
-  const validCharacters = JSON.stringify([{ name: '甲', role: '主角', want: 'w', fear: 'f', limit: 'l', voice: 'v' }])
-  await writeBible(root, work, 'characters', validCharacters)
-  check('six-field characters are accepted', (await readBible(root, work, 'characters')).files[0].content === validCharacters)
+  check('characters truth file is rejected', characters === 'bible-invalid', String(characters))
   let emptyWorld
   try {
     await writeBible(root, work, 'world', '')
@@ -86,7 +83,7 @@ try {
   await writeBible(root, work, 'intent', '')
   check('empty intent stays allowed', (await readBible(root, work, 'intent')).files[0].content === '')
   const bible = await readBible(root, work)
-  check('readBible exposes editable set', bible.editable.join(',') === 'world,characters,style,intent')
+  check('readBible exposes editable set', bible.editable.join(',') === 'world,style,intent')
 } finally {
   await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 })
 }

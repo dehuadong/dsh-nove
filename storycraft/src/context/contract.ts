@@ -12,7 +12,7 @@
  * in the work database, not in files.
  */
 
-import { deriveWhitelist, readCards, summariseWhitelist } from '../facts.ts'
+import { deriveWhitelist, summariseWhitelist } from '../facts.ts'
 import { roleSkills, skillReferenceScope } from '../skill-routing.ts'
 import { skillEvidence, type SkillEvidence } from '../skill-evidence.ts'
 import { listRoleCards, readFoundationDocuments, renderFoundationContent } from '../artifact-store.ts'
@@ -212,7 +212,7 @@ export interface RoleContext {
   taskText: string
 }
 
-/** Character view this module renders: a role card in long-form, else bible.characters. */
+/** Character view this module renders: one role card. */
 export interface CharacterView {
   name?: string
   tier?: string

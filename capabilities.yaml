@@ -73,7 +73,7 @@ capabilities:
     reference: inkos:packages/core/src/references/reference-context.ts
     dsh: storage + systemPrompt.context()
     implementation: storycraft/src/artifact-store.ts
-    consumer: storycraft/tests/role-model.test.mjs
+    consumer: storycraft/tests/context.test.mjs
     realRun: null
     status: missing
   - id: plan.outline

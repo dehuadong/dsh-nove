@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import * as s from '../src/storage.ts'
 import * as b from '../src/bible/index.ts'
 import { openWork } from '../src/storage/db.ts'
+import { seedCast } from './cast.mjs'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -26,31 +27,17 @@ const exists = path => stat(path).then(() => true).catch(() => false)
 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-bible-'))
 try {
-  // A fresh work ships the five truth entries inside its database.
+  // A fresh work ships the four truth entries inside its database.
   await s.initWork(root, { title: '潮汐记事' })
   const work = '潮汐记事'
   const initial = await b.readBible(root, work)
-  check('init creates five truth entries', initial.files.length === 5, initial.files.map(file => file.name).join(','))
+  check('init creates four truth entries', initial.files.length === 4, initial.files.map(file => file.name).join(','))
   check('truth paths are virtual', initial.files.every(file => file.path === `works/${work}/outline/plan.md` || file.path.startsWith(`works/${work}/bible/`)), initial.files[0].path)
   check('truth content is not a file on disk', await exists(join(root, 'works', work, 'bible', 'world.md')) === false)
 
-  // Character-sheet validation, and no clobber on failure.
-  await rejects('characters must be an array', 'bible-invalid', () => b.writeBible(root, work, 'characters', '{"name":"x"}'))
-  await rejects('characters need every field', 'bible-invalid', () => b.writeBible(root, work, 'characters', JSON.stringify([
-    { name: '林澈', role: '主角', want: '拿回合同', fear: '失去妹妹', limit: '不伤人' },
-  ])))
-  const before = (await b.readBible(root, work, 'characters')).files[0].version
-  await rejects('duplicate names refused', 'bible-invalid', () => b.writeBible(root, work, 'characters', JSON.stringify([
-    { name: '林澈', role: 'a', want: 'b', fear: 'c', limit: 'd', voice: 'e' },
-    { name: '林澈', role: 'a', want: 'b', fear: 'c', limit: 'd', voice: 'e' },
-  ])))
-  check('failed write keeps version', (await b.readBible(root, work, 'characters')).files[0].version === before)
-
-  const written = await b.writeBible(root, work, 'characters', JSON.stringify([
-    { name: '林澈', role: '主角', want: '拿回合同', fear: '失去妹妹', limit: '不伤人', voice: '短句、克制' },
-  ], null, 2))
-  check('valid characters accepted', typeof written.version === 'string' && written.version.length === 12)
-  check('version advances', written.version !== before)
+  // The six-field cast file is gone; roles:index and role cards own the cast.
+  await rejects('characters truth file is rejected', 'bible-invalid', () => b.writeBible(root, work, 'characters', '[]'))
+  seedCast(s, root, work, [{ name: '林澈', tier: 'major' }])
 
   await b.writeBible(root, work, 'world', '# 世界观\n\n荒原上以前有过城与人。\n')
   await b.writeBible(root, work, 'style', '# 文风基准\n\n第三人称、短句、少形容词。\n')
@@ -101,7 +88,6 @@ try {
   await b.writeBible(root, b4, 'style', '# 文风\n\n短句。\n')
   await b.writeBible(root, b4, 'intent', '# 意图\n\n找旧井。\n')
   s.writeOutline(root, { work: b4, mainline: '三章。' })
-  await b.writeBible(root, b4, 'characters', '[]')
   for (const number of [1, 2, 3]) {
     await s.writePlan(root, { work: b4, chapter: number, perspective: '甲', goal: number === 3 ? '找旧井' : 'g', obstacle: 'o', cost: 'c', turn: 't' })
     await s.approveChapterPlan(root, { work: b4, chapter: number })
@@ -225,10 +211,7 @@ try {
   check('summary index lists the chapter', index.chapters.length === 1 && index.chapters[0].number === 1, JSON.stringify(index))
 
   // Plan order, not insertion order.
-  await b.writeBible(root, work, 'characters', JSON.stringify([
-    { name: '乙', role: 'r', want: 'w', fear: 'f', limit: 'l', voice: 'v' },
-    { name: '甲', role: 'r', want: 'w', fear: 'f', limit: 'l', voice: 'v' },
-  ]))
+  seedCast(s, root, work, [{ name: '乙', tier: 'major' }, { name: '甲', tier: 'minor' }])
   await s.writePlan(root, { work, chapter: 3, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   await s.approveChapterPlan(root, { work, chapter: 3 })
   await s.writeChapter(root, { work, chapter: 3, title: '三', body })

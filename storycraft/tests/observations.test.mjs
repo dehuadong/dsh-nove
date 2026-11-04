@@ -4,6 +4,8 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { initWork } from '../src/storage.ts'
+import * as s from '../src/storage.ts'
+import { seedCast } from './cast.mjs'
 import {
   approveChapterPlan, writeBible, writeChapter, writePlan, writeReview,
 } from '../src/storage.ts'
@@ -46,10 +48,7 @@ try {
     obstacle: '掌柜刁难', cost: '欠人情', turn: '账本是假的',
   })
   approveChapterPlan(root, { work, chapter: 1 })
-  writeBible(root, {
-    work, name: 'characters',
-    content: JSON.stringify([{ name: '甲', role: '主角', want: '救父', fear: '失去', limit: '不杀人', voice: '短句' }]),
-  })
+  seedCast(s, root, work, [{ name: '甲', tier: 'major' }])
   writeChapter(root, { work, chapter: 1, title: '账本', body: '甲把账本收好。然后离开当铺。' })
   const written = writeChapterObservations(root, {
     work, chapter: 1, bodyRevision: 1, round: 1, observations: [observation],

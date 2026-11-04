@@ -6,6 +6,7 @@ import * as s from '../src/storage.ts'
 import * as b from '../src/bible/index.ts'
 import { openWork } from '../src/storage/db.ts'
 import { assembleRoleContext } from '../src/context/composer.ts'
+import { seedCast } from './cast.mjs'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -26,10 +27,10 @@ try {
   await s.writePlan(root, { work, chapter: 2, perspective: '周观', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   await s.writeChapter(root, { work, chapter: 1, body: '正文。'.repeat(200) })
   await b.writeSummary(root, work, 1, '第一章摘要'.repeat(50))
-  await b.writeBible(root, work, 'characters', JSON.stringify([
-    { name: '周观', role: '主视角', want: '把墙立起来', fear: '塌方', limit: '不拿人命换速度', voice: '短句' },
-    { name: '韩松', role: '总工', want: '验证做法', fear: '算错', limit: '没有数据不签', voice: '反问' },
-  ]))
+  seedCast(s, root, work, [
+    { name: '周观', tier: 'major' },
+    { name: '韩松', tier: 'minor' },
+  ])
   await b.writeBible(root, work, 'style', '# 文风\n短句，少形容。')
   const events = openWork(root, work)
   events.prepare('INSERT INTO events (seq, at, chapter, kind, payload) VALUES (?, ?, ?, ?, ?)')
@@ -54,7 +55,7 @@ try {
   check('authority and task are protected', out.trace.sections.filter(item => ['authority', 'task', 'constraints'].includes(item.name)).every(item => item.protection === 'protected'))
   check('state and recent are compressible', out.trace.sections.filter(item => ['state', 'recent', 'style'].includes(item.name)).every(item => item.protection === 'compressible'))
   check('constraints carry the word range', out.text.includes('3000–5000'), out.text.slice(0, 200))
-  check('constraints carry the lead character', out.text.includes('周观') && out.text.includes('不拿人命换速度'), out.text.slice(0, 300))
+  check('constraints carry the lead character', out.text.includes('周观') && out.text.includes('周观 的边界'), out.text.slice(0, 300))
   check('whitelist summary lists sample names', out.whitelist.counts.names === 2 && out.whitelist.sample.names.join(',') === '周观,韩松', JSON.stringify(out.whitelist))
   check('whitelist summary counts numbers', typeof out.whitelist.counts.numbers === 'number', JSON.stringify(out.whitelist))
   check('recent uses summaries', out.text.includes('第一章摘要'), out.text.slice(0, 300))
@@ -111,7 +112,7 @@ try {
   // A planner sees the book plan, the volume map and the character cards.
   const planner = await assembleRoleContext({ root, work, chapter: 2, role: 'planner', task: '为第 2 章出章纲' })
   check('planner gets the book plan', planner.text.includes('一条主线'), planner.text.slice(0, 200))
-  check('planner gets character cards', planner.text.includes('韩松') && planner.text.includes('语气'), planner.text.slice(0, 400))
+  check('planner gets character cards', planner.text.includes('韩松') && planner.text.includes('minor'), planner.text.slice(0, 400))
   check('planner whitelist comes from the context', planner.whitelist.counts.names === 2, JSON.stringify(planner.whitelist))
 
   // Planning chapter 3 has no chapter entry yet; that must still work.

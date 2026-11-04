@@ -10,7 +10,7 @@
  * in the work database, not in files.
  */
 
-import { deriveWhitelist, readCards, summariseWhitelist } from '../facts.ts'
+import { deriveWhitelist, summariseWhitelist } from '../facts.ts'
 import { roleSkills, skillReferenceScope } from '../skill-routing.ts'
 import { skillEvidence, type SkillEvidence } from '../skill-evidence.ts'
 import { listRoleCards, readFoundationDocuments, renderFoundationContent } from '../artifact-store.ts'
@@ -144,23 +144,21 @@ export async function assembleRoleContext(
 
   const foundation = readFoundationDocuments(root, work)
   const cardRows = listRoleCards(root, work)
-  const useRoleCards = formOf(manifest) === 'longform' && cardRows.length > 0
-  const characters: CharacterView[] = useRoleCards
-    ? cardRows.map(row => row.content).filter(card => card !== null && typeof card === 'object').map((card: any) => ({
+  const characters: CharacterView[] = cardRows
+    .map(row => row.content)
+    .filter(card => card !== null && typeof card === 'object')
+    .map((card: any) => ({
       name: String(card.name ?? ''),
       tier: String(card.tier ?? ''),
       limit: String(card.limits ?? ''),
       markdown: String(card.markdown ?? ''),
     }))
-    : (await readCards(root, work)) ?? []
   const storyFrameText: string = renderFoundationContent(foundation.storyFrame?.content)
   const bookRulesText: string = renderFoundationContent(foundation.bookRules?.content)
   const volumeMapText: string = renderFoundationContent(foundation.volumeMap?.content)
   const focusText: string = renderFoundationContent(foundation.currentFocus?.content)
-  if (characters.length === 0 && role !== 'planner' && role !== 'summarizer') {
-    throw new StoryError('bible-missing', useRoleCards
-      ? '人物卡缺失：先跑基础设定 roles/cards'
-      : '人物卡缺失：先用 story_bible_write 建 bible/characters.json 再派活')
+  if (form === 'longform' && characters.length === 0 && role !== 'planner' && role !== 'summarizer') {
+    throw new StoryError('bible-missing', '人物卡缺失：先跑基础设定 roles/cards')
   }
 
   const body = String(input.body ?? '').trim()
@@ -213,7 +211,6 @@ export async function assembleRoleContext(
     ...(lead === undefined ? [] : [
       `主角：${lead.name}`,
       ...(lead.limit === undefined || lead.limit === '' ? [] : [`行为边界：${lead.limit}`]),
-      ...(useRoleCards || lead.voice === undefined ? [] : [`语气：${lead.voice}`]),
     ]),
     ...(intent.trim() === '' ? [] : ['本书口径（摘自意图文件）：', intent.trim().slice(0, 600)]),
     ...(role === 'planner' || storyFrameText === '' ? [] : ['故事框架：', storyFrameText.trim().slice(0, 1200)]),
@@ -222,9 +219,7 @@ export async function assembleRoleContext(
   const constraints = role === 'summarizer'
     ? undefined
     : section('constraints', '硬约束', constraintLines.join('\n'), 'protected',
-      useRoleCards
-        ? `${virtualPath(work, 'manifest')} + ${virtualPath(work, 'foundation/roles')} + ${virtualPath(work, 'bible/intent.md')}`
-        : `${virtualPath(work, 'manifest')} + ${virtualPath(work, 'bible/characters.json')} + ${virtualPath(work, 'bible/intent.md')}`)
+      `${virtualPath(work, 'manifest')} + ${virtualPath(work, 'foundation/roles')} + ${virtualPath(work, 'bible/intent.md')}`)
 
   // 4. state — compressible
   const folded: FoldedState = readFoldedState(root, work)
@@ -373,14 +368,8 @@ export async function assembleRoleContext(
       const named = String(chapterPlan ?? '')
       const matched = characters.filter(item => item.name !== undefined && item.name !== '' && named.includes(item.name))
       const chosen = [...matched, ...characters.filter(item => !matched.includes(item))].slice(0, 6)
-      return chosen.map(item => useRoleCards
-        ? `- ${item.name}（${item.tier ?? ''}）：${String(item.markdown ?? '').replace(/\s+/gu, ' ').trim().slice(0, 300)}`
-        : [
-          `- ${item.name}：${item.role ?? ''}`,
-          ...(item.limit === undefined ? [] : [`  边界：${item.limit}`]),
-          ...(item.voice === undefined ? [] : [`  语气：${item.voice}`]),
-        ].join('\n')).join('\n')
-    })(), 'compressible', useRoleCards ? virtualPath(work, 'foundation/roles') : virtualPath(work, 'bible/characters.json'))
+      return chosen.map(item => `- ${item.name}（${item.tier ?? ''}）：${String(item.markdown ?? '').replace(/\s+/gu, ' ').trim().slice(0, 300)}`).join('\n')
+    })(), 'compressible', virtualPath(work, 'foundation/roles'))
     : undefined
 
   // The plan feeds writer/reviewer/reviser; writer/reviewer/reviser/summarizer read the body.

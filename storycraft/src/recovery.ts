@@ -63,11 +63,6 @@ function artifactText(row: { kind: string, content: string, contentType: string 
   try { return renderFoundationContent(JSON.parse(row.content)) } catch { return row.content }
 }
 
-function cardText(db: Database, name: string): string | undefined {
-  const row = db.prepare('SELECT content FROM bible WHERE name = ?').get(name) as { content: string } | undefined
-  return row?.content
-}
-
 /**
  * Every document the write paths currently index. Rebuild and scan share this
  * list so a clean work always reports equal counts.
@@ -126,9 +121,6 @@ export function sourceRows(db: Database): SourceRow[] {
     const chapter = Number(/^state:draft:(\d+):/u.exec(row.artifactId)?.[1] ?? 0)
     rows.push({ kind: 'state_draft', docId: row.artifactId, source: `state/draft/${chapter}`, chapter, body: row.content })
   }
-  const characters = cardText(db, 'characters')
-  const trimmed = characters?.trim() ?? ''
-  if (trimmed !== '' && trimmed !== '[]') rows.push({ kind: 'card', docId: 'card:characters', source: 'bible/characters', chapter: 0, body: characters! })
   return rows
 }
 

@@ -6,6 +6,7 @@ import * as s from '../src/storage.ts'
 import * as b from '../src/bible/index.ts'
 import { deriveWhitelist, summariseWhitelist } from '../src/facts.ts'
 import { writeVolume } from '../src/volumes.ts'
+import { seedCast } from './cast.mjs'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -23,9 +24,7 @@ try {
   await s.approveOutline(root, { work })
   await s.writePlan(root, { work, chapter: 1, perspective: '周观', goal: '把墙立起来，用到十六口人和七尺的料', obstacle: 'o', cost: 'c', turn: 't' })
   await s.approveChapterPlan(root, { work, chapter: 1 })
-  await b.writeBible(root, work, 'characters', JSON.stringify([
-    { name: '周观', role: '主视角', want: '立墙', fear: '塌方', limit: '不拿人命换速度', voice: '短句' },
-  ]))
+  seedCast(s, root, work, [{ name: '周观', tier: 'major' }, { name: '韩松', tier: 'minor' }])
   await b.writeBible(root, work, 'intent', '# 意图\n故事发生在白草滩。\n')
   await s.writeChapter(root, { work, chapter: 1, body: '阿六道：“我去提水。”'.repeat(20) })
   await writeVolume(root, { work, title: '第一卷', from: 1, to: 1, summary: '从白草滩到黑水滩' })
@@ -46,7 +45,7 @@ try {
   check('numbers also carry digits', firstChapter.numbers.includes('16') && firstChapter.numbers.includes('7'), firstChapter.numbers.join(','))
 
   const summary = summariseWhitelist(firstChapter)
-  check('summary exposes counts', summary.counts.names === 1 && summary.counts.places >= 2, JSON.stringify(summary))
+  check('summary exposes counts', summary.counts.names === 2 && summary.counts.places >= 2, JSON.stringify(summary))
   check('summary exposes only samples', summary.sample.names.length <= 5 && summary.sample.numbers.length <= 5, JSON.stringify(summary.sample))
 } finally {
   await rm(root, { recursive: true, force: true })

@@ -8,6 +8,7 @@ import { submitPayload } from '../src/runtime/submission.ts'
 import * as s from '../src/storage.ts'
 import { readArtifact } from '../src/artifact-store.ts'
 import { writeBible } from '../src/bible/index.ts'
+import { seedCast } from './cast.mjs'
 import { reviewFixture } from './review-fixture.mjs'
 
 let failures = 0
@@ -111,9 +112,7 @@ try {
   s.approveOutline(root, { work })
   s.writePlan(root, { work, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   s.approveChapterPlan(root, { work, chapter: 1 })
-  await writeBible(root, work, 'characters', JSON.stringify([
-    { name: '甲', role: '主视角', want: 'w', fear: 'f', limit: 'l', voice: 'v' },
-  ]))
+  seedCast(s, root, work, [{ name: '甲', tier: 'major' }])
 
   // Planner: outline approved, no plan yet; the delegate writes plan:<n> only.
   const plannerWork = s.initWork(root, { title: '规划委派' }).workId
@@ -198,7 +197,6 @@ try {
 
   // Form-aware writer routing: short adds the short-fiction method, script the script method.
   const short = s.initWork(root, { title: '短篇委派', form: 'short' }).workId
-  await writeBible(root, short, 'characters', JSON.stringify([{ name: '甲', role: '主视角', want: 'w', fear: 'f', limit: 'l', voice: 'v' }]))
   s.writePlan(root, { work: short, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   s.approveChapterPlan(root, { work: short, chapter: 1 })
   const shortService = fakeService([completed({ payload: { title: '短篇', body: '甲推开门，雨声进来了。' } })])
@@ -208,7 +206,6 @@ try {
   check('short writer prompt loads its craft only', shortPrompt.includes('storycraft-short-prose') && !shortPrompt.includes('storycraft-short-story'), shortPrompt.split('\n')[1])
 
   const script = s.initWork(root, { title: '剧本委派', form: 'script' }).workId
-  await writeBible(root, script, 'characters', JSON.stringify([{ name: '甲', role: '主视角', want: 'w', fear: 'f', limit: 'l', voice: 'v' }]))
   s.writePlan(root, { work: script, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   s.approveChapterPlan(root, { work: script, chapter: 1 })
   const scriptService = fakeService([completed({ payload: { title: '第一集', body: '甲推开门，雨声进来了。' } })])
@@ -326,9 +323,7 @@ try {
   s.approveOutline(root, { work: rangeWork.workId })
   s.writePlan(root, { work: rangeWork.workId, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   s.approveChapterPlan(root, { work: rangeWork.workId, chapter: 1 })
-  await writeBible(root, rangeWork.workId, 'characters', JSON.stringify([
-    { name: '甲', role: '主视角', want: 'w', fear: 'f', limit: 'l', voice: 'v' },
-  ]))
+  seedCast(s, root, rangeWork.workId, [{ name: '甲', tier: 'major' }])
   const shortWriterService = fakeService([completed({
     output: [{ type: 'text', text: '<<<TITLE 短稿 TITLE>>>\n<<<CHAPTER 太短。CHAPTER>>>' }],
   })])

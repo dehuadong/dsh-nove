@@ -452,7 +452,6 @@ import type {
         world: '# 世界观\n\n',
         style: '# 文风基准\n\n',
         intent: '# 作者意图\n\n',
-        characters: '[]',
       }
 
       const openBibleEditor = (file: BibleFile) => {

@@ -178,11 +178,6 @@ export function initWork(root: string, input: any): any {
       try {
         transaction(db, () => {
           for (const [name, content] of Object.entries(DEFAULT_BIBLE)) {
-            if (name === 'characters') {
-              db.prepare('INSERT INTO bible (name, content, version, updated_at) VALUES (?, ?, ?, ?)')
-                .run(name, content, contentVersion(content), at)
-              continue
-            }
             const truth = (TRUTH_ARTIFACTS as Record<string, any>)[name]
             writeTextArtifactOnDb(db, {
               work: workId, artifactId: truth.artifactId, kind: truth.kind, content, createdAt: at,

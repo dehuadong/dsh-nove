@@ -6,6 +6,7 @@ import { delegateRole } from '../src/runtime/delegate-runner.ts'
 import { submitPayload } from '../src/runtime/submission.ts'
 import * as s from '../src/storage.ts'
 import { writeBible } from '../src/bible/index.ts'
+import { seedCast } from './cast.mjs'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -47,7 +48,7 @@ try {
   s.writePlan(root, { work, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   s.approveChapterPlan(root, { work, chapter: 1 })
   s.writeChapter(root, { work, chapter: 1, title: '第1章', body: '甲把账本收好，雨停了。'.repeat(10) })
-  await writeBible(root, work, 'characters', JSON.stringify([{ name: '甲', role: '主角', want: '收好账本', fear: '丢', limit: '不伤人', voice: '短句' }]))
+  seedCast(s, root, work, [{ name: '甲', tier: 'major' }])
   await writeBible(root, work, 'style', '# 文风\n短句。')
 
   async function makeChapterWork(title) {
@@ -57,7 +58,7 @@ try {
   s.writePlan(root, { work, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   s.approveChapterPlan(root, { work, chapter: 1 })
   s.writeChapter(root, { work, chapter: 1, title: '第1章', body: '甲把账本收好，雨停了。'.repeat(10) })
-  await writeBible(root, work, 'characters', JSON.stringify([{ name: '甲', role: '主角', want: '收好账本', fear: '丢', limit: '不伤人', voice: '短句' }]))
+  seedCast(s, root, work, [{ name: '甲', tier: 'major' }])
   await writeBible(root, work, 'style', '# 文风\n短句。')
   return work
 }

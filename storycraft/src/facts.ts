@@ -8,23 +8,19 @@
  * own inventions.
  */
 
-import { parseCharacters } from './bible/index.ts'
+import { listRoleCards } from './artifact-store.ts'
 import { chapterNumber } from './domain.ts'
 import {
-  listBodies, listSummaries, readBibleEntry, readBibleMap, readFoldedState, readManifest, readPlan, readVolumes,
+  listBodies, listSummaries, readBibleMap, readFoldedState, readManifest, readPlan, readVolumes,
 } from './storage.ts'
 
 /** Chinese digit values used to normalise numerals before comparison. */
 const DIGITS: Record<string, number> = { 零: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 }
 
-/** One character card: the six-field contract stored in `bible:characters`. */
+/** One cast card: name and tier come from the role index/card authority. */
 interface CharacterCard {
   name: string
-  role: string
-  want: string
-  fear: string
-  limit: string
-  voice: string
+  tier: string
 }
 
 /** The names, places and numbers that landed content already established. */
@@ -138,10 +134,10 @@ export function extractSpeakerNames(text: string, known: string[] = []): string[
  * @returns card records.
  */
 export async function readCards(root: string, workId: unknown): Promise<CharacterCard[]> {
-  // `workId` goes straight to the store, which takes it untyped; the stored
-  // row is a dynamic boundary whose content parseCharacters validates.
-  const content = readBibleEntry(root, workId, 'characters')?.content
-  return content === undefined ? [] : parseCharacters(content)
+  return listRoleCards(root, workId)
+    .map(row => row.content)
+    .filter((card: any) => card !== null && typeof card === 'object')
+    .map((card: any) => ({ name: String(card.name ?? ''), tier: String(card.tier ?? '') }))
 }
 
 /**

@@ -14,6 +14,7 @@ import { writeBible } from '../src/bible/index.ts'
 import { submitPayload } from '../src/runtime/submission.ts'
 import { listArtifacts, readArtifact, writeFoundationDocument } from '../src/artifact-store.ts'
 import { setCurrent } from '../src/current.ts'
+import { seedCast } from './cast.mjs'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -264,10 +265,10 @@ try {
       ],
     },
   })
-  await writeBible(root, work, 'characters', JSON.stringify([
-    { name: '甲', role: '主视角', want: '守住城', fear: '塌方', limit: '不拿人命换速度', voice: '短句' },
-    { name: '乙', role: '副手', want: '查清账', fear: '算错', limit: '没有数据不签字', voice: '反问' },
-  ]))
+  seedCast(s, root, work, [
+    { name: '甲', tier: 'major' },
+    { name: '乙', tier: 'minor' },
+  ])
   await writeBible(root, work, 'style', '# 文风\n短句，少形容。')
   await writeBible(root, work, 'intent', '# 意图\n写一座城的守与失。')
 

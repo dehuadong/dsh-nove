@@ -7,6 +7,7 @@ import * as b from '../src/bible/index.ts'
 import { assembleRoleContext } from '../src/context/composer.ts'
 import { putArtifact, writeFoundationDocument, writeRoleCard } from '../src/artifact-store.ts'
 import { contentVersion } from '../src/domain.ts'
+import { seedCast } from './cast.mjs'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -171,10 +172,7 @@ try {
   const plain = s.initWork(root, { title: '无 foundation', wordRange: { min: 50, max: 5000 } }).workId
   s.writeOutline(root, { work: plain, mainline: '无 foundation 的计划' })
   s.approveOutline(root, { work: plain })
-  s.writeBible(root, {
-    work: plain, name: 'characters',
-    content: JSON.stringify([{ name: '丙', role: '主角', want: '活', fear: '死', limit: '不害人', voice: '平' }]),
-  })
+  seedCast(s, root, plain, [{ name: '丙', tier: 'major' }])
   s.writePlan(root, { work: plain, chapter: 1, perspective: '丙', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   s.approveChapterPlan(root, { work: plain, chapter: 1 })
   const absent = await b.assembleBrief(root, plain, 1)
@@ -183,17 +181,17 @@ try {
     absentByName.get('storyFrame')?.absent === true && absentByName.get('bookRules')?.absent === true
     && absentByName.get('volumeMap')?.absent === true && absentByName.get('currentFocus')?.absent === true,
     JSON.stringify([...absentByName.values()].filter(section => section.absent).map(section => section.name)))
-  check('missing roles fall back to bible characters',
-    absentByName.get('characters')?.source.endsWith('bible/characters.json') && absentByName.get('characters').content.includes('丙'),
+  check('roles come from the role cards when foundation is absent',
+    absentByName.get('characters')?.source.endsWith('foundation/roles') && absentByName.get('characters').content.includes('丙'),
     JSON.stringify(absentByName.get('characters')))
   const plainExport = await s.exportWork(root, plain, join(root, 'plain-out'))
-  let foundationAbsent = false
+  let frameAbsent = false
   try {
-    await stat(join(plainExport.directory, 'foundation'))
+    await stat(join(plainExport.directory, 'foundation', 'story_frame.md'))
   } catch {
-    foundationAbsent = true
+    frameAbsent = true
   }
-  check('missing foundation artifacts produce no foundation export', foundationAbsent === true)
+  check('missing foundation documents produce no story frame export', frameAbsent === true)
   const plainPlanner = await assembleRoleContext({ root, work: plain, chapter: 1, role: 'planner', task: '规划第一章' })
   check('planner still assembles without foundation',
     plainPlanner.sections.some(section => section.name === 'plan'), JSON.stringify(plainPlanner.sections.map(section => section.name)))

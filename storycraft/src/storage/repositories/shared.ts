@@ -573,7 +573,6 @@ export function foldedOf(db: any) {
 /** The default truth rows a new work ships. */
 export const DEFAULT_BIBLE = {
   world: '# 世界观\n',
-  characters: '[]\n',
   style: '# 文风基准\n',
   plan: '# 写作计划\n',
   intent: '# 作者意图与当前焦点\n',

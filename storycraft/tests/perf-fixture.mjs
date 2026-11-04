@@ -13,7 +13,6 @@ export async function buildPerfFixture(root, options = {}) {
   await bible.writeBible(root, work, 'style', '# 文风\n\n短句。\n')
   await bible.writeBible(root, work, 'intent', '# 意图\n\n找钥匙。\n')
   store.writeOutline(root, { work, mainline: '长篇。' })
-  await bible.writeBible(root, work, 'characters', '[]')
 
   for (let number = 1; number <= chapters; number += 1) {
     store.writePlan(root, {

@@ -9,12 +9,10 @@ import {
   biblePath,
   isDraft,
   byteLength,
-  parseCharacters,
   validateBibleContent,
 } from '../domain/bible.ts'
 import type {
   BibleFileSpec,
-  CharacterRecord,
   BibleFile,
   ReadBibleResult,
   WriteBibleOptions,
@@ -35,7 +33,7 @@ import type {
 } from '../domain/bible.ts'
 /** Pre-write brief assembly: one deterministic brief per work and chapter. */
 
-import { StoryError, chapterNumber, chapterStem, contentVersion, formOf, sourceIdOf } from '../domain.ts'
+import { StoryError, chapterNumber, chapterStem, contentVersion, sourceIdOf } from '../domain.ts'
 import { accountOf } from '../accounting.ts'
 import { buildQuery, select } from '../retrieval.ts'
 import { mergeBlock, styleBlock, styleProfile, type StyleMetrics } from '../style.ts'
@@ -74,22 +72,17 @@ export async function assembleBrief(root: string, workId: unknown, chapter: numb
   const foundation = readFoundationDocuments(root, work)
 
   const cardRows = listRoleCards(root, work)
-  const useRoleCards = formOf(manifest) === 'longform' && cardRows.length > 0
   const cards = cardRows.map((row: any) => row.content).filter((card: any) => card !== null && typeof card === 'object') as any[]
-  const characters: any[] = useRoleCards ? cards : parseCharacters(raw.characters)
+  const characters: any[] = cards
   const planText: string = plan ?? ''
   const matched = characters
     .filter(record => typeof record?.name === 'string' && planText.includes(record.name))
     .sort((left, right) => planText.indexOf(left.name) - planText.indexOf(right.name))
   const chosen = matched.length > 0 ? matched : characters
   const characterText = chosen
-    .map(record => useRoleCards
-      ? `- ${record.name}（${record.tier}）：动机 ${record.motivation}；已知 ${record.knowledge}；关系压力 ${record.relationshipPressure}；边界 ${record.limits}`
-      : `- ${record.name}（${record.role}）：想要 ${record.want}；害怕 ${record.fear}；底线 ${record.limit}；口吻 ${record.voice}`)
+    .map(record => `- ${record.name}（${record.tier}）：动机 ${record.motivation}；已知 ${record.knowledge}；关系压力 ${record.relationshipPressure}；边界 ${record.limits}`)
     .join('\n')
-  const characterSource = useRoleCards
-    ? virtualPath(work, 'foundation/roles')
-    : biblePath(work, 'characters')
+  const characterSource = virtualPath(work, 'foundation/roles')
 
   const folded = readFoldedState(root, work)
   const hooks = folded.hooks.filter((hook: any) => ['open', 'progressing', 'deferred'].includes(hook.status))
