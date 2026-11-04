@@ -104,60 +104,42 @@
 
 ## 测试与验收
 
-- 测试没有独立的用户门禁：批准覆盖开发测试。
-- 开发测试验证**流程与契约**，不验证故事情节、文笔或具体作品的人名/设定。
-- 测试 fixture 使用最小合成数据，不要求用户写测试小说、补数据或手工跑开发测试。
-- 单元测试用临时 SQLite 与假 subagents；面板用 Playwright E2E；只有最终真实使用验收由用户执行一次。
-- 通过测试、审查或静态检查不等于最终验收；真实模型只用于最终实测，不把人工实测当作开发中的反复测试步骤。
+- 验收单位是 `capabilities.yaml` 的一行：`implementation` 与 `consumer` 路径存在、消费者测试通过、`artifacts/real-runs/<id>.json` 含日期、session id、`tests.passed: true` 与非空 `receipts`，四者同时成立才是 `verified`。
+- 一个变更只做一个能力；不做只拆文件、只改文档或只改存储的交付。
+- 开发测试由代理执行，fixture 用最小合成数据；不要求作者写测试小说、补数据或手工跑开发测试。
+- 测试验证流程与契约，不验证故事情节、文笔或具体人名设定。
+- 真实模型只用于最终真实运行；不把人工实测当作开发中的反复回归。
 
-测试范围固定为：
+### 浏览器验证
 
-1. 阶段机：长篇阶段机（计划 → 章纲 → 正文 → 审稿 → 修订/清稿 → 摘要 → 定稿）；短篇、剧本按各自流水线单独测，不套长篇阶段机；
-2. 作者闸门：计划/章纲确认是否生效，确认后是否还自动发消息；
-3. 工具契约：`story_next` 的 `action/missing/delegate`、`story_status` 的 `outline`、`story_delegate` 的回执；
-4. 数据边界：虚拟路径、作品作用域、当前作品、SQLite 事务、不串作品；
-5. 一致性策略：未登记人名只 warning、不阻断；清稿允许空清单；不再靠全局词表；
-6. 失败策略：服务缺失、超时、格式坏、字数超界、模式违规，是否按错误码停/重试；
-7. 面板行为：确认按钮、动作按钮、刷新、不自动发送；
-8. token 预算：主会话工具参数+结果字符数；
-9. 产物结构与消费者：字段合同、生命周期、旧 schema 拒绝、brief/context/state/review/export 至少一个真实消费者；只测写入成功不算通过。
-
-不测：文笔好坏、情节是否好看、具体小说的人名/角色词是否“正确”、某部作品该写什么。
-
-### E2E 测试规则
-
-1. 浏览器级验证一律走 `node storycraft/e2e/run.mjs`（它起临时实例再跑 `playwright.spec.cjs`）；只跑一个文件用 `node storycraft/e2e/run.mjs e2e/load.spec.cjs`，只看清单用 `--list`。
-2. 新功能或 bugfix 要带一条能复现它的 spec（`storycraft/e2e/*.spec.cjs`），和业务代码一起提交；spec 只覆盖浏览器里才观测得到的那层。
-3. 红的处理顺序：先让 spec 稳定复现（红）→ 读产物（`trace`、失败截图、`test-results/*/error-context.md` 的 ARIA 快照）→ 改代码 → 重跑同一条命令。
+1. 有 UI 能力时用该包自己的 Playwright 配置起临时实例；命令写进该能力的消费者测试路径。
+2. 新能力带一条能复现它的 spec，只覆盖浏览器里才观测得到的那层。
+3. 红先稳定复现（红），读 trace、失败截图与 ARIA 快照，再改代码，重跑同一条命令。
 4. 选择器用 `getByRole` / `getByLabel`；缺稳定锚点就在组件上补 `data-*`，不用脆弱的 CSS 层级。
-5. 不写 UI 单元测试（按钮渲染、className、快照）；业务逻辑、纯函数、接口契约仍由 `storycraft/tests` 覆盖。
-6. Playwright 是本包 devDependency（`storycraft/package.json`），浏览器装在机器级缓存；**不借用其它项目的 `node_modules`**，也不设 `NODE_PATH` 指过去。
-7. E2E 起的是临时实例：独立 `DSH_HOME`（`storycraft/.tmp-e2e/`）、临时端口、随 spec 结束退出。需要手工回收时按端口定位（`Get-NetTCPConnection -LocalPort <port>`），不许按进程名批量杀。
-8. 装出来的形态用 `node storycraft/scripts/ci.mjs --smoke` 验证（tarball → `dsh plugin add` → 冷启动）；它自己开实例、自己收尾，失败也必须杀干净，不能留下占着管道的子进程。
+5. 不写 UI 单元测试（按钮渲染、className、快照）；业务逻辑、纯函数、接口契约由单元测试覆盖。
+6. 不借用其它项目的 `node_modules`；临时实例用独立 `DSH_HOME`，按端口定位回收进程，不按进程名批量杀。
 
 
 ### 对拍工作法
-- InkOS 仓库分析研究文档 `docs\report\inkos\readme.md`；全量对拍证据见 `docs/report/inkos/2026-10-23-full-project-parity-audit.md`，产物专项见 `docs/report/inkos/2026-10-23-artifact-and-resource-parity-audit.md`；三形态执行计划归 `.agents/notes/proposed/architecture/2026-11-03-storycraft-v2-longform-slice.md`（V2 切片）与后续 S/D 工作项，报告不拥有排期。
-- 只使用本 Harness 的 Skill、Preset、Plugin、Subagent 与文件状态；不引入 LLM Provider、独立 Harness/SDK、资源管理服务或额外子 Agent 运行时。
-- **参考是目标产品的规格**：`inkos-master` 的产品结构与行为按它复现；结构差异必须写进对照表并裁决，未登记的偏差视为越界。其运行时机制（Provider、Agent 循环、CLI、存储、调度）逐项整改为 DSH 的运行机制，用 Skill/Preset/Plugin/Subagent/文件状态等价实现；不 import、不运行 inkos 的代码，也不引入它自带的运行时。DSH 缺少的机制不得删能力，必须给出等价实现并逐项登记验证（对照与偏差写在 `docs/dsh-mapping.md` 与工作项，不建历史状态表）。
+- 参考证据：`docs/report/inkos/readme.md` 是索引；全量对拍见 `docs/report/inkos/2026-10-23-full-project-parity-audit.md`，产物专项见 `docs/report/inkos/2026-10-23-artifact-and-resource-parity-audit.md`。报告只提供证据，不拥有排期。
+- 只使用本 Harness 的 Skill、Preset、Plugin、Subagent、文件与 Session 状态；不引入 LLM Provider、独立 Harness/SDK、资源管理服务或额外子 Agent 运行时。
+- **参考是目标产品的规格**：`inkos-master` 的产品结构与行为按它复现；结构差异必须写进 `docs/dsh-mapping.md` 的偏差行并裁决，未登记的偏差视为越界。其运行时机制（Provider、Agent 循环、CLI、存储、调度）逐项整改为 DSH 的运行机制，用 Skill/Preset/Plugin/Subagent/文件状态等价实现；不 import、不运行 inkos 的代码，也不引入它自带的运行时。DSH 缺少的机制不得删能力，必须给出等价实现并登记验证。
 - **不得自创产品限制**：数量上限、白名单、格式限制等，参考实现没有、作者也未裁决的，不得写进合同或校验；工程预算问题只能在消费层（选择、截断）解决。
-- 本项目代码、内容与注释不标注来源、不建立关联：不在代码、注释、prompt 或正文里写"这段来自 inkos 的某文件/某段"这类归属说明；参考证据的位置只写在 Note 的「对拍参考」段。该条**不限制**复用参考工程的 prompt 文案、方法正文、结构或数据形状；需要复用时按独立项目口径命名与放置，不在实现里标注来源。
-- 对拍的记忆不靠对话：规则记在本文件，能力对照与差距记在 `docs/dsh-mapping.md` 与工作项（不写完成状态），决定记在对应 Issue/Note，验证记在 tests/CI；当前状态只以 CI 与真实会话证据为准。
+- 本项目代码、内容与注释不标注来源、不建立关联：不在代码、注释、prompt 或正文里写"这段来自 inkos 的某文件/某段"这类归属说明；参考证据的位置只写在 `capabilities.yaml` 的 `reference` 字段、`docs/dsh-mapping.md` 与工作项。该条**不限制**复用参考工程的 prompt 文案、方法正文、结构或数据形状；复用时按独立项目口径命名与放置，不在实现里标注来源。
+- 对拍的记忆不靠对话：规则记在本文件，机制对照与偏差记在 `docs/dsh-mapping.md`，能力映射记在 `capabilities.yaml`，决定记在工作项/Note，验证记在 tests/CI；当前状态只以 CI 与真实会话证据为准。
 - 遇到实现、流程、节点或验收问题时，**先查对拍项目如何实现**：读它的源码、文档、CI、技能、角色资源与测试，再决定我们的做法；不得先改提示词或凭直觉自创。
-- **提案必须带对拍证据**：任何提案/设计 Note 必须有“对拍参考”段，写清参考工程 `inkos-master` 的证据位置（文件、类型、流程或测试）及其实现方式；有参考实现时，再写我们的实现方式与裁决（采纳/等价适配/不采用及原因）。没有可对照实现时，写“无参考实现”、检索范围和理由。不得只用“超出范围/成本高”作为不采用理由。提案改变结构时，还必须给出偏差行（参考做法 / 我们的做法 / 原因 / 裁决 / 验证）；没有偏差行的结构变化不得进入实现。
+- **提案必须带对拍证据**：工作项或设计 Note 必须有“对拍参考”段，写清参考工程 `inkos-master` 的证据位置（文件、类型、流程或测试）及其实现方式；有参考实现时，再写我们的实现方式与裁决（采纳/等价适配/不采用及原因）。没有可对照实现时，写“无参考实现”、检索范围和理由。不得只用“超出范围/成本高”作为不采用理由。改变结构时，还必须给出偏差行（参考做法 / 我们的做法 / 原因 / 裁决 / 验证）；没有偏差行的结构变化不得进入实现。
 - 每次对拍先提取可验证的不变量；再写“参考证据 / 我们落点 / 差异原因 / 验证命令”。查不到或不能照做时，记录约束与原因，必要时先取得用户许可。
-- 新发现先更新对照表，再决定是否立工单；不要把聊天里的分析当成已完成的对拍。
+- 新发现先更新 `docs/dsh-mapping.md` 或对应能力行，再决定是否立工作项；不要把聊天里的分析当成已完成的对拍，也不新建手写状态表。
 
 ### 执行、测试与约定
 - 不能把任务工作量“成本高”而作为裁剪、简单实现的理由，应该去规划分阶段排期。
 - **没有旧作品，不存在数据迁移/兼容**：本项目的测试作品一律删除重建。提案、设计 Note、实现与验收不得包含旧作品迁移、兼容层、双读、旧行回退、legacy 分支、旧文件导入，或“旧作品显示为空/需重填”一类设计；旧 schema 直接 `schema-version-mismatch`，旧表/旧列直接删除或不再读写。对拍里的“能力迁移”不等于数据迁移，不能用来保留兼容层。
 - 本项目具体功能性实现先参考对拍项目InkOS，是否是相同或类似功能，以及其实现方法，见&对拍工作法.
-- 开发测试由代理执行，不交给用户手工跑：本机门禁是 `node storycraft/scripts/ci.mjs`（类型检查 + 全部单元契约文件 + 构建 + 打包清单检查 + Playwright E2E）；推送后由 `.github/workflows/storycraft.yml` 在 ubuntu 与 windows 上跑同一入口的 `--no-e2e` 形态，E2E 需要本机桌面客户端所以不进 CI。Playwright 是本包 devDependency，首次用 `cd storycraft && npm install && npx playwright install chromium`，不借用其它项目的安装。`tools/**` 下的宿主插件不是 storycraft 的一部分，它们的测试（`node tools/implement-gate/test.mjs`、`node tools/shell-guard/test.mjs`）单独跑、不进 CI。
+- 开发测试由代理执行，不交给用户手工跑：项目门禁是 `npm run verify`（notes + 能力账本）；触及 `storycraft/` 包时另跑 `node storycraft/scripts/ci.mjs`。能力交付必须自带消费者测试；只有文件存在或单测通过不算完成。
 - 参考工程的 CI 是 `.github/workflows/ci.yml` 里的 `pnpm install --frozen-lockfile && pnpm build && pnpm test`；对拍时先读参考的 CI、技能、角色资源和测试，再决定我们的实现，不凭印象造替代方案。差异必须写清原因、约束和为什么不能完全照做，必要时先取得用户许可。
-- #19/#21 的教训是：整章正文与装配上下文多次穿过主会话，单靠节点单测和“让用户实测”发现不了 token、路径、角色输入的问题。验证必须覆盖主会话路径、工具回执与 token 预算；不能只用“单元测试通过”代替。
 - 用户只在最后做一次真实使用验收；需要新会话做真实链路时，用户提供 `sessionID`，代理自己在该会话跑，不要求用户写测试小说、补 fixture 或手工跑开发测试。**跨会话投递用工具 `session_prompt`**（源码 `tools/session-driver/`，走宿主 `sessionController.prompt`，与 GUI 发消息同一条路径）：`dsh --profile headless --session-id` 会拒绝带 agent preset 的会话（`assertAdoptable` 抛错），不能用来接管 GUI 会话；面板确认、导出打开仍归作者。
 - 跨会话驱动的证据：投递后用 `node` 解 `session.v4.jsonl.zstd`（按 zstd 帧切分）读 `tool/call`、`tool/result` 与 `assistant/message`；不要凭 GUI 截图判断。
-- `story_read` / artifact ID / 阶段上下文是 #22 的契约；真实链路验收要检查模型没有拿到 `works/` 路径、没有跨章读取、没有把上下文重复灌回主会话。
 - 推进任一设计前，先扫所有关联 Note 的 owner、partial replacement、旧 AC、动作数与重试规则；有冲突先改文档并互相链接，再继续，避免做了后面的就忘掉前面的。
 
 ## DSH 插件与预设
@@ -179,5 +161,5 @@
 2. 写之前先检索 .agents/notes/ 里的同主题旧笔记：有归属就地更新；新想法先放 proposed/，落地随同代码改动转 implemented/；新方案彻底取代旧决策时，同批归档旧篇并标明被谁取代。
 3. 被放弃的方案先写它最强的理由，再解释为什么不用。
 4. 提交前跑 npm run verify-notes，红了先修再交。
-5. **工作项入口**：2026-10-31 起新提案/工作项使用 `.agents/notes/proposed/`（proposed 格式，状态与验收写在 Note），不再新建 GitHub issue；issue 只保留历史档案，排期以 `proposed/architecture/2026-11-03-storycraft-v2-longform-slice.md` 的 V2-S0–S3 切片为准。
+5. **工作项入口**：能力以 `capabilities.yaml` 的 `id` 为工作项；一次只做一个纵向能力，同时交付参考证据、DSH 落点、实现、消费者与契约测试。不新建 Issue，不建排期文档，不把路线写进 Note。
 6. **状态与证据**：当前状态的唯一证据是当前代码的自动测试/CI 与真实链路会话证据；Note 的 lifecycle 与 `## Testing` 只表示记录是否落地、当时跑过什么，不表示能力当前可用。禁止新建/维护 `delivery-status-*`、`parity-matrix` 式手写完成状态表；工作项验收必须包含消费者与真实链路证据。旧状态文档已冻结，规则见 [状态与证据的唯一来源](.agents/notes/implemented/process/2026-11-03-storycraft-status-evidence-ownership.md)。
