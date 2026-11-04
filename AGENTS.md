@@ -122,10 +122,10 @@
 ### 对拍工作法
 - InkOS 仓库分析研究文档 `docs\report\inkos\readme.md`；全量对拍证据见 `docs/report/inkos/2026-10-23-full-project-parity-audit.md`，产物专项见 `docs/report/inkos/2026-10-23-artifact-and-resource-parity-audit.md`；三形态执行计划归 `.agents/notes/proposed/architecture/2026-11-03-storycraft-v2-longform-slice.md`（V2 切片）与后续 S/D 工作项，报告不拥有排期。
 - 只使用本 Harness 的 Skill、Preset、Plugin、Subagent 与文件状态；不引入 LLM Provider、独立 Harness/SDK、资源管理服务或额外子 Agent 运行时。
-- **参考是目标产品的规格**：`inkos-master` 的产品结构与行为按它复现；结构差异必须写进对照表并裁决，未登记的偏差视为越界。其运行时机制（Provider、Agent 循环、CLI、存储、调度）逐项整改为 DSH 的运行机制，用 Skill/Preset/Plugin/Subagent/文件状态等价实现；不 import、不运行 inkos 的代码，也不引入它自带的运行时。DSH 缺少的机制不得删能力，必须给出等价实现并逐项登记验证（历史对照表冻结在 `rejected/process/2026-10-18-storycraft-parity-matrix.md`，只作历史证据，不写当前完成状态）。
+- **参考是目标产品的规格**：`inkos-master` 的产品结构与行为按它复现；结构差异必须写进对照表并裁决，未登记的偏差视为越界。其运行时机制（Provider、Agent 循环、CLI、存储、调度）逐项整改为 DSH 的运行机制，用 Skill/Preset/Plugin/Subagent/文件状态等价实现；不 import、不运行 inkos 的代码，也不引入它自带的运行时。DSH 缺少的机制不得删能力，必须给出等价实现并逐项登记验证（对照与偏差写在 `docs/dsh-mapping.md` 与工作项，不建历史状态表）。
 - **不得自创产品限制**：数量上限、白名单、格式限制等，参考实现没有、作者也未裁决的，不得写进合同或校验；工程预算问题只能在消费层（选择、截断）解决。
 - 本项目代码、内容与注释不标注来源、不建立关联：不在代码、注释、prompt 或正文里写"这段来自 inkos 的某文件/某段"这类归属说明；参考证据的位置只写在 Note 的「对拍参考」段。该条**不限制**复用参考工程的 prompt 文案、方法正文、结构或数据形状；需要复用时按独立项目口径命名与放置，不在实现里标注来源。
-- 对拍的记忆不靠对话：规则记在本文件，能力对照与差距记在 `rejected/process/2026-10-18-storycraft-parity-matrix.md`（历史冻结，不含完成状态），决定记在对应 Issue/Note，验证记在 tests/CI；当前状态只以 CI 与真实会话证据为准。
+- 对拍的记忆不靠对话：规则记在本文件，能力对照与差距记在 `docs/dsh-mapping.md` 与工作项（不写完成状态），决定记在对应 Issue/Note，验证记在 tests/CI；当前状态只以 CI 与真实会话证据为准。
 - 遇到实现、流程、节点或验收问题时，**先查对拍项目如何实现**：读它的源码、文档、CI、技能、角色资源与测试，再决定我们的做法；不得先改提示词或凭直觉自创。
 - **提案必须带对拍证据**：任何提案/设计 Note 必须有“对拍参考”段，写清参考工程 `inkos-master` 的证据位置（文件、类型、流程或测试）及其实现方式；有参考实现时，再写我们的实现方式与裁决（采纳/等价适配/不采用及原因）。没有可对照实现时，写“无参考实现”、检索范围和理由。不得只用“超出范围/成本高”作为不采用理由。提案改变结构时，还必须给出偏差行（参考做法 / 我们的做法 / 原因 / 裁决 / 验证）；没有偏差行的结构变化不得进入实现。
 - 每次对拍先提取可验证的不变量；再写“参考证据 / 我们落点 / 差异原因 / 验证命令”。查不到或不能照做时，记录约束与原因，必要时先取得用户许可。
