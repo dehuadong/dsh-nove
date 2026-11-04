@@ -10,7 +10,7 @@
 | Agent 循环 | 自定义 runner 驱动角色 | DSH agent loop + `subagents` | 角色即子代理，循环与上下文由运行时负责 | 一个阶段能派发子代理并收敛结果 |
 | CLI | 独立 CLI 进程 | DSH command / headless | 不维护第二套入口与参数解析 | `init`、`export` 各有可执行入口 |
 | 会话／事件 | 自建会话与事件存储 | DSH session log | 对话与调用证据留在 session，作品内容另存 | 一次流水线可在 session 中追溯 |
-| 作品存储 | 作品内容为落盘文档 | 作品正文与设定落盘为文档，SQLite 只做索引（一作品一库；一个工作区即一部作品） | 正文要可读、可 diff、可直接导出；索引只加速检索，不能成为正文的唯一副本 | 删除索引后能从文档重建；两部作品互不串数据 |
+| 作品存储 | 自建独立存储服务 | DSH storage/session 或既有 SQLite（不新建独立存储服务） | 复用 DSH 文件状态与既有 SQLite，不引入额外存储组件 | 作品数据可读回；两部作品互不串数据 |
 | 调度 | 队列 + worker | DSH jobs／schedule | 长任务用子代理异步执行，不建队列 | 长任务可断点续跑 |
 | 技能 | 自有技能目录与加载器 | DSH `skills` 服务 + 文件系统 | SKILL.md + references 由运行时加载 | 技能能按角色／动作激活 |
 | 方法注入 | 自建 prompt 拼装 | `systemPrompt.context()` | 不在实现里复制方法正文，只注入受预算约束的片段 | 注入片段可在 trace 中定位 |

@@ -12,7 +12,7 @@
    - Provider → DSH `llm`；
    - Agent 循环 → DSH agent loop + `subagents`；
    - CLI → DSH command / headless；
-   - 存储 → 作品内容落盘为文档，DSH storage/session 或既有 SQLite 只做索引（一作品一库，不新建独立存储服务）；
+   - 存储 → DSH storage/session 或既有 SQLite（不新建独立存储服务）；
    - 调度 → DSH jobs/schedule；
    - 技能 → DSH `skills` 服务 + 文件系统；
    - 上下文注入 → DSH `systemPrompt.context()`，不自定义 prompt 拼装层重复方法正文。

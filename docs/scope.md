@@ -14,7 +14,7 @@
 
 - 从 DSH 会话进入，面板与对话、轨迹并列，界面用 React 渲染，接入 `client` 插件与 slots。
 - 角色由子代理承担；模型选择由预设／配置提供，代码不绑定 Provider。
-- 作品内容以文档形式落盘，可读、可 diff、可直接导出；SQLite 只做索引，一作品一库。一个工作区即一部作品。
+- 作品数据由 DSH storage/session 或既有 SQLite 承载；不新建独立存储服务，不维护第二套存储。
 - 会话与调用证据留在 DSH session。
 - 长任务用 jobs／schedule 调度，不建队列；`story_*` 工具按阶段注册独立 tool schema。
 
