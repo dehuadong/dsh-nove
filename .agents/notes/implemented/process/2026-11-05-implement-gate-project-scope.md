@@ -48,3 +48,10 @@ Status: implemented
 ## Testing
 
 2026-11-05，`node tools/implement-gate/test.mjs` 85 项全部通过，覆盖：无 marker 隐藏工具、`enabled:false` 隐藏、`invalid` 保持可见、最近 `disabled` marker 覆盖祖先、子目录继承祖先策略且状态写在 marker 目录、子目录 init 被拒、祖先 `.git` 的嵌套工作区 init 被拒并给出根路径、项目根 init 成功并让工具出现、命令只接受 `init`、重复 init 被拒、解析不到工作区时工具隐藏且写放行、init 拒绝。
+
+真实会话（Host 于 10:50 重启后，`request/header` 里 `implement_gate` 的描述已是新版本）：
+
+- **命令可用**：10:52:39，`E:\see-dsh-novel` 会话 `session-0e45ead7-6647-4e0a-b42d-3cdd44d2fbdd` 提交 `/implement-gate init`，`command/done` 返回 `success`：「已启用 implement-gate：E:\see-dsh-novel\.agents\implement-gate.json（v2）」。
+- **无 marker 不暴露工具**：`E:\novelist\N05` 会话 `session-80da1786-41cc-4cf3-9566-61fcd09a7581` 的 `request/header` 35 个工具，不含 `implement_gate`；同一会话在改动前的记录是 48 个工具且含该工具。
+- **子目录继承祖先 marker**：`E:\see-dsh-novel\.artifacts\work-empty` 会话 `session-3ad39e43-534d-4ce9-8d33-0a1da0c7fbb5` 的工具面含 `implement_gate`，`status` 返回 `configPath=E:\see-dsh-novel\.agents\implement-gate.json`、`phase=discuss`；该子目录没有生成 `.agents`。
+- **拦截仍在**：11:03:53，同一 gated 仓库里一条含 `git rm --cached .agents/implement-gate.json` 的命令被 protected 规则拒绝。
