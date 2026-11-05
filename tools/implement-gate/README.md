@@ -8,7 +8,20 @@ Host 插件：仅在已启用的项目里，按**会话**控制**代码文件**�
 
 ## 项目启用
 
-只有项目根存在 `.agents/implement-gate.json` 才启用本守卫。没有该文件的项目**完全 pass-through**，不会被拦截，`implement_gate status` 返回 `enabled:false`。
+策略来自**会话工作区向上找到的最近** `.agents/implement-gate.json`：工作区根有 marker 就用它，子目录会话继承上级项目的策略；找不到 marker 的项目**完全 pass-through**，`implement_gate` 不出现在工具面。
+
+初始化是作者的人类命令，在项目根会话执行：
+
+```text
+/implement-gate init
+```
+
+- 只在 marker 不存在时创建；已有 marker 返回「已存在」，不覆盖；
+- 只在**工作区根就是项目根**时创建：祖先已有 marker、或祖先存在 `.git` 时拒绝并给出项目根路径，因此不会在子目录生成嵌套 marker；
+- 生成默认 v2 配置：常见代码扩展名、执行入口 `package.json`/锁文件/`tsconfig*.json`/`cordis.patch.yml`/`.github/workflows/`、marker/state 默认 protected、planning/implement 两条中文命令；
+- 默认配置在写入前先用同一套校验器验证，不会留下导致全部写拒绝的半配置；不创建 state 文件，不授予 implement 授权。
+
+命令是全局人类命令，出现在每个会话的 `/` 菜单；它不进入模型工具面，也不消耗模型步骤。
 
 配置示例：
 
@@ -27,21 +40,19 @@ Host 插件：仅在已启用的项目里，按**会话**控制**代码文件**�
 }
 ```
 
-- 没有 marker 或 `enabled:false`：pass-through；
-- marker JSON 坏、`enabled` 非布尔、缺 `version:2`/`codeExtensions`/`commands.implement`、含绝对路径/`..`/通配符/未知键：`misconfigured`，所有写拒绝；
+- 没有 marker 或 `enabled:false`：pass-through，工具不可见；
+- marker JSON 坏、`enabled` 非布尔、缺 `version:2`/`codeExtensions`/`commands.implement`、含绝对路径/`..`/通配符/未知键：`misconfigured`，**所有工具调用**被拒绝（fail-closed）；只有 `implement_gate status` 例外，用来返回原因与 marker 路径；
 - `.agents/implement-gate.json` 与 `.agents/state/implement-gate/**` **无条件 protected**，配置只能追加；
 - `codeExtensions` 之外的路径是文档；`codePaths` 只列执行入口（package/lock/tsconfig/cordis/CI workflow）；
 - `codePaths` 不带尾斜杠是精确文件，带尾斜杠是目录前缀；
-- 配置按 workspace 根、每次调用读取；不同项目互不影响。
-
-新项目不需要手写配置：对代理说「初始化 implement-gate」，代理调用 `implement_gate({action:'init'})`。它创建默认 v2 配置并立即生效；已有 marker 时返回 `already-exists`，不会覆盖。可选参数 `codeExtensions`、`codePaths`、`proposed` 用来覆盖默认值；生成后先校验，非法配置会被删除并返回 `misconfigured`。
+- 配置按 marker 目录、每次调用读取；不同项目互不影响。
 
 ## 会话状态
 
-状态按 `(workspaceRoot, sessionId)` 存放：
+状态按 `(marker 目录, sessionId)` 存放，跟 marker 同目录，子目录会话也不往子目录写：
 
 ```text
-.agents/state/implement-gate/<session-hash>.json
+<marker 目录>/.agents/state/implement-gate/<session-hash>.json
 ```
 
 每个会话一个文件，并行会话互不影响，插件重载后从文件恢复。状态：
@@ -88,10 +99,10 @@ Host 插件：仅在已启用的项目里，按**会话**控制**代码文件**�
 
 | 文件 | 作用 |
 | --- | --- |
-| `index.js` | 插件入口、项目启用、会话状态、`implement_gate` 工具、pre-execute 拦截 |
-| `config.js` | 读取与校验 `.agents/implement-gate.json` 项目策略 |
+| `index.js` | 插件入口、marker/策略解析、会话状态、`implement_gate` 工具（`when` 门控）、`/implement-gate init` 命令、pre-execute 拦截 |
+| `config.js` | 定位 marker 与项目根，读取与校验 `.agents/implement-gate.json` |
 | `classify.js` | 纯分类：命令、路径、shell 写动作 |
-| `test.mjs` | 纯函数 + mock Host 用例 |
+| `test.mjs` | 纯函数 + mock Host 用例（含子目录、`.git`、命令初始化） |
 | `cordis.patch.yml` | 插入 `implement-gate` 行 |
 
 ## 验证

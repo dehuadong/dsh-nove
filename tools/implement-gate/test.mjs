@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { classifyPath, gateCommand, shellAccess } from './classify.js'
 import { apply } from './index.js'
-import { loadConfig } from './config.js'
+import { findGateRoot, findProjectRoot, loadConfig } from './config.js'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -38,6 +38,11 @@ check('gitignore is not code', classifyPath(root, '.gitignore', policy).code ===
 check('storycraft package is code path', classifyPath(root, 'storycraft/package.json', policy).code === true)
 check('proposed is proposed', classifyPath(root, '.agents/notes/proposed/x.md', policy).proposed === true)
 check('outside is outside', classifyPath(root, '../outside.txt', policy).outside === true)
+check('repo marker resolves to the workspace', findGateRoot(root) === path.resolve(root))
+check('repo root resolves to the workspace', findProjectRoot(root) === path.resolve(root))
+const barren = mkdtempSync(path.join(os.tmpdir(), 'implement-gate-barren-'))
+check('bare directory has no gate', findGateRoot(barren) === undefined)
+check('bare directory has no project root', findProjectRoot(barren) === undefined)
 
 check('git status is free', shellAccess('git status', root, policy).write === false)
 check('git commit is free', shellAccess('git commit -m x', root, policy).write === false)
@@ -49,7 +54,7 @@ check('redirection sees code target', shellAccess('echo x > src/x.ts', root, pol
 check('variable code target is resolved', shellAccess("$p='src/x.ts'; Set-Content $p -Value x", root, policy).codeTargets.length > 0)
 check('npm build is not a code write', shellAccess('npm run build', root, policy).write === false)
 
-function mockHost(approval, workspace) {
+function mockHost(approval, workspace, { withPolicy = true } = {}) {
   if (workspace === undefined) {
     workspace = mkdtempSync(path.join(os.tmpdir(), 'implement-gate-'))
     mkdirSync(path.join(workspace, '.agents'), { recursive: true })
@@ -57,13 +62,31 @@ function mockHost(approval, workspace) {
   }
   const handlers = {}
   const tools = {}
+  const options = {}
+  const commands = {}
   const ctx = {
     on: (name, handler) => { handlers[name] = handler },
-    get: name => name === 'approval' ? approval : name === 'sandboxPolicy' ? { workspaceRoot: workspace, resolve: () => ({ workspaceRoot: workspace }) } : undefined,
-    tools: { register: definition => { tools[definition.name] = definition } },
+    effect: fn => { fn() },
+    inject: (deps, callback) => { callback(ctx) },
+    commands: {
+      register: definition => {
+        commands[definition.name] = definition
+        return () => {}
+      },
+    },
+    get: name => name === 'approval' ? approval
+      : name === 'sandboxPolicy' && withPolicy
+        ? { workspaceRoot: workspace, resolve: () => ({ workspaceRoot: workspace }) }
+        : undefined,
+    tools: {
+      register: (definition, registrationOptions = {}) => {
+        tools[definition.name] = definition
+        options[definition.name] = registrationOptions
+      },
+    },
   }
   apply(ctx)
-  return { handlers, tools }
+  return { handlers, tools, options, commands }
 }
 
 function agentFor(id, header = {}) { return { id, session: { header } } }
@@ -71,10 +94,20 @@ const gateMessage = text => ({ role: 'user', source: { kind: 'user' }, content: 
 const preStep = (host, agent, messages) => host.handlers['agent/pre-step']({ agent, messages }, async () => ({ kind: 'allow' }))
 const preExec = (host, agent, name, args) => host.handlers['tools/pre-execute']({ name, arguments: args, agent, signal: new AbortController().signal, callId: 'c1' }, async () => ({ kind: 'allow' }))
 const call = (host, agent, action, reason) => host.tools.implement_gate.execute({ action, reason }, { agent, signal: new AbortController().signal })
+const visible = (host, agent) => host.options.implement_gate.when({ agent, modelSelection: {}, signal: new AbortController().signal })
+const runCommand = (host, agent, input) => host.commands['implement-gate'].handler({
+  commandId: 'cmd1',
+  agent,
+  rawInput: ` ${input}`,
+  attachments: [],
+  signal: new AbortController().signal,
+})
 
 {
   const host = mockHost(undefined)
   const agent = agentFor('a1')
+  check('gated workspace shows tool', (await visible(host, agent)) === true)
+  check('tool exposes no init action', !host.tools.implement_gate.parameters.properties.action.enum.includes('init'))
   check('discuss denies code', (await preExec(host, agent, 'write', { file_path: 'storycraft/src/x.ts' })).kind === 'deny')
   check('discuss allows docs', (await preExec(host, agent, 'write', { file_path: 'docs/x.md' })).kind === 'allow')
   check('discuss allows json', (await preExec(host, agent, 'write', { file_path: 'data.json' })).kind === 'allow')
@@ -112,6 +145,7 @@ const call = (host, agent, action, reason) => host.tools.implement_gate.execute(
   const agent = agentFor('other')
   const status = await call(host, agent, 'status')
   check('no marker is disabled', status.enabled === false)
+  check('no marker hides tool', (await visible(host, agent)) === false)
   check('no marker passes code', (await preExec(host, agent, 'write', { file_path: 'storycraft/src/x.ts' })).kind === 'allow')
 }
 
@@ -142,6 +176,7 @@ const call = (host, agent, action, reason) => host.tools.implement_gate.execute(
   const agent = agentFor('broken')
   const status = await call(host, agent, 'status')
   check('v1 is misconfigured', status.ok === false && status.code === 'misconfigured')
+  check('misconfigured still shows tool', (await visible(host, agent)) === true)
   check('misconfigured denies code', (await preExec(host, agent, 'write', { file_path: 'src/x.ts' })).kind === 'deny')
 }
 
@@ -149,23 +184,97 @@ const call = (host, agent, action, reason) => host.tools.implement_gate.execute(
   const empty = mkdtempSync(path.join(os.tmpdir(), 'implement-gate-init-'))
   const host = mockHost(undefined, empty)
   const agent = agentFor('init')
-  const created = await call(host, agent, 'init')
-  check('init creates config', created.ok === true && created.configVersion === 2)
+  const usage = await runCommand(host, agent, 'nope')
+  check('command requires init', usage.kind === 'error' && usage.text.includes('/implement-gate init'))
+  check('bad command input writes nothing', !existsSync(path.join(empty, '.agents', 'implement-gate.json')))
+  check('command is registered with a hint', host.commands['implement-gate']?.input?.hint === 'init')
+  check('command target hides tool before init', (await visible(host, agent)) === false)
+  const created = await runCommand(host, agent, 'init')
+  check('command creates config', created.kind === 'success' && existsSync(path.join(empty, '.agents', 'implement-gate.json')))
+  check('command enables tool', (await visible(host, agent)) === true)
   const status = await call(host, agent, 'status')
-  check('init enables status', status.enabled === true && status.configVersion === 2)
-  const again = await call(host, agent, 'init')
-  check('init refuses existing config', again.ok === false && again.code === 'already-exists')
+  check('command enables status', status.enabled === true && status.configVersion === 2)
+  const again = await runCommand(host, agent, 'init')
+  check('command refuses existing config', again.kind === 'error' && again.text.includes('已存在'))
   check('init defaults gate code', (await preExec(host, agent, 'write', { file_path: 'src/x.ts' })).kind === 'deny')
   check('init defaults allow docs', (await preExec(host, agent, 'write', { file_path: 'docs/x.md' })).kind === 'allow')
 }
 
 {
-  const empty = mkdtempSync(path.join(os.tmpdir(), 'implement-gate-init-bad-'))
+  const repo = mkdtempSync(path.join(os.tmpdir(), 'implement-gate-repo-'))
+  mkdirSync(path.join(repo, '.git'))
+  const pkg = path.join(repo, 'pkg')
+  mkdirSync(pkg)
+  const host = mockHost(undefined, pkg)
+  const agent = agentFor('nested')
+  check('nested workspace hides tool', (await visible(host, agent)) === false)
+  const refused = await runCommand(host, agent, 'init')
+  check('nested init refused with project root', refused.kind === 'error' && refused.text.includes(repo))
+  check('nested init writes no marker', !existsSync(path.join(pkg, '.agents', 'implement-gate.json')))
+}
+
+{
+  const repo = mkdtempSync(path.join(os.tmpdir(), 'implement-gate-root-'))
+  mkdirSync(path.join(repo, '.git'))
+  const host = mockHost(undefined, repo)
+  const agent = agentFor('root-init')
+  const created = await runCommand(host, agent, 'init')
+  check('project root init succeeds', created.kind === 'success' && existsSync(path.join(repo, '.agents', 'implement-gate.json')))
+  check('project root init enables tool', (await visible(host, agent)) === true)
+}
+
+{
+  const base = mkdtempSync(path.join(os.tmpdir(), 'implement-gate-sub-'))
+  mkdirSync(path.join(base, '.agents'), { recursive: true })
+  writeFileSync(path.join(base, '.agents', 'implement-gate.json'), readFileSync(path.join(root, '.agents', 'implement-gate.json')))
+  const sub = path.join(base, 'pkg')
+  mkdirSync(sub)
+  const host = mockHost(undefined, sub)
+  const agent = agentFor('sub')
+  check('subdir inherits ancestor gate', (await visible(host, agent)) === true)
+  const status = await call(host, agent, 'status')
+  check('subdir status reports ancestor marker', status.configPath === path.join(base, '.agents', 'implement-gate.json'))
+  check('subdir denies code', (await preExec(host, agent, 'write', { file_path: 'src/x.ts' })).kind === 'deny')
+  await preStep(host, agent, [gateMessage('批准，使用技能 planning 执行规划 sub')])
+  const stateDir = path.join(base, '.agents', 'state', 'implement-gate')
+  check('state stays beside the marker', existsSync(stateDir) && !existsSync(path.join(sub, '.agents')))
+  const refused = await runCommand(host, agent, 'init')
+  check('subdir init refused', refused.kind === 'error' && !existsSync(path.join(sub, '.agents', 'implement-gate.json')))
+}
+
+{
+  const empty = mkdtempSync(path.join(os.tmpdir(), 'implement-gate-off-'))
+  mkdirSync(path.join(empty, '.agents'), { recursive: true })
+  writeFileSync(path.join(empty, '.agents', 'implement-gate.json'), JSON.stringify({ enabled: false }))
   const host = mockHost(undefined, empty)
-  const agent = agentFor('init-bad')
-  const result = await host.tools.implement_gate.execute({ action: 'init', codeExtensions: [] }, { agent, signal: new AbortController().signal })
-  check('invalid init is rejected', result.ok === false && result.code === 'misconfigured')
-  check('invalid init leaves no marker', !existsSync(path.join(empty, '.agents', 'implement-gate.json')))
+  const agent = agentFor('off')
+  check('disabled hides tool', (await visible(host, agent)) === false)
+  check('disabled passes code', (await preExec(host, agent, 'write', { file_path: 'src/x.ts' })).kind === 'allow')
+}
+
+{
+  const base = mkdtempSync(path.join(os.tmpdir(), 'implement-gate-sub-off-'))
+  mkdirSync(path.join(base, '.agents'), { recursive: true })
+  writeFileSync(path.join(base, '.agents', 'implement-gate.json'), readFileSync(path.join(root, '.agents', 'implement-gate.json')))
+  const sub = path.join(base, 'pkg')
+  mkdirSync(path.join(sub, '.agents'), { recursive: true })
+  writeFileSync(path.join(sub, '.agents', 'implement-gate.json'), JSON.stringify({ enabled: false }))
+  const host = mockHost(undefined, sub)
+  const agent = agentFor('sub-off')
+  check('nearest disabled marker wins', (await visible(host, agent)) === false)
+  check('nearest disabled passes code', (await preExec(host, agent, 'write', { file_path: 'src/x.ts' })).kind === 'allow')
+}
+
+{
+  const base = mkdtempSync(path.join(os.tmpdir(), 'implement-gate-no-policy-'))
+  mkdirSync(path.join(base, '.agents'), { recursive: true })
+  writeFileSync(path.join(base, '.agents', 'implement-gate.json'), readFileSync(path.join(root, '.agents', 'implement-gate.json')))
+  const host = mockHost(undefined, base, { withPolicy: false })
+  const agent = agentFor('no-policy')
+  check('unresolved workspace hides tool', (await visible(host, agent)) === false)
+  check('unresolved workspace passes code', (await preExec(host, agent, 'write', { file_path: 'src/x.ts' })).kind === 'allow')
+  const refused = await runCommand(host, agent, 'init')
+  check('unresolved workspace refuses init', refused.kind === 'error' && refused.text.includes('无法确定'))
 }
 
 if (failures > 0) { console.error(`\n${failures} CHECK(S) FAILED`); process.exit(1) }

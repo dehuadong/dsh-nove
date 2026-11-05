@@ -1,11 +1,52 @@
-/** Load and validate one workspace's implement-gate policy (version 2). */
+/** Locate and validate one workspace's implement-gate policy (version 2). */
 
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
 export const MARKER = '.agents/implement-gate.json'
 export const STATE_DIR = '.agents/state/implement-gate'
+export const PROJECT_ANCHOR = '.git'
 export const DEFAULT_PROTECTED = [MARKER, STATE_DIR]
+
+/** Every directory from `start` up to the filesystem root, nearest first. */
+function upward(start) {
+  const list = []
+  let current = path.resolve(start)
+  for (;;) {
+    list.push(current)
+    const parent = path.dirname(current)
+    if (parent === current) return list
+    current = parent
+  }
+}
+
+/** The nearest directory at or above `workspace` that holds `name`. */
+function nearest(workspace, name) {
+  for (const dir of upward(workspace)) {
+    if (existsSync(path.join(dir, name))) return dir
+  }
+  return undefined
+}
+
+/**
+ * The nearest directory at or above `workspace` that holds the gate marker.
+ * A session opened in a subdirectory therefore inherits its project's policy.
+ * @param workspace - absolute session workspace root.
+ * @returns the marker directory, or undefined when no project opts in.
+ */
+export function findGateRoot(workspace) {
+  return nearest(workspace, MARKER)
+}
+
+/**
+ * The nearest repository root at or above `workspace`.
+ * @param workspace - absolute session workspace root.
+ * @returns the directory holding `.git`, or undefined outside a repository.
+ */
+export function findProjectRoot(workspace) {
+  return nearest(workspace, PROJECT_ANCHOR)
+}
+
 const ALLOWED_KEYS = new Set(['enabled', 'version', 'codeExtensions', 'codePaths', 'protected', 'proposed', 'commands'])
 const COMMAND_KEYS = ['planning', 'implement']
 
@@ -78,6 +119,16 @@ export function loadConfig(root) {
   } catch {
     return { kind: 'invalid', configPath, reason: `${MARKER} is not valid JSON` }
   }
+  return validateConfig(value, configPath)
+}
+
+/**
+ * Validate one parsed policy object.
+ * @param value - parsed policy JSON.
+ * @param configPath - marker path used in diagnostics.
+ * @returns the enabled policy, or the disabled/invalid outcome.
+ */
+export function validateConfig(value, configPath) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     return { kind: 'invalid', configPath, reason: `${MARKER} must be an object` }
   }
