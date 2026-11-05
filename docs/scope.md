@@ -41,17 +41,19 @@
 
 每个节点只交付一个能力；阶段名只是分组，不代表一次 PR 交付多个能力。
 
-- **D0 运行时与身份**：`runtime.load` → `runtime.session-binding` → `runtime.telemetry` → `runtime.commands` → `artifact.identity` → `panel.workbench`。
+- **D0 运行时与身份**：`runtime.load` → `runtime.session-binding` → `runtime.telemetry` → `runtime.commands` → `artifact.identity`。
 - **D1 基础设定**：`foundation.architect` → `foundation.hooks` → `foundation.approval`。
 - **D2 计划与上下文**：`plan.outline` → `plan.chapter` → `context.brief` → `cast.single-authority` → `context.retrieval`。
 - **D3 正文**：`chapter.write` → `chapter.review` → `chapter.revise`。
 - **D4 收尾**：`chapter.summary` → `chapter.settle` → `chapter.finalize`。
 - **D5 重开与维护**：`chapter.reopen` → `chapter.move-delete` → `state.check` → `runtime.recovery`。
-- **D6 导出与面板**：`export.work` → `backup.restore` → `materials.import` → `search.unified` → `panel.logs` → `panel.analysis`。
+- **D6 导出与面板**：`export.work` → `backup.restore` → `materials.import` → `search.unified` → `panel.workbench` → `panel.logs` → `panel.analysis`。
 - **D7 短篇**：`short.outline` → `short.batch-draft` → `short.review-revise` → `short.package`。
 - **D8 剧本**：`script.spec` → `script.scenes` → `script.scriptset` → `script.review-revise`。
 
 交付节点只决定切片顺序，不重新定义源工程阶段；不得用 D 节点替代源阶段的行为。
+
+D1 的 `foundation.approval` 先以会话确认验证闸门；源工程的面板确认在 D6 的 `panel.workbench` 补齐，期间按保真债登记，不冒充等价。
 
 每个节点结束时只允许 `check-capabilities --write` 更新状态；不写进度文档。
 
