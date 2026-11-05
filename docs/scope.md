@@ -35,22 +35,25 @@
 
 每个节点的产物、顺序、错误与拒绝行为以源工程为准；v1 覆盖到第 1 章定稿与导出。
 
-### 复刻交付节点
+### 复刻交付节点（复审后）
 
-按能力纵向交付，顺序如下；每一步以对应能力行的证据为准，不以文字进度为准。
+复审结论：原 P0–P7 漏掉了 `runtime.session-binding`、`runtime.telemetry`、`runtime.commands`、`runtime.recovery`、`foundation.hooks`、`artifact.identity`、`chapter.reopen`、`chapter.move-delete`、`state.check`、`panel.workbench`、`panel.logs`、`panel.analysis`，并把 `cast.single-authority` 放在 brief 之前。现按源阶段顺序改为 D0–D8，覆盖 `capabilities.yaml` 全部 38 行。
 
-- **P0**：`runtime.load` —— 最小 bundle/preset/tool/skill/client 骨架，CI 通过，真实加载一次。
-- **P1**：`foundation.architect` + `cast.single-authority` + `foundation.approval` —— 第一条真实链路（立项 → 基础设定 → 角色进入 brief）。
-- **P2**：`plan.outline` + `plan.chapter` + `context.brief`。
-- **P3**：`chapter.write` + `chapter.review` + `chapter.revise`。
-- **P4**：`chapter.summary` + `chapter.settle` + `chapter.finalize`。
-- **P5**：`export.work` + `backup.restore` + `materials.import` + `search.unified` + `panel.*`。
-- **P6**：短篇流水线（独立）。
-- **P7**：剧本流水线（独立）。
+每个节点只交付一个能力；阶段名只是分组，不代表一次 PR 交付多个能力。
 
-交付节点只决定切片顺序，不重新定义源工程阶段；不得用 P 节点替代源阶段的行为。
+- **D0 运行时与身份**：`runtime.load` → `runtime.session-binding` → `runtime.telemetry` → `runtime.commands` → `artifact.identity` → `panel.workbench`。
+- **D1 基础设定**：`foundation.architect` → `foundation.hooks` → `foundation.approval`。
+- **D2 计划与上下文**：`plan.outline` → `plan.chapter` → `context.brief` → `cast.single-authority` → `context.retrieval`。
+- **D3 正文**：`chapter.write` → `chapter.review` → `chapter.revise`。
+- **D4 收尾**：`chapter.summary` → `chapter.settle` → `chapter.finalize`。
+- **D5 重开与维护**：`chapter.reopen` → `chapter.move-delete` → `state.check` → `runtime.recovery`。
+- **D6 导出与面板**：`export.work` → `backup.restore` → `materials.import` → `search.unified` → `panel.logs` → `panel.analysis`。
+- **D7 短篇**：`short.outline` → `short.batch-draft` → `short.review-revise` → `short.package`。
+- **D8 剧本**：`script.spec` → `script.scenes` → `script.scriptset` → `script.review-revise`。
 
-每个阶段结束时只允许 `check-capabilities --write` 更新状态；不写进度文档。
+交付节点只决定切片顺序，不重新定义源工程阶段；不得用 D 节点替代源阶段的行为。
+
+每个节点结束时只允许 `check-capabilities --write` 更新状态；不写进度文档。
 
 ## 非目标（v1）
 
