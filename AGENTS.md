@@ -157,14 +157,9 @@
 ## DSH 插件与预设
 
 在开发deepseek-harness 插件时遇到问题可参阅deepseek-harness官方源码工程包 `E:\workspace\DSH\deepseek-harness\packages`
-
-约定：
-
-- 源码以 `deepseek-harness/`（指向 DSH checkout 的符号链接）为准；安装版在 `app.asar` 内，shell 读不到。两处版本不一致时，以实际运行版本的 README 与 Config schema 为准。
-- 实时契约用 `cordis_inspect_list` / `cordis_inspect_query` 读 Service、Event、Config、Tool、Slots；不要猜插件名、字段或默认值。
-- 安装或修改插件与预设走 `plugin_manager`（`install_bundle`、`set_bundle`），不手改 profile 文件。
-- **交付默认包含本地目录安装**：插件代码通过 Verify 后，代理构建并以本地包目录（`link:`）装入当前 `desktop` profile、校验安装副本；不默认生成 `.tgz`，只有目标需要分发物或用户明确要 tarball 时才打包。desktop profile 由 Electron 独占，CLI 不能安装，必须走 `plugin_manager`。
-- 源工程只作功能性规格，先核对其声明的 DSH 版本；
+DSH UI设计判断参考`deepseek-harness/docs/ui-design-review-cases.zh.md`
+Web UI 样式参考`deepseek-harness/docs/web-styling.zh.md`
+DSH  UI统一圆角规范`deepseek-harness/docs/ui-radius.zh.md`
 
 
 ## Agent Notes 
@@ -174,4 +169,4 @@
 3. 被放弃的方案先写它最强的理由，再解释为什么不用。
 4. 提交前跑 npm run verify-notes，红了先修再交。
 5. **工作项入口**：能力以 `capabilities.yaml` 的 `id` 为工作项；一次只做一个纵向能力，同时交付源工程证据、复刻落点、实现、消费者与契约测试。不新建 Issue，不建排期文档，不把路线写进 Note。
-6. **状态与证据**：当前状态的唯一证据是当前代码的自动测试/CI 与真实链路会话证据；Note 的 lifecycle 与 `## Testing` 只表示记录是否落地、当时跑过什么，不表示能力当前可用。禁止新建/维护 `delivery-status-*`、`parity-matrix` 式手写完成状态表；工作项验收必须包含消费者与真实链路证据。旧状态文档已冻结，规则见 [状态与证据的唯一来源](.agents/notes/implemented/process/2026-11-03-storycraft-status-evidence-ownership.md)。
+6. **状态与证据**：当前状态的唯一证据是当前代码的自动测试/CI 与真实链路会话证据；Note 的 lifecycle 与 `## Testing` 只表示记录是否落地、当时跑过什么，不表示能力当前可用。禁止新建/维护 `delivery-status-*`、`parity-matrix` 式手写完成状态表；工作项验收必须包含消费者与真实链路证据。
