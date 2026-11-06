@@ -113,9 +113,9 @@ capabilities:
     reference: inkos:packages/core/src/harness/context-compiler.ts
     dsh: systemPrompt.context()
     implementation: storycraft/src/context/brief.ts
-    consumer: storycraft/tests/context.test.mjs
-    realRun: null
-    status: missing
+    consumer: storycraft/tests/bible.test.mjs
+    realRun: artifacts/real-runs/context.brief.json
+    status: verified
   - id: context.retrieval
     title: 摘要／伏笔／卷／素材检索与来源标注
     reference: inkos:packages/core/src/retrieval/local-search.ts

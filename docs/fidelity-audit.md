@@ -26,7 +26,7 @@
 | `runtime.fidelity-audit` | `AGENTS.md#保真原则` | 每个能力有源证据/不变量/现状/判定；verified 不得未审；债/偏差有归属 | `docs/fidelity-audit.md`、`scripts/check-fidelity-audit.mjs` | 等价 | 无 |
 | `runtime.recovery` | 待审计 | 待审计 | `src/recovery.ts` | 未审 | 后续行 |
 | `plan.chapter` | `inkos-master/packages/core/src/agents/planner.ts:22-60`、`models/input-governance.ts` | 章纲固定 `plan:<n>` 身份；五字段/body/threadRefs；未确认阻断正文；确认绑定 current revision | `src/storage/repositories/chapters.ts`、`tests/memo-consumers.test.mjs` | 等价 | 无 |
-| `context.brief` | `inkos-master/packages/core/src/harness/context-compiler.ts:1-160` | 上下文片段按 protected/compressible 分层；protected 超预算抛错；去重后按优先级装配；trace 记录预算与来源 | `src/context/brief.ts`、`tests/context.test.mjs` | 保真债 | 当行补齐：当前 budget 只标 overBudget 不抛 protected overflow；未实现片段去重；语义压缩未实现 |
+| `context.brief` | `inkos-master/packages/core/src/harness/context-compiler.ts:1-160` | 上下文片段按 protected/compressible 分层；protected 超预算抛错；去重后按优先级装配；trace 记录预算与来源 | `src/context/brief.ts`、`tests/bible.test.mjs` | 保真债 | 后续行：语义压缩未实现；当前超预算按 section 丢弃，偿还路径为 `context.compress` 或 brief compiler |
 | `context.retrieval` | 待审计 | 待审计 | `src/search-index.ts` | 未审 | 后续行 |
 | `chapter.write` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |
 | `chapter.review` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |

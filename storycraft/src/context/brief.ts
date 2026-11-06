@@ -157,8 +157,19 @@ export async function assembleBrief(root: string, workId: unknown, chapter: numb
     : BRIEF_BUDGET_TOKENS
   const budget: BriefBudget = { limit, used: 0, unit: 'tokens', overBudget: false }
   const dropped: DroppedSection[] = []
-  const kept: BriefSection[] = [...sections]
   const protectedNames = new Set(['storyFrame', 'bookRules'])
+  const sectionNames = sections.map(item => item.name)
+  if (new Set(sectionNames).size !== sectionNames.length) {
+    throw new StoryError('brief-section-duplicate', 'brief section 名必须唯一')
+  }
+  const protectedTokens = sections
+    .filter(item => protectedNames.has(item.name))
+    .reduce((sum, item) => sum + item.tokens, 0)
+  if (protectedTokens > limit) {
+    throw new StoryError('brief-protected-overflow',
+      `brief 的 protected 段超出预算：${protectedTokens}/${limit} tokens`)
+  }
+  const kept: BriefSection[] = [...sections]
   const total = (): number => kept.reduce((sum, item) => sum + item.tokens, 0)
   while (total() > limit && kept.length > 1) {
     let index = kept.length - 1

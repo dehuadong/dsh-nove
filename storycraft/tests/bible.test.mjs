@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import * as s from '../src/storage.ts'
 import * as b from '../src/bible/index.ts'
 import { openWork } from '../src/storage/db.ts'
+import { artifactRevision, putArtifact } from '../src/artifact-store.ts'
 import { seedCast } from './cast.mjs'
 
 let failures = 0
@@ -231,6 +232,22 @@ try {
   const noSummary = await b.assembleBrief(root, work, 3)
   const tailSection = noSummary.sections.find(section => section.name === 'previous')
   check('body fallback marked', tailSection.bodyFallback === true || tailSection.absent === true, JSON.stringify({ absent: tailSection.absent, bodyFallback: tailSection.bodyFallback }))
+
+  // A protected section larger than the whole budget is a hard failure, not a
+  // silent trim. Run last because it installs an oversized story frame.
+  const frame = '# 故事框架\n\n## 前提\n' + '长'.repeat(9000)
+    + '\n\n## 核心冲突\n冲突。\n\n## 主角动机\n动机。\n\n## 约束\n约束。\n\n## 因果解决\n解决。\n'
+  putArtifact(root, {
+    workId: work, artifactId: 'bible:story_frame', kind: 'story_frame', provenance: 'generated',
+    revisionId: artifactRevision(frame), content: frame, createdAt: new Date().toISOString(),
+  })
+  let protectedCode = 'none'
+  try {
+    await b.assembleBrief(root, work, 2, { budget: 1 })
+  } catch (error) {
+    protectedCode = error?.code ?? String(error)
+  }
+  check('protected brief sections cannot be silently trimmed', protectedCode === 'brief-protected-overflow', protectedCode)
 } finally {
   await rm(root, { recursive: true, force: true })
 }

@@ -94,13 +94,13 @@ try {
       allowedDeviations: [], markdown: '# 作品规则\n\n' + '长'.repeat(9000),
     },
   })
-  const trimmed = await b.assembleBrief(root, work, 1)
-  check('budget stops before protected foundation sections',
-    trimmed.budget.overBudget === true
-    && trimmed.sections.some(section => section.name === 'bookRules' && section.content !== '')
-    && trimmed.sections.some(section => section.name === 'storyFrame' && section.content !== ''), JSON.stringify(trimmed.budget))
-  check('protected sections are never dropped',
-    !trimmed.dropped.some(item => ['storyFrame', 'bookRules'].includes(item.name)), JSON.stringify(trimmed.dropped))
+  let overflow = 'none'
+  try {
+    await b.assembleBrief(root, work, 1)
+  } catch (error) {
+    overflow = error?.code ?? String(error)
+  }
+  check('protected foundation overflow is a hard failure', overflow === 'brief-protected-overflow', overflow)
 
   const planner = await assembleRoleContext({ root, work, chapter: 1, role: 'planner', task: '规划第一章' })
   const plannerPlan = planner.sections.find(section => section.name === 'plan')
