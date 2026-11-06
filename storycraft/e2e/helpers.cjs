@@ -31,12 +31,8 @@ async function openWorkbench(page, url) {
     if (await workspace.count() > 0) await clickThrough(workspace)
     await page.waitForTimeout(600)
 
-    const expand = page.getByRole('button', { name: /打开右侧边栏|Open right sidebar/ })
-    if (await expand.count() > 0) await clickThrough(expand)
-    await page.waitForTimeout(600)
-
-    const card = page.getByRole('button', { name: /故事工坊/ })
-    if (await card.count() > 0) await clickThrough(card)
+    const panel = page.getByRole('tab', { name: '长篇面板' })
+    if (await panel.count() > 0) await clickThrough(panel)
 
     try {
       await heading.waitFor({ state: 'visible', timeout: 5_000 })

@@ -467,6 +467,18 @@ export function apply(ctx: DshContext): void {
     }),
     ctx.webServer.register({
       kind: 'exact',
+      path: `${BASE}/current/session-for-work`,
+      handler: (req, res) => readRoute(req, res, async (query) => {
+        const root = await rootOf(ctx, query)
+        const workId = String(query.get('work') ?? '')
+        if (workId === '') throw new StoryError('invalid-query', '需要 work')
+        const sessions = readSessionCurrent(root)
+        const sessionId = Object.entries(sessions).find(([, bound]) => bound === workId)?.[0]
+        return sessionId === undefined ? {} : { sessionId }
+      }),
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
       path: `${BASE}/foundation`,
       handler: (req, res) => readRoute(req, res, async (query) => {
         const root = await rootOf(ctx, query)

@@ -573,6 +573,9 @@ import type * as ReactTypes from 'react'
       next(root: string | undefined, id: string): Promise<NextPayload>
       getCurrent(root: string | undefined, sessionId: string): Promise<CurrentPayload>
       setCurrent(root: string | undefined, sessionId: string, workId: string): Promise<CurrentPayload>
+      sessionForWork(root: string | undefined, workId: string): Promise<{ sessionId?: string }>
+      createSession(root: string | undefined, preset: string | undefined): Promise<{ sessionId?: string }>
+      openSession(sessionId: string): void
       work(root: string | undefined, id: string, filters?: ChapterQueryFilters): Promise<WorkDetailPayload>
       chapter(
         root: string | undefined,

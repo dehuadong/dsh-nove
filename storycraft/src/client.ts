@@ -190,6 +190,12 @@ window.__ModuleLoader__.load({
         next: (root, id) => route(ROUTE.next, { root, id }),
         getCurrent: (root, sessionId) => route(ROUTE.current, { root, sessionId }),
         setCurrent: (root, sessionId, workId) => post(ROUTE.current, { root, sessionId, workId }),
+        sessionForWork: (root, workId) => route(ROUTE.sessionForWork, { root, work: workId }),
+        createSession: async (root, preset) => {
+          const created = await (ctx as any).remote?.session?.create?.({ cwd: root, agentPreset: preset })
+          return { sessionId: created?.sessionId }
+        },
+        openSession: (sessionId) => { (ctx as any).uiWorkspace?.openSession?.(sessionId) },
         work: (root, id, filters) => route(ROUTE.work, { root, id, ...(filters ?? {}) }),
         chapter: (root, id, chapter, view, revision) => route(ROUTE.chapter, { root, id, chapter, view, revision }),
         approveChapterPlan: (root, sessionId, workId, chapter) => post(ROUTE.approve, { root, sessionId, workId, chapter }),
@@ -596,11 +602,33 @@ window.__ModuleLoader__.load({
                   filters: workFilters,
                   onFilters: filters => { setWorkFilters(filters); setSelected(undefined) },
                   onOpen: workId => {
-                    setSelected(workId)
                     setNotice(undefined)
-                    if (sessionId !== undefined) {
-                      void face!.setCurrent(root, sessionId, workId).catch(() => {})
+                    if (sessionId === undefined) {
+                      setSelected(workId)
+                      return
                     }
+                    if (currentId === workId) {
+                      setSelected(workId)
+                      return
+                    }
+                    void (async () => {
+                      try {
+                        await face!.setCurrent(root, sessionId, workId)
+                        setCurrentId(workId)
+                        setSelected(workId)
+                      } catch (error: any) {
+                        if (error?.code !== 'work-binding-mismatch') throw error
+                        const existing = await face!.sessionForWork(root, workId)
+                        if (existing.sessionId !== undefined) {
+                          face!.openSession(existing.sessionId)
+                          return
+                        }
+                        const created = await face!.createSession(root, sessionPreset)
+                        if (created.sessionId === undefined) throw new Error('无法新建会话')
+                        await face!.setCurrent(root, created.sessionId, workId)
+                        face!.openSession(created.sessionId)
+                      }
+                    })().catch(error => setNotice({ kind: 'error', text: String(error?.message ?? error) }))
                   },
                   onCreate: idea => compose(INSTRUCTIONS.newIdea(typeFilter, idea)),
                 })
@@ -649,42 +677,29 @@ window.__ModuleLoader__.load({
       )
     }
 
+    /** Session-scoped longform panel body. */
+    function StorycraftView() {
+      return h(StorycraftPage, { storycraft: pluginFace, compact: false })
+    }
+
     return {
-      inject: ['slots', 'layout', 'sidebarRight', 'sidebarRightTabs'],
+      inject: ['slots', 'layout'],
       /**
-       * Register the right-sidebar tab that hosts the workbench.
-       *
-       * There is deliberately no main-panel entry and no left-sidebar row: the
-       * workbench keeps the conversation (and its composer) on screen. The
-       * Remote namespace is bound lazily: without it the workbench still reads,
-       * it just cannot push instructions.
+       * Register the longform panel as a Session view beside conversation and
+       * trajectory. The panel is not a global sidebar tab: it belongs to the
+       * current Session and its workspace.
        * @param {object} ctx - the browser plugin context.
        */
       apply(ctx: ClientContext) {
         const bindings = { prompt: undefined }
         const face = createFace(ctx, bindings)
         pluginFace = face
-        const tabId = 'see-storycraft'
-        // Registration is an effect: the type lives exactly as long as this plugin.
-        const disposeType = ctx.effect(() => {
-          return ctx.sidebarRightTabs.register({
-            id: tabId,
-            kind: 'storycraft',
-            multiple: false,
-            keepMounted: true,
-            priority: 'extension',
-            title: () => '故事工坊',
-            guide: [{ id: 'open', order: 30, title: () => '故事工坊', description: () => '作品编排、真值与章节生产' }],
-          })
-        })
-        const disposeTabBody = ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
-          name: 'sidebar.right.pane.tab',
-          key: tabId,
-        }, StorycraftSideTab))
-        const disposeTabTitle = ctx.slots.inject('sidebar.right.pane.tab.title', () => ctx.slots.register({
-          name: 'sidebar.right.pane.tab.title',
-          key: tabId,
-        }, StorycraftTabTitle))
+        const disposeView = ctx.slots.inject('conversation.view', () => ctx.slots.register({
+          name: 'conversation.view',
+          id: 'longform',
+          order: 2,
+          label: () => '长篇面板',
+        } as any, StorycraftView))
         let disposeBindings: (() => void) | undefined
         try {
           disposeBindings = ctx.inject(['remote.session'], (scope) => {
@@ -695,9 +710,8 @@ window.__ModuleLoader__.load({
         }
         ctx.effect(() => () => {
           disposeBindings?.()
-          disposeTabBody()
-          disposeTabTitle()
-        }, 'see-storycraft: sidebar entry and workbench')
+          disposeView()
+        }, 'see-storycraft: conversation longform panel')
       },
     }
   },

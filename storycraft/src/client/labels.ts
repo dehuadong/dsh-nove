@@ -32,6 +32,7 @@ export function hookStatusLabel(status: string): string {
       critique: '/api/see-storycraft/critique',
       next: '/api/see-storycraft/next',
       current: '/api/see-storycraft/current',
+      sessionForWork: '/api/see-storycraft/current/session-for-work',
       work: '/api/see-storycraft/work',
       chapter: '/api/see-storycraft/chapter',
       approve: '/api/see-storycraft/chapter/approve',
