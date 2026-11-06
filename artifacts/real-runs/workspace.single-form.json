@@ -1,0 +1,26 @@
+{
+  "date": "2026-11-06",
+  "sessionId": "session-4604579f-a577-4ea1-88a1-51d867f3d7b6",
+  "tests": { "passed": true },
+  "receipts": [
+    {
+      "kind": "tool-call",
+      "tool": "story_propose",
+      "form": "short",
+      "ok": false,
+      "error": "workspace-form-mismatch",
+      "message": "当前预设只接受 longform，不能提案 short：换工作区或换预设"
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/tests/workspace-form.test.mjs",
+      "ok": true
+    },
+    {
+      "kind": "code-check",
+      "command": "node storycraft/scripts/ci.mjs --no-e2e",
+      "ok": true,
+      "unitFiles": 99
+    }
+  ]
+}

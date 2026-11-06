@@ -33,12 +33,14 @@ Status: implemented
 
 - **收益**：工作区形态有单一权威；跨形态提案/立项被拒绝；后续会话绑定与长篇面板可以只针对 `longform` 工作区。
 - **代价与已知上限**：当前预设 form 由代码表 `PRESET_FORM = { storycraft: 'longform' }` 映射，尚未由预设配置直接声明；短篇/剧本预设加入时需要扩展该表。
-- **真实回执**：消费者测试与完整 CI 已通过；当前运行中的插件进程仍是旧代码，`story_propose(form: short)` 在真实会话里仍被接受。因此 `workspace.single-form` 暂保持 `missing`，重启加载新插件后重跑再置 `verified`。
+- **真实回执**：重启加载新插件后，`session-460...` 的 `story_propose(form: short)` 返回 `workspace-form-mismatch`；消费者测试与 99 个单元文件通过。回执写入 `artifacts/real-runs/workspace.single-form.json`，账本已置 `verified`。
 
 ## Verification
 
 ```text
 node storycraft/tests/workspace-form.test.mjs   # ALL CHECKS PASSED
 node storycraft/scripts/ci.mjs --no-e2e         # PASS: 99 unit files
-npm run verify                                  # 39 capabilities: 3 verified, 36 missing
+npm run verify                                  # 39 capabilities: 4 verified, 35 missing
 ```
+
+真实会话 `session-4604579f-a577-4ea1-88a1-51d867f3d7b6` 的 `story_propose(form: short)` 返回 `workspace-form-mismatch`；回执在 `artifacts/real-runs/workspace.single-form.json`。
