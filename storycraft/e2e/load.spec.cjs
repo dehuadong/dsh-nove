@@ -18,6 +18,8 @@ test.describe('故事工坊加载契约', () => {
     const errors = []
     page.on('pageerror', error => errors.push(error.message))
     await openWorkbench(page, url)
+    await expect(page.getByRole('tab', { name: '长篇面板' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '故事工坊' })).toBeVisible()
 
     // Same origin as the page: the session cookie the GUI handed out is enough.
     // The route names the workspace explicitly, exactly like the panel does.

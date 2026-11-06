@@ -14,6 +14,7 @@ async function openWorkbench(page, url) {
   if (await onboarding.count() > 0) {
     const close = onboarding.getByRole('button', { name: 'Close' })
     if (await close.count() > 0) await close.first().evaluate(node => node.click())
+    await page.waitForTimeout(300)
   }
 
   const heading = page.getByRole('heading', { name: '故事工坊' })
@@ -31,7 +32,29 @@ async function openWorkbench(page, url) {
     if (await workspace.count() > 0) await clickThrough(workspace)
     await page.waitForTimeout(600)
 
+    const newSession = page.getByRole('button', { name: 'New session' })
+    if (await page.getByRole('tab', { name: '长篇面板' }).count() === 0 && await newSession.count() > 0) {
+      await clickThrough(newSession)
+      await page.waitForTimeout(400)
+    }
+    const mode = page.getByRole('button', { name: /故事工坊|Standard mode|标准模式/ })
+    if (await page.getByRole('tab', { name: '长篇面板' }).count() === 0 && await mode.count() > 0) {
+      await clickThrough(mode)
+      const storycraftPreset = page.getByRole('menuitem', { name: /故事工坊|Storycraft/ })
+      if (await storycraftPreset.count() > 0) await clickThrough(storycraftPreset)
+      await page.waitForTimeout(400)
+    }
+
     const panel = page.getByRole('tab', { name: '长篇面板' })
+    if (await panel.count() === 0) {
+      const composer = page.getByRole('textbox', { name: /Describe what you want/ })
+      if (await composer.count() > 0) {
+        await composer.fill('加载契约测试')
+        const send = page.getByRole('button', { name: 'Send message' })
+        if (await send.count() > 0) await clickThrough(send)
+        await page.waitForTimeout(1_500)
+      }
+    }
     if (await panel.count() > 0) await clickThrough(panel)
 
     try {
