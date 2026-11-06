@@ -8,7 +8,8 @@
     "verify-archived": "node .agents/skills/write-agent-notes/scripts/verify-archived-agent-notes.ts --root .agents/notes",
     "verify-notes": "npm run verify-agent-note-tree && npm run verify-agent-note-format && npm run verify-archived",
     "check-capabilities": "node scripts/check-capabilities.mjs",
-    "verify": "npm run verify-notes && npm run check-capabilities"
+    "check-fidelity-audit": "node scripts/check-fidelity-audit.mjs",
+    "verify": "npm run verify-notes && npm run check-capabilities && npm run check-fidelity-audit"
   },
   "devDependencies": {
     "yaml": "^2.9.1"

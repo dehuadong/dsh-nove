@@ -1,0 +1,27 @@
+{
+  "date": "2026-11-06",
+  "sessionId": "session-d68dc3ec-3f70-435d-86fa-bf1438c8af3d",
+  "tests": { "passed": true },
+  "receipts": [
+    {
+      "kind": "fidelity-audit-table",
+      "path": "docs/fidelity-audit.md",
+      "capabilities": 40,
+      "verifiedAudited": 12,
+      "ok": true
+    },
+    {
+      "kind": "audit-check",
+      "command": "npm run check-fidelity-audit",
+      "ok": true,
+      "result": "ok: 40 capabilities audited, 12 verified"
+    },
+    {
+      "kind": "governance-row",
+      "id": "runtime.fidelity-audit",
+      "implementation": "docs/fidelity-audit.md",
+      "consumer": "scripts/check-fidelity-audit.mjs",
+      "ok": true
+    }
+  ]
+}
