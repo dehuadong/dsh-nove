@@ -28,7 +28,7 @@
 | `plan.chapter` | `inkos-master/packages/core/src/agents/planner.ts:22-60`、`models/input-governance.ts` | 章纲固定 `plan:<n>` 身份；五字段/body/threadRefs；未确认阻断正文；确认绑定 current revision | `src/storage/repositories/chapters.ts`、`tests/memo-consumers.test.mjs` | 等价 | 无 |
 | `context.brief` | `inkos-master/packages/core/src/harness/context-compiler.ts:1-160` | 上下文片段按 protected/compressible 分层；protected 超预算抛错；去重后按优先级装配；trace 记录预算与来源 | `src/context/brief.ts`、`tests/bible.test.mjs` | 保真债 | 后续行：语义压缩未实现；当前超预算按 section 丢弃，偿还路径为 `context.compress` 或 brief compiler |
 | `context.retrieval` | `inkos-master/packages/core/src/retrieval/local-search.ts:29-100` | 查询由任务/章纲/伏笔/指令组成；检索按 scope/kind 过滤；命中带 source 标注；按分数与章号稳定排序 | `src/retrieval.ts`、`tests/retrieval.test.mjs`、`tests/context-retrieval.test.mjs` | 等价 | 无 |
-| `chapter.write` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |
+| `chapter.write` | `inkos-master/packages/core/src/agents/writer.ts:100-160`、`utils/length-metrics.ts` | 章号/标题/正文写成一版；plan/context 先决；字数按语言 counting mode 计算并剥离 Markdown 元数据；返回 revision 与字数 | `src/roles/writer/agent.ts`、`src/storage/repositories/chapters.ts`、`tests/acceptance-multichapter.test.mjs` | 保真债 | 当行补齐：`countWords` 未按 en_words/zh_chars 与 Markdown 元数据剔除；lengthSpec 未进入 writer 校验；state settlement 归属 `chapter.settle` |
 | `chapter.review` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |
 | `chapter.revise` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |
 | `chapter.summary` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |
