@@ -113,6 +113,10 @@ CREATE TABLE IF NOT EXISTS artifacts (
   content_type TEXT NOT NULL CHECK (content_type IN ('json', 'text')),
   content TEXT NOT NULL,
   input_revision TEXT,
+  parent_revision_id TEXT,
+  checksum TEXT,
+  byte_length INTEGER,
+  status TEXT NOT NULL DEFAULT 'current' CHECK (status IN ('current', 'superseded')),
   provenance TEXT NOT NULL CHECK (provenance IN ('generated', 'imported', 'edited')),
   created_at TEXT NOT NULL,
   PRIMARY KEY (artifact_id, revision_id)
@@ -389,7 +393,7 @@ export function openCatalog(root: string, options: { create?: boolean, busyTimeo
 const WORK_SCHEMA_REQUIRED_COLUMNS = Object.freeze({
   chapters: ['plan_revision', 'plan_approved_source', 'plan_approved_reason', 'state_ready_revision', 'provenance'],
   meta: ['outline_approved_revision', 'outline_approved_source', 'outline_approved_reason', 'foundation_approved_revision', 'foundation_approved_source', 'foundation_approved_reason', 'max_chapter_tokens'],
-  artifacts: ['input_revision'],
+  artifacts: ['input_revision', 'parent_revision_id', 'checksum', 'byte_length', 'status'],
   model_calls: ['chapter', 'role', 'scope', 'attempt', 'trigger', 'outcome', 'usage_source', 'started_at', 'ended_at', 'duration_ms', 'prompt_chars', 'output_chars'],
 })
 

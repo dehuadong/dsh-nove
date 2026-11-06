@@ -1,0 +1,37 @@
+{
+  "date": "2026-11-06",
+  "sessionId": "session-f4613b0b-5117-498c-9de9-1502e3d5d9b1",
+  "tests": { "passed": true },
+  "receipts": [
+    {
+      "kind": "artifact-current",
+      "work": "示例短篇",
+      "artifactId": "outline",
+      "revisionId": "edfe468c232f",
+      "parentRevisionId": "6662284075da",
+      "checksum": "sha256:edfe468c232f431f51ca5265a2dead648ee5e30455ace883c75404ab3e17e86e",
+      "byteLength": 87,
+      "status": "current"
+    },
+    {
+      "kind": "artifact-current",
+      "work": "示例短篇",
+      "artifactId": "plan:1",
+      "revisionId": "7f383bf6a357",
+      "checksum": "sha256:7f383bf6a3571c8645e5d851c7287b2097156aea6f696d3990f8bef447d71b85",
+      "byteLength": 139,
+      "status": "current"
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/tests/artifact-identity.test.mjs",
+      "ok": true
+    },
+    {
+      "kind": "code-check",
+      "command": "node storycraft/scripts/ci.mjs --no-e2e",
+      "ok": true,
+      "unitFiles": 101
+    }
+  ]
+}

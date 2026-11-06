@@ -1,5 +1,6 @@
 /** Immutable artifact registry: contract validation plus SQLite persistence. */
 
+import { createHash } from 'node:crypto'
 import { StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, chapterNumber, contentVersion, now } from './domain.ts'
 import { ARTIFACT_IDENTITY, validateArtifactRecord, validateChapterMemo, validateChapterMeta, validateChapterSummary } from './artifact-contract.ts'
 import { openWork, touchMeta, transaction } from './storage/db.ts'
@@ -46,12 +47,22 @@ export function putArtifactOnDb(db: any, input: any, options: any = {}) {
   const existing = db.prepare('SELECT 1 FROM artifacts WHERE artifact_id = ? AND revision_id = ?')
     .get(envelope.artifactId, envelope.revisionId)
   if (existing !== undefined) throw new StoryError('artifact-revision-exists', `artifact revision 已存在：${envelope.artifactId}@${envelope.revisionId}`)
+  const current = db.prepare("SELECT revision_id AS revisionId FROM artifacts WHERE artifact_id = ? AND status = 'current' ORDER BY rowid DESC LIMIT 1")
+    .get(envelope.artifactId) as { revisionId: string } | undefined
+  const bytes = Buffer.byteLength(text, 'utf8')
+  const checksum = `sha256:${createHash('sha256').update(text).digest('hex')}`
+  if (current !== undefined) {
+    db.prepare("UPDATE artifacts SET status = 'superseded' WHERE artifact_id = ? AND revision_id = ?")
+      .run(envelope.artifactId, current.revisionId)
+  }
   db.prepare(`INSERT INTO artifacts
-    (artifact_id, revision_id, kind, scope_chapter, content_type, content, provenance, created_at, input_revision)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    (artifact_id, revision_id, kind, scope_chapter, content_type, content, provenance, created_at, input_revision,
+     parent_revision_id, checksum, byte_length, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'current')`)
     .run(envelope.artifactId, envelope.revisionId, envelope.kind,
       envelope.scope?.chapter ?? null, contentType, text, envelope.provenance, at,
-      typeof options.inputRevision === 'string' ? options.inputRevision : null)
+      typeof options.inputRevision === 'string' ? options.inputRevision : null,
+      current?.revisionId ?? null, checksum, bytes)
   // A new memo revision invalidates the author's earlier confirmation.
   if (envelope.kind === 'plan' && chapter !== undefined) {
     db.prepare('UPDATE chapters SET plan_approved_at = NULL, plan_revision = NULL, plan_approved_source = NULL, updated_at = ? WHERE number = ?')
@@ -129,7 +140,8 @@ export function readArtifact(root: any, input: any) {
   const db = openWork(root, workId)
   try {
     const row = input.revisionId === undefined
-      ? db.prepare('SELECT * FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1').get(artifactId)
+      ? db.prepare("SELECT * FROM artifacts WHERE artifact_id = ? AND status = 'current' ORDER BY rowid DESC LIMIT 1").get(artifactId)
+        ?? db.prepare('SELECT * FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1').get(artifactId)
       : db.prepare('SELECT * FROM artifacts WHERE artifact_id = ? AND revision_id = ?').get(artifactId, String(input.revisionId))
     if (row === undefined) {
       if (input.revisionId !== undefined) {
@@ -146,6 +158,10 @@ export function readArtifact(root: any, input: any) {
         ...(row.scope_chapter === null ? {} : { scope: { chapter: row.scope_chapter } }),
         provenance: row.provenance,
         createdAt: row.created_at,
+        ...(row.parent_revision_id === null ? {} : { parentRevisionId: row.parent_revision_id }),
+        ...(row.checksum === null ? {} : { checksum: row.checksum }),
+        ...(row.byte_length === null ? {} : { byteLength: row.byte_length }),
+        ...(row.status === null ? {} : { status: row.status }),
         content: deserialize(row),
       },
     }

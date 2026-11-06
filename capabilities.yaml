@@ -192,10 +192,10 @@ capabilities:
     title: 虚拟路径、artifactId/revision、跨作品隔离
     reference: inkos:packages/core/src/harness/artifact-revisions.ts
     dsh: storage
-    implementation: storycraft/src/artifact-contract.ts
-    consumer: storycraft/tests/artifact-contract.test.mjs
-    realRun: null
-    status: missing
+    implementation: storycraft/src/artifact-store.ts
+    consumer: storycraft/tests/artifact-identity.test.mjs
+    realRun: artifacts/real-runs/artifact.identity.json
+    status: verified
   - id: export.work
     title: 导出（原子替换）
     reference: inkos:packages/core/src/interaction/export-artifact.ts
