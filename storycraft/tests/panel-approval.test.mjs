@@ -53,6 +53,28 @@ try {
     && cards.length === 1 && cards[0].content.includes('甲'),
     JSON.stringify(preview.documents.map(item => item.name)))
   check('the panel path records its source', approved.foundation?.approvedSource === 'panel', JSON.stringify(approved.foundation))
+  const metaDb = new DatabaseSync(join(root, '.storycraft', 'works', `${work}.db`))
+  try {
+    const row = metaDb.prepare('SELECT foundation_approved_source, foundation_approved_revision, foundation_approved_reason FROM meta WHERE id = 1').get()
+    check('the panel approval binds the foundation revision', row.foundation_approved_source === 'panel'
+      && typeof row.foundation_approved_revision === 'string' && row.foundation_approved_revision !== '', JSON.stringify(row))
+    check('a panel approval has no invented reason', row.foundation_approved_reason === null, JSON.stringify(row))
+    metaDb.prepare("UPDATE artifacts SET revision_id = 'rev2' WHERE artifact_id = 'bible:story_frame'").run()
+  } finally {
+    metaDb.close()
+  }
+  check('rewriting a foundation document invalidates the approval',
+    s.readFoundationState(root, work).approvedAt === undefined, JSON.stringify(s.readFoundationState(root, work)))
+
+  s.approveFoundation(root, { work, source: 'conversation', reason: '就按这一版' })
+  const conversationDb = new DatabaseSync(join(root, '.storycraft', 'works', `${work}.db`))
+  try {
+    const row = conversationDb.prepare('SELECT foundation_approved_source, foundation_approved_reason FROM meta WHERE id = 1').get()
+    check('a conversation approval records its source and reason',
+      row.foundation_approved_source === 'conversation' && row.foundation_approved_reason === '就按这一版', JSON.stringify(row))
+  } finally {
+    conversationDb.close()
+  }
 
   let mismatch = ''
   try {

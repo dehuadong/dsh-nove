@@ -1,0 +1,31 @@
+{
+  "date": "2026-11-06",
+  "sessionId": "session-d68dc3ec-3f70-435d-86fa-bf1438c8af3d",
+  "tests": { "passed": true },
+  "receipts": [
+    {
+      "kind": "foundation-approval",
+      "work": "伏笔回执",
+      "approvedAt": "2026-11-06T05:43:10.506Z",
+      "approvedRevision": "7686ff9dfde3c708002d89dd2ff04aa95ce6d82cfa041512ac7629793d2da8e7",
+      "source": "conversation",
+      "reason": "回执确认"
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/tests/panel-approval.test.mjs",
+      "ok": true
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/tests/foundation-gate.test.mjs",
+      "ok": true
+    },
+    {
+      "kind": "code-check",
+      "command": "node storycraft/scripts/ci.mjs --no-e2e",
+      "ok": true,
+      "unitFiles": 101
+    }
+  ]
+}

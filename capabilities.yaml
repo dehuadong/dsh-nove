@@ -74,8 +74,8 @@ capabilities:
     dsh: client + tools.register
     implementation: storycraft/src/storage/repositories/foundation.ts
     consumer: storycraft/tests/panel-approval.test.mjs
-    realRun: null
-    status: missing
+    realRun: artifacts/real-runs/foundation.approval.json
+    status: verified
   - id: cast.single-authority
     title: roles:index／role:* 唯一人物权威，major/minor 均进入 brief/context
     reference: inkos:packages/core/src/references/reference-context.ts
