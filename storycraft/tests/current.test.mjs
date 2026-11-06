@@ -17,6 +17,14 @@ check('resolve prefers the explicit id', resolveWork('s1', 'book-b') === 'book-b
 check('resolve falls back to the session', resolveWork('s1', undefined) === 'book-a')
 check('blank explicit id falls back', resolveWork('s1', '  ') === 'book-a')
 check('no source resolves to undefined', resolveWork('s3', undefined) === undefined)
+let rebindCode
+try {
+  setCurrent('s1', 'book-b')
+} catch (error) {
+  rebindCode = error?.code
+}
+check('a live session cannot rebind to another work', rebindCode === 'work-binding-mismatch', String(rebindCode))
+check('rebind leaves the binding unchanged', getCurrent('s1') === 'book-a')
 clearCurrent('s1')
 check('clear forgets the session', getCurrent('s1') === undefined)
 setCurrent(undefined, 'book-a')

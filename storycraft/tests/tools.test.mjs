@@ -93,12 +93,12 @@ check('a read after cd into docs cannot escape to works',
 liveCwd = scopeRoot
 check('a read after cd back to the root can reach the current work',
   scopeGuard(cwdExec('read', { file_path: 'works/大朔营造/chapters/ch-0001.md' })) === undefined)
-setCurrent('scope-cwd', undefined)
+clearCurrent('scope-cwd')
 delete services.workingDirectory
 
 delete services.sessions
 delete services.workingDirectory
-setCurrent('scope-parent', undefined)
+clearCurrent('scope-parent')
 // The tool registry asserts the output schema against its supported subset and
 // rejects the whole plugin row on a violation, which silently marks the preset
 // broken. Mirror those rules here so that regression is caught offline.
@@ -633,6 +633,7 @@ try {
   s.approveOutline(root, { work: warnWork })
   s.writePlan(root, { work: warnWork, chapter: 1, perspective: '甲', goal: 'g', obstacle: 'o', cost: 'c', turn: 't' })
   s.approveChapterPlan(root, { work: warnWork, chapter: 1 })
+  clearCurrent('test-session')
   setCurrent('test-session', warnWork)
   const warnWrite = await byName.get('story_write').execute({
     work: warnWork, chapter: 1, body: '住户说：“走。”'.repeat(20),
@@ -643,6 +644,7 @@ try {
   check('story_review records a clean round', cleanReview.ok === true && cleanReview.problems.total === 0, JSON.stringify(cleanReview))
   const cleanNext = await byName.get('story_next').execute({ work: warnWork }, exec)
   check('story_next routes a clean review to summary', cleanNext.ok === true && cleanNext.action === 'story_summarize', JSON.stringify(cleanNext))
+  clearCurrent('test-session')
   setCurrent('test-session', work)
 
   delete services.subagents

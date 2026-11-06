@@ -7,6 +7,8 @@
  * panel and a successful `story_init` write through the same single-row store.
  */
 
+import { StoryError } from './domain.ts'
+
 /** sessionId → workId. */
 const current = new Map<string, string>()
 const hydrated = new Map<string, Set<string>>()
@@ -25,7 +27,13 @@ export function markHydrated(sessionId: unknown, root: unknown): void { if (type
  */
 export function setCurrent(sessionId: unknown, workId: unknown): void {
   if (typeof sessionId !== 'string' || sessionId === '') return
-  current.set(sessionId, String(workId))
+  const next = String(workId)
+  const existing = current.get(sessionId)
+  if (existing !== undefined && existing !== next) {
+    throw new StoryError('work-binding-mismatch',
+      `本会话已绑定作品 ${existing}，不能再改绑 ${next}：请为目标作品打开或新建会话`)
+  }
+  current.set(sessionId, next)
   hydrated.delete(sessionId)
 }
 

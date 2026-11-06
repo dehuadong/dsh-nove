@@ -26,8 +26,8 @@ capabilities:
     dsh: storage + client
     implementation: storycraft/src/current.ts
     consumer: storycraft/tests/current.test.mjs
-    realRun: null
-    status: missing
+    realRun: artifacts/real-runs/runtime.session-binding.json
+    status: verified
   - id: runtime.commands
     title: DSH command/headless 入口（init/export 至少一条）
     reference: inkos:packages/cli/src/commands/

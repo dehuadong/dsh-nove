@@ -1,0 +1,37 @@
+{
+  "date": "2026-11-06",
+  "sessionId": "session-4604579f-a577-4ea1-88a1-51d867f3d7b6",
+  "tests": { "passed": true },
+  "receipts": [
+    {
+      "kind": "restart-hydrate",
+      "tool": "story_current",
+      "ok": true,
+      "current": "签字前我重生了-这次换他们进去",
+      "note": "after DSH restart the persisted session_current row hydrated"
+    },
+    {
+      "kind": "tool-call",
+      "tool": "story_next",
+      "ok": true,
+      "workId": "签字前我重生了-这次换他们进去",
+      "note": "no work argument; resolved from the session binding"
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/tests/current.test.mjs",
+      "ok": true
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/tests/delete-current-binding.test.mjs",
+      "ok": true
+    },
+    {
+      "kind": "code-check",
+      "command": "node storycraft/scripts/ci.mjs --no-e2e",
+      "ok": true,
+      "unitFiles": 99
+    }
+  ]
+}

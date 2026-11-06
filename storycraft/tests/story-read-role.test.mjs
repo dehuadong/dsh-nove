@@ -8,7 +8,7 @@ import * as b from '../src/bible/index.ts'
 import * as tools from '../src/tools/index.ts'
 import { putArtifact, writeFoundationDocument, writeRoleCard } from '../src/artifact-store.ts'
 import { contentVersion } from '../src/domain.ts'
-import { setCurrent } from '../src/current.ts'
+import { clearCurrent, setCurrent } from '../src/current.ts'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -45,6 +45,10 @@ const exec = { agent: { id: 'role-session', session: { header: { cwd: root } } }
 
 async function seedWork(title) {
   const { workId: work } = s.initWork(root, { title, wordRange: { min: 50, max: 5000 } })
+  // A test session may drop its binding between fixtures; production sessions
+  // cannot rebind a live work.
+  clearCurrent('role-session')
+  clearCurrent('role-session')
   setCurrent('role-session', work)
   return work
 }
@@ -74,6 +78,7 @@ try {
     work, name: 'roles_index',
     content: { roles: [{ name: '甲', tier: 'major' }] },
   })
+  clearCurrent('role-session')
   setCurrent('role-session', work)
   const rulesRead = await readTool.execute({ work, artifactId: 'bible:book_rules' }, exec)
   check('book_rules reads as Markdown, not [object Object]', rulesRead.ok === true
@@ -117,6 +122,7 @@ try {
     JSON.stringify({ read: read.artifact, written: written.artifact }))
 
   // AC3: a wrong slug names the existing cards; a work without cards points at the stage.
+  clearCurrent('role-session')
   setCurrent('role-session', work)
   const wrongResult = await readTool.execute({ work, artifactId: 'role:nobody' }, exec)
   const wrongSlug = `${wrongResult?.error?.code ?? ''}|${wrongResult?.error?.next ?? ''}`
@@ -124,6 +130,7 @@ try {
     wrongSlug.startsWith('artifact-not-found|') && wrongSlug.includes('jia'), wrongSlug)
 
   const bare = await seedWork('没有角色卡')
+  clearCurrent('role-session')
   setCurrent('role-session', bare)
   const noCardsResult = await readTool.execute({ work: bare, artifactId: 'role:x' }, exec)
   const noCards = `${noCardsResult?.error?.code ?? ''}|${noCardsResult?.error?.next ?? ''}`
@@ -133,6 +140,7 @@ try {
     && noCards !== wrongSlug, noCards)
 
   // AC5: the other id shapes keep their behaviour.
+  clearCurrent('role-session')
   setCurrent('role-session', work)
   const largeMarkdown = `# 作品规则\n\n${Array.from({ length: 260 }, (_, index) => `- 规则 ${index + 1}`).join('\n')}\n`
   const largeRulesWork = await seedWork('大规则')
@@ -140,6 +148,7 @@ try {
     version: '2', narrativePerson: '第三人称', prohibitions: ['禁止'], protagonist: { name: '甲', personalityLock: [], behavioralConstraints: [] },
     genreLock: { primary: '废土', forbidden: [] }, enableFullCastTracking: false, allowedDeviations: [], markdown: largeMarkdown,
   } })
+  clearCurrent('role-session')
   setCurrent('role-session', largeRulesWork)
   const partial = await readTool.execute({ work: largeRulesWork, artifactId: 'bible:book_rules' }, exec)
   check('large book_rules marks hasMore', partial.ok === true && partial.hasMore === true && partial.endLine < partial.totalLines, JSON.stringify(partial).slice(0, 200))
@@ -148,11 +157,13 @@ try {
   const largeIndexWork = await seedWork('大索引')
   const roles = Array.from({ length: 300 }, (_, index) => ({ name: `角色${index + 1}`, tier: index < 5 ? 'major' : 'minor' }))
   writeFoundationDocument(root, { work: largeIndexWork, name: 'roles_index', content: { roles } })
+  clearCurrent('role-session')
   setCurrent('role-session', largeIndexWork)
   const largeIndex = await readTool.execute({ work: largeIndexWork, artifactId: 'roles:index', lineCount: 5 }, exec)
   check('large roles:index returns complete JSON despite lineCount', largeIndex.ok === true
     && largeIndex.hasMore === false && JSON.parse(largeIndex.content).roles.length === 300, JSON.stringify(largeIndex).slice(0, 200))
 
+  clearCurrent('role-session')
   setCurrent('role-session', work)
   const worldRead = await readTool.execute({ work, artifactId: 'bible:world' }, exec)
   check('bible:world still reads text', worldRead.ok === true && typeof worldRead.content === 'string' && worldRead.content === '# 世界观\n', JSON.stringify(worldRead).slice(0, 200))

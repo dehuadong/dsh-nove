@@ -147,9 +147,9 @@ try {
   store.setSessionCurrent(root, 'session-b', '改名作品')
   const pointers = store.readSessionCurrent(root)
   check('session pointers persisted', pointers['session-a'] === '另一本' && pointers['session-b'] === '改名作品')
-  store.setSessionCurrent(root, 'session-a', '改名作品')
-  check('one pointer updates without dropping another', Object.keys(store.readSessionCurrent(root)).length === 2)
-  store.setSessionCurrent(root, 'session-a', '另一本')
+  await rejects('a session cannot rebind to another work', 'work-binding-mismatch',
+    () => store.setSessionCurrent(root, 'session-a', '改名作品'))
+  check('one pointer update cannot drop another', Object.keys(store.readSessionCurrent(root)).length === 2)
   store.clearSessionCurrent(root, 'session-b')
   check('one pointer can be cleared without dropping another', Object.keys(store.readSessionCurrent(root)).length === 1)
 
