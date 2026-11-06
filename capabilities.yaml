@@ -234,8 +234,8 @@ capabilities:
     dsh: client
     implementation: storycraft/src/client/panels/workbench.ts
     consumer: storycraft/tests/workbench.test.mjs
-    realRun: null
-    status: missing
+    realRun: artifacts/real-runs/panel.workbench.json
+    status: verified
   - id: panel.logs
     title: 调用日志
     reference: inkos:packages/studio/src/components/

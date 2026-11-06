@@ -1,0 +1,26 @@
+{
+  "date": "2026-11-06",
+  "sessionId": "session-99f987a0-f58b-4d1b-aa40-f01387d89ca7",
+  "tests": { "passed": true },
+  "receipts": [
+    {
+      "kind": "browser-tab",
+      "tool": "playwright",
+      "command": "node storycraft/e2e/run.mjs --grep 加载契约",
+      "ok": true,
+      "sessionKind": "storycraft",
+      "assertions": ["tab 长篇面板 visible", "heading 故事工坊 visible"]
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/tests/workbench.test.mjs",
+      "ok": true
+    },
+    {
+      "kind": "code-check",
+      "command": "node storycraft/scripts/ci.mjs --no-e2e",
+      "ok": true,
+      "unitFiles": 99
+    }
+  ]
+}
