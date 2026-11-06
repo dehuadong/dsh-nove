@@ -163,8 +163,10 @@ export function assertPlanApproved(db: Database, chapter: unknown): void {
  * @returns {object|undefined} summary content, or undefined when absent.
  */
 export function latestSummaryContent(db: Database, number: number): any {
-  const row = db.prepare('SELECT content FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
+  const row = db.prepare("SELECT content FROM artifacts WHERE artifact_id = ? AND status = 'current' ORDER BY rowid DESC LIMIT 1")
     .get(`summary:${number}`)
+    ?? db.prepare('SELECT content FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
+      .get(`summary:${number}`)
   return row === undefined ? undefined : parseSummaryContent(String(row.content), `summary:${number}`)
 }
 
@@ -322,7 +324,8 @@ export function foundationApprovedAt(db: any): string | undefined {
 
 /** Latest revision id of one artifact, or undefined when it was never written. */
 export function artifactRevisionOf(db: any, artifactId: string): string | undefined {
-  const row = db.prepare('SELECT revision_id FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1').get(artifactId)
+  const row = db.prepare("SELECT revision_id FROM artifacts WHERE artifact_id = ? AND status = 'current' ORDER BY rowid DESC LIMIT 1").get(artifactId)
+    ?? db.prepare('SELECT revision_id FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1').get(artifactId)
   return row === undefined ? undefined : String(row.revision_id)
 }
 

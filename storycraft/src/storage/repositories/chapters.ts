@@ -148,6 +148,8 @@ export function approveChapterPlan(root: any, input: any) {
     return transaction(db, () => {
       const entry = chapterRow(db, number)
       const memo = db.prepare(`SELECT revision_id FROM artifacts
+        WHERE artifact_id = ? AND status = 'current' ORDER BY rowid DESC LIMIT 1`).get(`plan:${number}`)
+        ?? db.prepare(`SELECT revision_id FROM artifacts
         WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1`).get(`plan:${number}`)
       if (entry === undefined || memo === undefined) throw new StoryError('plan-not-found', `第 ${number} 章还没有章纲`)
       const at = now()
@@ -244,7 +246,8 @@ export function adoptChapterRevision(root: string, input: any) {
         return { workId, chapter: number, target, fromRevision: `r${targetRevision}`, newRevision: `r${revision}`, stage: 'written' }
       }
 
-      const planRows = db.prepare('SELECT revision_id AS revisionId, content FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC').all(`plan:${number}`) as any[]
+      const planRows = db.prepare(`SELECT revision_id AS revisionId, content FROM artifacts
+        WHERE artifact_id = ? ORDER BY CASE WHEN status = 'current' THEN 0 ELSE 1 END, rowid DESC`).all(`plan:${number}`) as any[]
       const latestPlan = planRows[0]?.revisionId
       if (latestPlan === undefined) throw new StoryError('revision-not-found', `第 ${number} 章还没有章纲`)
       if (stageOf(entry) !== 'planned') throw new StoryError('chapter-exists', `第 ${number} 章已有正文：章纲回滚只允许未写正文的章节`)

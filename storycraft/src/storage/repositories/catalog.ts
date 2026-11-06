@@ -76,7 +76,7 @@ export function readManifest(root: string, work: unknown): any {
     try {
       const meta = metaOf(db)
       const chapters = db.prepare('SELECT * FROM chapters ORDER BY number').all()
-      const memos = new Map(db.prepare("SELECT artifact_id, revision_id FROM artifacts WHERE kind = 'plan' ORDER BY rowid")
+      const memos = new Map(db.prepare("SELECT artifact_id, revision_id FROM artifacts WHERE kind = 'plan' AND status = 'current' ORDER BY rowid")
         .all().map(row => [row.artifact_id, row.revision_id]))
       const drafts = new Map()
       for (const row of db.prepare("SELECT content FROM artifacts WHERE kind = 'state_draft' ORDER BY rowid").all()) {

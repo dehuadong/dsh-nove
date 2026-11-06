@@ -25,7 +25,7 @@
 | `plan.outline` | `inkos-master/packages/core/src/agents/architect-tool.ts`、`pipeline/runner.ts:478-505` | 主线必填；新计划撤销旧确认；未确认阻断章纲；卷图是投影 | `src/storage/repositories/catalog.ts`、`tests/outline.test.mjs` | 等价 | 无 |
 | `runtime.fidelity-audit` | `AGENTS.md#保真原则` | 每个能力有源证据/不变量/现状/判定；verified 不得未审；债/偏差有归属 | `docs/fidelity-audit.md`、`scripts/check-fidelity-audit.mjs` | 等价 | 无 |
 | `runtime.recovery` | 待审计 | 待审计 | `src/recovery.ts` | 未审 | 后续行 |
-| `plan.chapter` | `inkos-master/packages/core/src/agents/planner.ts:22-60`、`models/input-governance.ts` | 章纲固定 `plan:<n>` 身份；五字段/body/threadRefs；未确认阻断正文；确认绑定 revision | `src/storage/repositories/chapters.ts`、`tests/memo-consumers.test.mjs` | 保真债 | 当行补齐：`artifactRevisionOf` 仍按 rowid 取最新，需改 current/superseded；补真实章纲确认回执 |
+| `plan.chapter` | `inkos-master/packages/core/src/agents/planner.ts:22-60`、`models/input-governance.ts` | 章纲固定 `plan:<n>` 身份；五字段/body/threadRefs；未确认阻断正文；确认绑定 current revision | `src/storage/repositories/chapters.ts`、`tests/memo-consumers.test.mjs` | 等价 | 无 |
 | `context.brief` | 待审计 | 待审计 | `src/bible/` | 未审 | 后续行 |
 | `context.retrieval` | 待审计 | 待审计 | `src/search-index.ts` | 未审 | 后续行 |
 | `chapter.write` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |

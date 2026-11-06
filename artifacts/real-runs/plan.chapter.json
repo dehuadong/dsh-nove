@@ -1,0 +1,29 @@
+{
+  "date": "2026-11-06",
+  "sessionId": "session-d68dc3ec-3f70-435d-86fa-bf1438c8af3d",
+  "tests": { "passed": true },
+  "receipts": [
+    {
+      "kind": "chapter-plan-approval",
+      "work": "示例短篇",
+      "chapter": 1,
+      "planRevision": "7f383bf6a357",
+      "status": "current",
+      "approvedSource": "panel",
+      "approvedReason": null,
+      "ok": true
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/tests/memo-consumers.test.mjs",
+      "ok": true,
+      "covers": ["five fields", "threadRefs", "approval gate", "current vs superseded"]
+    },
+    {
+      "kind": "code-check",
+      "command": "node storycraft/scripts/ci.mjs --no-e2e",
+      "ok": true,
+      "unitFiles": 102
+    }
+  ]
+}

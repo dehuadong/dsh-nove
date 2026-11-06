@@ -10,8 +10,10 @@ import { createHash } from 'node:crypto'
  * @param chapter - chapter number.
  */
 export function reviewInputOf(db: any, chapter: number): string {
-  const plan = db.prepare('SELECT revision_id FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
+  const plan = db.prepare("SELECT revision_id FROM artifacts WHERE artifact_id = ? AND status = 'current' ORDER BY rowid DESC LIMIT 1")
     .get(`plan:${chapter}`)
+    ?? db.prepare('SELECT revision_id FROM artifacts WHERE artifact_id = ? ORDER BY rowid DESC LIMIT 1')
+      .get(`plan:${chapter}`)
   return createHash('sha256')
     .update(plan === undefined ? '' : String(plan.revision_id))
     .digest('hex')

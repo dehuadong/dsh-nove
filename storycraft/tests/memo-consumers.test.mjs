@@ -78,6 +78,18 @@ try {
   const ready = await s.nextStep(root, work)
   check('approved plan is not blocked', !(ready.blocked ?? []).includes('plan-approval'), JSON.stringify(ready))
 
+  const lateDb = openWork(root, work)
+  try {
+    lateDb.prepare(`INSERT INTO artifacts (artifact_id, revision_id, kind, scope_chapter, content_type, content, provenance, created_at, status)
+      VALUES ('plan:1', 'superseded-late', 'plan', 1, 'json', '{}', 'generated', ?, 'superseded')`).run(new Date().toISOString())
+    const state = s.planApprovalState(lateDb, 1)
+    check('a later superseded row does not replace current', state.approved === true, JSON.stringify(state))
+  } finally {
+    lateDb.close()
+  }
+  const reapproved = await s.approveChapterPlan(root, { work, chapter: 1 })
+  check('approval binds current, not the newest rowid', reapproved.entry.planRevision === plan.artifact.revisionId, JSON.stringify(reapproved.entry))
+
   await s.writeChapter(root, { work, chapter: 1, body: '正文一。'.repeat(20), requirePlanApproval: true })
   const afterWrite = await s.readWork(root, work)
   check('approval survives the first body write', afterWrite.chapters[0].planApproved === true, JSON.stringify(afterWrite.chapters[0]))

@@ -104,10 +104,10 @@ capabilities:
     title: 章纲 memo/threadRefs、闸门
     reference: inkos:packages/core/src/agents/planner.ts
     dsh: tools.register
-    implementation: storycraft/src/roles/planner/agent.ts
+    implementation: storycraft/src/storage/repositories/chapters.ts
     consumer: storycraft/tests/memo-consumers.test.mjs
-    realRun: null
-    status: missing
+    realRun: artifacts/real-runs/plan.chapter.json
+    status: verified
   - id: context.brief
     title: 角色 brief 装配、预算、trace、whitelist
     reference: inkos:packages/core/src/harness/context-compiler.ts
