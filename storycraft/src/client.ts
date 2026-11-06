@@ -191,9 +191,7 @@ window.__ModuleLoader__.load({
         getCurrent: (root, sessionId) => route(ROUTE.current, { root, sessionId }),
         setCurrent: (root, sessionId, workId) => post(ROUTE.current, { root, sessionId, workId }),
         runCommand: async (sessionId, line) => {
-          const binding = (ctx as any).sessions?.binding?.(sessionId)
-          if (binding === undefined) return { kind: 'error', text: '当前会话不可执行命令' }
-          return binding.session.command(line)
+          return post('/api/see-storycraft/command', { sessionId, line })
         },
         sessionForWork: (root, workId) => route(ROUTE.sessionForWork, { root, work: workId }),
         createSession: async (root, preset) => {

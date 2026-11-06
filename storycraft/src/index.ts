@@ -435,6 +435,29 @@ export function apply(ctx: DshContext): void {
     }),
     ctx.webServer.register({
       kind: 'exact',
+      path: `${BASE}/command`,
+      handler: (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405
+          res.end()
+          return
+        }
+        void postRoute(req, res, async (body) => {
+          const sessionId = String(body?.sessionId ?? '')
+          const line = String(body?.line ?? '')
+          if (sessionId === '' || line === '') throw new StoryError('invalid-body', '需要 sessionId 与 line')
+          const agent = (ctx as any).get?.('agents')?.get?.(sessionId)
+          const commands = (ctx as any).get?.('commands')
+          if (agent === undefined) throw new StoryError('session-required', '当前会话不在运行')
+          if (typeof commands?.execute !== 'function') throw new StoryError('command-unavailable', '命令服务不可用')
+          const execution = await commands.execute(agent, line, [], new AbortController().signal)
+          if (execution === undefined) throw new StoryError('command-not-found', `未找到命令：${line}`)
+          return execution.result
+        }, { maxBytes: 32 * 1024, requireJson: true })
+      },
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
       path: `${BASE}/current`,
       handler: (req, res) => {
         if (req.method === 'POST') {

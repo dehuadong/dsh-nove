@@ -1,0 +1,29 @@
+{
+  "date": "2026-11-06",
+  "sessionId": "session-893d8cd3-1436-40f7-8c9c-0ee40d49efb9",
+  "tests": { "passed": true },
+  "receipts": [
+    {
+      "kind": "browser-e2e",
+      "command": "node storycraft/e2e/run.mjs --grep \"panel story-init\"",
+      "ok": true,
+      "assertion": "面板出现「已初始化长篇工作区」"
+    },
+    {
+      "kind": "command-registry",
+      "commands": ["compact", "export", "feedback", "goal", "permission", "plan", "story-init"],
+      "ok": true
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/tests/commands.test.mjs",
+      "ok": true
+    },
+    {
+      "kind": "code-check",
+      "command": "node storycraft/scripts/ci.mjs --no-e2e",
+      "ok": true,
+      "unitFiles": 100
+    }
+  ]
+}
