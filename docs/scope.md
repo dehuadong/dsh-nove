@@ -37,11 +37,11 @@
 
 ### 复刻交付节点（复审后）
 
-复审结论：原 P0–P7 漏掉了 `runtime.session-binding`、`runtime.telemetry`、`runtime.commands`、`runtime.recovery`、`foundation.hooks`、`artifact.identity`、`chapter.reopen`、`chapter.move-delete`、`state.check`、`panel.workbench`、`panel.logs`、`panel.analysis`，并把 `cast.single-authority` 放在 brief 之前。现按源阶段顺序改为 D0–D8，覆盖 `capabilities.yaml` 全部 38 行。
+复审结论：原 P0–P7 漏掉了 `runtime.session-binding`、`runtime.telemetry`、`runtime.commands`、`runtime.recovery`、`foundation.hooks`、`artifact.identity`、`chapter.reopen`、`chapter.move-delete`、`state.check`、`panel.workbench`、`panel.logs`、`panel.analysis`，并把 `cast.single-authority` 放在 brief 之前。现按源阶段顺序改为 D0–D8，覆盖 `capabilities.yaml` 全部 39 行。
 
 每个节点只交付一个能力；阶段名只是分组，不代表一次 PR 交付多个能力。
 
-- **D0 运行时与身份**：`runtime.load` → `runtime.session-binding` → `runtime.telemetry` → `runtime.commands` → `artifact.identity`。
+- **D0 运行时与身份**：`runtime.load` → `workspace.single-form` → `runtime.session-binding` → `runtime.telemetry` → `runtime.commands` → `artifact.identity`。
 - **D1 基础设定**：`foundation.architect` → `foundation.hooks` → `foundation.approval`。
 - **D2 计划与上下文**：`plan.outline` → `plan.chapter` → `context.brief` → `cast.single-authority` → `context.retrieval`。
 - **D3 正文**：`chapter.write` → `chapter.review` → `chapter.revise`。

@@ -12,8 +12,16 @@ capabilities:
     consumer: storycraft/tests/tools.test.mjs
     realRun: artifacts/real-runs/runtime.load.json
     status: verified
+  - id: workspace.single-form
+    title: 工作区只承载一种形态，预设声明 form 并校验
+    reference: inkos:packages/core/src/harness/builtin-profiles.ts
+    dsh: preset + storage
+    implementation: storycraft/src/storage/repositories/catalog.ts
+    consumer: storycraft/tests/catalog.test.mjs
+    realRun: null
+    status: missing
   - id: runtime.session-binding
-    title: 当前作品绑定、面板进入作品
+    title: 工作区 form + 预设绑定当前作品；绑定后不可原地改绑
     reference: inkos:packages/core/src/harness/session-binding.ts
     dsh: storage + client
     implementation: storycraft/src/current.ts
@@ -221,7 +229,7 @@ capabilities:
     realRun: null
     status: missing
   - id: panel.workbench
-    title: 工作台、阶段按钮、作者确认
+    title: 会话顶部「长篇面板」、阶段按钮与作者确认
     reference: inkos:packages/studio/src/pages/
     dsh: client
     implementation: storycraft/src/client/panels/workbench.ts

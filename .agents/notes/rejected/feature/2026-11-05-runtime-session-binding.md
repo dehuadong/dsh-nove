@@ -1,6 +1,6 @@
 # Agent Note: 故事工坊：runtime.session-binding 工作项
 
-Status: proposed
+Status: rejected — 由长篇单形态工作区与会话面板取代：会话不可原地改绑，工作区增加 form 约束。
 
 工作项：`capabilities.yaml` 的 `runtime.session-binding`（[账本行](../../../../capabilities.yaml)）。账本行承载能力状态；本 Note 承载范围、验收、证据与评审。
 
