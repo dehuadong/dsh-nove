@@ -44,7 +44,7 @@ export async function initializeWorkspace(invocation: any): Promise<{ kind: 'suc
 /** Register the workspace commands on the host command registry. */
 export function registerStoryCommands(ctx: CommandContext): void {
   ctx.commands.register({
-    name: 'story-init',
+    name: 'storyinit',
     description: '初始化当前工作区为长篇项目',
     handler: initializeWorkspace,
   })

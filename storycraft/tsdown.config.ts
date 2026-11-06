@@ -14,6 +14,7 @@ export default defineConfig({
     index: 'src/index.ts',
     tools: 'src/tools/index.ts',
     skills: 'src/skills.ts',
+    commands: 'src/commands-plugin.ts',
   },
   outDir: 'lib',
   format: ['esm'],

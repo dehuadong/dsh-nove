@@ -83,7 +83,7 @@ if (standard === undefined) {
   const standardBlocks = rowBlocks(standard)
   const expectedOrder = standardBlocks.map(row => row.id)
     .filter(id => id !== 'tool-subagent-fork')
-    .concat(['storycraft-skills', 'storycraft-tools'])
+    .concat(['storycraft-skills', 'storycraft-tools', 'storycraft-commands'])
   check('the preset copies every standard row in order',
     patchBlocks.map(row => row.id).join(',') === expectedOrder.join(','),
     `expected ${expectedOrder.join(',')}; got ${patchBlocks.map(row => row.id).join(',')}`)

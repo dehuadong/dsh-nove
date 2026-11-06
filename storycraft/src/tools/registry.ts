@@ -4,8 +4,7 @@ import { StoryError } from '../domain.ts'
 import type { FailureEnvelope } from './types.ts'
 
 /** Services this plugin injects. */
-export const inject: string[] = ['tools', 'commands']
-import { registerStoryCommands } from '../commands.ts'
+export const inject: string[] = ['tools']
 
 /** Provider label used in diagnostics. */
 export const name: string = 'storycraft-tools'
@@ -155,9 +154,6 @@ function scopeDenialOf(ctx: DshContext, exec: DshToolExecution): string | undefi
  * @param ctx - plugin context (services: tools).
  */
 export function apply(ctx: DshContext): void {
-  // Commands are registered through a command-injected child of this agent
-  // context, so they shadow globals for this agent instead of leaking globally.
-  const commandScope = (ctx as any).inject?.(['commands'], (scope: any) => registerStoryCommands({ commands: scope.commands }))
   // The guard lives in this preset's scope, so it applies to the main agent and
   // to every subagent spawned into the same composition; the depth predicate
   // keeps the main agent unrestricted.
@@ -166,7 +162,6 @@ export function apply(ctx: DshContext): void {
   )
   const denyOutOfScope = (exec: DshToolExecution) => scopeDenialOf(ctx, exec)
   const disposers = [
-    ...(typeof commandScope === 'function' ? [commandScope] : []),
     ctx.tools.guard(denyDelegatedWrites),
     ctx.tools.guard(denyOutOfScope),
     ...definitions(ctx).map(definition => ctx.tools.register(definition)),

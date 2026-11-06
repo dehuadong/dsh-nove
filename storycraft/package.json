@@ -14,6 +14,7 @@
     "./client": "./lib/client.js",
     "./skills": "./lib/skills.js",
     "./tools": "./lib/tools.js",
+    "./commands": "./lib/commands.js",
     "./package.json": "./package.json"
   },
   "files": [

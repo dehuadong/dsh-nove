@@ -150,3 +150,5 @@
               mode: all
           - id: storycraft-tools
             name: 'see-storycraft/tools'
+          - id: storycraft-commands
+            name: 'see-storycraft/commands'
