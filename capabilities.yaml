@@ -72,8 +72,8 @@ capabilities:
     title: 作者确认闸门与回执
     reference: inkos:packages/core/src/interaction/session.ts
     dsh: client + tools.register
-    implementation: storycraft/src/storage.ts
-    consumer: storycraft/tests/approval-binding.test.mjs
+    implementation: storycraft/src/storage/repositories/foundation.ts
+    consumer: storycraft/tests/panel-approval.test.mjs
     realRun: null
     status: missing
   - id: cast.single-authority
