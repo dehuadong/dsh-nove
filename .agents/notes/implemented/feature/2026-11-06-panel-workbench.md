@@ -18,7 +18,7 @@ Status: implemented
 ## Decision
 
 - 移除侧边栏/右侧 tab 注册；
-- 注册 `conversation.view`：id `longform`、label `长篇面板`、order 2；
+- 注册 `conversation.view` 仅在当前会话 `agentPreset === 'storycraft'` 且 cwd 有 `.storycraft/catalog.db`（真实作品工作区）时发生；切换会话重新同步，标准预设/插件开发工作区 dispose，tab 不出现；
 - 面板内容复用 `StorycraftPage`，只列当前工作区作品；
 - 点击当前作品：只选中；
 - 未绑定会话：写绑定；
@@ -46,4 +46,7 @@ node storycraft/scripts/ci.mjs --no-e2e         # PASS: 99 unit files
 npm run verify                                  # 39 capabilities: 6 verified, 33 missing
 ```
 
-浏览器回执：`artifacts/real-runs/panel.workbench.json`，会话 `session-99f987a0-f58b-4d1b-aa40-f01387d89ca7` 中 `[长篇面板]` 与会话视图同时可见。
+浏览器回执：`artifacts/real-runs/panel.workbench.json`。
+- storycraft 作品工作区：`[长篇面板]` 与会话视图同时可见；
+- 标准预设：`[长篇面板]` count 0；
+- 作品工作区判定用 `.storycraft/catalog.db`，开发工作区不注册 view。

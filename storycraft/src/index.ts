@@ -27,7 +27,8 @@ import { readVolumes } from './volumes.ts'
 import { clearSessionCurrent, readSessionCurrent, setSessionCurrent } from './storage.ts'
 import { assembleBrief, extractStyleSamples, readBible, writeBible } from './bible/index.ts'
 import { listRoleCards, readFoundationDocuments, renderFoundationContent } from './artifact-store.ts'
-import { backupsDir, exportsDir } from './storage/db.ts'
+import { backupsDir, catalogFile, exportsDir } from './storage/db.ts'
+import { existsSync } from 'node:fs'
 
 /** Requires the host web server; without it the browser surface has no data. */
 export const inject = ['webServer']
@@ -432,6 +433,14 @@ export function apply(ctx: DshContext): void {
           return deleteBackup(root, workId, String(body?.backupId ?? ''))
         }, { maxBytes: 32 * 1024, requireJson: true })
       },
+    }),
+    ctx.webServer.register({
+      kind: 'exact',
+      path: `${BASE}/workspace`,
+      handler: (req, res) => readRoute(req, res, async (query) => {
+        const root = await rootOf(ctx, query)
+        return { workWorkspace: existsSync(catalogFile(root)) }
+      }),
     }),
     ctx.webServer.register({
       kind: 'exact',

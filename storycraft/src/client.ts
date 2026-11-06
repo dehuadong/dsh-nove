@@ -189,6 +189,7 @@ window.__ModuleLoader__.load({
         critique: (root, id, chapter) => route(ROUTE.critique, { root, id, chapter }),
         next: (root, id) => route(ROUTE.next, { root, id }),
         getCurrent: (root, sessionId) => route(ROUTE.current, { root, sessionId }),
+        isWorkWorkspace: (root) => route(ROUTE.workspace, { root }),
         setCurrent: (root, sessionId, workId) => post(ROUTE.current, { root, sessionId, workId }),
         runCommand: async (sessionId, line) => {
           return post('/api/see-storycraft/command', { sessionId, line })
@@ -716,12 +717,41 @@ window.__ModuleLoader__.load({
         const bindings = { prompt: undefined }
         const face = createFace(ctx, bindings)
         pluginFace = face
-        const disposeView = ctx.slots.inject('conversation.view', () => ctx.slots.register({
-          name: 'conversation.view',
-          id: 'longform',
-          order: 2,
-          label: () => '长篇面板',
-        } as any, StorycraftView))
+        let disposeView: (() => void) | undefined
+        let disposeSessionList: (() => void) | undefined
+        let syncSeq = 0
+        const syncView = async () => {
+          const seq = ++syncSeq
+          const context = currentContext(ctx)
+          const active = context.preset === 'storycraft'
+          let workWorkspace = false
+          if (active && context.root !== undefined) {
+            try {
+              workWorkspace = (await face.isWorkWorkspace(context.root)).workWorkspace === true
+            } catch {
+              workWorkspace = false
+            }
+          }
+          if (seq !== syncSeq) return
+          const visible = active && workWorkspace
+          if (visible && disposeView === undefined) {
+            disposeView = ctx.slots.register({
+              name: 'conversation.view',
+              id: 'longform',
+              order: 2,
+              label: () => '长篇面板',
+            } as any, StorycraftView)
+          } else if (!visible && disposeView !== undefined) {
+            disposeView()
+            disposeView = undefined
+          }
+        }
+        try {
+          disposeSessionList = (ctx as any).sessions?.list?.subscribe?.(() => { void syncView() })
+        } catch (error) {
+          console.warn('[see-storycraft] session list subscription failed:', error)
+        }
+        void syncView()
         let disposeBindings: (() => void) | undefined
         try {
           disposeBindings = ctx.inject(['remote.session'], (scope) => {
@@ -732,7 +762,8 @@ window.__ModuleLoader__.load({
         }
         ctx.effect(() => () => {
           disposeBindings?.()
-          disposeView()
+          disposeSessionList?.()
+          disposeView?.()
         }, 'see-storycraft: conversation longform panel')
       },
     }

@@ -12,6 +12,13 @@
       "assertions": ["tab 长篇面板 visible", "heading 故事工坊 visible"]
     },
     {
+      "kind": "browser-negative",
+      "tool": "playwright",
+      "command": "node storycraft/e2e/run.mjs --grep 长篇面板预设边界",
+      "ok": true,
+      "assertions": ["标准预设 tab 长篇面板 count 0"]
+    },
+    {
       "kind": "consumer-test",
       "path": "storycraft/tests/workbench.test.mjs",
       "ok": true
@@ -20,7 +27,7 @@
       "kind": "code-check",
       "command": "node storycraft/scripts/ci.mjs --no-e2e",
       "ok": true,
-      "unitFiles": 99
+      "unitFiles": 101
     }
   ]
 }
