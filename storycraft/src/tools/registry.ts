@@ -4,7 +4,8 @@ import { StoryError } from '../domain.ts'
 import type { FailureEnvelope } from './types.ts'
 
 /** Services this plugin injects. */
-export const inject: string[] = ['tools']
+export const inject: string[] = ['tools', 'commands']
+import { registerStoryCommands } from '../commands.ts'
 
 /** Provider label used in diagnostics. */
 export const name: string = 'storycraft-tools'
@@ -154,6 +155,9 @@ function scopeDenialOf(ctx: DshContext, exec: DshToolExecution): string | undefi
  * @param ctx - plugin context (services: tools).
  */
 export function apply(ctx: DshContext): void {
+  // Human commands live in the same preset scope as the actions.
+  const commands = (ctx as any).commands
+  if (commands !== undefined) registerStoryCommands({ commands })
   // The guard lives in this preset's scope, so it applies to the main agent and
   // to every subagent spawned into the same composition; the depth predicate
   // keeps the main agent unrestricted.

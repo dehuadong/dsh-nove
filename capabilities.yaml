@@ -32,8 +32,8 @@ capabilities:
     title: DSH command/headless 入口（init/export 至少一条）
     reference: inkos:packages/cli/src/commands/
     dsh: commands
-    implementation: null
-    consumer: null
+    implementation: storycraft/src/commands.ts
+    consumer: storycraft/tests/commands.test.mjs
     realRun: null
     status: missing
   - id: runtime.telemetry
