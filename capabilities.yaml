@@ -42,8 +42,8 @@ capabilities:
     dsh: session log + events
     implementation: storycraft/src/call-evidence.ts
     consumer: storycraft/tests/model-calls.test.mjs
-    realRun: null
-    status: missing
+    realRun: artifacts/real-runs/runtime.telemetry.json
+    status: verified
   - id: runtime.recovery
     title: 自检／恢复（workspace/work 索引重建）
     reference: inkos:packages/core/src/pipeline/chapter-state-recovery.ts

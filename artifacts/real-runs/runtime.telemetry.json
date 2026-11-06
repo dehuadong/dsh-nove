@@ -1,0 +1,29 @@
+{
+  "date": "2026-11-06",
+  "sessionId": "session-4604579f-a577-4ea1-88a1-51d867f3d7b6",
+  "tests": { "passed": true },
+  "receipts": [
+    {
+      "kind": "model-call-row",
+      "work": "签字前我重生了-这次换他们进去",
+      "role": "architect",
+      "outcome": "accepted",
+      "durationMs": 247867,
+      "stopReason": "completed",
+      "usageSource": "unavailable",
+      "errorCode": null
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/tests/model-calls.test.mjs",
+      "ok": true,
+      "covers": ["usage aggregation", "duration", "failed dispatch row", "submission attempts"]
+    },
+    {
+      "kind": "code-check",
+      "command": "node storycraft/scripts/ci.mjs --no-e2e",
+      "ok": true,
+      "unitFiles": 99
+    }
+  ]
+}
