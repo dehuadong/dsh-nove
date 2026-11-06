@@ -121,9 +121,9 @@ capabilities:
     reference: inkos:packages/core/src/retrieval/local-search.ts
     dsh: tools.register
     implementation: storycraft/src/retrieval.ts
-    consumer: storycraft/tests/retrieval.test.mjs
-    realRun: null
-    status: missing
+    consumer: storycraft/tests/context-retrieval.test.mjs
+    realRun: artifacts/real-runs/context.retrieval.json
+    status: verified
   - id: chapter.write
     title: 首版正文
     reference: inkos:packages/core/src/agents/writer.ts

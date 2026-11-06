@@ -1,0 +1,38 @@
+{
+  "date": "2026-11-06",
+  "sessionId": "session-d68dc3ec-3f70-435d-86fa-bf1438c8af3d",
+  "tests": { "passed": true },
+  "receipts": [
+    {
+      "kind": "retrieval-trace",
+      "work": "伏笔回执",
+      "chapter": 4,
+      "sections": ["authority", "task", "constraints", "state", "recent", "retrieval", "style"],
+      "candidates": 10,
+      "kinds": ["skill", "hook", "book_rules", "volume_map"],
+      "sourceExamples": [
+        "skill:storycraft-long-prose/SKILL.md",
+        "state",
+        "bible:book_rules",
+        "bible:volume_map"
+      ],
+      "ok": true
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/tests/context-retrieval.test.mjs",
+      "ok": true
+    },
+    {
+      "kind": "pure-test",
+      "path": "storycraft/tests/retrieval.test.mjs",
+      "ok": true
+    },
+    {
+      "kind": "code-check",
+      "command": "node storycraft/scripts/ci.mjs --no-e2e",
+      "ok": true,
+      "unitFiles": 102
+    }
+  ]
+}
