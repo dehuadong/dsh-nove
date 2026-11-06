@@ -14,7 +14,10 @@ Status: proposed
 - 同一个 hook 在 brief、检索、看板与状态投影里一致；
 - 后续 `resolve/defer/promote` 只按状态机改，不靠 upsert 改状态。
 
-当前已有 `state-settle.ts`、`state-projection.ts`、`foundation-hooks.test.mjs`，但没有真实运行回执；也没有逐条对照源工程的未知 hook、superseded、resolved 历史保护。
+当前已有 `state-settle.ts`、`state-projection.ts`、`foundation-hooks.test.mjs`，但没有真实运行回执；逐条对照源 reducer 后发现两处状态机差异：
+
+- 当前 `HOOK_TRANSITIONS.resolved = ['superseded']`，源工程 `mergeHookRecord` 明确拒绝 `resolved → superseded`（`HOOK_RESOLVED_HISTORY`）；
+- 源工程 supersede 必须带非空 notes（`HOOK_WITHDRAWAL_REASON_REQUIRED`），当前 `hookTransition` 只切 status，不要求撤回理由。
 
 ## 源工程证据
 
@@ -38,10 +41,14 @@ Status: proposed
   - 同 hookId 更新；
   - superseded 不可 reopen；
   - resolved 不可 withdraw；
+  - resolved → superseded 必须拒绝（当前 `HOOK_TRANSITIONS` 错误地允许）；
+  - supersede 必须带非空 notes（撤回理由）；
 - 消费者测试覆盖：
   - 两个种子在 folded/brief/search/dashboard 一致；
   - 未知 hook resolve/defer 拒绝；
   - superseded 不可 resolve/defer；
+  - resolved → superseded 拒绝；
+  - 无 notes 的 supersede 拒绝；
   - resolved 历史不可撤回。
 - 真实回执：真实作品执行基础设定后读 `bible:hooks` 与 `story_state`，确认种子。
 
@@ -56,6 +63,8 @@ Status: proposed
 - pendingHooks 缺 hookId/text → `artifact-invalid`；
 - 未知 hookId resolve/defer → `hook-not-found`；
 - superseded resolve/defer → `hook-superseded`；
+- resolved → superseded → `hook-resolved`；
+- supersede 缺 notes → `hook-withdraw-reason-required`；
 - resolved withdraw → `hook-resolved`。
 
 ## Alternatives considered
@@ -71,8 +80,11 @@ Status: proposed
 1. pendingHooks 两条种子在 chapter 0、status deferred、hookId 不变；
 2. `bible:hooks`、folded、brief、search、dashboard 五处文本/状态一致；
 3. 未知 hook resolve/defer 被拒绝；
-4. superseded resolve/defer、resolved withdraw 被拒绝；
-5. 消费者测试与真实回执齐全后，`check-capabilities --write` 置 `verified`。
+4. superseded resolve/defer 被拒绝；
+5. resolved → superseded 被拒绝；
+6. 无 notes 的 supersede 被拒绝；
+7. resolved withdraw 被拒绝；
+8. 消费者测试与真实回执齐全后，`check-capabilities --write` 置 `verified`。
 
 ## Plan Review
 
