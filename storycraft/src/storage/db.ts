@@ -94,6 +94,13 @@ CREATE TABLE IF NOT EXISTS session_current (
   work_id TEXT,
   updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS workspace (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  form TEXT NOT NULL,
+  preset_id TEXT,
+  created_at TEXT NOT NULL
+);
 `
 
 /** Current artifact registry: canonical artifacts with immutable revisions. */
@@ -366,9 +373,10 @@ export function openCatalog(root: string, options: { create?: boolean, busyTimeo
       throw new StoryError('schema-version-mismatch',
         `作品目录版本 ${version} 与支持的 ${CATALOG_SCHEMA_VERSION} 不一致：请升级插件`)
     }
-    if (version === 0) {
+    if (version === 0 || version === CATALOG_SCHEMA_VERSION) {
+      // Additive tables (workspace metadata) are created for the current version too.
       db.exec(CATALOG_SCHEMA)
-      db.exec(`PRAGMA user_version = ${CATALOG_SCHEMA_VERSION}`)
+      if (version === 0) db.exec(`PRAGMA user_version = ${CATALOG_SCHEMA_VERSION}`)
     }
   } catch (error) {
     db.close()

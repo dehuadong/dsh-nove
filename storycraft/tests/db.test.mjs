@@ -24,7 +24,7 @@ try {
   const catalog = openCatalog(root)
   check('catalog schema version recorded', Number(catalog.prepare('PRAGMA user_version').get().user_version) === CATALOG_SCHEMA_VERSION)
   const tables = catalog.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all().map(row => row.name)
-  check('catalog holds only metadata tables', tables.join(',') === 'proposals,session_current,works', tables.join(','))
+  check('catalog holds only metadata tables', tables.join(',') === 'proposals,session_current,works,workspace', tables.join(','))
   check('catalog WAL mode', String(catalog.prepare('PRAGMA journal_mode').get().journal_mode).toLowerCase() === 'wal')
 
   const now = new Date().toISOString()

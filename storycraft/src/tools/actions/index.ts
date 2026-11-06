@@ -2,7 +2,7 @@
 
 import { createHash } from 'node:crypto'
 import {
-  StoryError, createBackup, deleteWork, exportWork, initWork, nextStep as nextStepFor, 
+  StoryError, createBackup, deleteWork, ensureWorkspaceForm, exportWork, initWork, nextStep as nextStepFor, 
   approveFoundation, approveOutline, approveChapterPlan, finalizeChapter, markStateDraftReady, mergeStateDraft,
   planApprovalPolicy,
   latestReview, readBibleEntry, readChapter, readChapterHistory, readEvents, readEventsText, readManifest, readPlan, readSessionCurrent,
@@ -60,6 +60,15 @@ import {
   action,
 } from '../runtime.ts'
 
+/** Preset ids that declare one form; future short/script presets join this table. */
+const PRESET_FORM: Record<string, string> = { storycraft: 'longform' }
+
+/** The form asserted by the active session preset; unknown presets keep the longform default. */
+function presetFormOf(exec: any): string {
+  const preset = exec?.agent?.session?.header?.agentPreset
+  return typeof preset === 'string' && PRESET_FORM[preset] !== undefined ? PRESET_FORM[preset] : 'longform'
+}
+
 export /** The long-form action set. */
 function rawDefinitions(ctx: DshContext): ActionDefinition[] {
   return [
@@ -103,10 +112,13 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
           throw new StoryError('proposal-mismatch',
             `提案《${proposal.title}》与要建的作品《${args.title}》不一致：改标题或重新提案`)
         }
-        if (args.form !== undefined && proposal.form !== args.form) {
-          throw new StoryError('proposal-mismatch',
-            `提案形态是 ${proposal.form}，与传入的 ${args.form} 不一致`)
+        const form = presetFormOf(exec)
+        if (proposal.form !== form) {
+          throw new StoryError('workspace-form-mismatch',
+            `提案形态是 ${proposal.form}，当前工作区只接受 ${form}：换工作区或换预设`)
         }
+        const preset = (exec?.agent?.session?.header as any)?.agentPreset
+        ensureWorkspaceForm(root, form, typeof preset === 'string' ? preset : undefined)
         const targetId = typeof args.workId === 'string' && args.workId.trim() !== ''
           ? workIdOf(args.workId)
           : workIdOf(args.title)
@@ -117,9 +129,8 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
         }
         const created = await initWork(root, {
           title: args.title,
-          form: proposal.form,
+          form,
           ...(typeof args.workId === 'string' ? { workId: args.workId } : {}),
-          ...(typeof args.form === 'string' ? { form: args.form } : {}),
           ...(Array.isArray(args.tags) ? { tags: args.tags } : {}),
           ...(args.wordRange === undefined ? {} : { wordRange: args.wordRange }),
         })
@@ -157,9 +168,14 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
       },
       async execute(args, exec) {
         const root = workspaceOf(exec)
+        const form = presetFormOf(exec)
+        if (args.form !== undefined && args.form !== form) {
+          throw new StoryError('workspace-form-mismatch',
+            `当前预设只接受 ${form}，不能提案 ${String(args.form)}：换工作区或换预设`)
+        }
         const proposal = await createProposal(root, {
           title: args.title,
-          form: args.form,
+          form,
           premise: args.premise,
           ...(typeof args.characters === 'string' ? { characters: args.characters } : {}),
           ...(typeof args.conflict === 'string' ? { conflict: args.conflict } : {}),

@@ -135,6 +135,33 @@ export function readManifest(root: string, work: unknown): any {
   }
 }
 
+/** The workspace's fixed form, if it has been initialized. */
+export function readWorkspaceForm(root: any): { form: string, presetId?: string } | undefined {
+  const catalog = openCatalog(root, { create: false })
+  if (catalog === undefined) return undefined
+  const row = catalog.prepare('SELECT form, preset_id AS presetId FROM workspace WHERE id = 1').get() as { form: string, presetId: string | null } | undefined
+  if (row === undefined) return undefined
+  return { form: row.form, ...(row.presetId === null ? {} : { presetId: row.presetId }) }
+}
+
+/** Fix the workspace form on first use; later calls must match it. */
+export function ensureWorkspaceForm(root: any, form: string, presetId?: string): string {
+  const catalog = requireCatalog(root)
+  const row = catalog.prepare('SELECT form FROM workspace WHERE id = 1').get() as { form: string } | undefined
+  if (row !== undefined) {
+    if (row.form !== form) {
+      throw new StoryError('workspace-form-mismatch',
+        `工作区形态是 ${row.form}，当前预设要求 ${form}：换工作区或换预设`)
+    }
+    return row.form
+  }
+  transaction(catalog, () => {
+    catalog.prepare('INSERT INTO workspace (id, form, preset_id, created_at) VALUES (1, ?, ?, ?)')
+      .run(form, presetId ?? null, now())
+  })
+  return form
+}
+
 /**
  * Create a work: the database file first, then the catalog row. A failed
  * catalog insert removes the file, so a half-created work never survives.

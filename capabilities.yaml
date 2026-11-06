@@ -17,7 +17,7 @@ capabilities:
     reference: inkos:packages/core/src/harness/builtin-profiles.ts
     dsh: preset + storage
     implementation: storycraft/src/storage/repositories/catalog.ts
-    consumer: storycraft/tests/catalog.test.mjs
+    consumer: storycraft/tests/workspace-form.test.mjs
     realRun: null
     status: missing
   - id: runtime.session-binding

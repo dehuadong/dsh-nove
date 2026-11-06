@@ -31,7 +31,7 @@ try {
   // The catalog is metadata only; each work carries its own schema version.
   const catalog = openCatalog(root, { create: false })
   const tables = catalog.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(row => row.name).sort()
-  check('catalog tables are metadata only', tables.join(',') === 'proposals,session_current,works', tables.join(','))
+  check('catalog tables are metadata only', tables.join(',') === 'proposals,session_current,works,workspace', tables.join(','))
   const row = catalog.prepare('SELECT * FROM works WHERE work_id = ?').get(a.workId)
   check('catalog records the work schema version', row.schema_version === WORK_SCHEMA_VERSION, String(row.schema_version))
   check('catalog keeps title/form/tags', row.title === '甲库' && row.form === 'longform' && row.tags === '["实验"]', JSON.stringify(row))
