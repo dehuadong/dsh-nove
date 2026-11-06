@@ -32,7 +32,7 @@ try {
 
   const registered = []
   registerStoryCommands({ commands: { register: (definition) => { registered.push(definition); return () => {} } } })
-  check('registers the storyinit command', registered.length === 1 && registered[0].name === 'storyinit', JSON.stringify(registered.map(entry => entry.name)))
+  check('registers the story-init command', registered.length === 1 && registered[0].name === 'story-init', JSON.stringify(registered.map(entry => entry.name)))
 } finally {
   await rm(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 })
 }

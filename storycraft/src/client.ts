@@ -190,6 +190,11 @@ window.__ModuleLoader__.load({
         next: (root, id) => route(ROUTE.next, { root, id }),
         getCurrent: (root, sessionId) => route(ROUTE.current, { root, sessionId }),
         setCurrent: (root, sessionId, workId) => post(ROUTE.current, { root, sessionId, workId }),
+        runCommand: async (sessionId, line) => {
+          const binding = (ctx as any).sessions?.binding?.(sessionId)
+          if (binding === undefined) return { kind: 'error', text: '当前会话不可执行命令' }
+          return binding.session.command(line)
+        },
         sessionForWork: (root, workId) => route(ROUTE.sessionForWork, { root, work: workId }),
         createSession: async (root, preset) => {
           const created = await (ctx as any).remote?.session?.create?.({ cwd: root, agentPreset: preset })
@@ -548,8 +553,27 @@ window.__ModuleLoader__.load({
               : h('span', { className: 'sc-badge' },
                 `当前作品：${works.find(work => work.workId === currentId)?.title ?? currentId}`),
             h('button', { type: 'button', className: 'sc-btn', onClick: () => { void load() } }, '刷新'),
+            h('button', {
+              type: 'button',
+              className: 'sc-btn',
+              onClick: () => {
+                if (sessionId === undefined) {
+                  setNotice({ kind: 'error', text: '当前没有打开的会话' })
+                  return
+                }
+                void face!.runCommand(sessionId, '/story-init')
+                  .then(outcome => {
+                    setNotice({ kind: outcome.kind === 'success' ? 'ok' : 'error', text: outcome.text ?? (outcome.kind === 'success' ? '已初始化工作区' : '初始化失败') })
+                    if (outcome.kind === 'success') void load()
+                  })
+                  .catch((error: any) => setNotice({ kind: 'error', text: String(error?.message ?? error) }))
+              },
+            }, '初始化工作区'),
           ),
         ),
+        notice === undefined
+          ? null
+          : h('p', { className: notice.kind === 'error' ? 'sc-notice sc-notice-error' : 'sc-notice sc-notice-info' }, notice.text),
         h('div', { className: selected === undefined ? 'sc-body' : 'sc-body sc-body-detail' },
           selected === undefined ? h('nav', { className: 'sc-list', 'aria-label': '作品类型' },
             h('div', { className: 'sc-list-label' }, '视图'),
@@ -683,7 +707,7 @@ window.__ModuleLoader__.load({
     }
 
     return {
-      inject: ['slots', 'layout'],
+      inject: ['slots', 'layout', 'sessions'],
       /**
        * Register the longform panel as a Session view beside conversation and
        * trajectory. The panel is not a global sidebar tab: it belongs to the
