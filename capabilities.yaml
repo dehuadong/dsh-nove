@@ -86,12 +86,12 @@ capabilities:
     status: verified
   - id: plan.outline
     title: 全书计划／卷图
-    reference: inkos:packages/core/src/pipeline/persisted-governed-plan.ts
+    reference: inkos:packages/core/src/agents/architect-tool.ts
     dsh: tools.register + storage
-    implementation: storycraft/src/volumes.ts
-    consumer: storycraft/tests/volumes.test.mjs
-    realRun: null
-    status: missing
+    implementation: storycraft/src/storage/repositories/catalog.ts
+    consumer: storycraft/tests/outline.test.mjs
+    realRun: artifacts/real-runs/plan.outline.json
+    status: verified
   - id: plan.chapter
     title: 章纲 memo/threadRefs、闸门
     reference: inkos:packages/core/src/agents/planner.ts
