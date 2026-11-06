@@ -11,6 +11,7 @@ export async function land({ root, work, chapter, payload, manifest }: LandInput
   const written = writeChapter(root, {
     work, chapter, title, body,
     requirePlanApproval: manifest.planApproval === 'required',
+    ...(manifest.wordRange === undefined ? {} : { wordRange: manifest.wordRange }),
   })
   return {
     revision: written.revision,

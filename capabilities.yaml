@@ -130,8 +130,8 @@ capabilities:
     dsh: subagents
     implementation: storycraft/src/roles/writer/agent.ts
     consumer: storycraft/tests/acceptance-multichapter.test.mjs
-    realRun: null
-    status: missing
+    realRun: artifacts/real-runs/chapter.write.json
+    status: verified
   - id: chapter.review
     title: observations/severity/quote 校验
     reference: inkos:packages/core/src/pipeline/chapter-review.ts

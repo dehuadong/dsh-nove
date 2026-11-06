@@ -14,6 +14,7 @@ export interface WriteChapterInput {
   rewrite?: boolean
   reopen?: boolean
   requirePlanApproval?: boolean
+  wordRange?: { min: number, max: number }
 }
 
 export interface ReadChapterInput {

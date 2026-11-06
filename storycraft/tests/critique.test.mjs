@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import * as s from '../src/storage.ts'
 import * as b from '../src/bible/index.ts'
 import { openCatalog } from '../src/storage/db.ts'
-import { countWords } from '../src/storage.ts'
+import { countChapterLength } from '../src/storage.ts'
 import { critique } from '../src/critique.ts'
 import { reviewFixture } from './review-fixture.mjs'
 
@@ -30,7 +30,7 @@ const line = '他把工具收进包里，抬头看了一眼天。'
 const prose = `${line}${line}${line}风停了，空气仿佛凝固，他心里不禁一沉。与此同时，远处传来铁器碰撞的声音。`
 const metrics = critique(prose)
 check('words counts characters', metrics.words > 0, String(metrics.words))
-check('words follows the shared counter', metrics.words === countWords(prose), `${metrics.words} vs ${countWords(prose)}`)
+check('words follows the shared counter', metrics.words === countChapterLength(prose), `${metrics.words} vs ${countChapterLength(prose)}`)
 check('chars includes punctuation', metrics.chars >= metrics.words, `${metrics.chars} vs ${metrics.words}`)
 check('sentences counted', metrics.sentences.count === 5, JSON.stringify(metrics.sentences))
 check('repeated sentence detected', metrics.repeated.some(item => item.count === 3), JSON.stringify(metrics.repeated))

@@ -31,3 +31,34 @@ export function countWords(text: unknown): number {
   const latin = String(text).match(/[A-Za-z][A-Za-z'-]*/g)?.length ?? 0
   return cjk + latin
 }
+
+/** Remove Markdown metadata/fences/headings so a length count measures prose. */
+export function stripMarkdownMetadata(text: unknown): string {
+  const lines = String(text ?? '').replace(/\r\n/gu, '\n').replace(/^\uFEFF/u, '').split('\n')
+  const prose: string[] = []
+  let index = 0
+  if (lines[index]?.trim() === '---') {
+    index += 1
+    while (index < lines.length && lines[index]?.trim() !== '---') index += 1
+    if (index < lines.length) index += 1
+  }
+  let inFence = false
+  for (; index < lines.length; index += 1) {
+    const line = lines[index] ?? ''
+    const trimmed = line.trim()
+    if (/^(```|~~~)/u.test(trimmed)) {
+      inFence = !inFence
+      continue
+    }
+    if (inFence) continue
+    if (/^#{1,6}\s+/u.test(trimmed)) continue
+    if (trimmed === '---' || trimmed === '...') continue
+    prose.push(line)
+  }
+  return prose.join('\n')
+}
+
+/** Chapter length in the zh_chars mode: non-whitespace prose characters. */
+export function countChapterLength(text: unknown): number {
+  return stripMarkdownMetadata(text).replace(/\s+/gu, '').length
+}

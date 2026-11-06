@@ -6,7 +6,7 @@
  * compared across revisions. Nothing here edits prose.
  */
 
-import { countWords } from './domain.ts'
+import { countChapterLength } from './domain.ts'
 import { MACHINE_PHRASES } from './phrases.ts'
 
 export const SENTENCE_BREAK = /[。！？…；\n]+/u
@@ -96,7 +96,7 @@ export function findingsOf(text: string, metrics: CritiqueMetrics, perspective?:
 export function critique(text: unknown, wordRange?: { min?: number, max?: number }): CritiqueMetrics {
   const body = String(text ?? '')
   // One counting rule for the whole plugin: the same number story_write records.
-  const words = countWords(body)
+  const words = countChapterLength(body)
   const chars = [...body.replace(/\s/gu, '')].length
 
   const sentences = body

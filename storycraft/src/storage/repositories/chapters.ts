@@ -32,7 +32,7 @@ import { materialIndexText, searchTokens } from '../../search-text.ts'
 import { dropSearchDoc, syncSearchDoc } from '../../search-index.ts'
 import { STATE_LIMITS, applyFactOp, applyHookOp, mintHookId, projectState } from '../../state-projection.ts'
 import {
-  StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, WORK_FORMS, chapterNumber, chapterStem, contentVersion, countWords,
+  StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, WORK_FORMS, chapterNumber, chapterStem, contentVersion, countChapterLength, countWords,
   formOf, now, planApprovalPolicy, stageOf, summaryAdmissible, trimSummary, unitOf, workIdOf,
 } from '../../domain.ts'
 import { assertRevisionMode } from '../../revision.ts'
@@ -233,7 +233,7 @@ export function adoptChapterRevision(root: string, input: any) {
         }
         const body = String(row.body)
         const revision = current + 1
-        const words = countWords(body)
+        const words = countChapterLength(body)
         db.prepare('INSERT INTO chapter_versions (number, revision, body, words, created_at) VALUES (?, ?, ?, ?, ?)')
           .run(number, revision, body, words, at)
         db.prepare(`UPDATE chapters SET status = 'written', stage = 'written', current_revision = ?, words = ?, updated_at = ? WHERE number = ?`)
@@ -299,7 +299,14 @@ export function writeChapter(root: string, input: WriteChapterInput): any {
         throw new StoryError('chapter-exists', `第 ${number} 章已有正文；改稿请传 rewrite: true 生成新版本`)
       }
       const revision = entry.current_revision + 1
-      const words = countWords(body)
+      const words = countChapterLength(body)
+      if (input.wordRange !== undefined) {
+        const { min, max } = input.wordRange
+        if (words < min || words > max) {
+          throw new StoryError('chapter-length-out-of-range',
+            `第 ${number} 章正文 ${words} 字，超出 ${min}–${max} 字范围`)
+        }
+      }
       const at = now()
       db.prepare('INSERT INTO chapter_versions (number, revision, body, words, created_at) VALUES (?, ?, ?, ?, ?)')
         .run(number, revision, body, words, at)
