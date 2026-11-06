@@ -66,8 +66,8 @@ capabilities:
     dsh: storage
     implementation: storycraft/src/state-settle.ts
     consumer: storycraft/tests/foundation-hooks.test.mjs
-    realRun: null
-    status: missing
+    realRun: artifacts/real-runs/foundation.hooks.json
+    status: verified
   - id: foundation.approval
     title: 作者确认闸门与回执
     reference: inkos:packages/core/src/interaction/session.ts

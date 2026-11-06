@@ -1,0 +1,43 @@
+{
+  "date": "2026-11-06",
+  "sessionId": "session-d68dc3ec-3f70-435d-86fa-bf1438c8af3d",
+  "tests": { "passed": true },
+  "receipts": [
+    {
+      "kind": "foundation-seed",
+      "work": "伏笔回执",
+      "hooks": [
+        {
+          "hookId": "ledger-debt",
+          "status": "deferred",
+          "startChapter": 0,
+          "lastAdvancedChapter": 0,
+          "text": "那本没人认领的旧账本"
+        },
+        {
+          "hookId": "stopped-watch",
+          "status": "deferred",
+          "startChapter": 0,
+          "lastAdvancedChapter": 0,
+          "text": "停摆的怀表"
+        }
+      ]
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/tests/foundation-hooks.test.mjs",
+      "ok": true
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/tests/state-projection.test.mjs",
+      "ok": true
+    },
+    {
+      "kind": "code-check",
+      "command": "node storycraft/scripts/ci.mjs --no-e2e",
+      "ok": true,
+      "unitFiles": 101
+    }
+  ]
+}

@@ -68,6 +68,7 @@ check('progress can advance an already progressing hook',
 const deferred = applyHookOp(hookEvents, { op: 'defer', hookId: 'h_1', chapter: 6 })
 hookEvents.push(deferred.event)
 check('defer moves to deferred', deferred.state.hooks[0].status === 'deferred')
+const beforeResolve = [...hookEvents]
 const resolved = applyHookOp(hookEvents, { op: 'resolve', hookId: 'h_1', chapter: 8 })
 hookEvents.push(resolved.event)
 check('resolve moves to resolved', resolved.state.hooks[0].status === 'resolved')
@@ -75,13 +76,17 @@ rejects('resolved cannot progress', 'hook-transition-invalid',
   () => applyHookOp(hookEvents, { op: 'progress', hookId: 'h_1', chapter: 9 }))
 rejects('resolved cannot be resolved again', 'hook-transition-invalid',
   () => applyHookOp(hookEvents, { op: 'resolve', hookId: 'h_1', chapter: 9 }))
-const superseded = applyHookOp(hookEvents, { op: 'supersede', hookId: 'h_1', chapter: 10 })
-hookEvents.push(superseded.event)
-check('supersede is terminal', superseded.state.hooks[0].status === 'superseded')
+rejects('resolved cannot be superseded', 'hook-resolved-history',
+  () => applyHookOp(hookEvents, { op: 'supersede', hookId: 'h_1', chapter: 10, notes: '撤回' }))
+rejects('supersede needs a reason', 'hook-withdraw-reason-required',
+  () => applyHookOp(beforeResolve, { op: 'supersede', hookId: 'h_1', chapter: 10 }))
+const superseded = applyHookOp(beforeResolve, { op: 'supersede', hookId: 'h_1', chapter: 10, notes: '撤回理由' })
+check('supersede is terminal', superseded.state.hooks[0].status === 'superseded'
+  && superseded.state.hooks[0].notes === '撤回理由', JSON.stringify(superseded.state.hooks[0]))
 rejects('superseded cannot defer', 'hook-transition-invalid',
-  () => applyHookOp(hookEvents, { op: 'defer', hookId: 'h_1', chapter: 11 }))
+  () => applyHookOp([...beforeResolve, superseded.event], { op: 'defer', hookId: 'h_1', chapter: 11 }))
 rejects('unknown hook is refused', 'hook-not-found',
-  () => applyHookOp(hookEvents, { op: 'progress', hookId: 'h_404', chapter: 11 }))
+  () => applyHookOp(beforeResolve, { op: 'progress', hookId: 'h_404', chapter: 11 }))
 
 const factEvents = []
 factEvents.push(applyFactOp(factEvents, {

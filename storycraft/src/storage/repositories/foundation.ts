@@ -311,7 +311,7 @@ function seedFoundationHooksOnDb(db: any, input: { hooks: ReadonlyArray<any>, pr
     const current = state.hooks.find((item: any) => String(item.hookId) === hookId)
     if (current === undefined || current.status === 'superseded') continue
     assertHookTransition(String(current.status), 'superseded')
-    push({ op: 'supersede', hookId, chapter: 0 })
+    push({ op: 'supersede', hookId, chapter: 0, notes: '从初始伏笔中移除' })
     written += 1
   }
   return written

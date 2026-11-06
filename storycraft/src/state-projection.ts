@@ -70,7 +70,7 @@ function applyHookEvent(hooks: Map<any, any>, event: any): void {
   }
   const current = hooks.get(event.hookId)
   if (current === undefined || !['progress', 'mention', 'defer', 'resolve', 'supersede'].includes(event.op)) return
-  hooks.set(event.hookId, hookTransition(current, event.op, Number(event.chapter)))
+  hooks.set(event.hookId, hookTransition(current, event.op, Number(event.chapter), event.notes))
 }
 
 /** Project one fact event onto the active fact list. */
@@ -154,7 +154,7 @@ function hookUpsert(input: any, current: any): any {
 }
 
 /** Advance one hook by one non-upsert op. */
-function hookTransition(current: any, op: any, chapter: any): any {
+function hookTransition(current: any, op: any, chapter: any, notes?: any): any {
   if (op === 'mention') return current
   if (op === 'progress') {
     if (!['open', 'progressing', 'deferred'].includes(current.status)) {
@@ -167,8 +167,12 @@ function hookTransition(current: any, op: any, chapter: any): any {
     }
   }
   const target = op === 'defer' ? 'deferred' : op === 'resolve' ? 'resolved' : 'superseded'
+  if (target === 'superseded') {
+    if (current.status === 'resolved') invalid(`不能撤回已解决的伏笔 ${current.hookId}`, 'hook-resolved-history')
+    if (typeof notes !== 'string' || notes.trim() === '') invalid(`撤回伏笔需要理由：${current.hookId}`, 'hook-withdraw-reason-required')
+  }
   assertHookTransition(current.status, target)
-  return { ...current, status: target }
+  return { ...current, status: target, ...(target === 'superseded' ? { notes } : {}) }
 }
 
 /** The status one non-upsert op targets. */
@@ -205,8 +209,10 @@ export function applyHookOp(events: any[], input: any, options: any = {}): any {
   if (options.allowReapply === true && targetStatus(op) === current.status) {
     return { event: null, state }
   }
-  hookTransition(current, op, chapter)
-  const event = { kind: 'hook', op, hookId, chapter }
+  const notes = op === 'supersede' ? input.notes : undefined
+  hookTransition(current, op, chapter, notes)
+  const reason = op === 'supersede' ? String(notes).trim() : undefined
+  const event = { kind: 'hook', op, hookId, chapter, ...(reason === undefined ? {} : { notes: reason }) }
   return { event, state: projectState([...events, event]) }
 }
 

@@ -35,7 +35,7 @@ export const HOOK_TRANSITIONS = {
   open: ['progressing', 'deferred', 'resolved', 'superseded'],
   progressing: ['deferred', 'resolved', 'superseded'],
   deferred: ['progressing', 'resolved', 'superseded'],
-  resolved: ['superseded'],
+  resolved: [],
   superseded: [],
 }
 
