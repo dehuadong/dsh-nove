@@ -150,7 +150,7 @@ capabilities:
     status: verified
   - id: chapter.summary
     title: 结构化摘要
-    reference: inkos:packages/core/src/pipeline/chapter-persistence.ts
+    reference: inkos:packages/core/src/agents/writer.ts
     dsh: storage
     implementation: storycraft/src/roles/summarizer/agent.ts
     consumer: storycraft/tests/summary-consumers.test.mjs
