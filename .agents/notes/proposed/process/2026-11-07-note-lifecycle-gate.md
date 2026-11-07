@@ -2,93 +2,104 @@
 
 Status: proposed
 
-工作项：治理 `.agents/notes/` 的生命周期，防止 completed 工作留下 proposed Note，或出现 `topic` / `topic-implemented` 双份。
+工作项：把 Agent Note 的生命周期规则做成机械门禁，防止 completed 工作留下 proposed Note，或出现 `topic` / `topic-implemented` 双份。
 
 ## Problem
 
-`write-agent-notes` 的校验只有 tree / format / archived / anchors：
+`write-agent-notes` 现有校验只有 tree / format / archived / anchors，没有检查：
 
-- 不检查 proposed 是否已有对应 implemented；
-- 不检查同主题是否双份；
-- 不检查 verified 能力是否还留着 proposed；
-- 不检查完成时是否移动原文件而不是新建 `-implemented`。
+- proposed 是否已有对应 implemented；
+- 同主题是否双份；
+- verified 能力是否还留着 proposed；
+- 完成时是否移动原文件而不是新建 `-implemented`。
 
-结果是 12 个能力完成后 proposed 仍保留，我又建了 `-implemented` 副本，`npm run verify-notes` 全部通过。规则写在 Skill 里，但没有机械门禁。
+12 个能力完成后 proposed 仍保留，我又建了 `-implemented` 副本，`npm run verify-notes` 全部通过。规则写在 Skill 里，却没有机械门禁。
 
 ## 源工程证据
 
 | 源工程证据 | 源工程行为 | 复刻落点与裁决 |
 |---|---|---|
-| `.agents/skills/write-agent-notes/SKILL.md` §4 | 施工完 proposed → implemented：移动同一文件、Status 改 implemented、Proposal→Decision、Acceptance/Risks 折进 Consequences；与代码同一 commit | 复刻用脚本检查同一 topic 只能有一个活跃 Note |
-| `SKILL.md` §3 | 写新 Note 前检索 proposed/implemented/rejected，分类去重 | 复刻检查重复 topic、proposed 与 implemented 并存 |
-| `SKILL.md` §6 / `references/verification.md` | 现有脚本只校验 tree/format/archive/anchors | 新增项目级 lifecycle checker；不改 Skill 脚本 |
+| `.agents/skills/write-agent-notes/SKILL.md` §4 | 施工完 proposed → implemented：移动同一文件、Status 改 implemented、Proposal→Decision、Acceptance/Risks 折进 Consequences；与代码同一 commit | Skill 级 lifecycle 脚本检查同 topic 唯一与 `-implemented` 双份 |
+| `SKILL.md` §3 | 写新 Note 前检索 proposed/implemented/rejected，分类去重 | 项目级脚本检查 verified 能力的 proposed/implemented 对应 |
+| `SKILL.md` §6 / `references/verification.md` | 现有脚本只校验 tree/format/archive/anchors | 新增 Skill 级 lifecycle 脚本，并在项目 verify 中串联 |
+| `tools/implement-gate` | 当前 complete 只写 phase=complete，不检查 Note 生命周期 | complete 前按 task topic 检查 proposed Note |
 
 ## Proposal
 
-### 1. `scripts/check-note-lifecycle.mjs`
+### 1. Skill 级：`verify-agent-note-lifecycle.ts`
 
-读取：
+位置：`.agents/skills/write-agent-notes/scripts/verify-agent-note-lifecycle.ts`。
 
-- `capabilities.yaml` 的 `id/status`；
-- `.agents/notes/{proposed,implemented,rejected}/**/*.md`；
-- 从文件名取 `yyyy-mm-dd-topic.md`，去掉日期与可选 `-implemented` 后缀。
+通用规则，不读 `capabilities.yaml`：
 
-规则：
+1. 文件名解析 `yyyy-mm-dd-topic.md`，去掉日期与可选 `-implemented` 后缀；
+2. 同一 normalized topic 在 proposed/implemented/rejected 中最多一份；
+3. 拒绝 `foo` 与 `foo-implemented` 双份；
+4. Status 与目录一致；
+5. 同一 topic 不得同时处于 proposed 与 implemented。
 
-1. 同一 normalized topic 在 proposed/implemented/rejected 中最多一份；
-2. 出现 `foo` 与 `foo-implemented` 双份即失败；
-3. `verified` 能力必须有同 topic 的 implemented Note；
-4. `verified` 能力不得有同 topic 的 proposed Note；
-5. proposed Note 的 `Status: proposed`，implemented 的 `Status: implemented`；
-6. 允许 missing 能力有 proposed；允许 implemented 存在但能力仍 missing（证据未齐）；
-7. 对没有同 topic Note 的 verified 能力，失败并列出能力 id。
+更新 `references/verification.md` 与 `SKILL.md` §6，并把脚本加入项目 `verify-notes`。
 
-### 2. 当前 architecture Note 一次性迁移
+### 2. 项目级：`scripts/check-capability-note-lifecycle.mjs`
+
+只做能力账本语义：
+
+1. `verified` 能力必须有同 topic 的 implemented Note；
+2. `verified` 能力不得有同 topic 的 proposed Note；
+3. `missing` 能力可以有 proposed；
+4. capability id → topic 归一化与别名表；
+5. 失败时列出能力 id 与 Note 路径。
+
+### 3. Gate：`implement_gate complete` 检查
+
+`complete` 前：
+
+- 取 `state.task`，归一化为 topic；
+- 扫描 `.agents/notes/proposed/`；
+- 若存在同 topic proposed Note，拒绝 complete，要求先移入 implemented；
+- 无同 topic proposed 时照常 complete。
+
+### 4. 一次性迁移
 
 `proposed/architecture/2026-11-06-longform-single-form-workspace.md`：
 
-- 三个能力已 verified；
-- 正文仍是 Proposal/Acceptance；
-- 实施时改成 implemented：`## Proposal`→`## Decision`，删 Acceptance/Plan Review，补 Consequences/Verification，移到 `implemented/architecture/`。
-
-### 3. 接入
-
-- `npm run check-note-lifecycle`；
-- `npm run verify` 加入该检查；
-- `implement_gate complete` 前，若当前 task 仍有同 topic proposed Note，拒绝 complete（由 Gate 插件读取 task/topic）。
+- `## Proposal` → `## Decision`；
+- 删 Acceptance/Plan Review；
+- 补 Consequences/Verification；
+- 移到 `implemented/architecture/`。
 
 ### 非目标
 
-- 不改 `write-agent-notes` 的 Skill 脚本；
-- 不强制每个 capability 一个固定文件名（只做 normalized topic 比对）；
-- 不检查正文现在时（散文纪律）。
+- 不把“写前加载 Skill / 检索历史”做成脚本：脚本无法证明 Agent 已加载 Skill；这条留在 `AGENTS.md` 与 Skill 操作纪律。
+- 不改实现现有 `verify-agent-note-format` 的 Decision/Consequences 检查；它已经覆盖 3d。
+- 不强制每个 capability 一个固定文件名，只做归一化 topic 比对。
 
 ## Alternatives considered
 
-**只靠 Skill 文档。** 最强理由是零代码；12 个 proposed 已经证明文档挡不住，故不采用。
+**只改项目脚本，不动 Skill。** 最强理由是隔离；通用规则属于 Skill 属主，12 个 proposed 已证明项目文档挡不住，故不采用。
 
-**直接改 Skill 的 verify 脚本。** 最强理由是统一入口；会改变所有使用该 Skill 的项目，故用项目级 checker。
+**只改 Skill 脚本，不做项目 wrapper。** 最强理由是单一入口；Skill 不知道能力账本 status，无法判断 verified，故保留薄 wrapper。
 
-**要求每个 Note 带 capability id frontmatter。** 最强理由是映射精确；会改所有历史 Note，先按文件名匹配，后续再引入 frontmatter。
+**给 Gate 加完整 Note 解析。** 最强理由是统一；Gate 只做 task topic 匹配，完整解析留给 Skill/项目脚本。
 
 ## Acceptance criteria
 
-1. checker 拒绝 proposed+implemented 同 topic；
-2. checker 拒绝 `foo` + `foo-implemented`；
-3. checker 拒绝 verified 能力缺 implemented Note；
-4. checker 拒绝 verified 能力仍有 proposed Note；
-5. 当前 architecture Note 已迁 implemented 且格式通过；
-6. `npm run verify` 包含 lifecycle 检查并通过。
+1. Skill 级 lifecycle 脚本拒绝同 topic 双份与 `-implemented` 双份；
+2. 项目级脚本拒绝 verified 缺 implemented、verified 仍 proposed；
+3. `implement_gate complete` 在 task 仍有 proposed Note 时拒绝；
+4. 当前 architecture Note 已迁 implemented 且格式通过；
+5. `npm run verify` 包含 Skill lifecycle + 项目 lifecycle 检查并通过；
+6. 12 个能力 Note 已迁 implemented，无重复。
 
 ## Plan Review
 
-- Standards：项目级脚本，不动 Skill；规则与 SKILL §4 对齐。
-- Spec：重复、缺 implemented、verified 留 proposed 都可观察。
-- Architecture：文件名 topic 作为身份；capability id 归一化为 topic。
+- Standards：通用规则归 Skill，能力语义归项目，complete 行为归 Gate。
+- Spec：双份、verified 对应、complete 拒绝都可观察。
+- Architecture：三层职责不重叠；脚本不读错属主数据。
 - 结论：通过，进入实施需 implement 授权。
 
 ## Risks
 
-- 历史 Note 文件名与 capability id 不完全一致，需先做别名表；
-- 能力 id 与 topic 归一化可能误判，先只对 verified 强制；
-- Gate complete 检查需要插件改动，可能延后到脚本门禁之后。
+- 历史 capability id 与文件名别名不完全一致，需要映射表；
+- Gate 的 task 归一化可能与 Note topic 不一致；
+- 迁移 architecture Note 需要保持原理由/备选不被删。
