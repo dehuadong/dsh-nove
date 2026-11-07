@@ -162,8 +162,8 @@ capabilities:
     dsh: tools.register + storage
     implementation: storycraft/src/roles/settler/agent.ts
     consumer: storycraft/tests/state-v2-settle.test.mjs
-    realRun: null
-    status: missing
+    realRun: artifacts/real-runs/chapter.settle.json
+    status: verified
   - id: chapter.finalize
     title: 定稿与阶段推进
     reference: inkos:packages/core/src/pipeline/runner.ts
