@@ -1,39 +1,81 @@
 # @dsh-nove/gate
 
-Standalone replacement for `implement-gate`: phase state, write gate, `/gate-*` commands, and plugin-local skills.
+`implement-gate` 的独立替代插件：阶段状态、写权限门禁、`/gate-*` 命令与插件专项技能。
 
-## Commands
+## 命令
 
-- `/gate-plan <work item>` — enter planning; the main agent dispatches planning and plan review;
-- `/gate-implement <work item>` — enter implementation; requires a clean plan review for non-mechanical work; the main agent dispatches implement, two review axes, and verify;
-- `/gate-code-review <scope>` — standalone read-only review; no implement/verify, findings only;
-- `/gate-docs <scope>` — docs-only governance;
-- `/gate-block <reason>` / `/gate-resume` — freeze or restore the current gate;
-- `/gate-return-discuss` — user-only manual return to discuss; agents use the `gate_record` tool;
-- `/gate-status` — factual state block including plan readiness and review rounds.
+- `/gate-plan <工作项>`：进入 planning；主代理派 planning 与 plan review；
+- `/gate-implement <工作项>`：进入 implement；非 mechanical 工作必须已有干净的 plan review；主代理派 implement、两轴 review、verify；
+- `/gate-code-review <范围>`：单独只读审查已有改动；不进入 implement/verify，只输出 findings；
+- `/gate-docs <范围>`：文档治理；
+- `/gate-block <原因>` / `/gate-resume`：暂停或恢复当前 Gate；
+- `/gate-return-discuss`：用户手动回到 discuss；Agent 用 `gate_record`；
+- `/gate-status`：显示事实状态，包括 plan 就绪与 review 轮次。
 
 ## Marker
 
-New projects use `.agents/gate.json`; state lives in `.agents/state/gate/`.
+新项目使用 `.agents/gate.json`；状态存放在 `.agents/state/gate/`。
 
-The old `implement-gate` stays frozen until the new plugin passes its temporary-environment tests; cutover creates `.agents/gate.json`, enables this plugin, disables the old one, then deletes the old marker/state.
+旧 `implement-gate` 保持冻结，直到新插件通过临时环境测试。切换时创建 `.agents/gate.json`，启用新插件、停用旧插件，然后删除旧 marker/state。
 
-## Skills
+## 技能
 
-`skills/` is plugin-local: `gate-planning`, `gate-plan-review`, `gate-implement`, `gate-code-review-standards`, `gate-code-review-spec`, `gate-verify`. Workers receive the matching skill body in their prompt; they do not read `.agents/skills` for these methods. Planning additionally receives `write-agent-notes` from the global skill.
-
-## Main-agent dispatch
-
-The main agent dispatches each worker and records its result:
+`skills/` 是插件专项技能：
 
 ```text
-gate_record({ node, findings, requiresDiscussion, discussionReason, verification })
+gate-planning
+gate-plan-review
+gate-implement
+gate-code-review-standards
+gate-code-review-spec
+gate-verify
 ```
 
-The gate does not dispatch workers. It owns phase, write permissions, orchestration protocol, review rounds, plan readiness, verify evidence and blocked/complete.
+worker 的 prompt 携带对应技能正文，不依赖 `.agents/skills` 中的同名技能。planning 额外从全局 skill 注入 `write-agent-notes`。
 
-`requiresDiscussion=true` or a user-owned finding means the main agent calls `gate_record` for the current node with `requiresDiscussion:true`; the gate sets `discuss` and `blockReason=needs-user-decision`. If the tool is unavailable or fails, the agent asks the user to run `/gate-return-discuss`. No worker may run in `discuss`.
+## 主代理派发
 
-Verify requires `verification: { commands, evidence, passed }`; commands and evidence must be non-empty and evidence paths must exist. Missing evidence returns `verification-required`.
+主代理派发每个 worker，并记录结果：
 
-Review loops are capped at five rounds; an exhausted loop becomes `blocked`, never a pass.
+```text
+gate_record({
+  node,
+  findings,
+  requiresDiscussion,
+  discussionReason,
+  verification
+})
+```
+
+Gate 不派 worker；它负责 phase、写权限、编排协议、review 轮次、plan 就绪、verify 证据与 blocked/complete。
+
+`requiresDiscussion=true` 或 user-owned finding 时，主代理对当前节点调用：
+
+```text
+gate_record({ ..., requiresDiscussion: true })
+```
+
+Gate 设 `discuss` 与 `blockReason=needs-user-decision`。如果工具不可用或失败，主代理提示用户执行 `/gate-return-discuss`。`discuss` 下不允许任何 worker。
+
+## Verify 证据
+
+`gate_record({node:'verify'})` 必须带：
+
+```json
+{
+  "verification": {
+    "commands": ["命令"],
+    "evidence": ["证据路径"],
+    "passed": true
+  }
+}
+```
+
+- commands、evidence 均不能为空；
+- evidence 路径必须存在；
+- PASS 才 complete；
+- 缺失返回 `verification-required`。
+
+## 轮次
+
+Plan Review 与 Implementation Review 各自最多 5 轮；达到上限仍有 findings 时进入 blocked，不视为通过。
