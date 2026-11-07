@@ -5,8 +5,10 @@ import { classifyPath, shellAccess } from './src/classify.js'
 import { findGateRoot, loadConfig } from './src/config.js'
 import { childStateId, defaultState, loadState, saveState } from './src/state.js'
 
-export const inject = ['tools']
+export const inject = ['tools', 'subagents']
 const SKILLS = fileURLToPath(new URL('./skills', import.meta.url))
+const REPO_ROOT = path.resolve(SKILLS, '../../..')
+const NOTE_SKILL = path.join(REPO_ROOT, '.agents', 'skills', 'write-agent-notes')
 const SKILL_NAMES = ['gate-planning', 'gate-plan-review', 'gate-implement', 'gate-code-review-standards', 'gate-code-review-spec', 'gate-verify']
 const REVIEW_LIMIT = 5
 
@@ -26,12 +28,33 @@ discuss 是默认阶段，不需要命令进入。
 
 export const PLAN_ORCHESTRATION = `## /gate-plan orchestration
 Main agent dispatches workers; gate does not dispatch.
-1. Dispatch gate-planning with the task, gate-planning method, proposal.md, rfc.md, the global write-agent-notes method, and the canonical proposed template.
+1. Read and pass the method files listed below to gate-planning with the task.
 2. Call gate_record({node:'plan'}).
-3. Dispatch gate-plan-review read-only; call gate_record({node:'plan-review',findings,requiresDiscussion}).
+3. Dispatch gate-plan-review read-only with the planning artifacts; call gate_record({node:'plan-review',findings,requiresDiscussion}).
 4. If requiresDiscussion: call gate_record for the current node with requiresDiscussion:true and stop; if gate_record fails, ask the user to run /gate-return-discuss. If findings remain: dispatch gate-planning revise, call gate_record({node:'plan-revise'}), then review again.
 5. At five review rounds with findings, gate marks blocked; never claim pass.
 6. Empty review returns to discuss.`
+
+function methodFiles(node) {
+  if (node === 'plan') {
+    return [
+      path.join(SKILLS, 'gate-planning', 'SKILL.md'),
+      path.join(SKILLS, 'gate-planning', 'proposal.md'),
+      path.join(SKILLS, 'gate-planning', 'rfc.md'),
+      path.join(NOTE_SKILL, 'SKILL.md'),
+      path.join(NOTE_SKILL, 'templates', 'proposed.md'),
+    ]
+  }
+  if (node === 'implement') {
+    return [
+      path.join(SKILLS, 'gate-implement', 'SKILL.md'),
+      path.join(SKILLS, 'gate-code-review-standards', 'SKILL.md'),
+      path.join(SKILLS, 'gate-code-review-spec', 'SKILL.md'),
+      path.join(SKILLS, 'gate-verify', 'SKILL.md'),
+    ]
+  }
+  return []
+}
 
 export const IMPLEMENT_ORCHESTRATION = `## /gate-implement orchestration
 Main agent dispatches workers; gate does not dispatch.
@@ -180,7 +203,8 @@ export function apply(ctx) {
           : state.node === 'implement'
             ? IMPLEMENT_ORCHESTRATION
             : ''
-        return [`## Gate`, statusText(state), phaseNote, protocol].filter(Boolean).join('\n\n')
+        const files = methodFiles(state.node)
+        return [`## Gate`, statusText(state), phaseNote, protocol, files.length === 0 ? '' : `## Method files\n${files.join('\n')}`].filter(Boolean).join('\n\n')
       },
     })
   })
