@@ -34,7 +34,7 @@
 | `chapter.summary` | `inkos-master/packages/core/src/agents/writer.ts:342-355` | 摘要含 chapter/title/characters/events/stateChanges/hookActivity/mood/chapterType；绑定 bodyRevision；只描述已发生正文 | `src/roles/summarizer/agent.ts`、`tests/summary-binding.test.mjs` | 等价 | 无 |
 | `chapter.settle` | `inkos-master/packages/core/src/agents/settler-tool.ts:35-75` | 结算提交 postSettlement/factOps/hookOps/newHookCandidates/chapterSummary；newHooks 由宿主铸 id；hook 状态只走 op；摘要已绑定正文 | `src/state-settle.ts`、`src/storage/repositories/state.ts`、`tests/state-v2-settle.test.mjs` | 等价 | 无 |
 | `chapter.finalize` | `inkos-master/packages/core/src/agents/writer.ts:600-650`、`pipeline/runner.ts:999-1040` | 只有状态草案 ready 且绑定当前正文才定稿；定稿写 state 事件并锁 settled；重复定稿拒绝 | `src/storage/repositories/state.ts`、`tests/settle-draft.test.mjs` | 等价 | 无 |
-| `chapter.reopen` | `inkos-master/packages/core/src/state/chapter-workspace.ts:1-20`（仅版本 id，未定义 reopen）；全仓检索无 reopen 实现 | 源工程未找到“重开已定稿章节”的可观测行为；当前实现写 reopen 事件、回 written、清草稿 | `src/storage/repositories/chapters.ts`、`tests/reopen-target.test.mjs` | 保真债 | 当行补齐：reference 指版本 id，不证明 reopen；需确认源行为可观测，否则在 dsh-mapping 登记“源行为不可观测”后再实现 |
+| `chapter.reopen` | `inkos-master/packages/core/src/interaction/edit-controller.ts:18-35`、`:338-375` | 作者可编辑已定稿章节；replace 归档旧版、写新正文、清 runtime、不删后续章 | `src/storage/repositories/chapters.ts`、`tests/reopen-target.test.mjs` | 机制等价 | `docs/dsh-mapping.md` 章节重开：源直接编辑，复刻 reopen+revise |
 | `chapter.move-delete` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |
 | `state.check` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |
 | `export.work` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |

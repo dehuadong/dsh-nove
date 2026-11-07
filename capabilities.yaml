@@ -174,7 +174,7 @@ capabilities:
     status: verified
   - id: chapter.reopen
     title: 重开与回滚
-    reference: inkos:packages/core/src/state/chapter-workspace.ts
+    reference: inkos:packages/core/src/interaction/edit-controller.ts
     dsh: storage
     implementation: storycraft/src/chapter-edit.ts
     consumer: storycraft/tests/reopen-target.test.mjs

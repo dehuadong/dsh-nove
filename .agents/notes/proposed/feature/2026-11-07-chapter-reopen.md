@@ -6,84 +6,80 @@ Status: proposed
 
 ## Problem
 
-审计发现源工程没有“重开单章”的可观测实现：
+审计初查没有找到字面 `reopen`；进一步查源工程的作者编辑路径后发现：
 
-- `state/chapter-workspace.ts` 只定义版本 id；
-- 全仓检索 `reopen` 只命中测试/CLI 文案；
-- 最接近的是 `state/manager.ts:612` 的 `rollbackToChapter`：回滚到目标章并删除其后章节；
-- `state/chapter-delete.ts` 只删除最新章。
+- `interaction/edit-controller.ts` 支持 `chapter-replace` / `chapter-local-edit`，对已定稿章节也应可用；
+- `executeChapterReplace` 会归档旧版本、写入新正文、清除该章 runtime 文件、记录 manual edit observation；
+- 它不会删除后续章节；删除后续章节的是 `state/manager.ts:612` 的 `rollbackToChapter`，那是另一种操作。
 
-当前 `reopenChapter` 写 reopen 事件、回 written、清草稿，是复刻侧自建行为。按保真原则，不能把它当等价。
+所以“重开单章”应定义为：**把已定稿章节解锁为可编辑/可再审状态，保留正文与后续章节；不是重写或润色本身，也不删除后续章。**
 
 ## 源工程证据
 
 | 源工程证据 | 源工程行为 | 复刻落点与裁决 |
 |---|---|---|
-| `inkos-master/packages/core/src/state/chapter-workspace.ts:1-20` | 只定义版本 id 格式 | reference 不证明 reopen |
-| `state/manager.ts:612-660` | `rollbackToChapter` 回滚到目标章，删除其后章节 | 与“重开当前章、保留后续章”语义不同 |
-| `state/chapter-delete.ts:28-60` | 删除最新章并保留 trash | 不是 reopen |
+| `inkos-master/packages/core/src/interaction/edit-controller.ts:18-35` | 作者可发 chapter-rewrite/chapter-replace/chapter-local-edit | 复刻 reopen 作为编辑前置解锁 |
+| `edit-controller.ts:338-375` | replace 归档旧版、写新正文、清 runtime 文件、记录 observation；不删后续章 | 复刻 reopen 清状态草稿、回 written；随后 revise/rewrite |
+| `state/manager.ts:612-660` | rollbackToChapter 回滚并删除后续章 | 不复用为 reopen；语义不同 |
 
-审计：`chapter.reopen` 判定保真债；源行为**不可观测**（检索范围：core/src、studio/src、cli/src 的 reopen/rollback/restore/revert）。
+审计：源行为可观测；reopen 是机制等价的编辑解锁，不是源不可观测。
 
 ## Proposal
 
-### 方案 A（推荐）：登记为“源行为不可观测”的合法偏差
+### 定义
 
-- 在 `docs/dsh-mapping.md` 增加一行：
-  - 源工程做法：未找到单章 reopen；`rollbackToChapter` 只做整段回滚；
-  - 复刻做法：`reopenChapter` 写 reopen 事件、回 staged written、清状态草稿；
-  - 原因：源行为不可观测（检索范围与结果如上）；
-  - 验证：`reopen-target.test.mjs` + 真实回执；
-- 能力标题改为“重开与回滚（DSH 扩展）”或保留但说明扩展；
-- 审计表判定从“保真债”改为“机制等价（源不可观测）”，并链接 dsh-mapping。
+**重开单章** = 将已定稿章节解锁为可编辑/可再审状态，保留正文、历史版本与后续章节；它不是重写或润色本身，也不删除后续章。
 
-### 方案 B：实现源 `rollbackToChapter`
+### 机制等价
 
-- 回滚到目标章，删除其后章节，恢复到该章快照；
-- 语义比 reopen 更重，且会丢弃后续章；
-- 不适合作为 `chapter.reopen` 的替代；若要做，应是独立能力。
+- 源工程作者编辑路径：`chapter-replace` / `chapter-local-edit` 直接改已定稿正文，归档旧版、清 runtime、记录 manual edit observation；
+- 复刻路径：`reopenChapter` 先解锁（写 reopen 事件、回 written、清状态草稿），再由 revise/rewrite 写新正文；
+- 两者都不删除后续章；`rollbackToChapter` 是另一操作，不纳入本能力；
+- 在 `docs/dsh-mapping.md` 增加“章节重开”机制等价行：
+  - 源：作者编辑动作直接改定稿章节；
+  - 复刻：reopen 解锁 + revise/rewrite；
+  - 原因：DSH 动作拆分（编辑前需显式解锁），行为等价；
+  - 验证：`reopen-target.test.mjs` + 真实回执。
 
-### 方案 C：删除 `chapter.reopen`
-
-- 账本只追加不删除；当前产品已依赖 reopen 事件与测试；
-- 删除会破坏现有流程，且无法证明源不支持作者重开；不采用。
-
-### 范围（方案 A）
+### 范围
 
 - 不改 `reopenChapter` 行为；
-- 补 dsh-mapping 偏差行；
+- 能力 reference 改为 `interaction/edit-controller.ts`；
+- audit verdict 改为 `机制等价` 并链接 dsh-mapping；
 - consumer 保持 `reopen-target.test.mjs`；
-- 真实回执：真实作品 settled → reopen → nextStep 回到该章 → 重新结算。
+- 真实回执：settled → reopen → nextStep 回该章 → 重新结算。
 
 ### 失败行为
 
 - 未定稿 → `not-settled`；
 - 不存在章节 → `chapter-not-found`；
-- reopen 保留正文版本，不删除事件。
+- reopen 保留正文版本，不删除事件；
+- 不删除后续章。
 
 ## Alternatives considered
 
-**把 reopen 当等价。** 最强理由是测试通过；源无证据，故不采用。
-**实现 rollbackToChapter 替代。** 最强理由是源有该行为；语义不同，故不做替代。
-**删除能力。** 最强理由是避免自创；产品已依赖且无法证明源不支持，故保留为扩展。
+**把 reopen 当源不可观测。** 最强理由是字面没有 reopen；源作者编辑路径实际支持改定稿章节，故不采用。
+**实现 rollbackToChapter 替代。** 最强理由是源有该行为；它会删除后续章，与重开定义不同，故不做替代。
+**删除能力。** 最强理由是避免自创；源作者编辑路径支持解锁编辑，故保留并登记机制等价。
 
 ## Acceptance criteria
 
-1. dsh-mapping 有“源行为不可观测”偏差行，含检索范围；
-2. 审计表 verdict 改为机制等价/不可观测，并链接 dsh-mapping；
+1. 审计表 verdict 改为机制等价并链接 dsh-mapping；
+2. dsh-mapping 有“章节重开”四段行；
 3. reopen 行为测试仍通过；
 4. 真实回执：settled → reopen → nextStep 回该章 → 重新结算；
-5. `check-capabilities --write` 后置 verified。
+5. 不删除后续章；
+6. `check-capabilities --write` 后置 verified。
 
 ## Plan Review
 
-- Standards：源不可观测是合法偏差来源；不伪造等价，登记后再验证。
-- Spec：偏差行、审计链接、reopen 流程、真实回执都可观察。
-- Architecture：reopen 是 DSH 扩展；rollbackToChapter 不混入本能力。
-- 结论：**需要作者裁决**：是否接受把 reopen 登记为源不可观测的扩展；接受后进入 implement。
+- Standards：源作者编辑路径可观测；reopen 是机制等价，不伪造不可观测。
+- Spec：定义、机制差异、dsh-mapping、真实回执都可观察。
+- Architecture：reopen 是解锁步骤；rollbackToChapter 是另一能力，不混入。
+- 结论：通过，进入实施需 implement 授权。
 
 ## Risks
 
-- 如果作者要求严格只做源行为，reopen 应删除或改为 rollback；
-- dsh-mapping 偏差行不能写成“成本高”，只能写源不可观测与检索范围；
-- 真实回执需要 settled 章节与后续章，fixture 要准备。
+- 源编辑动作与 reopen+revise 的步骤数不同，需在 dsh-mapping 说明机制等价；
+- 真实回执需要 settled 章节与后续章，fixture 要准备；
+- 不能把 rollbackToChapter 的删除后续章混入 reopen。
