@@ -29,6 +29,8 @@ function fakeHost(workspace, subagents) {
 }
 
 const workspace = mkdtempSync(path.join(os.tmpdir(), 'gate-core-'))
+mkdirSync(path.join(workspace, '.agents', 'notes', 'proposed', 'feature'), { recursive: true })
+writeFileSync(path.join(workspace, '.agents', 'notes', 'proposed', 'feature', '2026-11-07-orchestrate-check.md'), '---\nStatus: proposed\n---\n')
 mkdirSync(path.join(workspace, '.agents'), { recursive: true })
 writeFileSync(path.join(workspace, '.agents', 'gate.json'), JSON.stringify({
   enabled: true, version: 2, codeExtensions: ['.ts'], codePaths: [],
@@ -77,6 +79,37 @@ check('implement command starts', implemented.kind === 'success')
 await new Promise(resolve => setTimeout(resolve, 50))
 check('implement workers dispatched', calls.includes('implement') && calls.includes('code-review') && calls.includes('verify'), calls.join(','))
 check('implement completes after verify', loadState(workspace, secondAgent).phase === 'complete', JSON.stringify(loadState(workspace, secondAgent)))
+
+const blockedCalls = []
+const findingHost = fakeHost(workspace, {
+  startActivation: async spec => {
+    const node = /Gate phase worker: (\S+)/u.exec(spec.prompt[0].text)?.[1]
+    blockedCalls.push(node)
+    return {
+      childId: spec.childId,
+      name: 'gate-worker',
+      result: Promise.resolve({ stopReason: 'completed', structured: node === 'plan-review' ? { ok: true, findings: [{ id: 'F1' }] } : { ok: true, findings: [] } }),
+      dispose: async () => {},
+    }
+  },
+})
+const blockedAgent = { id: 'session-blocked', session: { header: {} } }
+const blockedStart = await findingHost.commands['gate-plan'].handler({ agent: blockedAgent, rawInput: 'orchestrate-check', attachments: [] })
+await new Promise(resolve => setTimeout(resolve, 50))
+check('plan review cap blocks instead of passing',
+  blockedStart.kind === 'success'
+  && blockedCalls.filter(node => node === 'plan-review').length === 5
+  && loadState(workspace, blockedAgent).work === 'blocked'
+  && loadState(workspace, blockedAgent).blockReason === 'plan-review-rounds-exhausted',
+  JSON.stringify({ calls: blockedCalls, state: loadState(workspace, blockedAgent) }))
+
+const missingWorkspace = mkdtempSync(path.join(os.tmpdir(), 'gate-missing-'))
+mkdirSync(path.join(missingWorkspace, '.agents'), { recursive: true })
+writeFileSync(path.join(missingWorkspace, '.agents', 'gate.json'), JSON.stringify({ enabled: true, version: 2 }))
+const missingHost = fakeHost(missingWorkspace)
+const missingAgent = { id: 'session-missing', session: { header: {} } }
+const rejected = await missingHost.commands['gate-plan'].handler({ agent: missingAgent, rawInput: 'no-such-note', attachments: [] })
+check('plan without a work item is rejected', rejected.kind === 'error' && loadState(missingWorkspace, missingAgent).phase === 'discuss', JSON.stringify(rejected))
 
 if (failures > 0) {
   console.error(`\n${failures} CHECK(S) FAILED`)

@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { existsSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { classifyPath, shellAccess } from './src/classify.js'
@@ -178,11 +178,41 @@ function statusText(state) {
   return [`状态：${state.phase}`, `节点：${state.node ?? '无'}`, `工作项：${state.task ?? '无'}`, `work：${state.work}`, `blockReason：${state.blockReason ?? '无'}`].join('\n')
 }
 
-function command(ctx, agent, rawInput) {
+function normalizeTopic(value) {
+  return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/gu, '-').replace(/^-|-$/gu, '')
+}
+
+function isMechanical(task) {
+  return /^mechanical:/iu.test(String(task ?? '').trim())
+}
+
+function hasProposedNote(root, task) {
+  const wanted = normalizeTopic(String(task ?? '').trim().replace(/^proposed:/iu, ''))
+  if (wanted === '') return false
+  const dir = path.join(root, '.agents', 'notes', 'proposed')
+  if (!existsSync(dir)) return false
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    for (const nested of readdirSync(path.join(dir, entry.name), { withFileTypes: true })) {
+      if (!nested.isFile() || !nested.name.endsWith('.md')) continue
+      const topic = normalizeTopic(nested.name.replace(/^\d{4}-\d{2}-\d{2}-/u, '').replace(/\.md$/u, '').replace(/-implemented$/u, ''))
+      if (topic === wanted) return true
+    }
+  }
+  return false
+}
+
+function workItemAllowed(root, task, allowMechanical) {
+  if (isMechanical(task)) return allowMechanical
+  return hasProposedNote(root, task)
+}
+
+function command(ctx, agent, rawInput, allowMechanical) {
   const task = String(rawInput ?? '').trim()
   const gate = resolveGate(ctx, agent)
   if (gate.config.kind !== 'ok') return { kind: 'error', text: '当前项目没有启用的 .agents/gate.json' }
   if (task === '') return { kind: 'error', text: '缺少工作项' }
+  if (!workItemAllowed(gate.root, task, allowMechanical)) return { kind: 'error', text: '工作项不存在：需要同 topic 的 proposed Note' + (allowMechanical ? ' 或 mechanical:' : '') }
   const state = loadState(gate.root, agent)
   if (state.phase !== 'discuss' && state.phase !== 'complete') return { kind: 'error', text: `当前 phase 是 ${state.phase}` }
   state.phase = 'orchestrating'
@@ -255,7 +285,7 @@ export function apply(ctx) {
       handler,
     })
     register('gate-plan', 'Start planning orchestration', async invocation => {
-      const result = command(ctx, invocation.agent, invocation.rawInput)
+      const result = command(ctx, invocation.agent, invocation.rawInput, false)
       if (result.kind === 'error') return result
       void planRun(ctx, result.gate, invocation.agent, result.state).catch(error => {
         const state = loadState(result.gate.root, invocation.agent)
@@ -265,7 +295,7 @@ export function apply(ctx) {
       return { kind: 'success', text: `已启动 planning：${result.state.task}` }
     })
     register('gate-implement', 'Start implementation orchestration', async invocation => {
-      const result = command(ctx, invocation.agent, invocation.rawInput)
+      const result = command(ctx, invocation.agent, invocation.rawInput, true)
       if (result.kind === 'error') return result
       void implementRun(ctx, result.gate, invocation.agent, result.state).catch(error => {
         const state = loadState(result.gate.root, invocation.agent)
