@@ -18,7 +18,7 @@ Tickets may be:
 - local Markdown files
 - another project-defined execution artifact
 
-Reference the parent Proposal or existing work item by its ID, URL or path, using the project's native relationship mechanism when available.
+Reference the parent work item (proposed Agent Note) by its path, using the project's native relationship mechanism when available.
 
 ## Tracer bullets
 
@@ -85,9 +85,9 @@ Tickets inherit scope, requirements, design and applicable execution authorizati
 
 This may include:
 
-- Proposal
+- work item
 - PRD
-- Spec
+- work item contract
 - Agent Note
 - RFC
 - ADRs
