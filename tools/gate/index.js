@@ -87,6 +87,31 @@ function resolveGate(ctx, agent) {
   return { workspace, root, config: loadConfig(root) }
 }
 
+/** Initialize the marker on the first gate command; no separate init command. */
+function ensureGate(ctx, agent) {
+  const current = resolveGate(ctx, agent)
+  if (current.config.kind === 'ok') return current
+  const workspace = current.workspace
+  if (workspace === undefined) return { error: '无法确定当前会话工作区' }
+  const project = findProjectRoot(workspace)
+  if (project !== undefined && path.resolve(project) !== path.resolve(workspace)) {
+    return { error: `当前工作区不是项目根（项目根：${project}）` }
+  }
+  const marker = path.join(workspace, MARKER)
+  const value = {
+    enabled: true,
+    version: 2,
+    codeExtensions: DEFAULT_CODE_EXTENSIONS,
+    codePaths: [],
+    protected: DEFAULT_PROTECTED,
+  }
+  const validated = validateConfig(value, marker)
+  if (validated.kind !== 'ok') return { error: `Gate 配置无效：${validated.reason ?? validated.kind}` }
+  mkdirSync(path.dirname(marker), { recursive: true })
+  writeFileSync(marker, `${JSON.stringify(value, null, 2)}\n`)
+  return { workspace, root: workspace, config: loadConfig(workspace) }
+}
+
 function skillText(name) {
   try {
     return readFileSync(path.join(SKILLS, name, 'SKILL.md'), 'utf8')
@@ -159,7 +184,8 @@ function workItemAllowed(root, task, allowMechanical) {
 
 function command(ctx, agent, rawInput, allowMechanical, node) {
   const task = String(rawInput ?? '').trim()
-  const gate = resolveGate(ctx, agent)
+  const gate = ensureGate(ctx, agent)
+  if (gate.error !== undefined) return { kind: 'error', text: gate.error }
   if (gate.config.kind !== 'ok') return { kind: 'error', text: '当前项目没有启用的 .agents/gate.json' }
   if (task === '') return { kind: 'error', text: '缺少工作项' }
   if (!workItemAllowed(gate.root, task, allowMechanical)) return { kind: 'error', text: '工作项不存在：需要同 topic 的 proposed Note' + (allowMechanical ? ' 或 mechanical:' : '') }
@@ -274,30 +300,6 @@ export function apply(ctx) {
       input: { hint: '<工作项>' },
       handler,
     })
-    register('gate-init', 'Initialize the gate marker for this project', async invocation => {
-      const workspace = workspaceBoundary(ctx, invocation.agent)
-      if (workspace === undefined) return { kind: 'error', text: '无法确定当前会话工作区' }
-      const existing = findGateRoot(workspace)
-      if (existing !== undefined) return { kind: 'error', text: `Gate 已存在：${path.join(existing, MARKER)}` }
-      const project = findProjectRoot(workspace)
-      if (project !== undefined && path.resolve(project) !== path.resolve(workspace)) {
-        return { kind: 'error', text: `当前工作区不是项目根（项目根：${project}）` }
-      }
-      const marker = path.join(workspace, MARKER)
-      if (existsSync(marker)) return { kind: 'error', text: `Gate 已存在：${marker}` }
-      const value = {
-        enabled: true,
-        version: 2,
-        codeExtensions: DEFAULT_CODE_EXTENSIONS,
-        codePaths: [],
-        protected: DEFAULT_PROTECTED,
-      }
-      const config = validateConfig(value, marker)
-      if (config.kind !== 'ok') return { kind: 'error', text: `Gate 配置无效：${config.reason ?? config.kind}` }
-      mkdirSync(path.dirname(marker), { recursive: true })
-      writeFileSync(marker, `${JSON.stringify(value, null, 2)}\n`)
-      return { kind: 'success', text: `已启用 Gate：${marker}` }
-    })
     register('gate-plan', 'Start planning orchestration', async invocation => {
       const result = command(ctx, invocation.agent, invocation.rawInput, false, 'plan')
       if (result.kind === 'error') return result
@@ -311,7 +313,8 @@ export function apply(ctx) {
     register('gate-docs', 'Start docs governance', async invocation => {
       const task = String(invocation.rawInput ?? '').trim()
       if (task === '') return { kind: 'error', text: '缺少范围' }
-      const gate = resolveGate(ctx, invocation.agent)
+      const gate = ensureGate(ctx, invocation.agent)
+      if (gate.error !== undefined) return { kind: 'error', text: gate.error }
       if (gate.config.kind !== 'ok') return { kind: 'error', text: '当前项目没有启用的 .agents/gate.json' }
       const state = loadState(gate.root, invocation.agent)
       state.phase = 'docs'; state.task = task; state.work = 'active'; state.blockReason = null; state.node = null
@@ -321,7 +324,8 @@ export function apply(ctx) {
     register('gate-code-review', 'Start a standalone read-only code review', async invocation => {
       const task = String(invocation.rawInput ?? '').trim()
       if (task === '') return { kind: 'error', text: '缺少审查范围' }
-      const gate = resolveGate(ctx, invocation.agent)
+      const gate = ensureGate(ctx, invocation.agent)
+      if (gate.error !== undefined) return { kind: 'error', text: gate.error }
       if (gate.config.kind !== 'ok') return { kind: 'error', text: '当前项目没有启用的 .agents/gate.json' }
       const state = loadState(gate.root, invocation.agent)
       if (state.phase !== 'discuss' && state.phase !== 'complete') return { kind: 'error', text: `当前 phase 是 ${state.phase}` }
@@ -330,7 +334,8 @@ export function apply(ctx) {
       return { kind: 'success', text: `进入只读 code review：${task}\n主代理加载 code-review 并派两轴。` }
     })
     register('gate-block', 'Block the current gate', async invocation => {
-      const gate = resolveGate(ctx, invocation.agent)
+      const gate = ensureGate(ctx, invocation.agent)
+      if (gate.error !== undefined) return { kind: 'error', text: gate.error }
       if (gate.config.kind !== 'ok') return { kind: 'error', text: '当前项目没有启用的 .agents/gate.json' }
       const state = loadState(gate.root, invocation.agent)
       if (state.phase === 'blocked') return { kind: 'success', text: '已经是 blocked' }
@@ -341,7 +346,8 @@ export function apply(ctx) {
       return { kind: 'success', text: `已 block：${state.blockReason}` }
     })
     register('gate-resume', 'Resume a blocked gate', async invocation => {
-      const gate = resolveGate(ctx, invocation.agent)
+      const gate = ensureGate(ctx, invocation.agent)
+      if (gate.error !== undefined) return { kind: 'error', text: gate.error }
       if (gate.config.kind !== 'ok') return { kind: 'error', text: '当前项目没有启用的 .agents/gate.json' }
       const state = loadState(gate.root, invocation.agent)
       if (state.phase !== 'blocked') return { kind: 'error', text: '当前不是 blocked' }
@@ -352,7 +358,8 @@ export function apply(ctx) {
       return { kind: 'success', text: `已恢复到 ${state.phase}${state.node === null ? '' : ` / ${state.node}`}` }
     })
     register('gate-return-discuss', 'Return to discuss', async invocation => {
-      const gate = resolveGate(ctx, invocation.agent)
+      const gate = ensureGate(ctx, invocation.agent)
+      if (gate.error !== undefined) return { kind: 'error', text: gate.error }
       if (gate.config.kind !== 'ok') return { kind: 'error', text: '当前项目没有启用的 .agents/gate.json' }
       const state = loadState(gate.root, invocation.agent)
       state.phase = 'discuss'; state.node = null; state.blockReason = null
@@ -361,6 +368,7 @@ export function apply(ctx) {
     })
     register('gate-status', 'Show current gate state', async invocation => {
       const gate = resolveGate(ctx, invocation.agent)
+      if (gate.error !== undefined) return { kind: 'error', text: gate.error }
       if (gate.config.kind !== 'ok') return { kind: 'error', text: '当前项目没有启用的 .agents/gate.json' }
       return { kind: 'success', text: statusText(loadState(gate.root, invocation.agent)) }
     })

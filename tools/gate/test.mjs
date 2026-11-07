@@ -143,8 +143,8 @@ check('review worker cannot write', (await execWith(workerHost, childAgent, 'wri
 const initWorkspace = mkdtempSync(path.join(os.tmpdir(), 'gate-init-'))
 const initHost = fakeHost(initWorkspace)
 const initAgent = { id: 'session-init', session: { header: {} } }
-const initialized = await initHost.commands['gate-init'].handler({ agent: initAgent, rawInput: '', attachments: [] })
-check('gate-init creates the marker', initialized.kind === 'success' && existsSync(path.join(initWorkspace, '.agents', 'gate.json')))
+const autoInitialized = await initHost.commands['gate-plan'].handler({ agent: initAgent, rawInput: 'no-such-note', attachments: [] })
+check('first gate command creates the marker', autoInitialized.kind === 'error' && existsSync(path.join(initWorkspace, '.agents', 'gate.json')))
 
 const missing = mkdtempSync(path.join(os.tmpdir(), 'gate-missing-'))
 mkdirSync(path.join(missing, '.agents'), { recursive: true })
