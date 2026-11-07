@@ -166,10 +166,10 @@ capabilities:
     status: verified
   - id: chapter.finalize
     title: 定稿与阶段推进
-    reference: inkos:packages/core/src/pipeline/runner.ts
+    reference: inkos:packages/core/src/agents/writer.ts
     dsh: tools.register
-    implementation: storycraft/src/storage.ts
-    consumer: storycraft/tests/story-approve.test.mjs
+    implementation: storycraft/src/storage/repositories/state.ts
+    consumer: storycraft/tests/settle-draft.test.mjs
     realRun: null
     status: missing
   - id: chapter.reopen
