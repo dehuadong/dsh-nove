@@ -342,6 +342,10 @@ export function apply(ctx) {
       },
       required: ['node'],
     },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
+    },
     async execute(args, exec) {
       const gate = resolveGate(ctx, exec.agent)
       if (gate.config.kind !== 'ok') return { ok: false, code: 'not-enabled' }
