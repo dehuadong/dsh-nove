@@ -28,9 +28,9 @@ discuss 是默认阶段，不需要命令进入。
 
 export const PLAN_ORCHESTRATION = `## /gate-plan orchestration
 Main agent dispatches workers; gate does not dispatch.
-1. Read and pass the method files listed below to gate-planning with the task.
+1. Dispatch gate-planning with the task, skill name gate-planning, and the resource paths below. The worker loads the skill and reads its resources; the main agent must not read method bodies.
 2. Call gate_record({node:'plan'}).
-3. Dispatch gate-plan-review read-only with the planning artifacts; call gate_record({node:'plan-review',findings,requiresDiscussion}).
+3. Dispatch gate-plan-review read-only; call gate_record({node:'plan-review',findings,requiresDiscussion}).
 4. If requiresDiscussion: call gate_record for the current node with requiresDiscussion:true and stop; if gate_record fails, ask the user to run /gate-return-discuss. If findings remain: dispatch gate-planning revise, call gate_record({node:'plan-revise'}), then review again.
 5. At five review rounds with findings, gate marks blocked; never claim pass.
 6. Empty review returns to discuss.`
@@ -48,6 +48,7 @@ function methodFiles(node) {
   if (node === 'implement') {
     return [
       path.join(SKILLS, 'gate-implement', 'SKILL.md'),
+      path.join(SKILLS, 'gate-implement', 'tickets.md'),
       path.join(SKILLS, 'gate-code-review-standards', 'SKILL.md'),
       path.join(SKILLS, 'gate-code-review-spec', 'SKILL.md'),
       path.join(SKILLS, 'gate-verify', 'SKILL.md'),
@@ -58,12 +59,12 @@ function methodFiles(node) {
 
 export const IMPLEMENT_ORCHESTRATION = `## /gate-implement orchestration
 Main agent dispatches workers; gate does not dispatch.
-1. Dispatch gate-implement with the accepted work item and implementation method.
+1. Dispatch gate-implement with the accepted work item, skill name gate-implement, and resource paths. The worker loads the skill and resource files; the main agent must not read method bodies.
 2. Call gate_record({node:'implement'}).
 3. Dispatch gate-code-review-standards and gate-code-review-spec, both read-only.
 4. Call gate_record({node:'code-review',findings,requiresDiscussion}) with the two-axis result.
 5. If requiresDiscussion: call gate_record for the current node with requiresDiscussion:true and stop; if gate_record fails, ask the user to run /gate-return-discuss. If findings remain: dispatch gate-implement revise, call gate_record({node:'implement-revise'}), then review again.
-6. Empty findings: dispatch gate-verify and call gate_record({node:'verify',ok}).
+6. Empty findings: dispatch gate-verify and call gate_record({node:'verify',verification}).
 7. Verify FAIL routes back to implement-revise; PASS completes. At five rounds, blocked.`
 
 export const DOCS_ORCHESTRATION = `## /gate-docs orchestration

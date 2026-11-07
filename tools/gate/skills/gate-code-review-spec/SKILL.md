@@ -5,9 +5,9 @@ description: Gate Spec review worker：只评审工作项验收合同与适用 S
 
 Review the requested change scope on the **Spec** axis only, including uncommitted work when applicable:
 
-- does the change satisfy the governing work item's scope and acceptance conditions, including any applicable independent Spec?
+- does the change satisfy the governing work item's scope and acceptance conditions, including the work item acceptance contract?
 
-Do not review the Standards axis and do not spawn sub-agents. Resolve work tracking and document ownership from project instructions; a particular tracker configuration path or separate Spec file is not required.
+Do not review the Standards axis and do not spawn sub-agents. Resolve work tracking and document ownership from project instructions.
 
 ## Process
 
@@ -24,7 +24,7 @@ Before reviewing, resolve the fixed point and verify the complete scope, includi
 First reuse the governing work item, acceptance conditions and applicable design already supplied by the gate or conversation. Otherwise:
 
 1. Resolve a work identifier or path from the user's request, branch or relevant commits; locate it through the project's configured tracker or existing work-item convention.
-2. Read that work item's selected scope and acceptance conditions, then follow its references to the applicable revision and sections of any independently owned Spec. Use the registered document owner to resolve design decisions; do not infer a Spec solely from a matching filename.
+2. Read that work item's selected scope and acceptance conditions, then follow its references to the applicable revision and sections of the work item contract. Use the registered document owner to resolve design decisions; do not infer a contract solely from a matching filename.
 3. For direct changes without a separate work item, use the authorized user request and settled decisions in the conversation as the contract. If the contract still cannot be identified, ask the gate for its owner. Report the gap; do not invent acceptance.
 
 ### 3. Output

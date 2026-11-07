@@ -7,7 +7,7 @@ Review the requested change scope on the **Standards** axis only, including unco
 
 - does the change conform to this repo's documented standards and current authoritative decisions?
 
-Do not review the Spec axis and do not spawn sub-agents. Resolve work tracking and document ownership from project instructions; a particular tracker configuration path or separate Spec file is not required.
+Do not review the Spec axis and do not spawn sub-agents. Resolve work tracking and document ownership from project instructions.
 
 ## Process
 

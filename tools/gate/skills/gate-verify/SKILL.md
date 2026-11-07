@@ -55,4 +55,4 @@ Determine the overall result from the current required conditions:
 
 ### Completion
 
-Only final PASS completes the engineering work. Update the authoritative work item using the project's completion convention after successful verification. Where required by the project's decision-record lifecycle, transition applicable decision records to `implemented` only after final PASS. A finished verification attempt, implementation, or review alone does not justify these completion updates.
+Report PASS/FAIL/BLOCKED with evidence. Do not update the work item, transition decision records, or complete the gate; those updates belong to the gate after it accepts this report.
