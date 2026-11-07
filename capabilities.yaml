@@ -170,8 +170,8 @@ capabilities:
     dsh: tools.register
     implementation: storycraft/src/storage/repositories/state.ts
     consumer: storycraft/tests/settle-draft.test.mjs
-    realRun: null
-    status: missing
+    realRun: artifacts/real-runs/chapter.finalize.json
+    status: verified
   - id: chapter.reopen
     title: 重开与回滚
     reference: inkos:packages/core/src/state/chapter-workspace.ts
