@@ -9,7 +9,7 @@ description: Gate 派发的实现 worker；只负责授权范围、测试、find
 
 Implement the selected scope of the work item (proposed Agent Note). Read its scope, acceptance criteria, and referenced design sections before coding.
 
-Before implementation, check the scope and acceptance conditions, required decisions and approval evidence, unresolved blockers, and execution authorization for that scope under project rules. Reuse valid evidence without requesting confirmation again. Sync already agreed scope and decisions to their existing owners; route unresolved material decisions through the project's discussion, authorization, and gate rules before returning to Planning. Document status or location alone does not establish readiness or authorization.
+Before implementation, check the scope and acceptance conditions, required decisions and approval evidence, unresolved blockers, and execution authorization for that scope under project rules. Reuse valid evidence without requesting confirmation again. Sync already agreed scope and decisions to their existing owners; route unresolved material decisions through the project's discussion, authorization, and gate rules before returning to discuss. Document status or location alone does not establish readiness or authorization.
 
 ## 2. Decompose when needed
 
@@ -27,7 +27,7 @@ Implement against the selected work item's scope, acceptance conditions, referen
 
 Use established architecture, conventions, interfaces, and domain language unless the authoritative design explicitly changes them.
 
-If implementation exposes a material unresolved product, domain, architectural, interface, compatibility, or other contract decision, stop affected implementation and follow the project's discussion, authorization, and gate rules to return it to Planning.
+If implementation exposes a material unresolved product, domain, architectural, interface, compatibility, or other contract decision, stop affected implementation and call `/gate-return`. Discuss the decision before any new planning or implementation authorization; do not continue the affected code.
 
 ### Implementation-time testing
 
@@ -43,7 +43,7 @@ The gate may return material findings. Resolve each finding by ownership:
 | ----------------------------------------------------------------- | -------------------------------------- |
 | Current implementation is missing or violates the agreed contract | Fix in the current implementation      |
 | Additional execution unit is needed within the same agreed work   | Add or update an implementation ticket |
-| Product or technical contract must change or was never resolved   | Stop affected work and report it; the gate returns it to planning |
+| Product or technical contract must change or was never resolved   | Stop affected work, call `/gate-return`, and return to discuss; new planning needs authorization |
 | Issue is unrelated to the agreed work                             | Do not expand scope automatically      |
 
 There is no "fix it while we're here" path for unrelated work.
