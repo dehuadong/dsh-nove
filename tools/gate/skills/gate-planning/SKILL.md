@@ -1,32 +1,68 @@
 ---
 name: gate-planning
-description: Planning worker for the gate plugin: form or revise the work item, make scoped technical decisions, and carry review findings back to their owners.
+description: Gate 派发的 planning worker；保留原 planning 工作项、合同、技术决定与修正方法，Plan Review 交给独立 worker。
 ---
 
-# Gate Planning Worker
+# Planning
 
-You are the planning worker for one gate node. You own the plan, its decisions, and its corrections.
+把当前对话与项目上下文整理成最少但足够的规划工件，使工作具备实施条件。先确定各项事实的项目属主，再按需让产品合同与技术探索往返收敛；不为填满文档类型而创建工件。
 
-## Scope
+## 1. 确定工作项
 
-- Form or update the work item's scope, behavior, acceptance, and non-goals.
-- Make technical decisions inside the agreed product contract and project constraints.
-- Record long-lived decisions in the work item's proposed Agent Note.
-- When the gate hands you review findings, decide each finding's owner and correct it there. Do not dismiss a finding by editing the review.
+复用当前任务、既有工作项或项目已配置的跟踪器定位本次工作项。工作项负责本次目标、交付范围、产品行为与验收、评审和批准证据，并链接长期设计的属主。跟踪器是可选配置；没有跟踪器时，当前任务会话承载本次工作项。
 
-You do not run Plan Review here. The gate runs `gate-plan-review` as a separate worker and returns its findings to you.
+复用合适的既有工作项；确实需要新的规划根节点时才创建 Proposal。没有跟踪器时不要为满足格式而另建 Proposal 文件，直接在当前任务中记录范围、验收、评审与批准事实。创建或更新 Proposal 时读取 [proposal.md](./proposal.md)。
 
-## Write scope
+工作项直接写清本次产品行为、范围和验收；跨工作项持续生效的合同按需复用或建立独立 Spec。需要长期保留的技术设计与决定写入 Agent Note，proposed Note 承载实施前设计评审，工作项从自身链接到 Note。Note 的位置遵循项目选择，格式遵循 `write-agent-notes` Skill；不得要求为定位本次 Proposal 配置 Issue tracker。
 
-- Allowed: the work item, proposed Agent Note, and referenced product/design documents.
-- Forbidden: source code, tests, generated outputs, and unrelated documents.
+## 2. 收敛产品合同与技术设计
 
-## Output
+### Spec
 
-Finish with:
+产品行为、范围或验收需要跨工作项持续生效的独立属主时，读取 [spec.md](./spec.md)，创建或更新 Spec；否则由本次工作项写全。
 
-```json
-{"ok":true,"findings":[],"summary":"what was decided and which files changed"}
-```
+Spec 是经评审接受后可直接指导实现与验收的行为合同，覆盖产品行为、标准、契约、协议、安全策略、兼容边界与运维不变量。Spec 修订记录只摘要合同变化，不记录理由或决策史。已有 PRD 可以作为背景输入，但不能代替本次明确合同。
 
-If an unresolved product decision blocks planning, return `ok:false` with the decision and its owner instead of inventing it.
+### 探索性设计
+
+当技术可行性会实质影响产品范围时，读取 [技术设计检查项](./rfc.md)，在 proposed Note 中形成探索草案。
+
+探索草案必须区分产品事实与临时假设，把影响产品范围的结论反馈给工作项或独立 Spec，不得作为实施依据。
+
+产品合同与探索草案可以往返修改，直到范围与验收不再依赖未解决的技术可行性问题。
+
+### 技术设计定稿
+
+需要解决重要技术决定时，使用 [技术设计检查项](./rfc.md)，把已确定的产品合同转成 Agent Note 中的技术设计；一份产品合同可以由多个边界明确的 Note 分别承接。
+
+设计定稿遵循 [技术设计规则](./rfc.md) 的合同稳定性与评审条件。Note 的 proposed/implemented 表示交付生命周期，不代替评审和批准证据。
+
+使用项目既有领域语言和适用架构约束。领域术语与模型变化使用 `domain-modeling`；需要为架构决定单独建档时，使用 `adr` 的准入条件判断，在相关 Agent Note 中记录决定。
+
+### 决定权限
+
+在已同意的产品合同、既有架构和项目约束内，自主解决普通技术选择。
+
+涉及未解决的产品、业务、兼容性、成本、风险、架构方向或其他价值判断时，交由用户决定，除非用户已经明确委托决定权。
+
+## 3. Plan Review handoff
+
+Plan Review is a separate `gate-plan-review` worker. Do not run it yourself.
+
+The gate returns its findings. Decide each finding's owner and correct it there: product scope and acceptance 回到工作项或独立 Spec，本次规划的技术设计回到 Agent Note，工作状态与批准证据回到 Proposal 或工作项。引用输入的问题按项目配置反馈其属主，并报告受影响范围。
+
+修订规划后交给 gate 重新派发 Plan Review；不得自行宣称整体通过。
+
+## 4. 完成与交接
+
+Planning 完成需要同时满足：
+
+- 产品范围和验收条件已经稳定；
+- 实施所需设计已按项目约定接受或批准；
+- 设计完整承接适用的工作项产品合同或独立 Spec；
+- 所需决定已解决；
+- Plan Review 通过。
+
+若用户只要求规划，交付规划结果与评审证据后结束。端到端任务继续进入项目的 Implementation Gate，并单独核对执行授权。
+
+交付规划结果前，如果 `implement_gate` 可用且当前项目已启用，调用 `implement_gate({action:'end-planning'})` 回到 `discuss`。这样用户收到规划后的普通提问不会解锁 Note 写入；需要修改规划时必须重新取得 planning 授权。
