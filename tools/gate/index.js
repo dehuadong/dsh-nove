@@ -341,7 +341,7 @@ export function apply(ctx) {
       state.blockReason = String(invocation.rawInput ?? '').trim() || 'user-blocked'
       saveState(gate.root, invocation.agent, state)
       return { kind: 'success', text: `已 block：${state.blockReason}` }
-    })
+    }, { hint: '[原因]' })
     register('gate-resume', 'Resume a blocked gate', async invocation => {
       const gate = resolveGate(ctx, invocation.agent)
       if (gate.config.kind !== 'ok') return { kind: 'error', text: '当前项目没有启用的 .agents/gate.json' }
@@ -352,7 +352,7 @@ export function apply(ctx) {
       state.work = 'active'; state.blockReason = null; state.blockedFrom = null
       saveState(gate.root, invocation.agent, state)
       return { kind: 'success', text: `已恢复到 ${state.phase}${state.node === null ? '' : ` / ${state.node}`}` }
-    })
+    }, { hint: '' })
     register('gate-return-discuss', 'Return to discuss', async invocation => {
       const gate = resolveGate(ctx, invocation.agent)
       if (gate.config.kind !== 'ok') return { kind: 'error', text: '当前项目没有启用的 .agents/gate.json' }
@@ -360,12 +360,12 @@ export function apply(ctx) {
       state.phase = 'discuss'; state.node = null; state.blockReason = null
       saveState(gate.root, invocation.agent, state)
       return { kind: 'success', text: '已回到 discuss' }
-    })
+    }, { hint: '' })
     register('gate-status', 'Show current gate state', async invocation => {
       const gate = resolveGate(ctx, invocation.agent)
       if (gate.config.kind !== 'ok') return { kind: 'error', text: '当前项目没有启用的 .agents/gate.json' }
       return { kind: 'success', text: statusText(loadState(gate.root, invocation.agent)) }
-    })
+    }, { hint: '' })
   })
 
   ctx.tools.register({
