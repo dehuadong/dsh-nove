@@ -6,10 +6,12 @@
     "verify-agent-note-tree": "node .agents/skills/write-agent-notes/scripts/verify-agent-note-tree.ts --root .agents/notes",
     "verify-agent-note-format": "node .agents/skills/write-agent-notes/scripts/verify-agent-note-format.ts --root .agents/notes",
     "verify-archived": "node .agents/skills/write-agent-notes/scripts/verify-archived-agent-notes.ts --root .agents/notes",
-    "verify-notes": "npm run verify-agent-note-tree && npm run verify-agent-note-format && npm run verify-archived",
+    "verify-note-lifecycle": "node .agents/skills/write-agent-notes/scripts/verify-agent-note-lifecycle.ts --root .agents/notes",
+    "verify-notes": "npm run verify-agent-note-tree && npm run verify-agent-note-format && npm run verify-archived && npm run verify-note-lifecycle",
     "check-capabilities": "node scripts/check-capabilities.mjs",
     "check-fidelity-audit": "node scripts/check-fidelity-audit.mjs",
-    "verify": "npm run verify-notes && npm run check-capabilities && npm run check-fidelity-audit"
+    "check-capability-note-lifecycle": "node scripts/check-capability-note-lifecycle.mjs",
+    "verify": "npm run verify-notes && npm run check-capabilities && npm run check-fidelity-audit && npm run check-capability-note-lifecycle"
   },
   "devDependencies": {
     "yaml": "^2.9.1"

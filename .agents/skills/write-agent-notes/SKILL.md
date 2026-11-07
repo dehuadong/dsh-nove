@@ -156,8 +156,9 @@ Status: <状态>
 ```sh
 npm run verify-agent-note-tree     # 目录合法性、分类、文件名、笔记间相对链接
 npm run verify-agent-note-format   # 头块、状态、必备节、备选方案、implemented 禁用提案标题
+npm run verify-agent-note-lifecycle # 同 topic 唯一、Status/目录一致、禁止 -implemented 双份
 npm run verify-archived            # 归档封印：头部布局、manifest 哈希、只增不改（无 git 自动降级）
-npm run verify-notes               # 以上三线串跑（CI 用这个）
+npm run verify-notes               # 以上四线串跑（CI 用这个）
 npm run archive-agent-note -- <path> [--superseded-by <新笔记>]  # 一键归档；可选在新笔记插入互链 + 入站死链报告
 npm run check-anchors              # 软报告：若代码里有 // Note: 锚点，做双向体检；不当 CI 门
 npm run init-board                 # 生成 ~69KB 轻量看板 board.html（日常开发推荐）

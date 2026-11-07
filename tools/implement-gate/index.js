@@ -5,7 +5,7 @@
  */
 
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { classifyPath, gateCommand, shellAccess } from './classify.js'
 import { findGateRoot, findProjectRoot, loadConfig, MARKER, STATE_DIR, validateConfig } from './config.js'
@@ -100,6 +100,27 @@ function saveState(root, agent, state) {
   writeFileSync(temp, JSON.stringify(next, null, 2))
   renameSync(temp, file)
   return next
+}
+
+function normalizeTopic(value) {
+  return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/gu, '-').replace(/^-|-$/gu, '')
+}
+
+/** Return one proposed Note whose topic matches the task, if any. */
+function proposedNoteFor(root, task) {
+  const wanted = normalizeTopic(task)
+  if (wanted === '') return undefined
+  const dir = path.join(root, '.agents', 'notes', 'proposed')
+  if (!existsSync(dir)) return undefined
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    for (const nested of readdirSync(path.join(dir, entry.name), { withFileTypes: true })) {
+      if (!nested.isFile() || !nested.name.endsWith('.md')) continue
+      const topic = normalizeTopic(nested.name.replace(/^\d{4}-\d{2}-\d{2}-/u, '').replace(/\.md$/u, '').replace(/-implemented$/u, ''))
+      if (topic === wanted) return path.join(dir, entry.name, nested.name)
+    }
+  }
+  return undefined
 }
 
 function deny(reason) {
@@ -248,6 +269,16 @@ export function apply(ctx) {
         return { ok: true, enabled: true, ...saveState(gate.root, exec.agent, state) }
       }
       if (args.action === 'complete') {
+        const proposed = proposedNoteFor(gate.root, state.task)
+        if (proposed !== undefined) {
+          return {
+            ok: false,
+            code: 'proposed-note-exists',
+            phase: state.phase,
+            note: path.relative(gate.root, proposed),
+            next: '先把该 proposed Note 移到 implemented，再 complete',
+          }
+        }
         state.phase = 'complete'
         state.blockReason = null
         return { ok: true, enabled: true, ...saveState(gate.root, exec.agent, state) }

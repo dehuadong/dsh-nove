@@ -15,6 +15,12 @@ Notes 读取/写入命令均接受 `--root <path>` 或 `--root=<path>`，每次�
    - 备选方案：`## Alternatives considered` / `## 备选方案` / `## 已考虑的替代方案` 等别名必写。脚本不检查「不做/复用」档，也不接受占位注释豁免。
    - 兼容：CRLF/BOM 自动归一。
 
+2b. **`verify-agent-note-lifecycle`**（`scripts/verify-agent-note-lifecycle.ts`）
+   - 从 `yyyy-mm-dd-topic.md` 归一化 topic，去掉日期与可选 `-implemented` 后缀；
+   - 同 topic 在 proposed/implemented/rejected 中最多一份；
+   - Status 必须与 lifecycle 一致；
+   - 不读能力账本；`verified` 能力的对应关系由项目级脚本检查。
+
 3. **`verify-archived`**（`scripts/verify-archived-agent-notes.ts`，标配）
    - 每篇归档：头部布局逐行校验（L3 `Status: implemented` / L4 `Archived: YYYY-MM-DD` 紧邻 / L5 空行）。不承认 `Superseded-by:` 字段。
    - `archived/manifest.json`：每个文件有封印条目、每条目有对应文件、sha256 与磁盘内容一致（冻结 = 不可篡改的机械含义）。

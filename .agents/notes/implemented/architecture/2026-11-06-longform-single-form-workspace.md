@@ -1,6 +1,6 @@
 # Agent Note: 故事工坊：长篇单形态工作区与会话面板
 
-Status: proposed
+Status: implemented
 
 工作项：修正长篇复刻的工作区、预设、面板与会话绑定。它由三个能力组成，按“一次一个能力”交付：
 
@@ -26,7 +26,7 @@ Status: proposed
 | `inkos-master/packages/core/src/harness/session-binding.ts:17-25` | 会话由 sessionKind/bookId 绑定 profile 与 work | 等价适配：复刻按工作区 form + 会话绑定 work；DSH 没有 sessionKind 枚举 |
 | `inkos-master/packages/core/src/harness/contracts.ts` 的 WorkProfile | profile 声明能力、技能与产物 | 复刻用预设声明 `form`，工作区保存 form，二者必须一致 |
 
-## Proposal
+## Decision
 
 ### 1. 工作区形态（`workspace.single-form`）
 
@@ -78,22 +78,20 @@ Status: proposed
 
 **继续用侧边栏全局面板。** 最强理由是现有代码已可用；但面板不随会话/预设变化，无法表达“当前长篇工作区”，故不采用。
 
-## Acceptance criteria
+## Consequences
 
-1. 工作区 form 首次写入后固定；预设 form 不一致返回 `workspace-form-mismatch`；
-2. 同一工作区可创建多部同 form 作品，跨 form 初始化被拒绝；
-3. 未绑定会话第一次选作品写入绑定；已绑定会话点另一作品不改变 current，而是打开/新建目标会话；
-4. 重启后绑定可从 `session_current` 恢复；删除当前作品清绑定；
-5. 长篇面板位于会话顶部 `[会话] [轨迹] [长篇面板]`，只列当前工作区作品；
-6. `workspace.single-form`、`runtime.session-binding`、`panel.workbench` 分别有消费者测试与真实回执；
-7. `npm run verify` 与 `node storycraft/scripts/ci.mjs` 通过。
+- `workspace.single-form`：工作区 form 首次写入后固定，跨 form 初始化返回 `workspace-form-mismatch`；
+- `runtime.session-binding`：会话绑定一部作品后不可原地改绑，点另一作品打开/新建目标会话；
+- `panel.workbench`：`[长篇面板]` 仅限 storycraft 预设 + 作品工作区，标准预设不注册；
+- 三个能力各有 consumer 与真实回执；面板内容仍复用现有工作台，短篇/剧本后续拆分。
 
-## Plan Review
+## Verification
 
-- Standards：三个能力分别交付，符合一次一个能力；源工程 profile 边界已登记。
-- Spec：工作区 form、不可改绑、面板位置与失败行为可观察；短篇/剧本排除。
-- Architecture：form 归工作区元数据，预设只声明；绑定保持 catalog 级；面板改为 `conversation.view`，复用 DSH `sessionController.create` 与 `uiWorkspace.openSession`。
-- 结论：通过，进入实施需 implement 授权。
+```text
+node storycraft/scripts/ci.mjs --no-e2e   # PASS
+npm run verify                            # 19 verified / 21 missing
+npm run check-fidelity-audit              # 40 audited, 19 verified
+```
 
 ## Risks
 
