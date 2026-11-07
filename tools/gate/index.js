@@ -300,7 +300,7 @@ export function apply(ctx) {
       mkdirSync(path.dirname(marker), { recursive: true })
       writeFileSync(marker, `${JSON.stringify(value, null, 2)}\n`)
       return { kind: 'success', text: `已启用 Gate：${marker}（phase=discuss）` }
-    }, { hint: '' })
+    }, null)
     register('gate-plan', 'Start planning orchestration', async invocation => {
       const result = command(ctx, invocation.agent, invocation.rawInput, false, 'plan')
       if (result.kind === 'error') return result
@@ -353,7 +353,7 @@ export function apply(ctx) {
       state.work = 'active'; state.blockReason = null; state.blockedFrom = null
       saveState(gate.root, invocation.agent, state)
       return { kind: 'success', text: `已恢复到 ${state.phase}${state.node === null ? '' : ` / ${state.node}`}` }
-    }, { hint: '' })
+    }, null)
     register('gate-return-discuss', 'Return to discuss', async invocation => {
       const gate = resolveGate(ctx, invocation.agent)
       if (gate.config.kind !== 'ok') return { kind: 'error', text: '当前项目没有启用的 .agents/gate.json' }
@@ -361,12 +361,12 @@ export function apply(ctx) {
       state.phase = 'discuss'; state.node = null; state.blockReason = null
       saveState(gate.root, invocation.agent, state)
       return { kind: 'success', text: '已回到 discuss' }
-    }, { hint: '' })
+    }, null)
     register('gate-status', 'Show current gate state', async invocation => {
       const gate = resolveGate(ctx, invocation.agent)
       if (gate.config.kind !== 'ok') return { kind: 'error', text: '当前项目没有启用的 .agents/gate.json' }
       return { kind: 'success', text: statusText(loadState(gate.root, invocation.agent)) }
-    }, { hint: '' })
+    }, null)
   })
 
   ctx.tools.register({
