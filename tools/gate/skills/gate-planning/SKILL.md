@@ -11,8 +11,8 @@ description: Gate 派发的 planning worker；保留原 planning 工作项、合
 - 产品行为、范围、验收由工作项拥有；本项目不建立独立 Spec；
 - 工作项内容按随技能提供的 `proposal.md`；技术设计按 `rfc.md`；
 - 技术设计与长期决定写入 Agent Note；
-- 模板只用 `write-agent-notes/templates/proposed.md`；不新增或复制模板；
-- Note 的位置、格式、生命周期遵循 `write-agent-notes`；不得在 planning 内另建生命周期或状态；
+- 模板只用 `<skill-dir>/write-agent-notes/templates/proposed.md`；不新增或复制模板；
+- Note 的位置、格式、生命周期遵循 `write-agent-notes`SKILL；不得在 planning 内另建生命周期或状态；
 - Plan Review 由 gate 的 `gate-plan-review` worker 执行；planning 接收主代理转交的 findings，负责决定与修正。
 
 把当前对话与项目上下文整理成最少但足够的规划工件，使工作具备实施条件。先确定各项事实的项目属主，再按需让产品合同与技术探索往返收敛；不为填满文档类型而创建工件。
@@ -21,7 +21,7 @@ description: Gate 派发的 planning worker；保留原 planning 工作项、合
 
 本次工作项由 proposed Agent Note 承接。按 `proposal.md` 写清 why、范围与非目标、产品行为与验收、决定与未决问题、评审与批准证据。
 
-复用合适的既有 Note；需要新 Note 时按 `write-agent-notes` 创建 proposed Note，不另建独立 Proposal 文件，也不要求 Issue tracker。
+复用合适的既有 Note；需要新 Note 时加载技能 `write-agent-notes` 创建 proposed Note，不另建独立 Proposal 文件，也不要求 Issue tracker。
 
 工作项直接链接长期设计的 Note 节，不复制设计正文。
 

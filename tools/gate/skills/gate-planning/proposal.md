@@ -1,14 +1,13 @@
 # Proposal
 
-本项目没有 Issue tracker。工作项与技术设计由同一份 proposed Agent Note 承接；工作项负责为什么要改、本次范围、产品行为与验收、评审与批准证据及就绪状态，并链接长期设计。
+工作项与技术设计由同一份 proposed Agent Note 承接；工作项负责为什么要改、本次范围、产品行为与验收、评审与批准证据及就绪状态，并链接长期设计。
 
 ## 配置与存放
 
 - 唯一载体：`proposed/<class>/YYYY-MM-DD-topic.md`；
 - 不创建独立 Proposal 文件；
-- 不建立独立 Spec；
-- 模板使用 `write-agent-notes/templates/proposed.md`；
-- 路径、分类、格式与生命周期由 `write-agent-notes` 管。
+- 模板使用 `<skill-dir>/write-agent-notes/templates/proposed.md`；
+- 路径、分类、格式与生命周期由 `write-agent-notes` SKILL 管。
 
 ## 内容
 
