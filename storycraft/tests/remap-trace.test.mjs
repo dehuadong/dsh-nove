@@ -50,7 +50,13 @@ try {
     db.close()
   }
 
-  s.moveChapter(root, work, 1, 2)
+  let moveError
+  try {
+    await s.moveChapter(root, work, 1, 2)
+  } catch (error) {
+    moveError = error?.code
+  }
+  check('move is rejected', moveError === 'chapter-move-unsupported', String(moveError))
 
   let kept = false
   try {
@@ -59,7 +65,7 @@ try {
   } catch {
     kept = false
   }
-  check('a chapter move keeps the architect trace', kept)
+  check('a rejected move keeps the architect trace', kept)
 } finally {
   await rm(root, { recursive: true, force: true })
 }

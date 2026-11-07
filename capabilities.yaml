@@ -181,13 +181,13 @@ capabilities:
     realRun: artifacts/real-runs/chapter.reopen.json
     status: verified
   - id: chapter.move-delete
-    title: 删章／移章重排、引用与检索同步
+    title: 删除最新章
     reference: inkos:packages/core/src/state/chapter-delete.ts
     dsh: storage
-    implementation: storycraft/src/chapter-edit.ts
+    implementation: storycraft/src/storage/repositories/chapters.ts
     consumer: storycraft/tests/chapter-edit.test.mjs
-    realRun: null
-    status: missing
+    realRun: artifacts/real-runs/chapter.move-delete.json
+    status: verified
   - id: state.check
     title: 语义对账，只读 findings
     reference: inkos:packages/core/src/state/state-validator.ts

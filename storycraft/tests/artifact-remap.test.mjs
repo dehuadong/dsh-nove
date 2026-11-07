@@ -1,11 +1,10 @@
-// S1b: chapter delete/move remaps plan/summary/trace artifacts and clears approval.
+// S1b: deleting the latest chapter removes its artifacts; earlier chapters keep theirs.
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as s from '../src/storage.ts'
 import {
-  readArtifact, readChapterMemo, readChapterObservations, readChapterSummary, writeChapterObservations,
-  writeChapterSummary, writeContextTrace,
+  readArtifact, readChapterMemo, readChapterSummary, writeChapterSummary, writeContextTrace,
 } from '../src/artifact-store.ts'
 import { openWork } from '../src/storage/db.ts'
 
@@ -32,7 +31,7 @@ const summary = (chapter) => ({
 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-artifact-remap-'))
 try {
-  const work = (await s.initWork(root, { title: '重映射' })).workId
+  const work = (await s.initWork(root, { title: '删章工件' })).workId
   await s.writeOutline(root, { work, mainline: '一条线' })
   await s.approveOutline(root, { work })
   for (const chapter of [1, 2, 3]) {
@@ -44,25 +43,6 @@ try {
     await s.writeChapter(root, { work, chapter, body: `正文${chapter}。`.repeat(20) })
     writeChapterSummary(root, { work, chapter, content: summary(chapter) })
   }
-
-  const planOne = readChapterMemo(root, { work, chapter: 1 })
-  writeChapterObservations(root, {
-    work, chapter: 1, bodyRevision: 1, round: 1,
-    observations: [{
-      id: 'O1', summary: '目标不清', evidence: ['e'], category: 'quality', assessment: 'issue',
-      target: { workId: work, artifactId: 'plan:1', revisionId: planOne.artifact.revisionId },
-      sourceRefs: [{ sourceId: 'plan:1', quote: 'g1' }],
-    }],
-  })
-
-  writeChapterObservations(root, {
-    work, chapter: 3, bodyRevision: 1, round: 1,
-    observations: [{
-      id: 'O2', summary: '跨章引用', evidence: ['e'], category: 'quality', assessment: 'issue',
-      target: { workId: work, artifactId: 'plan:1', revisionId: planOne.artifact.revisionId },
-      sourceRefs: [{ sourceId: 'chapter:3', quote: '正文3。' }],
-    }],
-  })
 
   const traceOf = (chapter, marker) => ({
     chapter,
@@ -93,47 +73,11 @@ try {
     readArtifact(root, { work, artifactId: 'trace:1:writer', revisionId: firstTrace.revisionId }).artifact.content.notes[0] === 'first'
     && readArtifact(root, { work, artifactId: 'trace:1:writer' }).artifact.content.notes[0] === 'changed')
 
-  await s.moveChapter(root, work, 1, 2)
-  const movedOne = readChapterMemo(root, { work, chapter: 1 })
-  const movedTwo = readChapterMemo(root, { work, chapter: 2 })
-  check('move swaps plan content', movedOne.artifact.content.goal === 'g2' && movedTwo.artifact.content.goal === 'g1',
-    JSON.stringify([movedOne.artifact.content, movedTwo.artifact.content]))
-  check('move remaps plan scope', movedOne.artifact.scope.chapter === 1 && movedTwo.artifact.scope.chapter === 2)
-  check('move renumbers the trace id and its chapter', (() => {
-    try {
-      readArtifact(root, { work, artifactId: 'trace:1:writer' })
-      return false
-    } catch (error) {
-      return error?.code === 'artifact-not-found'
-        && readArtifact(root, { work, artifactId: 'trace:2:writer' }).artifact.content.chapter === 2
-    }
-  })())
-  const movedDb = openWork(root, work)
-  try {
-    check('move clears approvals', movedDb.prepare('SELECT plan_approved_at FROM chapters WHERE number IN (1, 2)')
-      .all().every(row => row.plan_approved_at === null))
-  } finally {
-    movedDb.close()
-  }
-  check('move keeps the latest summary revision', readChapterSummary(root, { work, chapter: 1 }).artifact.content.chapter === 1)
-  const movedReview = readChapterObservations(root, { work, chapter: 2, bodyRevision: 1, round: 1 })
-  check('move rebinds review target to the new memo revision',
-    movedReview.artifact.content.observations[0].target.artifactId === 'plan:2'
-      && movedReview.artifact.content.observations[0].target.revisionId === movedTwo.artifact.revisionId,
-    JSON.stringify(movedReview.artifact.content.observations[0]))
-  check('move rebinds review plan source ref',
-    movedReview.artifact.content.observations[0].sourceRefs[0].sourceId === 'plan:2')
-  const identityReview = readChapterObservations(root, { work, chapter: 3, bodyRevision: 1, round: 1 })
-  check('identity-chapter review target follows the moved memo',
-    identityReview.artifact.content.observations[0].target.artifactId === 'plan:2'
-      && identityReview.artifact.content.observations[0].target.revisionId === movedTwo.artifact.revisionId,
-    JSON.stringify(identityReview.artifact.content.observations[0]))
-
-  await s.deleteChapter(root, work, 2, { confirm: true })
+  await s.deleteChapter(root, work, 3, { confirm: true })
   const afterDeleteOne = readChapterMemo(root, { work, chapter: 1 })
   const afterDeleteTwo = readChapterMemo(root, { work, chapter: 2 })
-  check('delete keeps survivors in rank order',
-    afterDeleteOne.artifact.content.goal === 'g2' && afterDeleteTwo.artifact.content.goal === 'g3',
+  check('delete keeps earlier plans unchanged',
+    afterDeleteOne.artifact.content.goal === 'g1' && afterDeleteTwo.artifact.content.goal === 'g2',
     JSON.stringify([afterDeleteOne.artifact.content.goal, afterDeleteTwo.artifact.content.goal]))
   check('delete removes the deleted plan', (() => {
     try {
@@ -143,10 +87,10 @@ try {
       return error?.code === 'artifact-not-found'
     }
   })())
-  check('delete keeps survivor summaries', readChapterSummary(root, { work, chapter: 2 }).artifact.content.chapter === 2)
+  check('delete keeps earlier summaries', readChapterSummary(root, { work, chapter: 2 }).artifact.content.chapter === 2)
   check('delete removes the deleted chapter trace', (() => {
     try {
-      readArtifact(root, { work, artifactId: 'trace:2:writer' })
+      readArtifact(root, { work, artifactId: 'trace:3:writer' })
       return false
     } catch (error) {
       return error?.code === 'artifact-not-found'
@@ -154,8 +98,8 @@ try {
   })())
   const deleteDb = openWork(root, work)
   try {
-    check('delete clears approvals on survivors', deleteDb.prepare('SELECT plan_approved_at, plan_revision FROM chapters')
-      .all().every(row => row.plan_approved_at === null && row.plan_revision === null))
+    check('delete does not clear earlier approvals',
+      deleteDb.prepare('SELECT plan_approved_at FROM chapters WHERE number IN (1, 2)').all().every(row => row.plan_approved_at !== null))
   } finally {
     deleteDb.close()
   }

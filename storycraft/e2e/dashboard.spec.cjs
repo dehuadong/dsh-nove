@@ -56,7 +56,7 @@ test.describe('故事工坊看板', () => {
     await openDashboard(page, '状态-看板草案', '短篇')
     const hook = page.locator('.sc-hook').filter({ hasText: '旧钥匙' })
     await hook.getByRole('button', { name: '已用（推进）' }).evaluate(node => node.click())
-    await expect(page.getByText(/本章还有状态草案/)).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText(/本章还有状态草案/).first()).toBeVisible({ timeout: 10_000 })
   })
 
   test('没有章节时看板为空状态', async ({ page }) => {

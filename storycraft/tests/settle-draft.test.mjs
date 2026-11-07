@@ -101,10 +101,15 @@ try {
   s.approveChapterPlan(root, { work, chapter: 2 })
   s.writeChapter(root, { work, chapter: 2, title: '第2章', body: '乙把灯点上。'.repeat(20) })
   s.writeStateDraft(root, { work, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '状态', object: '待定' }] }, ready: true })
-  await s.moveChapter(root, work, 1, 2)
-  check('a chapter move clears drafts', s.readStateDraft(root, { work, chapter: 1 }) === undefined
-    && s.readManifest(root, work).chapters.every(item => item.stateReadyRevision === 0),
-    JSON.stringify(s.readManifest(root, work).chapters.map(item => [item.number, item.stateReadyRevision])))
+  let moveError
+  try {
+    await s.moveChapter(root, work, 1, 2)
+  } catch (error) {
+    moveError = error?.code
+  }
+  check('a rejected move does not clear drafts', moveError === 'chapter-move-unsupported'
+    && s.readStateDraft(root, { work, chapter: 1 }) !== undefined,
+    JSON.stringify({ moveError }))
 
   // AC3/AC5/AC10: stale draft, review gate order, and rewrite invalidation.
   const second = s.initWork(root, { title: '草案边界', wordRange: { min: 10, max: 5000 } }).workId

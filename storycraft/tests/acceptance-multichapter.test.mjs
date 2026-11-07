@@ -217,6 +217,7 @@ const chapterTwoBody = lines(80, '灯芯爆了一下，乙把账本翻到最后�
 const chapterOneRevised = `${chapterOneBody}甲把伞收进屋里，停了一拍。`
 const chapterThreeBody = lines(80, '渠水漫过石阶，丙抱着一卷旧图从桥下出来。')
 const twoMarker = '乙把账本翻到最后一页'
+const threeMarker = '渠水漫过石阶'
 
 try {
   const { workId: work } = s.initWork(root, { title: '多章验收', wordRange: { min: 1000, max: 5000 } })
@@ -421,67 +422,26 @@ try {
   await settle(3, '重新确认渠水旧图')
   check('ch3 settles again', chapterState(root, work, 3).stage === 'settled')
 
-  /* Scene 4: reopen both affected chapters, then swap 2 and 3. */
-  const summaryTwo = readArtifact(root, { work, artifactId: 'summary:2' }).artifact
-  const reviewTwoBefore = readArtifact(root, { work, artifactId: latestId(root, work, 'review:2:') }).artifact
+  /* Scene 4: reopen, then confirm move is not supported. */
   await call('story_reopen', { work, chapter: 2 })
   await call('story_reopen', { work, chapter: 3 })
   service.push({ structured: { items: [] } })
   await call('story_delegate', { work, chapter: 2, role: 'reviewer' })
-  const stageBeforeMove = [2, 3].map(chapter => chapterState(root, work, chapter).stage)
-  const traceTwoBefore = traceOf(root, work, 2, 'writer')
-  const traceThreeBefore = traceOf(root, work, 3, 'writer')
-  const reviewAtTwoBefore = reviewQuote(root, work, 2)
-  const reviewAtThreeBefore = reviewQuote(root, work, 3)
-  const moveReceipt = await s.moveChapter(root, work, 2, 3)
-  const moved = {
-    plans: [1, 2, 3].map(chapter => s.readManifest(root, work).chapters.find(item => item.number === chapter)?.planApproved),
-    traceAtTwo: traceOf(root, work, 2, 'writer'),
-    traceAtThree: traceOf(root, work, 3, 'writer'),
-    planAtTwo: s.readPlan(root, work, 2),
-    planAtThree: s.readPlan(root, work, 3),
-    summaryAtTwo: readArtifact(root, { work, artifactId: 'summary:2' }).artifact,
-    summaryAtThree: readArtifact(root, { work, artifactId: 'summary:3' }).artifact,
-    reviewAtTwo: readArtifact(root, { work, artifactId: latestId(root, work, 'review:2:') }).artifact,
-    stages: [2, 3].map(chapter => chapterState(root, work, chapter).stage),
+  const stagesBeforeMove = [2, 3].map(chapter => chapterState(root, work, chapter).stage)
+  let moveError
+  try {
+    await s.moveChapter(root, work, 2, 3)
+  } catch (error) {
+    moveError = error?.code
   }
-  record('swap 2 and 3', 'moveChapter(2,3)', { work, from: 2, to: 3 }, moveReceipt, {
-    state: chapterState(root, work, 3),
-    trace: moved.traceAtThree?.content,
-    artifacts: artifactIds(root, work).length,
+  record('move rejected', 'moveChapter(2,3)', { work, from: 2, to: 3 }, { error: moveError }, {
+    stages: [2, 3].map(chapter => chapterState(root, work, chapter).stage),
   })
-  check('the swap clears both approvals',
-    moved.plans[1] === false && moved.plans[2] === false, JSON.stringify(moved.plans))
-  check('the trace ids follow the swap',
-    moved.traceAtThree !== undefined && moved.traceAtThree.content.chapter === 3
-    && moved.traceAtTwo !== undefined && moved.traceAtTwo.content.chapter === 2
-    && traceTwoBefore !== undefined && traceThreeBefore !== undefined,
-    JSON.stringify({ two: moved.traceAtTwo?.content.chapter, three: moved.traceAtThree?.content.chapter }))
-  check('the traces exchange their content',
-    moved.traceAtTwo.content.tokenBudget.totalSelectedTokens === traceThreeBefore.content.tokenBudget.totalSelectedTokens
-    && moved.traceAtThree.content.tokenBudget.totalSelectedTokens === traceTwoBefore.content.tokenBudget.totalSelectedTokens
-    && traceTwoBefore.content.tokenBudget.totalSelectedTokens !== traceThreeBefore.content.tokenBudget.totalSelectedTokens,
-    JSON.stringify({ two: moved.traceAtTwo.content.tokenBudget.totalSelectedTokens, three: moved.traceAtThree.content.tokenBudget.totalSelectedTokens }))
-  check('the reviews exchange their chapter quotes',
-    reviewQuote(root, work, 2).includes('渠水漫过石阶') && reviewQuote(root, work, 3).includes('灯芯爆了一下')
-    && reviewAtTwoBefore.includes('灯芯爆了一下') && reviewAtThreeBefore.includes('渠水漫过石阶'),
-    JSON.stringify({ two: reviewQuote(root, work, 2).slice(0, 20), three: reviewQuote(root, work, 3).slice(0, 20) }))
-  check('the swapped chapter keeps its plan content',
-    typeof moved.planAtThree === 'string' && moved.planAtThree.includes('第 2 章的目标'),
-    String(moved.planAtThree)?.slice(0, 120))
-  check('summary and review ids follow the swap',
-    moved.summaryAtThree.content.chapter === 3 && s.readSummary(root, work, 3).includes('缺了一页')
-    && moved.summaryAtTwo.content.chapter === 2 && s.readSummary(root, work, 2).includes('渠水打湿了图角')
-    && summaryTwo.content.chapter === 2
-    && moved.reviewAtTwo.scope.chapter === 2 && reviewTwoBefore.scope.chapter === 2,
-    JSON.stringify({ summary: [moved.summaryAtTwo.content.chapter, moved.summaryAtThree.content.chapter], review: moved.reviewAtTwo.scope.chapter }))
-  check('the plan ids follow the swap',
-    moved.planAtTwo.includes('第 3 章的目标') && moved.planAtThree.includes('第 2 章的目标'),
-    JSON.stringify({ two: String(moved.planAtTwo).slice(0, 60), three: String(moved.planAtThree).slice(0, 60) }))
-  check('the moved stage travels with its chapter',
-    moved.stages[0] === stageBeforeMove[1] && moved.stages[1] === stageBeforeMove[0]
-    && stageBeforeMove[0] !== stageBeforeMove[1],
-    JSON.stringify({ before: stageBeforeMove, after: moved.stages }))
+  check('move is rejected and leaves both chapters in place',
+    moveError === 'chapter-move-unsupported'
+    && chapterState(root, work, 2).stage === stagesBeforeMove[0]
+    && chapterState(root, work, 3).stage === stagesBeforeMove[1],
+    JSON.stringify({ moveError, stagesBeforeMove }))
 
   /* Scene 5: delete the last chapter (only itself is affected). */
   const approvalOne = s.readManifest(root, work).chapters.find(item => item.number === 1)?.planApproved
@@ -544,7 +504,7 @@ try {
   const firstTitle = bookText.indexOf('第 1 章')
   const secondTitle = bookText.indexOf('第 2 章')
   check('book.txt keeps chapter order', firstTitle >= 0 && secondTitle > firstTitle, `${firstTitle}/${secondTitle}`)
-  check('book.txt leaves out the deleted chapter body', !bookText.includes(twoMarker), bookText.slice(0, 60))
+  check('book.txt leaves out the deleted chapter body', !bookText.includes(threeMarker), bookText.slice(0, 60))
   const epub = readFileSync(join(exportDir, 'book.epub'))
   check('the epub is a zip', epub.subarray(0, 2).toString('latin1') === 'PK')
   const mimetype = zipEntry(epub, 'mimetype')?.toString('utf8')
@@ -562,7 +522,7 @@ try {
     opf.includes('ch-0001.xhtml') && opf.includes('ch-0002.xhtml'), opf.slice(0, 120))
   check('the epub nav lists both chapters', nav.includes('第 1 章') && nav.includes('第 2 章'))
   check('the epub chapter carries utf-8 text',
-    chapterOneXhtml.includes('雨声落在瓦上') && !chapterTwoXhtml.includes(twoMarker), chapterOneXhtml.slice(0, 60))
+    chapterOneXhtml.includes('雨声落在瓦上') && chapterTwoXhtml.includes(twoMarker), chapterOneXhtml.slice(0, 60))
 
   /* Evidence report. */
   const reportDir = join(process.cwd(), '.tmp-acceptance')

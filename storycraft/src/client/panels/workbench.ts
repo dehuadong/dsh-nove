@@ -1190,22 +1190,8 @@ import type {
                         h('button', {
                           type: 'button',
                           className: 'sc-btn sc-btn-small',
-                          disabled: chapterBusy || item.number === orderedChapters[0]?.number,
-                          title: '与上一章交换章号',
-                          onClick: () => { void moveChapter(item, -1) },
-                        }, '前移'),
-                        h('button', {
-                          type: 'button',
-                          className: 'sc-btn sc-btn-small',
-                          disabled: chapterBusy || item.number === orderedChapters.at(-1)?.number,
-                          title: '与下一章交换章号',
-                          onClick: () => { void moveChapter(item, 1) },
-                        }, '后移'),
-                        h('button', {
-                          type: 'button',
-                          className: 'sc-btn sc-btn-small',
-                          disabled: chapterBusy,
-                          title: '删除本章并前移后续章号；删除前自动备份',
+                          disabled: chapterBusy || item.number !== orderedChapters.at(-1)?.number,
+                          title: '只允许删除最新章；删除前自动备份',
                           onClick: () => { void removeChapter(item) },
                         }, '删除'),
                         item.stage === 'settled'

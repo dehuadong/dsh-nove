@@ -1,0 +1,40 @@
+{
+  "date": "2026-11-07",
+  "sessionId": "session-d68dc3ec-3f70-435d-86fa-bf1438c8af3d",
+  "tests": { "passed": true },
+  "receipts": [
+    {
+      "kind": "delete-latest",
+      "work": "删章回执",
+      "deleted": 3,
+      "chapters": [1, 2],
+      "ok": true
+    },
+    {
+      "kind": "delete-middle-refused",
+      "work": "删章回执",
+      "chapter": 1,
+      "error": "chapter-delete-latest-only",
+      "ok": true
+    },
+    {
+      "kind": "move-refused",
+      "work": "删章回执",
+      "from": 1,
+      "to": 2,
+      "error": "chapter-move-unsupported",
+      "ok": true
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/tests/chapter-edit.test.mjs",
+      "ok": true
+    },
+    {
+      "kind": "code-check",
+      "command": "node storycraft/scripts/ci.mjs --no-e2e",
+      "ok": true,
+      "unitFiles": 105
+    }
+  ]
+}

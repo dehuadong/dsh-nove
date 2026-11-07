@@ -280,7 +280,7 @@ test.describe('故事工坊工作台', () => {
     await expect(page.getByRole('button', { name: new RegExp(title) })).toBeVisible({ timeout: 15_000 })
   })
 
-  test('章节可以上移和下移', async ({ page }) => {
+  test('章节不提供移章按钮', async ({ page }) => {
     const store = await import('../src/storage.ts')
     const title = `章节移动${Date.now()}`
     const work = store.initWork(runtime.fixtureWorkspace, { title }).workId
@@ -292,10 +292,8 @@ test.describe('故事工坊工作台', () => {
     await openWorkbench(page, url)
     await page.getByRole('button', { name: new RegExp(title) }).evaluate(node => node.click())
     await page.getByRole('button', { name: /第 2 章 乙章/ }).evaluate(node => node.click())
-    await page.locator('.sc-chapter-actions').getByRole('button', { name: '前移', exact: true }).evaluate(node => node.click())
-    await expect(page.locator('.sc-chapter-title').first()).toHaveText('乙章', { timeout: 15_000 })
-    await page.locator('.sc-chapter-actions').getByRole('button', { name: '后移', exact: true }).evaluate(node => node.click())
-    await expect(page.locator('.sc-chapter-title').first()).toHaveText('甲章', { timeout: 15_000 })
+    await expect(page.locator('.sc-chapter-actions').getByRole('button', { name: '前移', exact: true })).toHaveCount(0)
+    await expect(page.locator('.sc-chapter-actions').getByRole('button', { name: '后移', exact: true })).toHaveCount(0)
   })
 
   test('章节可以删除', async ({ page }) => {
@@ -309,15 +307,12 @@ test.describe('故事工坊工作台', () => {
     }
     await openWorkbench(page, url)
     await page.getByRole('button', { name: new RegExp(title) }).evaluate(node => node.click())
-    const composer = page.getByRole('textbox', { name: /Describe what/ })
-    const before = await composer.evaluate(node => String(node.value ?? node.textContent ?? ''))
-    await page.getByRole('button', { name: /第 1 章 甲章/ }).evaluate(node => node.click())
+    await page.getByRole('button', { name: /第 2 章 乙章/ }).evaluate(node => node.click())
     page.once('dialog', dialog => dialog.accept())
     await page.locator('.sc-chapter-actions').getByRole('button', { name: '删除', exact: true }).evaluate(node => node.click())
     await expect(page.locator('.sc-chapter-title')).toHaveCount(1, { timeout: 15_000 })
-    await expect(page.locator('.sc-chapter-title')).toHaveText('乙章')
+    await expect(page.locator('.sc-chapter-title')).toHaveText('甲章')
     await expect(page.locator('.sc-chapter-no')).toHaveText('第 1 章')
-    expect(await composer.evaluate(node => String(node.value ?? node.textContent ?? ''))).toBe(before)
   })
 
   test('窄面板不横向溢出', async ({ page }) => {
@@ -587,7 +582,7 @@ test.describe('故事工坊工作台', () => {
     await expect(page.getByText('正文版本')).toBeVisible({ timeout: 10_000 })
     page.on('dialog', dialog => { void dialog.accept() })
     await page.getByRole('button', { name: '回滚到这一版' }).first().evaluate(node => node.click())
-    await expect(page.getByText(/已回滚，新版本/)).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText(/已回滚，新版本/).first()).toBeVisible({ timeout: 15_000 })
     await expect(page.getByText(/当前版本 r3/)).toBeVisible({ timeout: 10_000 })
   })
 

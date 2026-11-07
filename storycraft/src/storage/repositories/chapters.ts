@@ -619,6 +619,11 @@ export async function deleteChapter(root: any, work: any, chapter: any, options:
   try {
     keys = chapterKeys(probe)
     if (!keys.includes(number)) throw new StoryError('chapter-not-found', `没有第 ${number} 章`)
+    const latest = Math.max(...keys)
+    if (number !== latest) {
+      throw new StoryError('chapter-delete-latest-only',
+        `只允许删除最新一章（第 ${latest} 章）：删中间章会重编号后续章节`)
+    }
     mapping = chapterRemap(keys, { type: 'delete', chapter: number })
     const affected = [number, ...[...mapping.entries()].filter(([oldNumber, newNumber]) => oldNumber !== newNumber).map(([oldNumber]) => oldNumber)]
     const settled = probe.prepare(`SELECT stage FROM chapters WHERE number IN (${affected.map(() => '?').join(', ')})`).all(...affected)
@@ -668,40 +673,13 @@ export async function deleteChapter(root: any, work: any, chapter: any, options:
  * @param {{beforeCommit?: Function}} [options] - test seam.
  * @returns {Promise<object>} edit receipt.
  */
-export async function moveChapter(root: any, work: any, from: any, to: any, options: any = {}) {
-  const source = chapterNumber(from)
-  const target = chapterNumber(to)
-  const db = openWork(root, work)
-  try {
-    const keys = chapterKeys(db)
-    if (!keys.includes(source) || !keys.includes(target)) throw new StoryError('chapter-not-found', '要移动的章节不存在')
-    if (source === target) return { changed: false, chapters: keys, staleVolumes: [] }
-    const fromIndex = keys.indexOf(source)
-    const toIndex = keys.indexOf(target)
-    if (Math.abs(fromIndex - toIndex) !== 1) {
-      throw new StoryError('chapter-edit-target-invalid', '只能移动到相邻章')
-    }
-    const staged = db.prepare('SELECT stage FROM chapters WHERE number IN (?, ?)').all(source, target)
-    if (staged.some(row => row.stage === 'settled')) throw new StoryError('chapter-settled', '受影响章节中有已定稿章：先 reopen 再删/移')
-    const mapping = chapterRemap(keys, { type: 'move', from: source, to: target })
-    await backupWork(root, work, { materials: false })
-    return transaction(db, () => {
-      applyChapterMapping(db, mapping)
-      remapChapterArtifacts(db, { mapping })
-      const movedPairs = [...mapping.entries()].filter(([oldNumber, newNumber]) => newNumber !== undefined && oldNumber !== newNumber)
-      dropStateDraftsForOnDb(db, movedPairs.flat())
-      rewriteChapterDocs(db, mapping)
-      touchMeta(db)
-      if (typeof options.beforeCommit === 'function') options.beforeCommit(db)
-      return {
-        changed: true,
-        chapters: chapterKeys(db),
-        staleVolumes: staleVolumesOf(db),
-      }
-    })
-  } finally {
-    db.close()
-  }
+export async function moveChapter(root: any, work: any, from: any, to: any, options: any = {}): Promise<any> {
+  void root
+  void work
+  void from
+  void to
+  void options
+  throw new StoryError('chapter-move-unsupported', '源工程不支持移章：章节顺序是正文顺序，不能重排')
 }
 
 /**
