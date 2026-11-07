@@ -56,9 +56,11 @@ const status = await run('gate-status', '')
 check('status is factual', status.text.includes('状态：discuss') && status.text.includes('blockReason：无') && !status.text.includes('下一步'))
 
 const calls = []
+const prompts = []
 const subagents = {
   startActivation: async spec => {
     calls.push(/Gate phase worker: (\S+)/u.exec(spec.prompt[0].text)?.[1])
+    prompts.push(spec.prompt[0].text)
     return {
       childId: spec.childId,
       name: 'gate-worker',
@@ -75,6 +77,7 @@ check('plan command starts', planned.kind === 'success')
 await new Promise(resolve => setTimeout(resolve, 50))
 check('plan workers dispatched', calls.includes('plan') && calls.includes('plan-review'), calls.join(','))
 check('plan returns to discuss', loadState(workspace, secondAgent).phase === 'discuss', JSON.stringify(loadState(workspace, secondAgent)))
+check('worker prompt carries the round and cap', prompts.some(text => text.includes('round: 1/5') && text.includes('Review and revision stop at round 5')))
 calls.length = 0
 const implemented = await runSecond('gate-implement', 'orchestrate-check')
 check('implement command starts', implemented.kind === 'success')

@@ -80,13 +80,15 @@ function workerPrompt({ node, task, skill, input, round, write, resources }) {
   return [
     `# Gate phase worker: ${node}`,
     `task: ${task}`,
-    `round: ${round ?? 'n/a'}`,
+    `round: ${round === undefined ? 'n/a' : `${round}/5`}`,
     `write: ${write}`,
     'The following skill is the method for this node. Follow it fully.',
     skill,
     ...(resources.length === 0 ? [] : [`## Supporting method files\n${resources.join('\n')}`]),
     '## Inputs',
     input ?? '(none)',
+    '## Review cap',
+    'Review and revision stop at round 5. At the cap with material findings, report blocked; never claim a pass.',
     '## Output contract',
     'Finish by calling structured_output with an object: {"ok":true,"findings":[],"summary":"..."}.',
     'findings must be an array of material findings; do not invent them.',
@@ -205,7 +207,14 @@ async function implementRun(ctx, gate, parent, state) {
 }
 
 function statusText(state) {
-  return [`状态：${state.phase}`, `节点：${state.node ?? '无'}`, `工作项：${state.task ?? '无'}`, `work：${state.work}`, `blockReason：${state.blockReason ?? '无'}`].join('\n')
+  return [
+    `状态：${state.phase}`,
+    `节点：${state.node ?? '无'}`,
+    `工作项：${state.task ?? '无'}`,
+    `work：${state.work}`,
+    `blockReason：${state.blockReason ?? '无'}`,
+    `rounds：plan ${state.rounds?.planReview ?? 0}/5, code ${state.rounds?.codeReview ?? 0}/5`,
+  ].join('\n')
 }
 
 function normalizeTopic(value) {
