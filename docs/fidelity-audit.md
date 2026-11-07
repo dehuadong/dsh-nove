@@ -31,7 +31,7 @@
 | `chapter.write` | `inkos-master/packages/core/src/agents/writer.ts:100-160`、`utils/length-metrics.ts` | 章号/标题/正文写成一版；plan/context 先决；字数按 zh_chars 剥离 Markdown 元数据；显式 min/max 硬校验 | `src/roles/writer/agent.ts`、`src/storage/repositories/chapters.ts`、`tests/chapter-length.test.mjs` | 保真债 | 后续行：language/en_words 未实现；state settlement 归 `chapter.settle` |
 | `chapter.review` | `inkos-master/packages/core/src/pipeline/chapter-review.ts:1-80` | 正文非空才审；按 counting mode 计字数；模型审稿失败转 `review-unavailable` observation 而非中断；结果含 wordCount/usage | `src/roles/reviewer/agent.ts`、`src/storage/repositories/reviews.ts`、`tests/review-unavailable.test.mjs` | 保真债 | 后续行：review 结果仍不含 wordCount/usage；failure 回退已补 |
 | `chapter.revise` | `inkos-master/packages/core/src/agents/reviser.ts:1-130`、`utils/text-range-edits.ts` | 模式为 polish/rewrite/rework/anti-detect/spot-fix；spot-fix 只替换选中的源码范围并保留范围外字节；修订后按 lengthSpec 校验 | `src/revision.ts`、`src/roles/reviser/agent.ts`、`tests/revision-modes.test.mjs` | 保真债 | 后续行：spot-fix 仍是整段重写，范围替换未实现；模式词表与 zh_chars 长度已补 |
-| `chapter.summary` | `inkos-master/packages/core/src/agents/writer.ts:342-355` | 摘要含 chapter/title/characters/events/stateChanges/hookActivity/mood/chapterType；绑定 bodyRevision；只描述已发生正文 | `src/roles/summarizer/agent.ts`、`tests/summary-consumers.test.mjs` | 等价 | 无 |
+| `chapter.summary` | `inkos-master/packages/core/src/agents/writer.ts:342-355` | 摘要含 chapter/title/characters/events/stateChanges/hookActivity/mood/chapterType；绑定 bodyRevision；只描述已发生正文 | `src/roles/summarizer/agent.ts`、`tests/summary-binding.test.mjs` | 等价 | 无 |
 | `chapter.settle` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |
 | `chapter.finalize` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |
 | `chapter.reopen` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |

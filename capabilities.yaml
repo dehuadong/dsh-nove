@@ -153,9 +153,9 @@ capabilities:
     reference: inkos:packages/core/src/agents/writer.ts
     dsh: storage
     implementation: storycraft/src/roles/summarizer/agent.ts
-    consumer: storycraft/tests/summary-consumers.test.mjs
-    realRun: null
-    status: missing
+    consumer: storycraft/tests/summary-binding.test.mjs
+    realRun: artifacts/real-runs/chapter.summary.json
+    status: verified
   - id: chapter.settle
     title: fact/hook 抽取、状态草案、conflict 校验
     reference: inkos:packages/core/src/agents/settler-tool.ts
