@@ -271,7 +271,7 @@ export function apply(ctx) {
     const register = (name, description, handler, input = { hint: '<工作项>' }) => scope.commands.register({
       name,
       description,
-      input,
+      ...(input === null ? {} : { input }),
       handler,
     })
     register('gate-init', 'Initialize the gate marker for this project', async invocation => {
@@ -297,7 +297,7 @@ export function apply(ctx) {
       mkdirSync(path.dirname(marker), { recursive: true })
       writeFileSync(marker, `${JSON.stringify(value, null, 2)}\n`)
       return { kind: 'success', text: `已启用 Gate：${marker}（phase=discuss）` }
-    }, {})
+    }, null)
     register('gate-plan', 'Start planning orchestration', async invocation => {
       const result = command(ctx, invocation.agent, invocation.rawInput, false, 'plan')
       if (result.kind === 'error') return result
