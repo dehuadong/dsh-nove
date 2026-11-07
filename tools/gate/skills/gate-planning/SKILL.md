@@ -49,7 +49,7 @@ Spec 是经评审接受后可直接指导实现与验收的行为合同，覆盖
 
 Plan Review is owned by the gate's `gate-plan-review` worker; do not run it here.
 
-When the gate returns findings, decide each finding's owner and correct it there: product scope and acceptance回到工作项或独立 Spec，本次规划的技术设计回到 Agent Note，工作状态与批准证据回到 Proposal 或工作项。引用输入的问题按项目配置反馈其属主，并报告受影响范围。不得自行宣称整体通过。
+gate 返回发现后，逐条决定其属主并在对应工件修正：产品范围与验收回到工作项或独立 Spec，本次规划的技术设计回到 Agent Note，工作状态与批准证据回到 Proposal 或工作项。引用输入的问题按项目配置反馈其属主，并报告受影响范围。不得自行宣称整体通过。
 
 ## 4. 完成与交接
 
