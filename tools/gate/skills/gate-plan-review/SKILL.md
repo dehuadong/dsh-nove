@@ -24,8 +24,10 @@ description: 由 gate 派发的只读 Plan Review worker；保留 Standards/Spec
 - 标准、协议、安全策略、兼容边界和运维不变量是否写到能直接实现并验收的程度；
 - 验收条件是否可观察、可判定；
 - 产品决定是否仍需要实施者猜测；
-- 是否混入了应由 Agent Note 拥有的技术设计；
-- 工作项合同是否混入决策史或选择理由，修订记录是否只摘要合同变化；
+- Proposal 是否重复 Design 的技术细节，或 Design 是否改写、扩大 Proposal 的验收；
+- Proposal 是否用决策史代替可验收的产品行为；
+- 备选与理由是否留在 Design / Alternatives，而不是混入 Proposal；
+- 批准证据是否留在工作项节；
 - 技术探索是否还留有会改变范围的重要未知问题。
 
 ## 技术设计检查
@@ -36,7 +38,7 @@ description: 由 gate 派发的只读 Plan Review worker；保留 Standards/Spec
 - 是否存在尚未解决的重要技术选择；
 - 是否具备足够清楚的验证切入点；
 - 多份设计的边界是否完整且不互相矛盾；
-- Agent Note 是否只拥有本决定的长期设计、真实备选与理由，批准证据是否留在工作项。
+- Design / Alternatives 是否承载长期设计、真实备选与理由；批准证据是否留在工作项节。
 
 ## 报告归属
 
