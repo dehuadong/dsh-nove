@@ -1,5 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto'
-import { existsSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { classifyPath, shellAccess } from './src/classify.js'
@@ -10,22 +9,25 @@ export const inject = ['tools']
 const SKILLS = fileURLToPath(new URL('./skills', import.meta.url))
 const SKILL_NAMES = ['gate-planning', 'gate-plan-review', 'gate-implement', 'gate-code-review-standards', 'gate-code-review-spec', 'gate-verify']
 const REVIEW_LIMIT = 5
-const MAX_WORKERS = 12
 
 export const PLAN_ORCHESTRATION = `## /gate-plan orchestration
-1. Dispatch the gate-planning worker with the task and planning method.
-2. Dispatch gate-plan-review with the resulting work item/Note; read-only.
-3. If findings are non-empty, dispatch gate-planning as a revise worker with the findings.
-4. Re-run review; stop at five review rounds and mark blocked, never pass.
-5. On an empty review, return to discuss. Do not write code.`
+Main agent dispatches workers; gate does not dispatch.
+1. Dispatch gate-planning with the task and planning method (including write-agent-notes).
+2. Call gate_record({node:'plan'}).
+3. Dispatch gate-plan-review read-only; call gate_record({node:'plan-review',findings,requiresDiscussion}).
+4. If requiresDiscussion: call /gate-return and stop. If findings remain: dispatch gate-planning revise, call gate_record({node:'plan-revise'}), then review again.
+5. At five review rounds with findings, gate marks blocked; never claim pass.
+6. Empty review returns to discuss.`
 
 export const IMPLEMENT_ORCHESTRATION = `## /gate-implement orchestration
+Main agent dispatches workers; gate does not dispatch.
 1. Dispatch gate-implement with the accepted work item and implementation method.
-2. Dispatch gate-code-review-standards and gate-code-review-spec, both read-only.
-3. If either axis has findings, dispatch gate-implement as revise with those findings.
-4. Re-run both reviews; stop at five code-review rounds and mark blocked, never pass.
-5. On empty findings, dispatch gate-verify.
-6. Verify FAIL routes back to implement-revise; PASS completes.`
+2. Call gate_record({node:'implement'}).
+3. Dispatch gate-code-review-standards and gate-code-review-spec, both read-only.
+4. Call gate_record({node:'code-review',findings,requiresDiscussion}) with the two-axis result.
+5. If requiresDiscussion: call /gate-return and stop. If findings remain: dispatch gate-implement revise, call gate_record({node:'implement-revise'}), then review again.
+6. Empty findings: dispatch gate-verify and call gate_record({node:'verify',ok}).
+7. Verify FAIL routes back to implement-revise; PASS completes. At five rounds, blocked.`
 
 export const DOCS_ORCHESTRATION = `## /gate-docs orchestration
 Edit only documents and notes; no planning or implementation skill, no code.
@@ -53,156 +55,6 @@ function skillText(name) {
     return readFileSync(path.join(SKILLS, name, 'SKILL.md'), 'utf8')
   } catch {
     return ''
-  }
-}
-
-function skillResources(name) {
-  try {
-    return readdirSync(path.join(SKILLS, name), { withFileTypes: true })
-      .filter(entry => entry.isFile() && entry.name !== 'SKILL.md')
-      .map(entry => path.join(SKILLS, name, entry.name))
-  } catch {
-    return []
-  }
-}
-
-function jsonOf(result) {
-  return result?.structured ?? result?.payload ?? result?.value
-}
-
-function findingsOf(result) {
-  const value = jsonOf(result)
-  if (Array.isArray(value?.findings)) return value.findings
-  return []
-}
-
-function workerPrompt({ node, task, skill, input, round, write, resources }) {
-  return [
-    `# Gate phase worker: ${node}`,
-    `task: ${task}`,
-    `round: ${round === undefined ? 'n/a' : `${round}/5`}`,
-    `write: ${write}`,
-    'The following skill is the method for this node. Follow it fully.',
-    skill,
-    ...(resources.length === 0 ? [] : [`## Supporting method files\n${resources.join('\n')}`]),
-    '## Inputs',
-    input ?? '(none)',
-    '## Review cap',
-    'Review and revision stop at round 5. At the cap with material findings, report blocked; never claim a pass.',
-    '## Output contract',
-    'Finish by calling structured_output with an object: {"ok":true,"findings":[],"summary":"..."}.',
-    'findings must be an array of material findings; do not invent them.',
-    'Do not spawn subagents. Do not edit outside the stated write scope.',
-  ].join('\n')
-}
-
-function workerPhase(node) {
-  if (node === 'plan' || node === 'plan-revise') return 'planning'
-  if (node === 'implement' || node === 'implement-revise') return 'implement'
-  if (node === 'verify') return 'docs'
-  return 'discuss'
-}
-
-function stateForWorker(root, childId, node, task) {
-  const agent = childStateId(childId)
-  saveState(root, agent, { ...defaultState(), phase: workerPhase(node), node, task })
-  return agent
-}
-
-function clearWorker(root, childId) {
-  try { rmSync(path.join(root, '.agents/state/gate', `${createHash('sha1').update(String(childId)).digest('hex').slice(0, 16)}.json`), { force: true }) } catch { /* best effort */ }
-}
-
-async function worker(ctx, gate, parent, state, node, task, skillName, input, write, round) {
-  const subagents = ctx.get('subagents')
-  if (subagents === undefined) throw new Error('subagents service unavailable')
-  const childId = `session-${randomUUID()}`
-  stateForWorker(gate.root, childId, node, task)
-  const controller = new AbortController()
-  let activation
-  try {
-    activation = await subagents.startActivation({
-      provider: 'spawn',
-      label: `gate-${node}`,
-      childId,
-      parent,
-      cwd: gate.workspace,
-      delivery: 'caller',
-      signal: controller.signal,
-      prompt: [{ type: 'text', text: workerPrompt({ node, task, skill: skillText(skillName), input, round, write, resources: skillResources(skillName) }) }],
-    })
-    return await activation.result
-  } finally {
-    try { await activation?.dispose() } catch { /* best effort */ }
-    clearWorker(gate.root, childId)
-  }
-}
-
-async function planRun(ctx, gate, parent, state) {
-  const task = state.task
-  let findings = []
-  for (;;) {
-    const planned = await worker(ctx, gate, parent, state, 'plan', task, 'gate-planning', `Work item: ${task}`, 'proposed Note/working item only', state.rounds.planReview)
-    void planned
-    findings = []
-    for (;;) {
-      state.rounds.planReview += 1
-      saveState(gate.root, parent, state)
-      const review = await worker(ctx, gate, parent, state, 'plan-review', task, 'gate-plan-review', `Work item: ${task}`, 'read-only', state.rounds.planReview)
-      findings = findingsOf(review)
-      if (findings.length === 0) break
-      if (state.rounds.planReview >= REVIEW_LIMIT) {
-        state.phase = 'discuss'
-        state.work = 'blocked'
-        state.blockReason = 'plan-review-rounds-exhausted'
-        saveState(gate.root, parent, state)
-        return
-      }
-      await worker(ctx, gate, parent, state, 'plan-revise', task, 'gate-planning', `Resolve: ${JSON.stringify(findings)}`, 'proposed Note/working item only', state.rounds.planReview)
-    }
-    state.phase = 'discuss'
-    state.node = null
-    state.work = 'active'
-    state.blockReason = null
-    saveState(gate.root, parent, state)
-    return
-  }
-}
-
-async function implementRun(ctx, gate, parent, state) {
-  const task = state.task
-  const implemented = await worker(ctx, gate, parent, state, 'implement', task, 'gate-implement', `Work item: ${task}`, 'code', state.rounds.codeReview)
-  void implemented
-  for (;;) {
-    state.rounds.codeReview += 1
-    saveState(gate.root, parent, state)
-    const [standards, spec] = await Promise.all([
-      worker(ctx, gate, parent, state, 'code-review', task, 'gate-code-review-standards', 'Axis: Standards', 'read-only', state.rounds.codeReview),
-      worker(ctx, gate, parent, state, 'code-review', task, 'gate-code-review-spec', 'Axis: Spec', 'read-only', state.rounds.codeReview),
-    ])
-    const findings = [...findingsOf(standards), ...findingsOf(spec)]
-    if (findings.length > 0) {
-      if (state.rounds.codeReview >= REVIEW_LIMIT) {
-        state.phase = 'discuss'
-        state.work = 'blocked'
-        state.blockReason = 'code-review-rounds-exhausted'
-        saveState(gate.root, parent, state)
-        return
-      }
-      await worker(ctx, gate, parent, state, 'implement-revise', task, 'gate-implement', `Resolve: ${JSON.stringify(findings)}`, 'code', state.rounds.codeReview)
-      continue
-    }
-    const verified = await worker(ctx, gate, parent, state, 'verify', task, 'gate-verify', `Work item: ${task}`, 'read-only/receipts', state.rounds.codeReview)
-    if (jsonOf(verified)?.ok === false) {
-      await worker(ctx, gate, parent, state, 'implement-revise', task, 'gate-implement', `Verify failed: ${JSON.stringify(jsonOf(verified))}`, 'code', state.rounds.codeReview)
-      continue
-    }
-    state.phase = 'complete'
-    state.node = null
-    state.work = 'active'
-    state.blockReason = null
-    saveState(gate.root, parent, state)
-    return
   }
 }
 
@@ -333,22 +185,12 @@ export function apply(ctx) {
     register('gate-plan', 'Start planning orchestration', async invocation => {
       const result = command(ctx, invocation.agent, invocation.rawInput, false, 'plan')
       if (result.kind === 'error') return result
-      void planRun(ctx, result.gate, invocation.agent, result.state).catch(error => {
-        const state = loadState(result.gate.root, invocation.agent)
-        state.phase = 'discuss'; state.work = 'blocked'; state.blockReason = String(error?.message ?? error)
-        saveState(result.gate.root, invocation.agent, state)
-      })
-      return { kind: 'success', text: `已启动 planning：${result.state.task}` }
+      return { kind: 'success', text: `进入 planning：${result.state.task}\n按注入协议派发 gate-planning。` }
     })
     register('gate-implement', 'Start implementation orchestration', async invocation => {
       const result = command(ctx, invocation.agent, invocation.rawInput, true, 'implement')
       if (result.kind === 'error') return result
-      void implementRun(ctx, result.gate, invocation.agent, result.state).catch(error => {
-        const state = loadState(result.gate.root, invocation.agent)
-        state.phase = 'discuss'; state.work = 'blocked'; state.blockReason = String(error?.message ?? error)
-        saveState(result.gate.root, invocation.agent, state)
-      })
-      return { kind: 'success', text: `已启动 implement：${result.state.task}` }
+      return { kind: 'success', text: `进入 implement：${result.state.task}\n按注入协议派发 gate-implement。` }
     })
     register('gate-docs', 'Start docs governance', async invocation => {
       const task = String(invocation.rawInput ?? '').trim()
@@ -373,5 +215,57 @@ export function apply(ctx) {
       if (gate.config.kind !== 'ok') return { kind: 'error', text: '当前项目没有启用的 .agents/gate.json' }
       return { kind: 'success', text: statusText(loadState(gate.root, invocation.agent)) }
     })
+  })
+
+  ctx.tools.register({
+    name: 'gate_record',
+    description: 'Record the result of one main-agent-dispatched phase worker (plan, plan-review, plan-revise, implement, code-review, implement-revise, verify) and advance the gate state.',
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        node: { type: 'string', enum: ['plan', 'plan-review', 'plan-revise', 'implement', 'code-review', 'implement-revise', 'verify'] },
+        findings: { type: 'array', items: { type: 'object', additionalProperties: true } },
+        requiresDiscussion: { type: 'boolean' },
+        discussionReason: { type: 'string' },
+        ok: { type: 'boolean' },
+      },
+      required: ['node'],
+    },
+    async execute(args, exec) {
+      const gate = resolveGate(ctx, exec.agent)
+      if (gate.config.kind !== 'ok') return { ok: false, code: 'not-enabled' }
+      const state = loadState(gate.root, exec.agent)
+      if (state.phase !== 'orchestrating') return { ok: false, code: 'not-orchestrating', phase: state.phase }
+      if (state.node !== args.node) return { ok: false, code: 'wrong-node', expected: state.node, got: args.node }
+      const findings = Array.isArray(args.findings) ? args.findings : []
+      if (args.requiresDiscussion === true) {
+        state.phase = 'discuss'
+        state.node = null
+        state.blockReason = 'needs-user-decision'
+        saveState(gate.root, exec.agent, state)
+        return { ok: true, phase: 'discuss', blockReason: state.blockReason, reason: args.discussionReason ?? null }
+      }
+      if (args.node === 'plan') state.node = 'plan-review'
+      else if (args.node === 'plan-revise') state.node = 'plan-review'
+      else if (args.node === 'plan-review') {
+        state.rounds.planReview += 1
+        if (findings.length === 0) { state.phase = 'discuss'; state.node = null; state.blockReason = null }
+        else if (state.rounds.planReview >= REVIEW_LIMIT) { state.phase = 'discuss'; state.node = null; state.work = 'blocked'; state.blockReason = 'plan-review-rounds-exhausted' }
+        else state.node = 'plan-revise'
+      } else if (args.node === 'implement') state.node = 'code-review'
+      else if (args.node === 'implement-revise') state.node = 'code-review'
+      else if (args.node === 'code-review') {
+        state.rounds.codeReview += 1
+        if (findings.length === 0) state.node = 'verify'
+        else if (state.rounds.codeReview >= REVIEW_LIMIT) { state.phase = 'discuss'; state.node = null; state.work = 'blocked'; state.blockReason = 'code-review-rounds-exhausted' }
+        else state.node = 'implement-revise'
+      } else if (args.node === 'verify') {
+        if (args.ok === false) state.node = 'implement-revise'
+        else { state.phase = 'complete'; state.node = null; state.blockReason = null; state.work = 'active' }
+      }
+      saveState(gate.root, exec.agent, state)
+      return { ok: true, phase: state.phase, node: state.node, rounds: state.rounds, blockReason: state.blockReason }
+    },
   })
 }
