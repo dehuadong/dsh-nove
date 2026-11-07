@@ -12,7 +12,7 @@ const REVIEW_LIMIT = 5
 
 export const PLAN_ORCHESTRATION = `## /gate-plan orchestration
 Main agent dispatches workers; gate does not dispatch.
-1. Dispatch gate-planning with the task, planning method, and the global write-agent-notes method.
+1. Dispatch gate-planning with the task, gate-planning method, proposal.md, rfc.md, the global write-agent-notes method, and the canonical proposed template.
 2. Call gate_record({node:'plan'}).
 3. Dispatch gate-plan-review read-only; call gate_record({node:'plan-review',findings,requiresDiscussion}).
 4. If requiresDiscussion: call /gate-return and stop. If findings remain: dispatch gate-planning revise, call gate_record({node:'plan-revise'}), then review again.

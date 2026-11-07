@@ -9,7 +9,9 @@ description: Gate 派发的 planning worker；保留原 planning 工作项、合
 
 - 本次工作项就是 proposed Agent Note；
 - 产品行为、范围、验收由工作项拥有；本项目不建立独立 Spec；
+- 工作项内容按随技能提供的 `proposal.md`；技术设计按 `rfc.md`；
 - 技术设计与长期决定写入 Agent Note；
+- 模板只用 `write-agent-notes/templates/proposed.md`；不新增或复制模板；
 - Note 的位置、格式、生命周期遵循 `write-agent-notes`；不得在 planning 内另建生命周期或状态；
 - Plan Review 由 gate 的 `gate-plan-review` worker 执行；planning 接收主代理转交的 findings，负责决定与修正。
 
@@ -17,17 +19,17 @@ description: Gate 派发的 planning worker；保留原 planning 工作项、合
 
 ## 1. 确定工作项
 
-复用当前任务、既有工作项或项目已配置的跟踪器定位本次工作项。工作项负责本次目标、交付范围、产品行为与验收、评审和批准证据，并链接长期设计的属主。跟踪器是可选配置；没有跟踪器时，当前任务会话承载本次工作项。
+本次工作项由 proposed Agent Note 承接。按 `proposal.md` 写清 why、范围与非目标、产品行为与验收、决定与未决问题、评审与批准证据。
 
-复用合适的既有工作项；新工作项用 proposed Agent Note 承载，需要 Proposal 结构时读取 [proposal.md](./proposal.md)，但不另建独立 Proposal 文件。没有跟踪器时不要为满足格式而另建记录，直接在当前工作项中记录范围、验收、评审与批准事实。
+复用合适的既有 Note；需要新 Note 时按 `write-agent-notes` 创建 proposed Note，不另建独立 Proposal 文件，也不要求 Issue tracker。
 
-工作项直接写清本次产品行为、范围和验收；跨工作项持续生效的合同由工作项拥有，并在相关 Note 中链接，不建立独立 Spec。需要长期保留的技术设计与决定写入 Agent Note，proposed Note 承载实施前设计评审，工作项从自身链接到 Note。Note 的位置、格式与生命周期遵循 `write-agent-notes`；写或迁移 Note 时先加载该方法，不得在 planning 内另建生命周期或状态。不得要求为定位本次工作项配置 Issue tracker。
+工作项直接链接长期设计的 Note 节，不复制设计正文。
 
 ## 2. 收敛产品合同与技术设计
 
 ### 产品合同
 
-产品行为、范围与验收由本次工作项写全；本项目不建立独立 Spec。跨工作项持续生效的合同由工作项拥有，并在相关 Note 中链接，不复制成第二套合同。
+产品行为、范围与验收由本次工作项写全；跨工作项持续生效的合同由工作项拥有，并在同一 Note 中分节，不复制成第二套合同。
 
 ### 探索性设计
 
