@@ -7,11 +7,11 @@ description: Gate 派发的实现 worker；保留原 implement 的授权、拆�
 
 ## 1. Entry conditions
 
-Implement the selected scope of the identified Proposal or existing work item. Resolve its issue ID, URL or file path and the requirements and design sections it references before coding.
+Implement the selected scope of the work item (proposed Agent Note). Read its scope, acceptance criteria, and referenced design sections before coding.
 
 Before implementation, check the scope and acceptance conditions, required decisions and review/approval evidence, unresolved blockers, and execution authorization for that scope under project rules. Reuse valid evidence without requesting confirmation again. Sync already agreed scope and decisions to their existing owners; route unresolved material decisions through the project's discussion, authorization, and gate rules before returning to Planning. Document status or location alone does not establish readiness or authorization.
 
-For a review-only request, use the `code-review` skill without entering implementation or requiring its gate. Deliver findings and coverage limitations; do not automatically fix changes or advance their workflow status. The implementation correction and completion rules apply only to authorized implementation.
+Review-only requests do not enter this worker. The main agent dispatches `gate-code-review-standards` / `gate-code-review-spec` directly; this worker runs only for authorized implementation. Do not fix changes or advance workflow status as part of a review-only request.
 
 ## 2. Decompose when needed
 
