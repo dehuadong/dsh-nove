@@ -85,20 +85,26 @@ function normalizeExtensions(value) {
   return result
 }
 
+export const DEFAULT_COMMANDS = {
+  planning: '^批准，使用(?:技能\\s*)?planning\\s+执行规划\\s+(.+)$',
+  implement: '^批准，使用(?:技能\\s*)?implement\\s+执行实现\\s+(.+)$',
+  docs: '^批准，执行文档治理\\s+(.+)$',
+}
+
 function compileCommands(value) {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined
-  if (Object.keys(value).some(key => !COMMAND_KEYS.includes(key))) return undefined
+  if (value !== undefined && (value === null || typeof value !== 'object' || Array.isArray(value))) return undefined
+  const provided = value ?? {}
+  if (Object.keys(provided).some(key => !COMMAND_KEYS.includes(key))) return undefined
   const commands = {}
   for (const key of COMMAND_KEYS) {
-    if (value[key] === undefined) continue
-    if (typeof value[key] !== 'string' || value[key] === '') return undefined
+    const source = provided[key] ?? DEFAULT_COMMANDS[key]
+    if (typeof source !== 'string' || source === '') return undefined
     try {
-      commands[key] = new RegExp(value[key], 'u')
+      commands[key] = new RegExp(source, 'u')
     } catch {
       return undefined
     }
   }
-  if (commands.implement === undefined) return undefined
   return commands
 }
 
@@ -160,12 +166,12 @@ export function validateConfig(value, configPath) {
   }
   const commands = compileCommands(value.commands)
   if (commands === undefined) {
-    return { kind: 'invalid', configPath, reason: `${MARKER}.commands must define a valid implement regex` }
+    return { kind: 'invalid', configPath, reason: `${MARKER}.commands must be a valid command regex map` }
   }
   const protectedPaths = [...new Set([...DEFAULT_PROTECTED, ...configuredProtected])]
   return {
     kind: 'ok',
     configPath,
-    policy: { version: 2, codeExtensions, codePaths, protected: protectedPaths, proposed, commands },
+    policy: { version: 2, codeExtensions, codePaths, protected: protectedPaths, proposed: undefined, commands },
   }
 }

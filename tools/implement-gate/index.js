@@ -18,11 +18,6 @@ const DEFAULT_CODE_EXTENSIONS = [
   '.sh', '.ps1', '.sql',
   '.css', '.scss', '.html', '.vue', '.svelte', '.astro',
 ]
-const DEFAULT_COMMANDS = {
-  planning: '^批准，使用(?:技能\\s*)?planning\\s+执行规划\\s+(.+)$',
-  implement: '^批准，使用(?:技能\\s*)?implement\\s+执行实现\\s+(.+)$',
-  docs: '^批准，执行文档治理\\s+(.+)$',
-}
 
 export const inject = ['tools']
 
@@ -155,7 +150,6 @@ function initConfig() {
     codeExtensions: DEFAULT_CODE_EXTENSIONS,
     codePaths: [],
     protected: [MARKER, STATE_DIR],
-    commands: DEFAULT_COMMANDS,
   }
 }
 

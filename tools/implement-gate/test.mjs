@@ -35,8 +35,8 @@ check('trailing dot still code', classifyPath(root, 'src/x.ts.', policy).code ==
 check('markdown is not code', classifyPath(root, 'docs/x.md', policy).code === false)
 check('json is not code', classifyPath(root, 'data.json', policy).code === false)
 check('gitignore is not code', classifyPath(root, '.gitignore', policy).code === false)
-check('storycraft package is code path', classifyPath(root, 'storycraft/package.json', policy).code === true)
-check('proposed is proposed', classifyPath(root, '.agents/notes/proposed/x.md', policy).proposed === true)
+check('storycraft package is docs by default', classifyPath(root, 'storycraft/package.json', policy).docs === true)
+check('proposed note is docs', classifyPath(root, '.agents/notes/proposed/x.md', policy).docs === true)
 check('outside is outside', classifyPath(root, '../outside.txt', policy).outside === true)
 check('repo marker resolves to the workspace', findGateRoot(root) === path.resolve(root))
 check('repo root resolves to the workspace', findProjectRoot(root) === path.resolve(root))
@@ -211,6 +211,34 @@ const runCommand = (host, agent, input) => host.commands['implement-gate'].handl
 }
 
 {
+  const defaults = mkdtempSync(path.join(os.tmpdir(), 'implement-gate-defaults-'))
+  mkdirSync(path.join(defaults, '.agents'), { recursive: true })
+  writeFileSync(path.join(defaults, '.agents', 'implement-gate.json'), JSON.stringify({
+    enabled: true, version: 2, codeExtensions: ['.foo'],
+  }))
+  const host = mockHost(undefined, defaults)
+  const agent = agentFor('defaults')
+  await preStep(host, agent, [gateMessage('批准，使用技能 planning 执行规划 default work')])
+  check('no commands still accepts default planning', (await call(host, agent, 'status')).phase === 'planning')
+  await call(host, agent, 'end-planning')
+  await preStep(host, agent, [gateMessage('批准，使用技能 implement 执行实现 mechanical:defaults')])
+  check('no commands still accepts default implement', (await preExec(host, agent, 'write', { file_path: 'src/x.foo' })).kind === 'allow')
+}
+
+{
+  const partial = mkdtempSync(path.join(os.tmpdir(), 'implement-gate-partial-'))
+  mkdirSync(path.join(partial, '.agents'), { recursive: true })
+  writeFileSync(path.join(partial, '.agents', 'implement-gate.json'), JSON.stringify({
+    enabled: true, version: 2, codeExtensions: ['.foo'],
+    commands: { planning: '^plan\\s+(.+)$' },
+  }))
+  const host = mockHost(undefined, partial)
+  const agent = agentFor('partial')
+  check('custom planning command accepted', gateCommand(gateMessage('plan partial'), {}, loadConfig(partial).policy.commands)?.kind === 'planning')
+  check('omit implement command falls back to default', gateCommand(gateMessage('批准，使用技能 implement 执行实现 mechanical:partial'), {}, loadConfig(partial).policy.commands)?.kind === 'implement')
+}
+
+{
   const broken = mkdtempSync(path.join(os.tmpdir(), 'implement-gate-broken-'))
   mkdirSync(path.join(broken, '.agents'), { recursive: true })
   writeFileSync(path.join(broken, '.agents', 'implement-gate.json'), '{"enabled":true,"version":1}')
@@ -233,6 +261,8 @@ const runCommand = (host, agent, input) => host.commands['implement-gate'].handl
   check('command target hides tool before init', (await visible(host, agent)) === false)
   const created = await runCommand(host, agent, 'init')
   check('command creates config', created.kind === 'success' && existsSync(path.join(empty, '.agents', 'implement-gate.json')))
+  const generated = JSON.parse(readFileSync(path.join(empty, '.agents', 'implement-gate.json'), 'utf8'))
+  check('init omits commands and proposed', generated.commands === undefined && generated.proposed === undefined, JSON.stringify(generated))
   check('command enables tool', (await visible(host, agent)) === true)
   const status = await call(host, agent, 'status')
   check('command enables status', status.enabled === true && status.configVersion === 2)

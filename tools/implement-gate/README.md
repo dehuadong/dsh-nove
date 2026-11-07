@@ -18,7 +18,7 @@ Host 插件：仅在已启用的项目里，按**会话**控制**代码文件**�
 
 - 只在 marker 不存在时创建；已有 marker 返回「已存在」，不覆盖；
 - 只在**工作区根就是项目根**时创建：祖先已有 marker、或祖先存在 `.git` 时拒绝并给出项目根路径，因此不会在子目录生成嵌套 marker；
-- 生成默认 v2 配置：常见代码扩展名、`codePaths` 默认为空（需要拦执行入口的项目自行声明）、marker/state 默认 protected、planning/implement/docs 三条中文命令；
+- 生成默认 v2 配置：常见代码扩展名、`codePaths` 默认为空（需要拦执行入口的项目自行声明）、marker/state 默认 protected；不写 `commands`/`proposed`，命令使用代码默认值；
 - 默认配置在写入前先用同一套校验器验证，不会留下导致全部写拒绝的半配置；不创建 state 文件，不授予 implement 授权。
 
 命令是全局人类命令，出现在每个会话的 `/` 菜单；它不进入模型工具面，也不消耗模型步骤。
@@ -43,7 +43,8 @@ Host 插件：仅在已启用的项目里，按**会话**控制**代码文件**�
 - 没有 marker 或 `enabled:false`：pass-through，工具不可见；
 - marker JSON 坏、`enabled` 非布尔、缺 `version:2`/`codeExtensions`/`commands.implement`、含绝对路径/`..`/通配符/未知键：`misconfigured`，**所有工具调用**被拒绝（fail-closed）；只有 `implement_gate status` 例外，用来返回原因与 marker 路径；
 - `.agents/implement-gate.json` 与 `.agents/state/implement-gate/**` **无条件 protected**，配置只能追加；
-- `codeExtensions` 之外的路径是文档；`codePaths` 只列执行入口（package/lock/tsconfig/cordis/CI workflow）；
+- `codeExtensions` 之外的路径是文档；`codePaths` 只列执行入口（package/lock/tsconfig/cordis/CI workflow）；缺省为空，不默认拦配置文件；
+- `commands` 是可选覆盖层：只写需要改的键，未写的键使用代码默认值；`proposed` 仍被接受但已弃用、不参与分类；
 - `codePaths` 不带尾斜杠是精确文件，带尾斜杠是目录前缀；
 - 配置按 marker 目录、每次调用读取；不同项目互不影响。
 
