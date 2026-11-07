@@ -19,11 +19,11 @@ Status: implemented
 ## Decision
 
 - 新增 `formatStatus(value)`：
-  - 正常：`状态/工作项/work/blockReason/下一步`；
-  - `work-item-required`：下一步提示提供 proposed Note 或 mechanical；
-  - blocked：提示解除 block；
-  - misconfigured：原因 + 配置路径；
-  - not-enabled：配置路径 + init 提示。
+  - 正常：`状态/工作项/work/blockReason`；
+  - `blocked`：显示 blockReason；
+  - `misconfigured`：原因 + 配置路径；
+  - `not-enabled`：配置路径。
+- 状态块不输出“下一步”或固定门禁命令；后续方向由模型语义判断。
 - `implement_gate` 工具 `render` 按 action 分流：
   - `status` 用 `formatStatus`；
   - 其他 action 保持 JSON。
@@ -39,6 +39,7 @@ Status: implemented
 
 - `status` 工具卡可直接读；
 - 回复仍必须输出状态块，不能只贴工具卡；
+- 状态块只描述事实，不把工作流命令写死；
 - 其他 action 的 JSON 不变，调用方兼容；
 - 状态块与 GATES/AGENTS 的格式一致。
 
@@ -49,4 +50,4 @@ node tools/implement-gate/test.mjs   # ALL CHECKS PASSED
 npm run verify                       # 通过
 ```
 
-测试覆盖正常、work-item-required、blocked、misconfigured、not-enabled 五种文本。
+测试覆盖正常、blocked、misconfigured、not-enabled，并断言状态块不含“下一步”。
