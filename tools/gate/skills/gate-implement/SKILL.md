@@ -1,6 +1,6 @@
 ---
 name: gate-implement
-description: Gate 派发的实现 worker；保留原 implement 的授权、拆解、执行与完成方法，Implementation Review 交给 gate 的两轴 worker。
+description: Gate 派发的实现 worker；只负责授权范围、测试、findings 修正与 receipt。
 ---
 
 # Implement
@@ -9,9 +9,7 @@ description: Gate 派发的实现 worker；保留原 implement 的授权、拆�
 
 Implement the selected scope of the work item (proposed Agent Note). Read its scope, acceptance criteria, and referenced design sections before coding.
 
-Before implementation, check the scope and acceptance conditions, required decisions and review/approval evidence, unresolved blockers, and execution authorization for that scope under project rules. Reuse valid evidence without requesting confirmation again. Sync already agreed scope and decisions to their existing owners; route unresolved material decisions through the project's discussion, authorization, and gate rules before returning to Planning. Document status or location alone does not establish readiness or authorization.
-
-Review-only requests do not enter this worker. The main agent dispatches `gate-code-review-standards` / `gate-code-review-spec` directly; this worker runs only for authorized implementation. Do not fix changes or advance workflow status as part of a review-only request.
+Before implementation, check the scope and acceptance conditions, required decisions and approval evidence, unresolved blockers, and execution authorization for that scope under project rules. Reuse valid evidence without requesting confirmation again. Sync already agreed scope and decisions to their existing owners; route unresolved material decisions through the project's discussion, authorization, and gate rules before returning to Planning. Document status or location alone does not establish readiness or authorization.
 
 ## 2. Decompose when needed
 
@@ -39,7 +37,7 @@ Run focused tests and relevant static checks while working.
 
 ## 4. Implementation findings
 
-The gate may return material findings from its Standards or Spec review. Resolve each finding by ownership:
+The gate may return material findings. Resolve each finding by ownership:
 
 | Finding                                                           | Route                                  |
 | ----------------------------------------------------------------- | -------------------------------------- |
@@ -50,7 +48,7 @@ The gate may return material findings from its Standards or Spec review. Resolve
 
 There is no "fix it while we're here" path for unrelated work.
 
-For findings you own, fix them in the current implementation, rerun the affected tests and static checks, and report each finding's disposition in the next receipt. Do not run the review yourself and do not mark a finding resolved without evidence.
+For findings you own, fix them in the current implementation, rerun the affected tests and static checks, and report each finding's disposition in the next receipt. Do not mark a finding resolved without evidence.
 
 ## 5. Receipt and handoff
 
