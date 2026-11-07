@@ -1,0 +1,3 @@
+- insert:
+    - id: gate
+      name: '@dsh-nove/gate'
