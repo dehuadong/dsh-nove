@@ -60,6 +60,9 @@ check('return enters discuss', loadState(workspace, agent).phase === 'discuss')
 const status = await run('gate-status', '')
 check('status is factual', status.text.includes('状态：discuss') && status.text.includes('blockReason：无') && !status.text.includes('下一步'))
 
+const withoutPlan = await run('gate-implement', 'work')
+check('implement without plan review is rejected', withoutPlan.kind === 'error' && loadState(workspace, agent).planReady !== true)
+
 await run('gate-plan', 'work')
 check('plan command enters orchestrating', loadState(workspace, agent).phase === 'orchestrating' && loadState(workspace, agent).node === 'plan')
 check('plan review can start', (await record({ node: 'plan' })).ok === true && loadState(workspace, agent).node === 'plan-review')
@@ -82,12 +85,22 @@ for (let index = 0; index < 5; index += 1) {
 }
 check('plan review cap blocks', loadState(workspace, agent).work === 'blocked' && loadState(workspace, agent).blockReason === 'plan-review-rounds-exhausted')
 
+await run('gate-plan', 'work')
+await record({ node: 'plan' })
+await record({ node: 'plan-review', findings: [] })
+check('clean plan review sets planReady', loadState(workspace, agent).planReady === true)
+
+mkdirSync(path.join(workspace, 'artifacts'), { recursive: true })
+writeFileSync(path.join(workspace, 'artifacts', 'verify.txt'), 'ok')
+
 await run('gate-implement', 'work')
 check('implement command enters orchestrating', loadState(workspace, agent).phase === 'orchestrating' && loadState(workspace, agent).node === 'implement')
 await record({ node: 'implement' })
 check('implement moves to code review', loadState(workspace, agent).node === 'code-review')
 check('empty code review moves to verify', (await record({ node: 'code-review', findings: [] })).node === 'verify')
-check('verify passes', (await record({ node: 'verify', ok: true })).phase === 'complete')
+const missingVerify = await record({ node: 'verify' })
+check('verify without evidence is rejected', missingVerify.code === 'verification-required', JSON.stringify(missingVerify))
+check('verify passes', (await record({ node: 'verify', verification: { commands: ['node tools/gate/test.mjs'], evidence: ['artifacts/verify.txt'], passed: true } })).phase === 'complete')
 
 await run('gate-implement', 'work')
 await record({ node: 'implement' })
@@ -95,8 +108,20 @@ await record({ node: 'code-review', findings: [{ id: 'C1' }] })
 check('code findings route to implement revise', loadState(workspace, agent).node === 'implement-revise')
 await record({ node: 'implement-revise' })
 await record({ node: 'code-review', findings: [] })
-const failedVerify = await record({ node: 'verify', ok: false })
+const failedVerify = await record({ node: 'verify', verification: { commands: ['node tools/gate/test.mjs'], evidence: ['artifacts/verify.txt'], passed: false } })
 check('verify failure routes to revise', failedVerify.node === 'implement-revise')
+
+await run('gate-return-discuss', '')
+await run('gate-code-review', 'src/x.ts')
+check('standalone code review enters reviewing', loadState(workspace, agent).phase === 'reviewing' && loadState(workspace, agent).node === 'review')
+check('standalone review denies writes', (await exec('write', { file_path: 'src/x.ts' })).kind === 'deny')
+check('standalone review ends in discuss', (await record({ node: 'review', findings: [] })).phase === 'discuss')
+
+await run('gate-block', 'manual pause')
+check('block freezes the gate', loadState(workspace, agent).phase === 'blocked' && loadState(workspace, agent).work === 'blocked')
+check('block denies writes', (await exec('write', { file_path: 'docs/x.md' })).kind === 'deny')
+await run('gate-resume', '')
+check('resume returns to discuss', loadState(workspace, agent).phase === 'discuss' && loadState(workspace, agent).work === 'active')
 
 const rootAgent = { id: 'root-session', session: { header: {} } }
 const childAgent = { id: 'child-session', session: { header: {} } }

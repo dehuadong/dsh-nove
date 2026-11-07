@@ -65,6 +65,7 @@ function statusText(state) {
     `工作项：${state.task ?? '无'}`,
     `work：${state.work}`,
     `blockReason：${state.blockReason ?? '无'}`,
+    `planReady：${state.planReady ? '是' : '否'}`,
     `rounds：plan ${state.rounds?.planReview ?? 0}/5, code ${state.rounds?.codeReview ?? 0}/5`,
   ].join('\n')
 }
@@ -127,8 +128,14 @@ function command(ctx, agent, rawInput, allowMechanical, node) {
   if (!workItemAllowed(gate.root, task, allowMechanical)) return { kind: 'error', text: '工作项不存在：需要同 topic 的 proposed Note' + (allowMechanical ? ' 或 mechanical:' : '') }
   const state = loadState(gate.root, agent)
   if (state.phase !== 'discuss' && state.phase !== 'complete') return { kind: 'error', text: `当前 phase 是 ${state.phase}` }
+  const sameTask = state.task === task
+  if (node === 'implement' && !isMechanical(task) && (!state.planReady || !sameTask)) {
+    return { kind: 'error', text: 'planning 尚未通过：先完成 /gate-plan 与 clean plan review' }
+  }
   state.phase = 'orchestrating'
   state.task = task
+  state.planReady = node === 'plan' ? false : state.planReady
+  state.planApprovedAt = node === 'plan' ? null : state.planApprovedAt
   state.work = 'active'
   state.blockReason = null
   state.node = node
@@ -236,6 +243,39 @@ export function apply(ctx) {
       saveState(gate.root, invocation.agent, state)
       return { kind: 'success', text: `进入 docs：${task}` }
     })
+    register('gate-code-review', 'Start a standalone read-only code review', async invocation => {
+      const task = String(invocation.rawInput ?? '').trim()
+      if (task === '') return { kind: 'error', text: '缺少审查范围' }
+      const gate = resolveGate(ctx, invocation.agent)
+      if (gate.config.kind !== 'ok') return { kind: 'error', text: '当前项目没有启用的 .agents/gate.json' }
+      const state = loadState(gate.root, invocation.agent)
+      if (state.phase !== 'discuss' && state.phase !== 'complete') return { kind: 'error', text: `当前 phase 是 ${state.phase}` }
+      state.phase = 'reviewing'; state.task = task; state.node = 'review'; state.work = 'active'; state.blockReason = null
+      saveState(gate.root, invocation.agent, state)
+      return { kind: 'success', text: `进入只读 code review：${task}\n主代理加载 code-review 并派两轴。` }
+    })
+    register('gate-block', 'Block the current gate', async invocation => {
+      const gate = resolveGate(ctx, invocation.agent)
+      if (gate.config.kind !== 'ok') return { kind: 'error', text: '当前项目没有启用的 .agents/gate.json' }
+      const state = loadState(gate.root, invocation.agent)
+      if (state.phase === 'blocked') return { kind: 'success', text: '已经是 blocked' }
+      state.blockedFrom = { phase: state.phase, node: state.node }
+      state.phase = 'blocked'; state.work = 'blocked'; state.node = null
+      state.blockReason = String(invocation.rawInput ?? '').trim() || 'user-blocked'
+      saveState(gate.root, invocation.agent, state)
+      return { kind: 'success', text: `已 block：${state.blockReason}` }
+    })
+    register('gate-resume', 'Resume a blocked gate', async invocation => {
+      const gate = resolveGate(ctx, invocation.agent)
+      if (gate.config.kind !== 'ok') return { kind: 'error', text: '当前项目没有启用的 .agents/gate.json' }
+      const state = loadState(gate.root, invocation.agent)
+      if (state.phase !== 'blocked') return { kind: 'error', text: '当前不是 blocked' }
+      const from = state.blockedFrom
+      state.phase = from?.phase ?? 'discuss'; state.node = from?.node ?? null
+      state.work = 'active'; state.blockReason = null; state.blockedFrom = null
+      saveState(gate.root, invocation.agent, state)
+      return { kind: 'success', text: `已恢复到 ${state.phase}${state.node === null ? '' : ` / ${state.node}`}` }
+    })
     register('gate-return-discuss', 'Return to discuss', async invocation => {
       const gate = resolveGate(ctx, invocation.agent)
       if (gate.config.kind !== 'ok') return { kind: 'error', text: '当前项目没有启用的 .agents/gate.json' }
@@ -258,11 +298,20 @@ export function apply(ctx) {
       type: 'object',
       additionalProperties: false,
       properties: {
-        node: { type: 'string', enum: ['plan', 'plan-review', 'plan-revise', 'implement', 'code-review', 'implement-revise', 'verify'] },
+        node: { type: 'string', enum: ['plan', 'plan-review', 'plan-revise', 'implement', 'code-review', 'implement-revise', 'verify', 'review'] },
         findings: { type: 'array', items: { type: 'object', additionalProperties: true } },
         requiresDiscussion: { type: 'boolean' },
         discussionReason: { type: 'string' },
-        ok: { type: 'boolean' },
+        verification: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            commands: { type: 'array', items: { type: 'string' } },
+            evidence: { type: 'array', items: { type: 'string' } },
+            passed: { type: 'boolean' },
+          },
+          required: ['commands', 'evidence', 'passed'],
+        },
       },
       required: ['node'],
     },
@@ -270,23 +319,38 @@ export function apply(ctx) {
       const gate = resolveGate(ctx, exec.agent)
       if (gate.config.kind !== 'ok') return { ok: false, code: 'not-enabled' }
       const state = loadState(gate.root, exec.agent)
-      if (state.phase !== 'orchestrating') return { ok: false, code: 'not-orchestrating', phase: state.phase }
+      if (state.phase !== 'orchestrating' && state.phase !== 'reviewing') return { ok: false, code: 'not-orchestrating', phase: state.phase }
       if (state.node !== args.node) return { ok: false, code: 'wrong-node', expected: state.node, got: args.node }
       const findings = Array.isArray(args.findings) ? args.findings : []
       if (args.requiresDiscussion === true) {
+        if (args.node === 'plan-review') state.planReady = false
         state.phase = 'discuss'
         state.node = null
         state.blockReason = 'needs-user-decision'
         saveState(gate.root, exec.agent, state)
         return { ok: true, phase: 'discuss', blockReason: state.blockReason, reason: args.discussionReason ?? null }
       }
-      if (args.node === 'plan') state.node = 'plan-review'
+      if (args.node === 'review') {
+        state.phase = 'discuss'
+        state.node = null
+        state.blockReason = null
+      } else if (args.node === 'plan') state.node = 'plan-review'
       else if (args.node === 'plan-revise') state.node = 'plan-review'
       else if (args.node === 'plan-review') {
         state.rounds.planReview += 1
-        if (findings.length === 0) { state.phase = 'discuss'; state.node = null; state.blockReason = null }
-        else if (state.rounds.planReview >= REVIEW_LIMIT) { state.phase = 'discuss'; state.node = null; state.work = 'blocked'; state.blockReason = 'plan-review-rounds-exhausted' }
-        else state.node = 'plan-revise'
+        if (findings.length === 0) {
+          state.phase = 'discuss'
+          state.node = null
+          state.planReady = true
+          state.planApprovedAt = new Date().toISOString()
+          state.blockReason = null
+        } else if (state.rounds.planReview >= REVIEW_LIMIT) {
+          state.phase = 'discuss'
+          state.node = null
+          state.planReady = false
+          state.work = 'blocked'
+          state.blockReason = 'plan-review-rounds-exhausted'
+        } else state.node = 'plan-revise'
       } else if (args.node === 'implement') state.node = 'code-review'
       else if (args.node === 'implement-revise') state.node = 'code-review'
       else if (args.node === 'code-review') {
@@ -295,7 +359,14 @@ export function apply(ctx) {
         else if (state.rounds.codeReview >= REVIEW_LIMIT) { state.phase = 'discuss'; state.node = null; state.work = 'blocked'; state.blockReason = 'code-review-rounds-exhausted' }
         else state.node = 'implement-revise'
       } else if (args.node === 'verify') {
-        if (args.ok === false) state.node = 'implement-revise'
+        const verification = args.verification
+        const commands = Array.isArray(verification?.commands) ? verification.commands : []
+        const evidence = Array.isArray(verification?.evidence) ? verification.evidence : []
+        const missingEvidence = evidence.filter(item => !existsSync(path.resolve(gate.workspace, String(item))))
+        if (commands.length === 0 || evidence.length === 0 || missingEvidence.length > 0 || typeof verification?.passed !== 'boolean') {
+          return { ok: false, code: 'verification-required', missingEvidence, commands, evidence }
+        }
+        if (verification.passed !== true) state.node = 'implement-revise'
         else { state.phase = 'complete'; state.node = null; state.blockReason = null; state.work = 'active' }
       }
       saveState(gate.root, exec.agent, state)

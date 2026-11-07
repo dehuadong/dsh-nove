@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import path from 'node:path'
 import { STATE_DIR } from './config.js'
 
-export const PHASES = ['discuss', 'orchestrating', 'docs', 'complete']
+export const PHASES = ['discuss', 'orchestrating', 'reviewing', 'docs', 'blocked', 'complete']
 
 export function defaultState() {
   return {
@@ -14,6 +14,9 @@ export function defaultState() {
     blockReason: null,
     rounds: { planReview: 0, codeReview: 0 },
     worker: null,
+    planReady: false,
+    planApprovedAt: null,
+    blockedFrom: null,
     updatedAt: null,
   }
 }
