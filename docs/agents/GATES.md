@@ -46,6 +46,20 @@
 
 使用 `verify` 完成最终验收及记录收尾。只有最终 PASS 才完成交付；状态更新遵循项目登记的工作项与决策记录生命周期。
 
+## 状态汇报
+
+每次阶段转换完成后，调用 `implement_gate({action:'status'})`，并在回复中输出状态块：
+
+```text
+状态：planning / docs / implement / complete
+工作项：{task}
+work：active / blocked
+blockReason：无 / ...
+下一步：{命令}
+```
+
+`end-planning`、`end-docs`、`return-to-discuss`、`block`、`complete` 之后都必须输出；没有状态块不得声称阶段完成。
+
 ## 返回与持续授权
 
 范围内修正返回负责该问题的步骤，完成适用审查后重新验证。`implement` 持续覆盖既定范围内的实施、审查、验证与修正；继续推进独立、就绪且已授权的工作。

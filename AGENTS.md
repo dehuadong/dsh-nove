@@ -111,6 +111,16 @@
 
 这些阶段之间不需要重复请求执行授权。
 
+每次阶段转换完成（planning/docs/implement 结束、return-to-discuss、block、complete）后，调用 `implement_gate({action:'status'})`，并在回复中输出状态块：
+
+```text
+状态：{phase}
+工作项：{task}
+work：{active|blocked}
+blockReason：{无|原因}
+下一步：{命令}
+```
+
 文档和仓库治理工作可以绕过 planning/implement，但需要通过 `批准，执行文档治理 {范围}` 取得 Gate 授权；涉及重要产品、技术、架构或其他工程合同变化时，仍遵守 GATES 门控规则。
 
 ## 测试与验收
