@@ -299,7 +299,7 @@ export function apply(ctx) {
       mkdirSync(path.dirname(marker), { recursive: true })
       writeFileSync(marker, `${JSON.stringify(value, null, 2)}\n`)
       return { kind: 'success', text: `已启用 Gate：${marker}（phase=discuss）` }
-    }, null)
+    }, { hint: '' })
     register('gate-plan', 'Start planning orchestration', async invocation => {
       const result = command(ctx, invocation.agent, invocation.rawInput, false, 'plan')
       if (result.kind === 'error') return result
