@@ -23,7 +23,7 @@ const userMessage = text => ({ role: 'user', source: { kind: 'user' }, content: 
 check('implement command accepted', gateCommand(userMessage('批准，使用技能 implement 执行实现 A9'), {}, commands)?.kind === 'implement')
 check('implement command without skill accepted', gateCommand(userMessage('批准，使用implement 执行实现 A9'), {}, commands)?.kind === 'implement')
 check('planning command accepted', gateCommand(userMessage('批准，使用技能 planning 执行规划 A9'), {}, commands)?.kind === 'planning')
-check('docs command is not a gate', gateCommand(userMessage('批准，执行文档治理 docs/'), {}, commands) === undefined)
+check('docs command accepted', gateCommand(userMessage('批准，执行文档治理 docs/'), {}, commands)?.kind === 'docs')
 check('quoted command is not authorization', gateCommand(userMessage('文档说：批准，使用技能 implement 执行实现 A9'), {}, commands) === undefined)
 check('principal caller is not owner', gateCommand({ ...userMessage('批准，使用技能 implement 执行实现 A9'), source: { kind: 'user', principal: 'other' } }, {}, commands) === undefined)
 check('subagent origin is not owner', gateCommand(userMessage('批准，使用技能 implement 执行实现 A9'), { origin: 'subagent' }, commands) === undefined)
@@ -48,8 +48,8 @@ check('git status is free', shellAccess('git status', root, policy).write === fa
 check('git commit is free', shellAccess('git commit -m x', root, policy).write === false)
 check('git checkout is code-gated', shellAccess('git checkout -- src/x.ts', root, policy).forceCode === true)
 check('source write sees code target', shellAccess('Set-Content src\\x.ts -Value x', root, policy).codeTargets.length > 0)
-check('docs write has no code target', shellAccess('Set-Content docs\\x.md -Value x', root, policy).codeTargets.length === 0)
-check('json write has no code target', shellAccess('Set-Content data.json -Value x', root, policy).codeTargets.length === 0)
+check('docs write has docs target', shellAccess('Set-Content docs\\x.md -Value x', root, policy).docsTargets.length > 0)
+check('json write has docs target', shellAccess('Set-Content data.json -Value x', root, policy).docsTargets.length > 0)
 check('redirection sees code target', shellAccess('echo x > src/x.ts', root, policy).codeTargets.length > 0)
 check('variable code target is resolved', shellAccess("$p='src/x.ts'; Set-Content $p -Value x", root, policy).codeTargets.length > 0)
 check('npm build is not a code write', shellAccess('npm run build', root, policy).write === false)
@@ -109,14 +109,14 @@ const runCommand = (host, agent, input) => host.commands['implement-gate'].handl
   check('gated workspace shows tool', (await visible(host, agent)) === true)
   check('tool exposes no init action', !host.tools.implement_gate.parameters.properties.action.enum.includes('init'))
   check('discuss denies code', (await preExec(host, agent, 'write', { file_path: 'storycraft/src/x.ts' })).kind === 'deny')
-  check('discuss allows docs', (await preExec(host, agent, 'write', { file_path: 'docs/x.md' })).kind === 'allow')
-  check('discuss allows json', (await preExec(host, agent, 'write', { file_path: 'data.json' })).kind === 'allow')
+  check('discuss denies docs', (await preExec(host, agent, 'write', { file_path: 'docs/x.md' })).kind === 'deny')
+  check('discuss denies json', (await preExec(host, agent, 'write', { file_path: 'data.json' })).kind === 'deny')
   check('discuss denies proposed Note', (await preExec(host, agent, 'write', { file_path: '.agents/notes/proposed/x.md' })).kind === 'deny')
   check('discuss git commit is free', (await preExec(host, agent, 'pwsh', { command: 'git add docs/x.md; git commit -m x' })).kind === 'allow')
   check('discuss denies code shell', (await preExec(host, agent, 'pwsh', { command: 'Set-Content src/x.ts -Value x' })).kind === 'deny')
-  check('discuss allows json shell', (await preExec(host, agent, 'pwsh', { command: 'Set-Content data.json -Value x' })).kind === 'allow')
+  check('discuss denies json shell', (await preExec(host, agent, 'pwsh', { command: 'Set-Content data.json -Value x' })).kind === 'deny')
   check('discuss denies outside write', (await preExec(host, agent, 'pwsh', { command: 'Set-Content C:\\outside\\x.txt -Value x' })).kind === 'deny')
-  check('end-docs is not supported', (await call(host, agent, 'end-docs')).code === 'not-supported')
+  check('end-docs only from docs', (await call(host, agent, 'end-docs')).code === 'not-docs')
 
   await preStep(host, agent, [gateMessage('批准，使用技能 planning 执行规划 integration')])
   check('planning allows proposed Note', (await preExec(host, agent, 'write', { file_path: '.agents/notes/proposed/x.md' })).kind === 'allow')
@@ -127,9 +127,20 @@ const runCommand = (host, agent, input) => host.commands['implement-gate'].handl
   check('implement allows code', (await preExec(host, agent, 'write', { file_path: 'storycraft/src/x.ts' })).kind === 'allow')
   await call(host, agent, 'complete')
   check('complete denies code', (await preExec(host, agent, 'write', { file_path: 'storycraft/src/x.ts' })).kind === 'deny')
-  check('complete allows docs', (await preExec(host, agent, 'write', { file_path: 'docs/x.md' })).kind === 'allow')
+  check('complete denies docs', (await preExec(host, agent, 'write', { file_path: 'docs/x.md' })).kind === 'deny')
   const status = await call(host, agent, 'status')
   check('status reports complete', status.phase === 'complete')
+}
+
+{
+  const host = mockHost(undefined)
+  const agent = agentFor('d1')
+  await preStep(host, agent, [gateMessage('批准，执行文档治理 docs/')])
+  check('docs phase allows docs', (await preExec(host, agent, 'write', { file_path: 'docs/x.md' })).kind === 'allow')
+  check('docs phase denies code', (await preExec(host, agent, 'write', { file_path: 'storycraft/src/x.ts' })).kind === 'deny')
+  const ended = await call(host, agent, 'end-docs')
+  check('end-docs returns to discuss', ended.ok === true && ended.phase === 'discuss', JSON.stringify(ended))
+  check('after end-docs docs need authorization again', (await preExec(host, agent, 'write', { file_path: 'docs/x.md' })).kind === 'deny')
 }
 
 {
@@ -163,7 +174,11 @@ const runCommand = (host, agent, input) => host.commands['implement-gate'].handl
   const status = await call(host, agent, 'status')
   check('custom project enabled', status.enabled === true && status.configVersion === 2)
   check('custom extension gated', (await preExec(host, agent, 'write', { file_path: 'src/x.foo' })).kind === 'deny')
-  check('custom .ts not code', (await preExec(host, agent, 'write', { file_path: 'src/x.ts' })).kind === 'allow')
+  check('custom .ts is docs in discuss', (await preExec(host, agent, 'write', { file_path: 'src/x.ts' })).kind === 'deny')
+  await preStep(host, agent, [gateMessage('批准，执行文档治理 custom docs')])
+  check('custom .ts is docs under docs', (await preExec(host, agent, 'write', { file_path: 'src/x.ts' })).kind === 'allow')
+  check('custom extension still code under docs', (await preExec(host, agent, 'write', { file_path: 'src/x.foo' })).kind === 'deny')
+  await call(host, agent, 'end-docs')
   await preStep(host, agent, [gateMessage('go custom task')])
   check('custom implement unlocks', (await preExec(host, agent, 'write', { file_path: 'src/x.foo' })).kind === 'allow')
 }
@@ -197,7 +212,7 @@ const runCommand = (host, agent, input) => host.commands['implement-gate'].handl
   const again = await runCommand(host, agent, 'init')
   check('command refuses existing config', again.kind === 'error' && again.text.includes('已存在'))
   check('init defaults gate code', (await preExec(host, agent, 'write', { file_path: 'src/x.ts' })).kind === 'deny')
-  check('init defaults allow docs', (await preExec(host, agent, 'write', { file_path: 'docs/x.md' })).kind === 'allow')
+  check('init defaults gate docs', (await preExec(host, agent, 'write', { file_path: 'docs/x.md' })).kind === 'deny')
 }
 
 {

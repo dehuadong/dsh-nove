@@ -18,18 +18,10 @@ const DEFAULT_CODE_EXTENSIONS = [
   '.sh', '.ps1', '.sql',
   '.css', '.scss', '.html', '.vue', '.svelte', '.astro',
 ]
-const DEFAULT_CODE_PATHS = [
-  'package.json',
-  'package-lock.json',
-  'pnpm-lock.yaml',
-  'tsconfig.json',
-  'tsconfig.client.json',
-  'cordis.patch.yml',
-  '.github/workflows/',
-]
 const DEFAULT_COMMANDS = {
   planning: '^批准，使用(?:技能\\s*)?planning\\s+执行规划\\s+(.+)$',
   implement: '^批准，使用(?:技能\\s*)?implement\\s+执行实现\\s+(.+)$',
+  docs: '^批准，执行文档治理\\s+(.+)$',
 }
 
 export const inject = ['tools']
@@ -79,7 +71,7 @@ function defaultState() {
 function loadState(root, agent) {
   try {
     const value = JSON.parse(readFileSync(stateFile(root, agent), 'utf8'))
-    const phase = ['discuss', 'planning', 'implement', 'complete'].includes(value?.phase) ? value.phase : 'discuss'
+    const phase = ['discuss', 'planning', 'docs', 'implement', 'complete'].includes(value?.phase) ? value.phase : 'discuss'
     return {
       phase,
       work: value?.work === 'blocked' ? 'blocked' : 'active',
@@ -147,7 +139,7 @@ function initConfig() {
     enabled: true,
     version: 2,
     codeExtensions: DEFAULT_CODE_EXTENSIONS,
-    codePaths: DEFAULT_CODE_PATHS,
+    codePaths: [],
     protected: [MARKER, STATE_DIR],
     commands: DEFAULT_COMMANDS,
   }
@@ -258,7 +250,6 @@ export function apply(ctx) {
           ...loadState(gate.root, exec.agent),
         }
       }
-      if (args.action === 'end-docs') return { ok: false, code: 'not-supported', next: '文档不再需要范围授权' }
       if (config.kind === 'invalid') return { ok: false, code: 'misconfigured', reason: config.reason, configPath: config.configPath }
       if (config.kind !== 'ok') return { ok: false, code: 'not-enabled', next: '当前项目没有 .agents/implement-gate.json 或未启用' }
       const state = loadState(gate.root, exec.agent)
@@ -268,7 +259,16 @@ export function apply(ctx) {
         state.blockReason = null
         return { ok: true, enabled: true, ...saveState(gate.root, exec.agent, state) }
       }
+      if (args.action === 'end-docs') {
+        if (state.phase !== 'docs') return { ok: false, code: 'not-docs', phase: state.phase }
+        state.phase = 'discuss'
+        state.blockReason = null
+        return { ok: true, enabled: true, ...saveState(gate.root, exec.agent, state) }
+      }
       if (args.action === 'complete') {
+        if (state.phase === 'docs') {
+          return { ok: false, code: 'end-docs-required', phase: state.phase, next: '先调用 end-docs 结束文档治理' }
+        }
         const proposed = proposedNoteFor(gate.root, state.task)
         if (proposed !== undefined) {
           return {
@@ -342,9 +342,9 @@ export function apply(ctx) {
       const target = classifyPath(workspace, file, policy)
       if (target.outside) return deny('工作区外写入被拒绝')
       if (target.protected) return deny('implement-gate 的状态与启用标记不允许模型写入')
-      if (target.proposed) {
-        if (state.phase !== 'planning' && state.phase !== 'implement') return deny('propose 规划 Note 只在 planning/implement 阶段可写；要修改请先输入 planning 命令。')
-        return next()
+      if (target.docs) {
+        if (['planning', 'docs', 'implement'].includes(state.phase) && state.work === 'active') return next()
+        return deny('文档治理需要授权：输入「批准，执行文档治理 {范围}」')
       }
       if (!target.code) return next()
       if (state.phase === 'implement' && state.work === 'active') return next()
@@ -361,6 +361,9 @@ export function apply(ctx) {
       if (access.protectedTargets.length > 0) return deny('implement-gate 的状态与启用标记不允许模型写入')
       if (access.outsideTargets.length > 0) return deny('工作区外写入被拒绝')
       if (classifyPath(workspace, cwd, policy).outside) return deny('工作区外写入被拒绝')
+      if (access.docsTargets.length > 0 && !['planning', 'docs', 'implement'].includes(state.phase)) {
+        return deny('文档治理需要授权：输入「批准，执行文档治理 {范围}」')
+      }
       if (access.codeTargets.length > 0 || access.forceCode) {
         if (state.phase === 'implement' && state.work === 'active') return next()
         return sourceDeny(state)

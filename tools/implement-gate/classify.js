@@ -29,8 +29,9 @@ export function gateCommand(message, header, commands) {
     .filter(block => block?.type === 'text')
     .map(block => block.text)
     .join(''))
-  for (const kind of ['implement', 'planning']) {
+  for (const kind of ['implement', 'planning', 'docs']) {
     const pattern = commands?.[kind]
+      ?? (kind === 'docs' ? /^批准，执行文档治理\s+(.+)$/u : undefined)
     if (pattern === undefined) continue
     const match = pattern.exec(text)
     if (match === null || match[0] !== text || match[1] === undefined || match[1].trim() === '') continue
@@ -134,14 +135,16 @@ function segmentAccess(text, root, policy, cwd, map) {
   const codeTargets = []
   const protectedTargets = []
   const outsideTargets = []
+  const docsTargets = []
   for (const value of raw) {
     const target = classifyPath(root, path.resolve(cwd, value), policy)
     if (target.outside) { outsideTargets.push(target.absolute); continue }
     targets.push(target.absolute)
     if (target.protected) protectedTargets.push(target.relative)
     if (target.code) codeTargets.push(target.relative)
+    if (target.docs) docsTargets.push(target.relative)
   }
-  return { write: raw.length > 0 || WRITE_VERB.test(text), forceCode: false, targets, codeTargets, protectedTargets, outsideTargets }
+  return { write: raw.length > 0 || WRITE_VERB.test(text), forceCode: false, targets, codeTargets, protectedTargets, outsideTargets, docsTargets }
 }
 
 /** Split statements; pipelines stay in one statement. */
@@ -160,5 +163,6 @@ export function shellAccess(command, root, policy, cwd = root) {
     codeTargets: parts.flatMap(item => item.codeTargets ?? []),
     protectedTargets: parts.flatMap(item => item.protectedTargets ?? []),
     outsideTargets: parts.flatMap(item => item.outsideTargets ?? []),
+    docsTargets: parts.flatMap(item => item.docsTargets ?? []),
   }
 }

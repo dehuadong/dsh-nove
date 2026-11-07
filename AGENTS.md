@@ -54,11 +54,11 @@
 
 边界说明：守卫装在当前 profile，只覆盖经由本 Harness 工具发起的命令；作者自己终端里的操作不在其内。因此删除一律走 `trash.mjs`，不要因为“有守卫”就放宽命令行。
 
-代码写入另由 Host 插件 `@dsh-nove/implement-gate`（源码 `tools/implement-gate/`）在 `tools/pre-execute` 强制执行。它从会话工作区向上找最近的 `.agents/implement-gate.json`：找到就按该配置启用，子目录会话继承上级项目策略；找不到的项目完全 pass-through，工具面也不出现 `implement_gate`。配置定义 `codeExtensions`、少量执行入口 `codePaths`、`protected`、`proposed` 与 `commands`；缺配置时完全 pass-through，配置非法时 `misconfigured`，除 `implement_gate status` 外的所有工具调用被拒绝。新项目由作者在项目根会话执行 `/implement-gate init` 生成默认配置；祖先已有 marker 或祖先存在 `.git` 的工作区不是项目根，命令会拒绝，避免在子目录生成嵌套 marker；不手写 marker。状态按 `(marker 目录, agent.id)`（即 SessionId）存放在 marker 同级的 `.agents/state/implement-gate/<session-hash>.json`，并行会话互不影响，插件重载后从文件恢复。
+代码写入另由 Host 插件 `@dsh-nove/implement-gate`（源码 `tools/implement-gate/`）在 `tools/pre-execute` 强制执行。它从会话工作区向上找最近的 `.agents/implement-gate.json`：找到就按该配置启用，子目录会话继承上级项目策略；找不到的项目完全 pass-through，工具面也不出现 `implement_gate`。配置定义 `codeExtensions`、`codePaths`（默认空，按需声明）、`protected` 与 `commands`；缺配置时完全 pass-through，配置非法时 `misconfigured`，除 `implement_gate status` 外的所有工具调用被拒绝。新项目由作者在项目根会话执行 `/implement-gate init` 生成默认配置；祖先已有 marker 或祖先存在 `.git` 的工作区不是项目根，命令会拒绝，避免在子目录生成嵌套 marker；不手写 marker。状态按 `(marker 目录, agent.id)`（即 SessionId）存放在 marker 同级的 `.agents/state/implement-gate/<session-hash>.json`，并行会话互不影响，插件重载后从文件恢复。
 
-状态机：`discuss`（默认；代码文件和 propose 规划 Note 拒绝）→ planning 命令 → `planning`（允许文档与 propose Note，代码仍拒绝）→ `implement_gate({action:'end-planning'})` → `discuss`；implement 命令/审批 → `implement`（允许代码）→ `complete`（代码与 propose Note 拒绝）。
+状态机：`discuss`（默认；代码与文档都拒绝）→ planning 命令 → `planning`（允许文档与 propose Note，代码仍拒绝）→ `implement_gate({action:'end-planning'})` → `discuss`；docs 命令 → `docs`（允许文档/notes，代码拒绝）→ `implement_gate({action:'end-docs'})` → `discuss`；implement 命令/审批 → `implement`（允许代码与文档）→ `complete`（代码与文档拒绝）。
 
-文档、普通 JSON/YAML、`git status/add/commit/push` 不进入代码门禁；`git checkout/reset/clean` 仍视为代码写。`.agents/notes/proposed/**`、`.agents/implement-gate.json`、`.agents/state/implement-gate/**` 始终例外；`implement_gate({action:'end-docs'})` 返回 `not-supported`。授权来自 owner 用户整条消息中的规范 planning/implement 命令，或 `implement_gate({action:'authorize'})` 的任务级审批。合同变化时调用 `implement_gate({action:'block',reason})`，Verify 后调用 `complete`。
+文档、普通 JSON/YAML、`git status/add/commit/push` 不进入代码门禁，但文档写入需要 `批准，执行文档治理 {范围}` 或 planning/implement 授权；`git checkout/reset/clean` 仍视为代码写。`.agents/notes/proposed/**` 按文档处理；`.agents/implement-gate.json`、`.agents/state/implement-gate/**` 始终例外。授权来自 owner 用户整条消息中的规范 planning/implement/docs 命令，或 `implement_gate({action:'authorize'})` 的任务级审批。合同变化时调用 `implement_gate({action:'block',reason})`，Verify 后调用 `complete`。
 
 ## 工程工作流 
 
@@ -111,7 +111,7 @@
 
 这些阶段之间不需要重复请求执行授权。
 
-文档和仓库治理工作可以绕过该工程工作流；涉及重要产品、技术、架构或其他工程合同变化时，仍遵守 GATES 门控规则。
+文档和仓库治理工作可以绕过 planning/implement，但需要通过 `批准，执行文档治理 {范围}` 取得 Gate 授权；涉及重要产品、技术、架构或其他工程合同变化时，仍遵守 GATES 门控规则。
 
 ## 测试与验收
 

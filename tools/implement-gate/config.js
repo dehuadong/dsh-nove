@@ -48,7 +48,7 @@ export function findProjectRoot(workspace) {
 }
 
 const ALLOWED_KEYS = new Set(['enabled', 'version', 'codeExtensions', 'codePaths', 'protected', 'proposed', 'commands'])
-const COMMAND_KEYS = ['planning', 'implement']
+const COMMAND_KEYS = ['planning', 'implement', 'docs']
 
 function normalizePath(value, { allowTrailingSlash = false } = {}) {
   if (typeof value !== 'string') return undefined

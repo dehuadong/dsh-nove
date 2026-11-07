@@ -18,7 +18,7 @@ Host 插件：仅在已启用的项目里，按**会话**控制**代码文件**�
 
 - 只在 marker 不存在时创建；已有 marker 返回「已存在」，不覆盖；
 - 只在**工作区根就是项目根**时创建：祖先已有 marker、或祖先存在 `.git` 时拒绝并给出项目根路径，因此不会在子目录生成嵌套 marker；
-- 生成默认 v2 配置：常见代码扩展名、执行入口 `package.json`/锁文件/`tsconfig*.json`/`cordis.patch.yml`/`.github/workflows/`、marker/state 默认 protected、planning/implement 两条中文命令；
+- 生成默认 v2 配置：常见代码扩展名、`codePaths` 默认为空（需要拦执行入口的项目自行声明）、marker/state 默认 protected、planning/implement/docs 三条中文命令；
 - 默认配置在写入前先用同一套校验器验证，不会留下导致全部写拒绝的半配置；不创建 state 文件，不授予 implement 授权。
 
 命令是全局人类命令，出现在每个会话的 `/` 菜单；它不进入模型工具面，也不消耗模型步骤。
@@ -32,10 +32,10 @@ Host 插件：仅在已启用的项目里，按**会话**控制**代码文件**�
   "codeExtensions": [".ts", ".js", ".py", ".rs", ".go", ".sh"],
   "codePaths": ["package.json", "tsconfig.json", "cordis.patch.yml"],
   "protected": [".agents/implement-gate.json", ".agents/state/implement-gate"],
-  "proposed": ".agents/notes/proposed",
   "commands": {
     "planning": "^批准，使用(?:技能\\s*)?planning\\s+执行规划\\s+(.+)$",
-    "implement": "^批准，使用(?:技能\\s*)?implement\\s+执行实现\\s+(.+)$"
+    "implement": "^批准，使用(?:技能\\s*)?implement\\s+执行实现\\s+(.+)$",
+    "docs": "^批准，执行文档治理\\s+(.+)$"
   }
 }
 ```
@@ -59,20 +59,21 @@ Host 插件：仅在已启用的项目里，按**会话**控制**代码文件**�
 
 ```json
 {
-  "phase": "discuss | planning | implement | complete",
+  "phase": "discuss | planning | docs | implement | complete",
   "work": "active | blocked",
   "task": "...",
   "blockReason": null
 }
 ```
 
-`discuss` 是默认态：不写代码文件，也不写规划 Note；普通文档、JSON、YAML、git 不受影响。Planning 结束通过 `implement_gate({action:'end-planning'})` 显式回到 discuss。
+`discuss` 是默认态：不写代码，也不写文档/规划 Note；写文档需要 `批准，执行文档治理 {范围}`。`planning` 允许文档与 proposed Note、拒绝代码；`docs` 允许文档/notes、拒绝代码；`implement` 允许代码与文档。Planning 结束通过 `implement_gate({action:'end-planning'})` 回到 discuss；文档治理结束通过 `implement_gate({action:'end-docs'})` 回到 discuss。
 
 ## 授权来源
 
 - 真实用户整条消息中的规范命令：
   - `批准，使用技能 planning 执行规划 {工作项}` → planning；
   - `批准，使用技能 implement 执行实现 {工作项}` → implement；
+  - `批准，执行文档治理 {范围}` → docs；
 - `implement_gate({action:'authorize'})` 调用 DSH approval 服务，获得任务级批准；
 - 审批不可用/被策略禁止/被拒绝时返回 `approval-unavailable`、`approval-disabled` 或 `approval-rejected`，回退规范命令。
 
@@ -80,20 +81,19 @@ Host 插件：仅在已启用的项目里，按**会话**控制**代码文件**�
 
 ## 行为
 
-| 目标 | discuss | planning | implement | complete |
-| --- | --- | --- | --- | --- |
-| 代码文件（`codeExtensions`/`codePaths`） | 拒绝 | 拒绝 | 允许 | 拒绝 |
-| 普通文档/JSON/YAML | 允许 | 允许 | 允许 | 允许 |
-| `.agents/notes/proposed/**` | 拒绝 | 允许 | 允许 | 拒绝 |
-| `git status/add/commit/push` | 允许 | 允许 | 允许 | 允许 |
-| `git checkout/reset/clean` | 拒绝 | 拒绝 | 允许 | 拒绝 |
-| 状态/启用标记 | 拒绝 | 拒绝 | 拒绝 | 拒绝 |
+| 目标 | discuss | planning | docs | implement | complete |
+| --- | --- | --- | --- | --- | --- |
+| 代码文件（`codeExtensions`/`codePaths`） | 拒绝 | 拒绝 | 拒绝 | 允许 | 拒绝 |
+| 普通文档/JSON/YAML/notes | 拒绝 | 允许 | 允许 | 允许 | 拒绝 |
+| `git status/add/commit/push` | 允许 | 允许 | 允许 | 允许 | 允许 |
+| `git checkout/reset/clean` | 拒绝 | 拒绝 | 拒绝 | 允许 | 拒绝 |
+| 状态/启用标记 | 拒绝 | 拒绝 | 拒绝 | 拒绝 | 拒绝 |
 
-不按路径白名单判断文档；只有代码扩展名与少量执行入口 `codePaths` 进入 implement 门禁。`pwsh`/`bash` 只检查显式代码目标与重定向，不再把整条命令当代码写。
+不按路径白名单判断文档；只有代码扩展名与 `codePaths` 进入 implement 门禁。`pwsh`/`bash` 只检查显式代码目标与重定向，不再把整条命令当代码写。
 
 - `implement_gate block` 冻结代码写；
 - `implement_gate complete` 结束任务，代码写恢复拒绝；
-- `implement_gate end-docs` 返回 `not-supported`；文档不再需要范围授权。
+- `implement_gate end-docs` 仅 docs phase 可用，回到 discuss。
 
 ## 文件
 
