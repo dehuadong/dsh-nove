@@ -25,7 +25,7 @@ Status: proposed
 | 源工程证据 | 源工程行为 | 复刻落点与裁决 |
 |---|---|---|
 | `docs/agents/GATES.md` Step 3 | 进入 implement 前检查范围、合同、设计、无 blocker、有授权 | Gate 增加 `planReady` 与 entry check |
-| `GATES.md` 限定/仅审查请求 | review-only 不进入 implementation | 新增 `/gate-review` |
+| `GATES.md` 限定/仅审查请求 | review-only 不进入 implementation | 新增 `/gate-code-review`，只输出 findings |
 | `GATES.md` 返回与持续授权 | 合同变化回 discuss；block 冻结 | 新增手动 `/gate-block`、`/gate-resume` |
 | `GATES.md` Step 5 | Verify 需要验收证据 | `gate_record` verify 要求 commands/evidence |
 | `GATES.md` 审查收敛 | 5 轮后停止，不通过 | 保留 rounds；与手动 block 区分 |
@@ -50,12 +50,12 @@ State 增加：
 
 不把批准证据做成第二套状态表；`planReady` 只表示 Gate 观察到的 plan review 结果。
 
-### 2. review-only
+### 2. 单独 code review
 
-新增命令：
+用户命令：
 
 ```text
-/gate-review <范围>
+/gate-code-review <范围>
 ```
 
 State：
@@ -66,12 +66,17 @@ node=review
 task=<范围>
 ```
 
-- 不要求 proposed Note、不进入 implement、不写代码/文档；
+- 用户要求单独审查已有改动，不进入 planning/implement；
+- 不要求 proposed Note；
+- 不写代码/文档、不修复、不 verify、不推进实现；
+- 主代理加载 `code-review` 技能；
 - 主代理派 `gate-code-review-standards` / `gate-code-review-spec`；
 - `gate_record({node:'review', findings, requiresDiscussion})`：
-  - findings 空：`phase=complete` 或 discuss（按配置）；
-  - findings 非空：保持 reviewing，报告后结束；
-  - requiresDiscussion：discuss。
+  - findings 空：结束，回 discuss；
+  - findings 非空：输出报告后结束，不进入 implement；
+  - requiresDiscussion：回 discuss。
+
+不新增 `gate_review` 工具；命令只负责进入只读审查状态。
 
 ### 3. block / resume
 
@@ -143,7 +148,7 @@ Gate 校验：
 
 1. 未通过 plan review 的 `/gate-implement` 被拒绝；
 2. mechanical 可跳过 planReady；
-3. `/gate-review` 不进入 implement、不写代码；
+3. `/gate-code-review` 不进入 implement、不写代码、不修复；
 4. `/gate-block` 冻结写入，`/gate-resume` 恢复；
 5. block 与轮次耗尽可区分；
 6. verify 无 commands/evidence 被拒绝；
@@ -160,6 +165,6 @@ Gate 校验：
 ## Risks
 
 - Entry gate 可能误伤 mechanical/紧急实现，需要明确 mechanical 例外；
-- review-only 的 complete 语义要与 docs 区分；
+- review-only 的结束语义与 planning/implement 的 complete 区分；
 - block/resume 需要持久化 blockedFrom；
 - verify evidence 路径校验要考虑生成物尚未落盘。
