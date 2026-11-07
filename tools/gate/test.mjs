@@ -103,6 +103,29 @@ check('plan review cap blocks instead of passing',
   && loadState(workspace, blockedAgent).blockReason === 'plan-review-rounds-exhausted',
   JSON.stringify({ calls: blockedCalls, state: loadState(workspace, blockedAgent) }))
 
+const codeReviewCalls = []
+const codeFindingHost = fakeHost(workspace, {
+  startActivation: async spec => {
+    const node = /Gate phase worker: (\S+)/u.exec(spec.prompt[0].text)?.[1]
+    codeReviewCalls.push(node)
+    return {
+      childId: spec.childId,
+      name: 'gate-worker',
+      result: Promise.resolve({ stopReason: 'completed', structured: node === 'code-review' ? { ok: true, findings: [{ id: 'C1' }] } : { ok: true, findings: [] } }),
+      dispose: async () => {},
+    }
+  },
+})
+const codeBlockedAgent = { id: 'session-code-blocked', session: { header: {} } }
+const codeStart = await codeFindingHost.commands['gate-implement'].handler({ agent: codeBlockedAgent, rawInput: 'orchestrate-check', attachments: [] })
+await new Promise(resolve => setTimeout(resolve, 50))
+check('code review cap blocks instead of passing',
+  codeStart.kind === 'success'
+  && codeReviewCalls.filter(node => node === 'code-review').length === 10
+  && loadState(workspace, codeBlockedAgent).work === 'blocked'
+  && loadState(workspace, codeBlockedAgent).blockReason === 'code-review-rounds-exhausted',
+  JSON.stringify({ calls: codeReviewCalls, state: loadState(workspace, codeBlockedAgent) }))
+
 const missingWorkspace = mkdtempSync(path.join(os.tmpdir(), 'gate-missing-'))
 mkdirSync(path.join(missingWorkspace, '.agents'), { recursive: true })
 writeFileSync(path.join(missingWorkspace, '.agents', 'gate.json'), JSON.stringify({ enabled: true, version: 2 }))
