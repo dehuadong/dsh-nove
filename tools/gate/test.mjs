@@ -126,6 +126,32 @@ check('code review cap blocks instead of passing',
   && loadState(workspace, codeBlockedAgent).blockReason === 'code-review-rounds-exhausted',
   JSON.stringify({ calls: codeReviewCalls, state: loadState(workspace, codeBlockedAgent) }))
 
+let verifyAttempts = 0
+const verifyCalls = []
+const verifyFailHost = fakeHost(workspace, {
+  startActivation: async spec => {
+    const node = /Gate phase worker: (\S+)/u.exec(spec.prompt[0].text)?.[1]
+    verifyCalls.push(node)
+    const structured = node === 'verify' && verifyAttempts++ === 0
+      ? { ok: false, findings: [{ id: 'V1' }] }
+      : { ok: true, findings: [] }
+    return {
+      childId: spec.childId,
+      name: 'gate-worker',
+      result: Promise.resolve({ stopReason: 'completed', structured }),
+      dispose: async () => {},
+    }
+  },
+})
+const verifyAgent = { id: 'session-verify-fail', session: { header: {} } }
+const verifyStart = await verifyFailHost.commands['gate-implement'].handler({ agent: verifyAgent, rawInput: 'orchestrate-check', attachments: [] })
+await new Promise(resolve => setTimeout(resolve, 50))
+check('verify failure routes back to revise and then completes',
+  verifyStart.kind === 'success'
+  && verifyCalls.includes('implement-revise')
+  && loadState(workspace, verifyAgent).phase === 'complete',
+  JSON.stringify({ calls: verifyCalls, state: loadState(workspace, verifyAgent) }))
+
 const missingWorkspace = mkdtempSync(path.join(os.tmpdir(), 'gate-missing-'))
 mkdirSync(path.join(missingWorkspace, '.agents'), { recursive: true })
 writeFileSync(path.join(missingWorkspace, '.agents', 'gate.json'), JSON.stringify({ enabled: true, version: 2 }))
