@@ -94,6 +94,7 @@ Host 插件：仅在已启用的项目里，按**会话**控制**代码文件**�
 
 不按路径白名单判断文档；只有代码扩展名与 `codePaths` 进入 implement 门禁。`pwsh`/`bash` 只检查显式代码目标与重定向，不再把整条命令当代码写。
 
+- `implement_gate status` 以人类可读状态块渲染；其他 action 保持 JSON 回执；
 - `implement_gate block` 冻结代码写；
 - `implement_gate complete` 结束任务，代码写恢复拒绝；任务仍有 proposed Note 时拒绝 complete；
 - `implement_gate return-to-discuss` 从 implement/planning 回到 discuss，保留 task；

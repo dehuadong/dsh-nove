@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import os from 'node:os'
 import path from 'node:path'
 import { classifyPath, gateCommand, shellAccess } from './classify.js'
-import { apply } from './index.js'
+import { apply, formatStatus } from './index.js'
 import { findGateRoot, findProjectRoot, loadConfig } from './config.js'
 
 let failures = 0
@@ -27,6 +27,17 @@ check('docs command accepted', gateCommand(userMessage('批准，执行文档治
 check('quoted command is not authorization', gateCommand(userMessage('文档说：批准，使用技能 implement 执行实现 A9'), {}, commands) === undefined)
 check('principal caller is not owner', gateCommand({ ...userMessage('批准，使用技能 implement 执行实现 A9'), source: { kind: 'user', principal: 'other' } }, {}, commands) === undefined)
 check('subagent origin is not owner', gateCommand(userMessage('批准，使用技能 implement 执行实现 A9'), { origin: 'subagent' }, commands) === undefined)
+
+const statusText = formatStatus({ ok: true, enabled: true, configPath: 'x', configVersion: 2, phase: 'complete', work: 'active', task: 'gate-status-render', blockReason: null })
+check('status renders the GATES block', statusText.includes('状态：complete')
+  && statusText.includes('工作项：gate-status-render')
+  && statusText.includes('work：active')
+  && statusText.includes('blockReason：无')
+  && statusText.includes('下一步：无；新任务需重新授权'), statusText)
+check('status renders blocked work', formatStatus({ ok: true, enabled: true, phase: 'implement', work: 'blocked', task: 'x', blockReason: 'contract' }).includes('解除 block'))
+check('status renders work-item-required', formatStatus({ ok: true, enabled: true, phase: 'discuss', work: 'active', task: 'x', blockReason: 'work-item-required' }).includes('proposed Note'))
+check('status renders misconfigured', formatStatus({ ok: false, code: 'misconfigured', reason: 'bad', configPath: 'x' }).includes('状态：misconfigured'))
+check('status renders disabled', formatStatus({ ok: true, enabled: false, configPath: 'x' }).includes('状态：not-enabled'))
 
 check('TypeScript is code', classifyPath(root, 'storycraft/src/client.ts', policy).code === true)
 check('uppercase extension is code', classifyPath(root, 'src/X.TS', policy).code === true)

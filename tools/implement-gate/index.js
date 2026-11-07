@@ -143,6 +143,40 @@ function toolOutput(value) {
   return [{ type: 'text', text: JSON.stringify(value) }]
 }
 
+function toolText(text) {
+  return [{ type: 'text', text }]
+}
+
+function nextForStatus(value) {
+  if (value?.blockReason === 'work-item-required') return '提供同 topic 的 proposed Note 或 mechanical 任务后重新 implement'
+  if (value?.work === 'blocked') return '解除 block 后再继续'
+  switch (value?.phase) {
+    case 'discuss': return '等待 planning / docs / implement 授权'
+    case 'planning': return '规划完成后调用 end-planning'
+    case 'docs': return '文档治理完成后调用 end-docs'
+    case 'implement': return '实现完成后调用 complete；范围变化调用 return-to-discuss'
+    case 'complete': return '无；新任务需重新授权'
+    default: return '无'
+  }
+}
+
+/** Render the status action as the GATES status block. */
+export function formatStatus(value) {
+  if (value?.code === 'misconfigured') {
+    return [`状态：misconfigured`, `原因：${String(value.reason ?? '未知')}`, `配置：${String(value.configPath ?? '未知')}`].join('\n')
+  }
+  if (value?.enabled === false) {
+    return [`状态：not-enabled`, `配置：${String(value.configPath ?? '无')}`, '下一步：需要时运行 /implement-gate init'].join('\n')
+  }
+  return [
+    `状态：${String(value?.phase ?? 'discuss')}`,
+    `工作项：${String(value?.task ?? '无')}`,
+    `work：${String(value?.work ?? 'active')}`,
+    `blockReason：${String(value?.blockReason ?? '无')}`,
+    `下一步：${nextForStatus(value)}`,
+  ].join('\n')
+}
+
 function initConfig() {
   return {
     enabled: true,
@@ -247,7 +281,7 @@ export function apply(ctx) {
     },
     output: {
       schema: { type: 'object', additionalProperties: true },
-      render: (_args, value) => toolOutput(value),
+      render: (args, value) => args?.action === 'status' ? toolText(formatStatus(value)) : toolOutput(value),
     },
     async execute(args, exec) {
       const gate = resolveGate(ctx, exec.agent)
