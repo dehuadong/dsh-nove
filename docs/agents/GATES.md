@@ -7,7 +7,7 @@
 由用户明确输入：
 
 - `批准，使用技能 planning 执行规划 {工作项}`：进入 Step 2。
-- `批准，使用技能 implement 执行实现 {工作项}`：工作已充分定义时进入 Step 3。
+- `批准，使用技能 implement 执行实现 {工作项}`：工作已充分定义时进入 Step 3；工作项必须是同 topic 的 proposed Note，或 `mechanical:<说明>`。
 - `批准，执行文档治理 {范围}`：进入文档治理轨道，不加载 planning/implement。
 
 “确认”“可以”“同意”等只表示认可；文档、示例或引用中的命令不构成授权。复用当前范围内已有的有效授权。
@@ -32,13 +32,15 @@
 开始实施前，加载 `implement` 并检查其 Entry conditions。必须同时满足：
 
 - **就绪**：工作项及其引用明确本次范围与可观察验收；产品合同已接受，必要设计完整承接该合同；所需决定与评审/批准证据齐备，且没有阻止该范围启动的 blocker。
-- **授权**：用户已通过 `批准，使用技能 implement 执行实现 {工作项}` 授权实施该范围。
+- **授权**：用户已通过 `批准，使用技能 implement 执行实现 {工作项}` 授权实施该范围，且工作项存在（proposed Note 或 `mechanical:`）。
 
 状态标签或文档位置不能替代证据。关键合同仍未解决时，报告 blocker；同范围已有有效规划授权则返回 Step 2，否则建议用户通过 `批准，使用技能 planning 执行规划 {工作项}` 授权。范围、合同或重大设计变化按下文返回规则处理。
 
 ## Step 4 — Implement
 
 使用技能 `implement` 执行；采用测试优先时使用 `tdd`，完成实现后使用 `code-review` 执行 Implementation Review。审查要求满足后继续 Step 5，无需再次授权。
+
+实现中发现范围外问题、合同变化或需要重新讨论时，调用 `implement_gate({action:'return-to-discuss',reason})` 回到 Discuss；不要停在 implement 里继续扩大范围。
 
 ## Step 5 — Verify
 

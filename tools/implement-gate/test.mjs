@@ -123,7 +123,7 @@ const runCommand = (host, agent, input) => host.commands['implement-gate'].handl
   check('planning denies code', (await preExec(host, agent, 'write', { file_path: 'storycraft/src/x.ts' })).kind === 'deny')
   await call(host, agent, 'end-planning')
 
-  await preStep(host, agent, [gateMessage('批准，使用技能 implement 执行实现 integration')])
+  await preStep(host, agent, [gateMessage('批准，使用技能 implement 执行实现 mechanical:integration')])
   check('implement allows code', (await preExec(host, agent, 'write', { file_path: 'storycraft/src/x.ts' })).kind === 'allow')
   await call(host, agent, 'complete')
   check('complete denies code', (await preExec(host, agent, 'write', { file_path: 'storycraft/src/x.ts' })).kind === 'deny')
@@ -141,6 +141,33 @@ const runCommand = (host, agent, input) => host.commands['implement-gate'].handl
   const ended = await call(host, agent, 'end-docs')
   check('end-docs returns to discuss', ended.ok === true && ended.phase === 'discuss', JSON.stringify(ended))
   check('after end-docs docs need authorization again', (await preExec(host, agent, 'write', { file_path: 'docs/x.md' })).kind === 'deny')
+}
+
+{
+  const workspace = mkdtempSync(path.join(os.tmpdir(), 'implement-gate-work-item-'))
+  mkdirSync(path.join(workspace, '.agents'), { recursive: true })
+  writeFileSync(path.join(workspace, '.agents', 'implement-gate.json'), readFileSync(path.join(root, '.agents', 'implement-gate.json')))
+  mkdirSync(path.join(workspace, '.agents', 'notes', 'proposed', 'feature'), { recursive: true })
+  writeFileSync(path.join(workspace, '.agents', 'notes', 'proposed', 'feature', '2026-11-07-work-item.md'), '---\nStatus: proposed\n---\n')
+  const host = mockHost(undefined, workspace)
+  const proposedAgent = agentFor('work-item-proposed')
+  await preStep(host, proposedAgent, [gateMessage('批准，使用技能 implement 执行实现 proposed:work-item')])
+  check('proposed work item unlocks implement', (await preExec(host, proposedAgent, 'write', { file_path: 'src/x.ts' })).kind === 'allow')
+  const blockedComplete = await call(host, proposedAgent, 'complete')
+  check('complete is blocked while the work item is still proposed', blockedComplete.code === 'proposed-note-exists', JSON.stringify(blockedComplete))
+  const returned = await call(host, proposedAgent, 'return-to-discuss')
+  check('return-to-discuss leaves implement', returned.ok === true && returned.phase === 'discuss', JSON.stringify(returned))
+
+  const missingAgent = agentFor('work-item-missing')
+  await preStep(host, missingAgent, [gateMessage('批准，使用技能 implement 执行实现 missing-work-item')])
+  const missingStatus = await call(host, missingAgent, 'status')
+  check('implement without a work item stays in discuss', missingStatus.phase === 'discuss' && missingStatus.blockReason === 'work-item-required', JSON.stringify(missingStatus))
+
+  const mechanicalAgent = agentFor('work-item-mechanical')
+  await preStep(host, mechanicalAgent, [gateMessage('批准，使用技能 implement 执行实现 mechanical:format-only')])
+  check('mechanical work item unlocks implement', (await preExec(host, mechanicalAgent, 'write', { file_path: 'src/x.ts' })).kind === 'allow')
+  const mechanicalComplete = await call(host, mechanicalAgent, 'complete')
+  check('mechanical work item completes without a note', mechanicalComplete.ok === true, JSON.stringify(mechanicalComplete))
 }
 
 {
@@ -179,7 +206,7 @@ const runCommand = (host, agent, input) => host.commands['implement-gate'].handl
   check('custom .ts is docs under docs', (await preExec(host, agent, 'write', { file_path: 'src/x.ts' })).kind === 'allow')
   check('custom extension still code under docs', (await preExec(host, agent, 'write', { file_path: 'src/x.foo' })).kind === 'deny')
   await call(host, agent, 'end-docs')
-  await preStep(host, agent, [gateMessage('go custom task')])
+  await preStep(host, agent, [gateMessage('go mechanical:custom task')])
   check('custom implement unlocks', (await preExec(host, agent, 'write', { file_path: 'src/x.foo' })).kind === 'allow')
 }
 

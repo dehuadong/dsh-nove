@@ -66,7 +66,7 @@ Host 插件：仅在已启用的项目里，按**会话**控制**代码文件**�
 }
 ```
 
-`discuss` 是默认态：不写代码，也不写文档/规划 Note；写文档需要 `批准，执行文档治理 {范围}`。`planning` 允许文档与 proposed Note、拒绝代码；`docs` 允许文档/notes、拒绝代码；`implement` 允许代码与文档。Planning 结束通过 `implement_gate({action:'end-planning'})` 回到 discuss；文档治理结束通过 `implement_gate({action:'end-docs'})` 回到 discuss。
+`discuss` 是默认态：不写代码，也不写文档/规划 Note；写文档需要 `批准，执行文档治理 {范围}`。`planning` 允许文档与 proposed Note、拒绝代码；`docs` 允许文档/notes、拒绝代码；`implement` 允许代码与文档。Planning 结束通过 `implement_gate({action:'end-planning'})` 回到 discuss；文档治理结束通过 `implement_gate({action:'end-docs'})` 回到 discuss；实现中发现范围外问题用 `implement_gate({action:'return-to-discuss',reason})` 回到 discuss，保留 task。
 
 ## 授权来源
 
@@ -78,6 +78,8 @@ Host 插件：仅在已启用的项目里，按**会话**控制**代码文件**�
 - 审批不可用/被策略禁止/被拒绝时返回 `approval-unavailable`、`approval-disabled` 或 `approval-rejected`，回退规范命令。
 
 命令匹配只看 owner 用户消息（`source.kind==='user'`、无 `principal`、SessionHeader `origin` 非 subagent），整条消息匹配，不做子串/语义近似。
+
+`implement` 任务必须有工作项：同 topic 的 proposed Note，或 `mechanical:<说明>`。没有工作项时不进入 implement，保持当前 phase，并记录 `blockReason: work-item-required`；`proposed:` 前缀可显式指定 Note topic。机械任务不会被 complete 的 proposed 检查阻断。
 
 ## 行为
 
@@ -92,7 +94,8 @@ Host 插件：仅在已启用的项目里，按**会话**控制**代码文件**�
 不按路径白名单判断文档；只有代码扩展名与 `codePaths` 进入 implement 门禁。`pwsh`/`bash` 只检查显式代码目标与重定向，不再把整条命令当代码写。
 
 - `implement_gate block` 冻结代码写；
-- `implement_gate complete` 结束任务，代码写恢复拒绝；
+- `implement_gate complete` 结束任务，代码写恢复拒绝；任务仍有 proposed Note 时拒绝 complete；
+- `implement_gate return-to-discuss` 从 implement/planning 回到 discuss，保留 task；
 - `implement_gate end-docs` 仅 docs phase 可用，回到 discuss。
 
 ## 文件

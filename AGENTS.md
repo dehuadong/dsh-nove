@@ -58,7 +58,7 @@
 
 状态机：`discuss`（默认；代码与文档都拒绝）→ planning 命令 → `planning`（允许文档与 propose Note，代码仍拒绝）→ `implement_gate({action:'end-planning'})` → `discuss`；docs 命令 → `docs`（允许文档/notes，代码拒绝）→ `implement_gate({action:'end-docs'})` → `discuss`；implement 命令/审批 → `implement`（允许代码与文档）→ `complete`（代码与文档拒绝）。
 
-文档、普通 JSON/YAML、`git status/add/commit/push` 不进入代码门禁，但文档写入需要 `批准，执行文档治理 {范围}` 或 planning/implement 授权；`git checkout/reset/clean` 仍视为代码写。`.agents/notes/proposed/**` 按文档处理；`.agents/implement-gate.json`、`.agents/state/implement-gate/**` 始终例外。授权来自 owner 用户整条消息中的规范 planning/implement/docs 命令，或 `implement_gate({action:'authorize'})` 的任务级审批。合同变化时调用 `implement_gate({action:'block',reason})`，Verify 后调用 `complete`。
+文档、普通 JSON/YAML、`git status/add/commit/push` 不进入代码门禁，但文档写入需要 `批准，执行文档治理 {范围}` 或 planning/implement 授权；`git checkout/reset/clean` 仍视为代码写。`.agents/notes/proposed/**` 按文档处理；`.agents/implement-gate.json`、`.agents/state/implement-gate/**` 始终例外。implement 工作项必须是同 topic 的 proposed Note 或 `mechanical:<说明>`；实现中范围外问题用 `return-to-discuss` 回到 discuss。授权来自 owner 用户整条消息中的规范 planning/implement/docs 命令，或 `implement_gate({action:'authorize'})` 的任务级审批。合同变化时调用 `implement_gate({action:'block',reason})`，Verify 后调用 `complete`。
 
 ## 工程工作流 
 

@@ -98,10 +98,20 @@ function normalizeTopic(value) {
   return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/gu, '-').replace(/^-|-$/gu, '')
 }
 
+function taskTopic(task) {
+  const text = String(task ?? '').trim()
+  if (/^mechanical:/iu.test(text)) return undefined
+  return normalizeTopic(text.replace(/^proposed:/iu, ''))
+}
+
+function isMechanicalTask(task) {
+  return /^mechanical:/iu.test(String(task ?? '').trim())
+}
+
 /** Return one proposed Note whose topic matches the task, if any. */
 function proposedNoteFor(root, task) {
-  const wanted = normalizeTopic(task)
-  if (wanted === '') return undefined
+  const wanted = taskTopic(task)
+  if (wanted === undefined || wanted === '') return undefined
   const dir = path.join(root, '.agents', 'notes', 'proposed')
   if (!existsSync(dir)) return undefined
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -113,6 +123,10 @@ function proposedNoteFor(root, task) {
     }
   }
   return undefined
+}
+
+function hasWorkItem(root, task) {
+  return isMechanicalTask(task) || proposedNoteFor(root, task) !== undefined
 }
 
 function deny(reason) {
@@ -211,6 +225,11 @@ export function apply(ctx) {
     }
     if (transition !== undefined) {
       const state = loadState(gate.root, agent)
+      if (transition.kind === 'implement' && !hasWorkItem(gate.root, transition.task)) {
+        state.blockReason = 'work-item-required'
+        try { saveState(gate.root, agent, state) } catch { /* fail closed; old state stays */ }
+        return next()
+      }
       state.phase = transition.kind
       state.work = 'active'
       state.task = transition.task
@@ -222,12 +241,12 @@ export function apply(ctx) {
 
   ctx.tools.register({
     name: 'implement_gate',
-    description: 'Session and workspace authorization state for code files in a project governed by .agents/implement-gate.json. authorize asks the approval service for task-level permission; end-planning returns to discuss; block freezes code writes; complete ends the task; status is read-only.',
+    description: 'Session and workspace authorization state for code files in a project governed by .agents/implement-gate.json. authorize asks the approval service for task-level permission; end-planning returns to discuss; end-docs ends docs governance; return-to-discuss leaves implementation for discussion; block freezes code writes; complete ends the task; status is read-only.',
     parameters: {
       type: 'object',
       additionalProperties: false,
       properties: {
-        action: { type: 'string', enum: ['authorize', 'end-planning', 'end-docs', 'block', 'complete', 'status'] },
+        action: { type: 'string', enum: ['authorize', 'end-planning', 'end-docs', 'return-to-discuss', 'block', 'complete', 'status'] },
         reason: { type: 'string' },
       },
       required: ['action'],
@@ -255,6 +274,14 @@ export function apply(ctx) {
       const state = loadState(gate.root, exec.agent)
       if (args.action === 'end-planning') {
         if (state.phase !== 'planning') return { ok: false, code: 'not-planning', phase: state.phase }
+        state.phase = 'discuss'
+        state.blockReason = null
+        return { ok: true, enabled: true, ...saveState(gate.root, exec.agent, state) }
+      }
+      if (args.action === 'return-to-discuss') {
+        if (state.phase !== 'implement' && state.phase !== 'planning') {
+          return { ok: false, code: 'not-implementing', phase: state.phase }
+        }
         state.phase = 'discuss'
         state.blockReason = null
         return { ok: true, enabled: true, ...saveState(gate.root, exec.agent, state) }
