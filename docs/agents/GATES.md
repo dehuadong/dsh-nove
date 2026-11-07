@@ -55,8 +55,9 @@
 工作项：{task}
 work：active / blocked
 blockReason：无 / ...
-下一步：{命令}
 ```
+
+状态块只描述当前事实，不包含“下一步”或固定门禁命令。后续方向由模型根据工作项、讨论和证据语义判断，需要时写在状态块之后的正文里。
 
 `end-planning`、`end-docs`、`return-to-discuss`、`block`、`complete` 之后都必须输出；没有状态块不得声称阶段完成。
 
