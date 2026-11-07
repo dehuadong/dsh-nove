@@ -107,7 +107,7 @@
 - 实施
 - Implementation Review
 - 范围内修正
-- Verify
+- 声称 `PASS`、完成或交付之前 → `verify`
 
 这些阶段之间不需要重复请求执行授权。
 
