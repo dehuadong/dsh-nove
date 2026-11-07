@@ -23,7 +23,7 @@ description: Gate 派发的 planning worker；保留原 planning 工作项、合
 
 复用合适的既有 Note；需要新 Note 时加载技能 `write-agent-notes` 创建 proposed Note，不另建独立 Proposal 文件，也不要求 Issue tracker。
 
-工作项直接链接长期设计的 Note 节，不复制设计正文。
+工作项与设计在同一份 Note 分节；工作项不复制 Design 正文，Design 不改写工作项验收。
 
 ## 2. 收敛产品合同与技术设计
 
