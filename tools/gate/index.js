@@ -158,28 +158,25 @@ function workItemAllowed(root, task, allowMechanical) {
   return hasProposedNote(root, task)
 }
 
-function command(ctx, agent, rawInput, allowMechanical, node) {
-  const task = String(rawInput ?? '').trim()
+function enterPhase(ctx, agent, node) {
   const gate = resolveGate(ctx, agent)
   if (gate.config.kind !== 'ok') return { kind: 'error', text: '当前项目没有启用的 .agents/gate.json' }
-  if (task === '') return { kind: 'error', text: '缺少工作项' }
-  if (node === 'implement' && !workItemAllowed(gate.root, task, allowMechanical)) {
-    return { kind: 'error', text: '工作项不存在：需要同 topic 的 proposed Note' + (allowMechanical ? ' 或 mechanical:' : '') }
-  }
   const state = loadState(gate.root, agent)
   if (state.phase !== 'discuss' && state.phase !== 'complete') return { kind: 'error', text: `当前 phase 是 ${state.phase}` }
-  const sameTask = state.task === task
-  if (node === 'implement' && !isMechanical(task) && (!state.planReady || !sameTask)) {
-    return { kind: 'error', text: 'planning 尚未通过：先完成 /gate-plan 与 clean plan review' }
+  if (node === 'implement') {
+    if (typeof state.task !== 'string' || state.task === '') return { kind: 'error', text: '没有可实施的工作项：先完成 planning' }
+    if (state.planReady !== true) return { kind: 'error', text: 'planning 尚未通过：先完成 /gate-enter-plan 与 clean plan review' }
   }
   state.phase = 'orchestrating'
-  state.task = task
-  state.planReady = node === 'plan' ? false : state.planReady
-  state.planApprovedAt = node === 'plan' ? null : state.planApprovedAt
+  state.node = node
   state.work = 'active'
   state.blockReason = null
-  state.node = node
   state.rounds = { planReview: 0, codeReview: 0 }
+  if (node === 'plan') {
+    state.task = null
+    state.planReady = false
+    state.planApprovedAt = null
+  }
   saveState(gate.root, agent, state)
   return { gate, state }
 }
@@ -301,16 +298,16 @@ export function apply(ctx) {
       writeFileSync(marker, `${JSON.stringify(value, null, 2)}\n`)
       return { kind: 'success', text: `已启用 Gate：${marker}（phase=discuss）` }
     }, null)
-    register('gate-plan', 'Start planning orchestration', async invocation => {
-      const result = command(ctx, invocation.agent, invocation.rawInput, false, 'plan')
+    register('gate-enter-plan', 'Enter planning for the current discussion', async invocation => {
+      const result = enterPhase(ctx, invocation.agent, 'plan')
       if (result.kind === 'error') return result
-      return { kind: 'success', text: `进入 planning：${result.state.task}\n按注入协议派发 gate-planning。` }
-    })
-    register('gate-implement', 'Start implementation orchestration', async invocation => {
-      const result = command(ctx, invocation.agent, invocation.rawInput, true, 'implement')
+      return { kind: 'success', text: '进入 planning：工作项将在规划中确定。\n按注入协议派发 gate-planning。' }
+    }, null)
+    register('gate-enter-implement', 'Enter implementation for the planned work item', async invocation => {
+      const result = enterPhase(ctx, invocation.agent, 'implement')
       if (result.kind === 'error') return result
       return { kind: 'success', text: `进入 implement：${result.state.task}\n按注入协议派发 gate-implement。` }
-    })
+    }, null)
     register('gate-docs', 'Start docs governance', async invocation => {
       const task = String(invocation.rawInput ?? '').trim()
       if (task === '') return { kind: 'error', text: '缺少范围' }
@@ -377,6 +374,7 @@ export function apply(ctx) {
       additionalProperties: false,
       properties: {
         node: { type: 'string', enum: ['plan', 'plan-review', 'plan-revise', 'implement', 'code-review', 'implement-revise', 'verify', 'review'] },
+        task: { type: 'string' },
         findings: { type: 'array', items: { type: 'object', additionalProperties: true } },
         requiresDiscussion: { type: 'boolean' },
         discussionReason: { type: 'string' },
@@ -416,8 +414,10 @@ export function apply(ctx) {
         state.phase = 'discuss'
         state.node = null
         state.blockReason = null
-      } else if (args.node === 'plan') state.node = 'plan-review'
-      else if (args.node === 'plan-revise') state.node = 'plan-review'
+      } else if (args.node === 'plan') {
+        if (typeof args.task === 'string' && args.task.trim() !== '') state.task = args.task.trim()
+        state.node = 'plan-review'
+      } else if (args.node === 'plan-revise') state.node = 'plan-review'
       else if (args.node === 'plan-review') {
         state.rounds.planReview += 1
         if (findings.length === 0) {
