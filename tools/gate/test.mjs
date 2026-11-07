@@ -2,7 +2,7 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { apply } from './index.js'
+import { apply, DISCUSS_ORCHESTRATION } from './index.js'
 import { loadState, saveState, defaultState } from './src/state.js'
 
 let failures = 0
@@ -15,18 +15,19 @@ function fakeHost(workspace, rootSession) {
   const commands = {}
   const tools = {}
   const handlers = {}
+  const sections = []
   const ctx = {
     on: (name, handler) => { handlers[name] = handler },
     inject: (_deps, callback) => callback(ctx),
     get: name => name === 'sandboxPolicy' ? { workspaceRoot: workspace, resolve: () => ({ workspaceRoot: workspace }) }
       : name === 'subagents' && rootSession !== undefined ? { rootOf: () => rootSession } : undefined,
-    systemPrompt: { section: () => {}, getSectionOrder: () => 500 },
+    systemPrompt: { section: definition => sections.push(definition), getSectionOrder: () => 500 },
     skills: { register: () => {} },
     commands: { register: definition => { commands[definition.name] = definition } },
     tools: { register: definition => { tools[definition.name] = definition } },
   }
   apply(ctx)
-  return { commands, tools, handlers }
+  return { commands, tools, handlers, sections }
 }
 
 function makeWorkspace() {
@@ -59,6 +60,10 @@ await run('gate-return-discuss', '')
 check('return enters discuss', loadState(workspace, agent).phase === 'discuss')
 const status = await run('gate-status', '')
 check('status is factual', status.text.includes('状态：discuss') && status.text.includes('blockReason：无') && !status.text.includes('下一步'))
+check('discuss protocol is read-only and default', DISCUSS_ORCHESTRATION.includes('discuss 是默认阶段') && DISCUSS_ORCHESTRATION.includes('只读讨论') && !DISCUSS_ORCHESTRATION.includes('/discuss'))
+const gateSection = host.sections.find(section => section.name === 'gate:protocol')
+check('discuss prompt does not claim orchestration', gateSection.text({ agent }).includes('只读讨论') && !gateSection.text({ agent }).includes('编排中'))
+check('discuss denies worker dispatch', (await exec('subagent', { description: 'x', prompt: 'x' })).kind === 'deny')
 
 const withoutPlan = await run('gate-implement', 'work')
 check('implement without plan review is rejected', withoutPlan.kind === 'error' && loadState(workspace, agent).planReady !== true)

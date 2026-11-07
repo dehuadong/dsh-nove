@@ -10,6 +10,20 @@ const SKILLS = fileURLToPath(new URL('./skills', import.meta.url))
 const SKILL_NAMES = ['gate-planning', 'gate-plan-review', 'gate-implement', 'gate-code-review-standards', 'gate-code-review-spec', 'gate-verify']
 const REVIEW_LIMIT = 5
 
+export const DISCUSS_ORCHESTRATION = `## Discuss
+
+discuss 是默认阶段，不需要命令进入。
+
+只读讨论，不写文件、不派 worker。
+
+1. 先读相关代码、文档、历史 Note 与项目约束。
+2. 明确实际问题、约束、已有决定与冲突。
+3. 给出有实质差异的可行方案、推荐与关键权衡。
+4. 只对未决的产品、范围、兼容性、成本、风险等价值判断提问。
+5. 不创建提案、Note 或规格文件。
+6. 汇报：已解决事项、剩余未决事项、建议的下一阶段。
+7. 不自行离开 discuss；离开必须由用户显式授权。`
+
 export const PLAN_ORCHESTRATION = `## /gate-plan orchestration
 Main agent dispatches workers; gate does not dispatch.
 1. Dispatch gate-planning with the task, gate-planning method, proposal.md, rfc.md, the global write-agent-notes method, and the canonical proposed template.
@@ -153,19 +167,32 @@ export function apply(ctx) {
         const gate = resolveGate(ctx, context.agent)
         if (gate.config.kind !== 'ok') return ''
         const state = loadState(gate.root, context.agent)
-        const protocol = state.phase === 'docs'
-          ? DOCS_ORCHESTRATION
-          : state.node === 'plan'
-            ? PLAN_ORCHESTRATION
-            : state.node === 'implement'
-              ? IMPLEMENT_ORCHESTRATION
-              : ''
-        return [`## Gate`, statusText(state), protocol, 'Main agent is orchestrating; do not write code or docs. Report the state block and worker results only.'].filter(Boolean).join('\n\n')
+        const phaseNote = {
+          discuss: DISCUSS_ORCHESTRATION,
+          orchestrating: '主代理编排中；按节点协议派发 worker，不直接写文件。',
+          reviewing: '只读 code review；只输出 findings，不写代码、不修复、不 verify。',
+          docs: DOCS_ORCHESTRATION,
+          blocked: 'Gate 已冻结；等待 /gate-resume。',
+          complete: 'Gate 已完成；新任务需要重新授权。',
+        }[state.phase] ?? ''
+        const protocol = state.node === 'plan'
+          ? PLAN_ORCHESTRATION
+          : state.node === 'implement'
+            ? IMPLEMENT_ORCHESTRATION
+            : ''
+        return [`## Gate`, statusText(state), phaseNote, protocol].filter(Boolean).join('\n\n')
       },
     })
   })
 
   ctx.on('tools/pre-execute', async (exec, next) => {
+    if (['subagent', 'subagent_fork', 'workflow'].includes(exec.name)) {
+      const gate = resolveGate(ctx, exec.agent)
+      if (gate.config.kind === 'ok' && loadState(gate.root, exec.agent).phase === 'discuss') {
+        return { kind: 'deny', reason: 'discuss 只读讨论，不派 worker' }
+      }
+      return next()
+    }
     if (exec.name === 'write' || exec.name === 'edit') {
       const gate = resolveGate(ctx, exec.agent)
       if (gate.config.kind !== 'ok') return next()
