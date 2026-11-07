@@ -1,8 +1,8 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { classifyPath, shellAccess } from './src/classify.js'
-import { findGateRoot, loadConfig } from './src/config.js'
+import { DEFAULT_CODE_EXTENSIONS, DEFAULT_PROTECTED, MARKER, findGateRoot, findProjectRoot, loadConfig, validateConfig } from './src/config.js'
 import { childStateId, defaultState, loadState, saveState } from './src/state.js'
 
 export const inject = ['tools', 'subagents']
@@ -273,6 +273,30 @@ export function apply(ctx) {
       description,
       input: { hint: '<工作项>' },
       handler,
+    })
+    register('gate-init', 'Initialize the gate marker for this project', async invocation => {
+      const workspace = workspaceBoundary(ctx, invocation.agent)
+      if (workspace === undefined) return { kind: 'error', text: '无法确定当前会话工作区' }
+      const existing = findGateRoot(workspace)
+      if (existing !== undefined) return { kind: 'error', text: `Gate 已存在：${path.join(existing, MARKER)}` }
+      const project = findProjectRoot(workspace)
+      if (project !== undefined && path.resolve(project) !== path.resolve(workspace)) {
+        return { kind: 'error', text: `当前工作区不是项目根（项目根：${project}）` }
+      }
+      const marker = path.join(workspace, MARKER)
+      if (existsSync(marker)) return { kind: 'error', text: `Gate 已存在：${marker}` }
+      const value = {
+        enabled: true,
+        version: 2,
+        codeExtensions: DEFAULT_CODE_EXTENSIONS,
+        codePaths: [],
+        protected: DEFAULT_PROTECTED,
+      }
+      const config = validateConfig(value, marker)
+      if (config.kind !== 'ok') return { kind: 'error', text: `Gate 配置无效：${config.reason ?? config.kind}` }
+      mkdirSync(path.dirname(marker), { recursive: true })
+      writeFileSync(marker, `${JSON.stringify(value, null, 2)}\n`)
+      return { kind: 'success', text: `已启用 Gate：${marker}` }
     })
     register('gate-plan', 'Start planning orchestration', async invocation => {
       const result = command(ctx, invocation.agent, invocation.rawInput, false, 'plan')

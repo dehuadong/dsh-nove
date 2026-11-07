@@ -1,5 +1,5 @@
 // Core checks for the replacement gate: state, docs, commands, gate_record.
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { apply, DISCUSS_ORCHESTRATION } from './index.js'
@@ -139,6 +139,12 @@ saveState(workspace, rootAgent, { ...defaultState(), phase: 'orchestrating', nod
 check('implement worker can write code', (await execWith(workerHost, childAgent, 'write', { file_path: 'src/x.ts' })).kind === 'allow')
 saveState(workspace, rootAgent, { ...defaultState(), phase: 'orchestrating', node: 'code-review', task: 'work' })
 check('review worker cannot write', (await execWith(workerHost, childAgent, 'write', { file_path: 'src/x.ts' })).kind === 'deny')
+
+const initWorkspace = mkdtempSync(path.join(os.tmpdir(), 'gate-init-'))
+const initHost = fakeHost(initWorkspace)
+const initAgent = { id: 'session-init', session: { header: {} } }
+const initialized = await initHost.commands['gate-init'].handler({ agent: initAgent, rawInput: '', attachments: [] })
+check('gate-init creates the marker', initialized.kind === 'success' && existsSync(path.join(initWorkspace, '.agents', 'gate.json')))
 
 const missing = mkdtempSync(path.join(os.tmpdir(), 'gate-missing-'))
 mkdirSync(path.join(missing, '.agents'), { recursive: true })
