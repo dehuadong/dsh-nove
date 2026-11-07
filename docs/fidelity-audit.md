@@ -29,7 +29,7 @@
 | `context.brief` | `inkos-master/packages/core/src/harness/context-compiler.ts:1-160` | 上下文片段按 protected/compressible 分层；protected 超预算抛错；去重后按优先级装配；trace 记录预算与来源 | `src/context/brief.ts`、`tests/bible.test.mjs` | 保真债 | 后续行：语义压缩未实现；当前超预算按 section 丢弃，偿还路径为 `context.compress` 或 brief compiler |
 | `context.retrieval` | `inkos-master/packages/core/src/retrieval/local-search.ts:29-100` | 查询由任务/章纲/伏笔/指令组成；检索按 scope/kind 过滤；命中带 source 标注；按分数与章号稳定排序 | `src/retrieval.ts`、`tests/retrieval.test.mjs`、`tests/context-retrieval.test.mjs` | 等价 | 无 |
 | `chapter.write` | `inkos-master/packages/core/src/agents/writer.ts:100-160`、`utils/length-metrics.ts` | 章号/标题/正文写成一版；plan/context 先决；字数按 zh_chars 剥离 Markdown 元数据；显式 min/max 硬校验 | `src/roles/writer/agent.ts`、`src/storage/repositories/chapters.ts`、`tests/chapter-length.test.mjs` | 保真债 | 后续行：language/en_words 未实现；state settlement 归 `chapter.settle` |
-| `chapter.review` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |
+| `chapter.review` | `inkos-master/packages/core/src/pipeline/chapter-review.ts:1-80` | 正文非空才审；按 counting mode 计字数；模型审稿失败转 `review-unavailable` observation 而非中断；结果含 wordCount/usage | `src/roles/reviewer/agent.ts`、`src/storage/repositories/reviews.ts`、`tests/reviewer-retry.test.mjs` | 保真债 | 当行补齐：模型审稿失败没有 `review-unavailable` 回退；review 结果不含 wordCount/usage；consumer 仍指向 `critique.test.mjs` |
 | `chapter.revise` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |
 | `chapter.summary` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |
 | `chapter.settle` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |
