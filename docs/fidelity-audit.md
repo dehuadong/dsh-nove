@@ -36,7 +36,7 @@
 | `chapter.finalize` | `inkos-master/packages/core/src/agents/writer.ts:600-650`、`pipeline/runner.ts:999-1040` | 只有状态草案 ready 且绑定当前正文才定稿；定稿写 state 事件并锁 settled；重复定稿拒绝 | `src/storage/repositories/state.ts`、`tests/settle-draft.test.mjs` | 等价 | 无 |
 | `chapter.reopen` | `inkos-master/packages/core/src/interaction/edit-controller.ts:18-35`、`:338-375` | 作者可编辑已定稿章节；replace 归档旧版、写新正文、清 runtime、不删后续章 | `src/storage/repositories/chapters.ts`、`tests/reopen-target.test.mjs` | 机制等价 | `docs/dsh-mapping.md` 章节重开：源直接编辑，复刻 reopen+revise |
 | `chapter.move-delete` | `inkos-master/packages/core/src/state/chapter-delete.ts:1-120` | 只允许删除最新章；章节文件进 `.trash`；索引/快照/runtime 回滚到前一章；源没有移章动作 | `src/storage/repositories/chapters.ts`、`tests/chapter-edit.test.mjs` | 保真债 | 当行补齐：已限制最新章、移章拒绝；仍缺 `.trash` 章节文件与快照回滚，只有 DB backup |
-| `state.check` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |
+| `state.check` | `inkos-master/packages/core/src/agents/state-validator.ts:1-120`、`agents/state-validation-tool.ts:1-30` | 语义对账比较 old/new state+hooks；未变化短路；返回 observations/consistent/reconciliationRequired；reconciliation 必须给理由 | `src/state-check.ts`、`tests/state-check.test.mjs` | 保真债 | 当行补齐：当前返回 findings/counts，没有 consistent/reconciliationRequired；结构化 `state/state-validator.ts` 未覆盖 |
 | `export.work` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |
 | `backup.restore` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |
 | `materials.import` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |

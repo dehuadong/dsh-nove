@@ -190,7 +190,7 @@ capabilities:
     status: verified
   - id: state.check
     title: 语义对账，只读 findings
-    reference: inkos:packages/core/src/state/state-validator.ts
+    reference: inkos:packages/core/src/agents/state-validator.ts
     dsh: tools.register
     implementation: storycraft/src/state-check.ts
     consumer: storycraft/tests/state-check.test.mjs
