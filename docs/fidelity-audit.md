@@ -16,7 +16,7 @@
 | `runtime.session-binding` | `inkos-master/packages/core/src/harness/session-binding.ts:17-25` | 会话绑定 profile 与 workId；绑定后不原地改绑；重启恢复 | `src/current.ts`、`tests/current.test.mjs` | 机制等价 | `docs/dsh-mapping.md` 会话绑定 |
 | `runtime.commands` | `inkos-master/packages/cli/src/commands/init.ts` | `init [name]` 不经过模型初始化工作区 | `src/commands.ts`、`e2e/commands.spec.cjs` | 机制等价 | `docs/dsh-mapping.md` 命令入口 |
 | `runtime.telemetry` | `inkos-master/packages/core/src/harness/execution-evidence.ts:4-15` | 每次委派记录 usage/耗时/失败回执 | `src/call-evidence.ts`、`src/telemetry.ts`、`tests/model-calls.test.mjs` | 等价 | 无 |
-| `artifact.identity` | `inkos-master/packages/core/src/harness/artifact-revisions.ts:14-110` | revision 有 parent/checksum/byteLength/status；读取 current；跨作品隔离 | `src/artifact-store.ts`、`tests/artifact-identity.test.mjs` | 机制等价 | `docs/dsh-mapping.md` 存储（SQLite 虚拟路径） |
+| `artifact.identity` | `inkos-master/packages/core/src/harness/artifact-revisions.ts:14-110` | revision 有 parent/checksum/byteLength/status；读取 current；跨作品隔离 | `src/artifact-store.ts`、`tests/artifact-identity.test.mjs` | 保真债 | 后续行：`docs/dsh-mapping.md` 作品存储差异（源文件落盘 vs SQLite）未证明读取/导出等价 |
 | `panel.workbench` | `inkos-master/packages/studio/src/pages/` | 面板属于 storycraft 预设与作品工作区，不全局显示 | `src/client.ts`、`e2e/load.spec.cjs`、`e2e/panel-preset.spec.cjs` | 保真债 | 后续行：面板内容仍混排长篇/短篇/剧本，尚未拆成各形态独立面板 |
 | `foundation.architect` | `inkos-master/packages/core/src/agents/architect.ts` | 基础设定分阶段产出；未完成不得确认 | `src/roles/architect/`、`tests/foundation-production.test.mjs` | 等价 | 无 |
 | `foundation.hooks` | `inkos-master/packages/core/src/state/state-reducer.ts:76-140` | pendingHooks 在 chapter 0 以 deferred 进入；resolved 不可 supersede；supersede 需理由 | `src/state-projection.ts`、`tests/foundation-hooks.test.mjs` | 等价 | 无 |
