@@ -126,6 +126,8 @@ interface StateCheckReceipt {
   chapter: number
   revision: number
   checked: true
+  consistent: boolean
+  reconciliationRequired: boolean
   items: Finding[]
   counts: Record<string, number>
   warnings: string[]
@@ -296,6 +298,9 @@ export async function checkChapterState(
     }
 
     const verified = verifyEvidence(submission.payload.items, body)
+    const reconciliationRequired = typeof submission.payload.reconciliationRequired === 'boolean'
+      ? submission.payload.reconciliationRequired
+      : verified.items.length > 0
     if (child.call.callId !== undefined) finishCall(root, work, child.call.callId, { outcome: 'accepted', submissionAttempts: attempts })
     return {
       ok: true,
@@ -303,6 +308,8 @@ export async function checkChapterState(
       chapter,
       revision,
       checked: true,
+      consistent: !reconciliationRequired,
+      reconciliationRequired,
       items: verified.items,
       counts: { ...preview.counts, items: verified.items.length },
       warnings: verified.warnings,

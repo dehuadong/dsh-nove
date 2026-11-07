@@ -97,6 +97,7 @@ try {
   check('check counts the proposed ops', receipt.counts.facts === 1 && receipt.counts.hooks === 0
     && receipt.counts.items === 1, JSON.stringify(receipt.counts))
   check('check verifies a real body quote', receipt.items[0].evidenceVerified === true, JSON.stringify(receipt.items[0]))
+  check('a finding requires reconciliation', receipt.consistent === false && receipt.reconciliationRequired === true, JSON.stringify(receipt))
   check('check reports attempts and duration',
     receipt.trace.submissionAttempts === 1 && typeof receipt.trace.durationMs === 'number', JSON.stringify(receipt.trace))
   check('check does not return the whole body', !JSON.stringify(receipt).includes(body), JSON.stringify(receipt))
@@ -183,7 +184,15 @@ try {
   }, { service: promptService, agent, signal })
   check('check reports a clean result without findings',
     cleanReceipt.checked === true && cleanReceipt.items.length === 0
-    && cleanReceipt.counts.items === 0, JSON.stringify(cleanReceipt))
+    && cleanReceipt.counts.items === 0 && cleanReceipt.consistent === true
+    && cleanReceipt.reconciliationRequired === false, JSON.stringify(cleanReceipt))
+  const reviewOnlyService = fakeService([completed({ items: [finding], reconciliationRequired: false })])
+  const reviewOnly = await checkChapterState(root, {
+    work, chapter: 1, factOps: { upsert: [{ subject: '甲', predicate: '动作', object: '推开门' }] },
+  }, { service: reviewOnlyService, agent, signal })
+  check('an explicit review-only result keeps reconciliation false',
+    reviewOnly.items.length === 1 && reviewOnly.consistent === true
+    && reviewOnly.reconciliationRequired === false, JSON.stringify(reviewOnly))
   const prompt = promptService.specs[0].request.prompt[0].text
   const currentBody = s.readChapter(root, { work, chapter: 1 }).content
   check('the validator is told to load its skill', prompt.includes('`storycraft-state-check`'), prompt.slice(0, 200))

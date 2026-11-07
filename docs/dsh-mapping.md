@@ -22,6 +22,7 @@
 | 技能 | 自有技能目录与加载器 | DSH `skills` 服务 + 文件系统 | SKILL.md + references 由运行时加载 | 技能能按角色／动作激活 |
 | 方法注入 | 自建 prompt 拼装 | `systemPrompt.context()` | 不在实现里复制方法正文，只注入受预算约束的片段 | 注入片段可在 trace 中定位 |
 | 章节重开 | 作者编辑动作直接替换/局部编辑已定稿章节，归档旧版、清 runtime，不删后续章 | reopen 解锁 + revise/rewrite | 机制等价：DSH 把“解锁”和“改写”拆成显式两步；不删后续章 | `reopen-target.test.mjs` + 真实回执 |
+| 状态对账时机 | 结算后比较 old/new state+hooks，不一致进入 recovery | 草案前对拟写入 payload 做语义对账，回执带 consistent/reconciliationRequired | 机制等价：DSH 把待写入草案作为校验单元，不自动改稿 | `state-check.test.mjs` + 真实回执 |
 | 工具 | 自有工具总线 | `tools.register` | `story_*` 工具按阶段注册独立 schema | 每阶段工具集不同且可校验 |
 | 面板 | 独立前端服务 | `client` 插件 + slots | 从会话进入，与对话、轨迹并列；UI 用 React | 面板挂载到指定 slot |
 

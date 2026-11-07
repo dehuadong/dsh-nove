@@ -5,6 +5,9 @@ import { STATE_CHECK_NO_EVIDENCE, VALIDATOR_CODES, VALIDATOR_LIMITS } from './co
 /** Validate one validator payload; a message means the child must correct it. */
 export function validate(payload: any): string | undefined {
     if (!Array.isArray(payload.items)) return 'validator 缺少 items 数组'
+    if (payload.reconciliationRequired !== undefined && typeof payload.reconciliationRequired !== 'boolean') {
+      return 'validator reconciliationRequired 必须是布尔值'
+    }
     if (payload.items.length > 8) return 'validator items 最多 8 条'
     for (const [index, item] of payload.items.entries()) {
       if (item === null || typeof item !== 'object') return `validator 第 ${index + 1} 条不是对象`

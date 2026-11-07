@@ -194,8 +194,8 @@ capabilities:
     dsh: tools.register
     implementation: storycraft/src/state-check.ts
     consumer: storycraft/tests/state-check.test.mjs
-    realRun: null
-    status: missing
+    realRun: artifacts/real-runs/state.check.json
+    status: verified
   - id: artifact.identity
     title: 虚拟路径、artifactId/revision、跨作品隔离
     reference: inkos:packages/core/src/harness/artifact-revisions.ts
