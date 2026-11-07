@@ -162,7 +162,9 @@ function command(ctx, agent, rawInput, allowMechanical, node) {
   const gate = resolveGate(ctx, agent)
   if (gate.config.kind !== 'ok') return { kind: 'error', text: '当前项目没有启用的 .agents/gate.json' }
   if (task === '') return { kind: 'error', text: '缺少工作项' }
-  if (!workItemAllowed(gate.root, task, allowMechanical)) return { kind: 'error', text: '工作项不存在：需要同 topic 的 proposed Note' + (allowMechanical ? ' 或 mechanical:' : '') }
+  if (node === 'implement' && !workItemAllowed(gate.root, task, allowMechanical)) {
+    return { kind: 'error', text: '工作项不存在：需要同 topic 的 proposed Note' + (allowMechanical ? ' 或 mechanical:' : '') }
+  }
   const state = loadState(gate.root, agent)
   if (state.phase !== 'discuss' && state.phase !== 'complete') return { kind: 'error', text: `当前 phase 是 ${state.phase}` }
   const sameTask = state.task === task

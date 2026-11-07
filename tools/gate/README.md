@@ -5,7 +5,7 @@
 ## 命令
 
 - `/gate-init`：在当前项目根创建 `.agents/gate.json`，保持 `discuss`；已有 marker 或位置不是项目根时拒绝；
-- `/gate-plan <工作项>`：进入 planning；主代理派 planning 与 plan review；
+- `/gate-plan <工作项>`：进入 planning；允许新工作项尚无 proposed Note，由 planning worker 创建；主代理派 planning 与 plan review；
 - `/gate-implement <工作项>`：进入 implement；非 mechanical 工作必须已有干净的 plan review；主代理派 implement、两轴 review、verify；
 - `/gate-code-review <范围>`：单独只读审查已有改动；不进入 implement/verify，只输出 findings；
 - `/gate-docs <范围>`：文档治理；

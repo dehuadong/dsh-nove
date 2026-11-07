@@ -158,8 +158,11 @@ mkdirSync(path.join(missing, '.agents'), { recursive: true })
 writeFileSync(path.join(missing, '.agents', 'gate.json'), JSON.stringify({ enabled: true, version: 2 }))
 const missingHost = fakeHost(missing)
 const missingAgent = { id: 'session-missing', session: { header: {} } }
-const rejected = await missingHost.commands['gate-plan'].handler({ agent: missingAgent, rawInput: 'no-such-note', attachments: [] })
-check('plan without a work item is rejected', rejected.kind === 'error' && loadState(missing, missingAgent).phase === 'discuss')
+const plannedWithoutNote = await missingHost.commands['gate-plan'].handler({ agent: missingAgent, rawInput: 'new-work', attachments: [] })
+check('plan can start a new work item without a note', plannedWithoutNote.kind === 'success' && loadState(missing, missingAgent).phase === 'orchestrating')
+await missingHost.commands['gate-return-discuss'].handler({ agent: missingAgent, rawInput: '', attachments: [] })
+const rejected = await missingHost.commands['gate-implement'].handler({ agent: missingAgent, rawInput: 'new-work', attachments: [] })
+check('implement without a note is rejected', rejected.kind === 'error' && loadState(missing, missingAgent).phase === 'discuss')
 
 if (failures > 0) {
   console.error(`\n${failures} CHECK(S) FAILED`)
