@@ -236,7 +236,7 @@ export function apply(ctx) {
       saveState(gate.root, invocation.agent, state)
       return { kind: 'success', text: `进入 docs：${task}` }
     })
-    register('gate-return', 'Return to discuss', async invocation => {
+    register('gate-return-discuss', 'Return to discuss', async invocation => {
       const gate = resolveGate(ctx, invocation.agent)
       if (gate.config.kind !== 'ok') return { kind: 'error', text: '当前项目没有启用的 .agents/gate.json' }
       const state = loadState(gate.root, invocation.agent)

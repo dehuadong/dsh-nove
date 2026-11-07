@@ -7,7 +7,7 @@ Standalone replacement for `implement-gate`: phase state, write gate, `/gate-*` 
 - `/gate-plan <work item>` — enter planning; the main agent dispatches planning and plan review;
 - `/gate-implement <work item>` — enter implementation; the main agent dispatches implement, two review axes, and verify;
 - `/gate-docs <scope>` — docs-only governance;
-- `/gate-return` — user-only manual return to discuss; agents use the `gate_record` tool;
+- `/gate-return-discuss` — user-only manual return to discuss; agents use the `gate_record` tool;
 - `/gate-status` — factual state block including review rounds.
 
 ## Marker
