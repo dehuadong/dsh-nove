@@ -8,7 +8,7 @@ import { childStateId, defaultState, loadState, saveState } from './src/state.js
 
 export const inject = ['tools']
 const SKILLS = fileURLToPath(new URL('./skills', import.meta.url))
-const SKILL_NAMES = ['gate-planning', 'gate-plan-review', 'gate-implement', 'gate-code-review', 'gate-verify']
+const SKILL_NAMES = ['gate-planning', 'gate-plan-review', 'gate-implement', 'gate-code-review-standards', 'gate-code-review-spec', 'gate-verify']
 const REVIEW_LIMIT = 5
 const MAX_WORKERS = 12
 
@@ -21,7 +21,7 @@ export const PLAN_ORCHESTRATION = `## /gate-plan orchestration
 
 export const IMPLEMENT_ORCHESTRATION = `## /gate-implement orchestration
 1. Dispatch gate-implement with the accepted work item and implementation method.
-2. Dispatch gate-code-review twice: Standards and Spec, both read-only.
+2. Dispatch gate-code-review-standards and gate-code-review-spec, both read-only.
 3. If either axis has findings, dispatch gate-implement as revise with those findings.
 4. Re-run both reviews; stop at five code-review rounds and mark blocked, never pass.
 5. On empty findings, dispatch gate-verify.
@@ -175,8 +175,8 @@ async function implementRun(ctx, gate, parent, state) {
     state.rounds.codeReview += 1
     saveState(gate.root, parent, state)
     const [standards, spec] = await Promise.all([
-      worker(ctx, gate, parent, state, 'code-review', task, 'gate-code-review', 'Axis: Standards', 'read-only', state.rounds.codeReview),
-      worker(ctx, gate, parent, state, 'code-review', task, 'gate-code-review', 'Axis: Spec', 'read-only', state.rounds.codeReview),
+      worker(ctx, gate, parent, state, 'code-review', task, 'gate-code-review-standards', 'Axis: Standards', 'read-only', state.rounds.codeReview),
+      worker(ctx, gate, parent, state, 'code-review', task, 'gate-code-review-spec', 'Axis: Spec', 'read-only', state.rounds.codeReview),
     ])
     const findings = [...findingsOf(standards), ...findingsOf(spec)]
     if (findings.length > 0) {

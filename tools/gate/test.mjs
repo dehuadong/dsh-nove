@@ -42,7 +42,7 @@ const run = (name, input) => commands[name].handler({ agent, rawInput: input, at
 
 check('docs command registered', typeof commands['gate-docs']?.handler === 'function')
 check('plan protocol dispatches both workers', PLAN_ORCHESTRATION.includes('gate-planning') && PLAN_ORCHESTRATION.includes('gate-plan-review'))
-check('implement protocol dispatches both review axes and verify', IMPLEMENT_ORCHESTRATION.includes('Standards') && IMPLEMENT_ORCHESTRATION.includes('Spec') && IMPLEMENT_ORCHESTRATION.includes('gate-verify'))
+check('implement protocol dispatches both review axes and verify', IMPLEMENT_ORCHESTRATION.includes('gate-code-review-standards') && IMPLEMENT_ORCHESTRATION.includes('gate-code-review-spec') && IMPLEMENT_ORCHESTRATION.includes('gate-verify'))
 check('status command registered', typeof commands['gate-status']?.handler === 'function')
 check('discuss denies code', (await exec('write', { file_path: 'src/x.ts' })).kind === 'deny')
 check('discuss denies docs', (await exec('write', { file_path: 'docs/x.md' })).kind === 'deny')

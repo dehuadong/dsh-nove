@@ -37,33 +37,36 @@ Write or update tests as appropriate for the change. Use test-first development 
 
 Run focused tests and relevant static checks while working.
 
-## 4. Implementation Review handoff
+## 4. Implementation findings
 
-Implementation Review is run by the gate as separate `gate-code-review` workers on the Standards and Spec axes. Do not run it yourself.
-
-The gate returns findings. During authorized implementation, resolve material findings by ownership:
+The gate may return material findings from its Standards or Spec review. Resolve each finding by ownership:
 
 | Finding                                                           | Route                                  |
 | ----------------------------------------------------------------- | -------------------------------------- |
 | Current implementation is missing or violates the agreed contract | Fix in the current implementation      |
 | Additional execution unit is needed within the same agreed work   | Add or update an implementation ticket |
-| Product or technical contract must change or was never resolved   | Follow project gates and authorization to return to Planning |
+| Product or technical contract must change or was never resolved   | Stop affected work and report it; the gate returns it to planning |
 | Issue is unrelated to the agreed work                             | Do not expand scope automatically      |
 
 There is no "fix it while we're here" path for unrelated work.
 
-For implementation corrections, return to §3, rerun affected checks, and return the receipt for re-review.
+For findings you own, fix them in the current implementation, rerun the affected tests and static checks, and report each finding's disposition in the next receipt. Do not run the review yourself and do not mark a finding resolved without evidence.
 
-## 5. Completion and handoff
+## 5. Receipt and handoff
 
 Implementation is complete when:
 
 - the authorized scope is implemented
 - required tickets are complete
 - relevant implementation-time checks pass
-- material Implementation Review findings are resolved
-- the change is ready for final verification
+- material implementation findings are resolved or explicitly reported as blocked
+- the change is ready for verification
 
-Return the implementation receipt to the gate. The gate owns the verify node; do not advance the workflow or update delivery state here.
+Return a receipt with:
 
-Update the identified work item's implementation progress using the project's workflow convention. Leave final delivery completion and decision-record completion updates to the gate's verify node.
+- changed files and scope covered
+- tests and static checks run, with results
+- each finding's disposition
+- remaining risks, blockers, or decisions needed
+
+Do not verify the delivery, mark the work item complete, or advance the gate. The gate owns the verify node and final completion.
