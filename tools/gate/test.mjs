@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { apply } from './index.js'
-import { loadState } from './src/state.js'
+import { loadState, saveState, defaultState } from './src/state.js'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -11,14 +11,15 @@ function check(name, condition, detail) {
   else { failures += 1; console.log(`FAIL ${name}${detail === undefined ? '' : ` — ${detail}`}`) }
 }
 
-function fakeHost(workspace) {
+function fakeHost(workspace, rootSession) {
   const commands = {}
   const tools = {}
   const handlers = {}
   const ctx = {
     on: (name, handler) => { handlers[name] = handler },
     inject: (_deps, callback) => callback(ctx),
-    get: name => name === 'sandboxPolicy' ? { workspaceRoot: workspace, resolve: () => ({ workspaceRoot: workspace }) } : undefined,
+    get: name => name === 'sandboxPolicy' ? { workspaceRoot: workspace, resolve: () => ({ workspaceRoot: workspace }) }
+      : name === 'subagents' && rootSession !== undefined ? { rootOf: () => rootSession } : undefined,
     systemPrompt: { section: () => {}, getSectionOrder: () => 500 },
     skills: { register: () => {} },
     commands: { register: definition => { commands[definition.name] = definition } },
@@ -41,7 +42,8 @@ function makeWorkspace() {
 const workspace = makeWorkspace()
 const host = fakeHost(workspace)
 const agent = { id: 'session-test', session: { header: {} } }
-const exec = (name, args) => host.handlers['tools/pre-execute']({ name, arguments: args, agent, signal: new AbortController().signal }, async () => ({ kind: 'allow' }))
+const execWith = (target, targetAgent, name, args) => target.handlers['tools/pre-execute']({ name, arguments: args, agent: targetAgent, signal: new AbortController().signal }, async () => ({ kind: 'allow' }))
+const exec = (name, args) => execWith(host, agent, name, args)
 const run = (name, input) => host.commands[name].handler({ agent, rawInput: input, attachments: [] })
 const record = args => host.tools.gate_record.execute(args, { agent, signal: new AbortController().signal })
 
@@ -91,6 +93,18 @@ await record({ node: 'implement-revise' })
 await record({ node: 'code-review', findings: [] })
 const failedVerify = await record({ node: 'verify', ok: false })
 check('verify failure routes to revise', failedVerify.node === 'implement-revise')
+
+const rootAgent = { id: 'root-session', session: { header: {} } }
+const childAgent = { id: 'child-session', session: { header: {} } }
+const workerHost = fakeHost(workspace, rootAgent)
+saveState(workspace, rootAgent, { ...defaultState(), phase: 'orchestrating', node: 'plan', task: 'work' })
+check('plan worker can write proposed notes', (await execWith(workerHost, childAgent, 'write', { file_path: '.agents/notes/proposed/feature/x.md' })).kind === 'allow')
+check('plan worker cannot write code', (await execWith(workerHost, childAgent, 'write', { file_path: 'src/x.ts' })).kind === 'deny')
+check('main agent still cannot write in orchestrating', (await execWith(workerHost, rootAgent, 'write', { file_path: 'docs/x.md' })).kind === 'deny')
+saveState(workspace, rootAgent, { ...defaultState(), phase: 'orchestrating', node: 'implement', task: 'work' })
+check('implement worker can write code', (await execWith(workerHost, childAgent, 'write', { file_path: 'src/x.ts' })).kind === 'allow')
+saveState(workspace, rootAgent, { ...defaultState(), phase: 'orchestrating', node: 'code-review', task: 'work' })
+check('review worker cannot write', (await execWith(workerHost, childAgent, 'write', { file_path: 'src/x.ts' })).kind === 'deny')
 
 const missing = mkdtempSync(path.join(os.tmpdir(), 'gate-missing-'))
 mkdirSync(path.join(missing, '.agents'), { recursive: true })

@@ -69,6 +69,27 @@ function statusText(state) {
   ].join('\n')
 }
 
+function rootAgentOf(ctx, agent) {
+  try {
+    return ctx.get('subagents')?.rootOf?.(agent) ?? agent
+  } catch {
+    return agent
+  }
+}
+
+function effectiveState(ctx, agent, gate) {
+  const root = rootAgentOf(ctx, agent)
+  return { root, state: loadState(gate.root, root), worker: root?.id !== agent?.id }
+}
+
+function workerWriteAllowed(state, target) {
+  if (state.phase !== 'orchestrating') return false
+  if (state.node === 'plan' || state.node === 'plan-revise') return target.docs === true
+  if (state.node === 'implement' || state.node === 'implement-revise') return target.docs === true || target.code === true
+  if (state.node === 'verify') return target.docs === true
+  return false
+}
+
 function normalizeTopic(value) {
   return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/gu, '-').replace(/^-|-$/gu, '')
 }
@@ -141,10 +162,16 @@ export function apply(ctx) {
     if (exec.name === 'write' || exec.name === 'edit') {
       const gate = resolveGate(ctx, exec.agent)
       if (gate.config.kind !== 'ok') return next()
-      const state = loadState(gate.root, exec.agent)
+      const effective = effectiveState(ctx, exec.agent, gate)
+      const state = effective.state
       const target = classifyPath(gate.workspace, exec.arguments?.file_path, gate.config.policy)
       if (target.outside) return { kind: 'deny', reason: '工作区外写入被拒绝' }
       if (target.protected) return { kind: 'deny', reason: 'Gate 配置和状态不可写' }
+      if (effective.worker) {
+        return workerWriteAllowed(state, target)
+          ? next()
+          : { kind: 'deny', reason: `worker ${state.node ?? 'unknown'} 不允许写该目标` }
+      }
       if (state.phase === 'discuss' || state.phase === 'complete') return { kind: 'deny', reason: '当前阶段不允许写入' }
       if (state.phase === 'orchestrating') return { kind: 'deny', reason: '主代理编排中，不允许直接写入' }
       if (target.code && state.phase !== 'implement') return { kind: 'deny', reason: '只有 implement 阶段允许写代码' }
@@ -154,12 +181,19 @@ export function apply(ctx) {
     if (exec.name === 'pwsh' || exec.name === 'bash') {
       const gate = resolveGate(ctx, exec.agent)
       if (gate.config.kind !== 'ok') return next()
-      const state = loadState(gate.root, exec.agent)
+      const effective = effectiveState(ctx, exec.agent, gate)
+      const state = effective.state
       const cwd = exec.arguments?.workdir ?? gate.workspace
       const access = shellAccess(exec.arguments?.command ?? '', gate.workspace, gate.config.policy, cwd)
       if (!access.write) return next()
       if (access.protectedTargets.length > 0) return { kind: 'deny', reason: 'Gate 配置和状态不可写' }
       if (access.outsideTargets.length > 0) return { kind: 'deny', reason: '工作区外写入被拒绝' }
+      if (effective.worker) {
+        const allowed = access.codeTargets.length > 0
+          ? (state.node === 'implement' || state.node === 'implement-revise')
+          : state.node !== 'plan-review' && state.node !== 'code-review'
+        return allowed ? next() : { kind: 'deny', reason: `worker ${state.node ?? 'unknown'} 不允许写该目标` }
+      }
       if (state.phase === 'orchestrating' || state.phase === 'discuss' || state.phase === 'complete') return { kind: 'deny', reason: '当前阶段不允许写入' }
       if (access.codeTargets.length > 0 && state.phase !== 'implement') return { kind: 'deny', reason: '只有 implement 阶段允许写代码' }
       return next()
