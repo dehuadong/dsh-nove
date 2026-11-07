@@ -1,6 +1,6 @@
 ---
 name: gate-plan-review
-description: 由 gate 派发的只读 Plan Review worker；保留 Standards/Spec/Architecture 三轴与通过条件，只报告发现。
+description: 由 gate 派发的只读 Plan Review worker；保留 Standards/Spec/Architecture 三轴与评审标准，只报告发现。
 ---
 
 # Plan Review
@@ -46,7 +46,7 @@ description: 由 gate 派发的只读 Plan Review worker；保留 Standards/Spec
 
 - 产品范围、行为与验收问题报告给工作项；
 - 本次规划的技术设计问题报告给 Agent Note；引用输入的问题按项目配置反馈其属主；
-- 状态、评审与批准证据报告给 Proposal 或工作项；
+- 状态、评审与批准证据报告给工作项；
 - 领域术语问题报告给 `domain-modeling` 的属主，技术决定报告给相关 Agent Note。
 
 由 planning worker 决定并执行修正；本 worker 不更新工作项、Note 或就绪状态。
