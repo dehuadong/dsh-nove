@@ -11,13 +11,14 @@ function check(name, condition, detail) {
   else { failures += 1; console.log(`FAIL ${name}${detail === undefined ? '' : ` — ${detail}`}`) }
 }
 
-function fakeHost(workspace) {
+function fakeHost(workspace, subagents) {
   const commands = {}
   const handlers = {}
   const ctx = {
     on: (name, handler) => { handlers[name] = handler },
     inject: (_deps, callback) => callback(ctx),
-    get: name => name === 'sandboxPolicy' ? { workspaceRoot: workspace, resolve: () => ({ workspaceRoot: workspace }) } : undefined,
+    get: name => name === 'sandboxPolicy' ? { workspaceRoot: workspace, resolve: () => ({ workspaceRoot: workspace }) }
+      : name === 'subagents' ? subagents : undefined,
     systemPrompt: { section: () => {}, getSectionOrder: () => 500 },
     skills: { register: () => {} },
     commands: { register: definition => { commands[definition.name] = definition; return () => {} } },
@@ -49,6 +50,33 @@ await run('gate-return', '')
 check('return enters discuss', loadState(workspace, agent).phase === 'discuss')
 const status = await run('gate-status', '')
 check('status is factual', status.text.includes('状态：discuss') && status.text.includes('blockReason：无') && !status.text.includes('下一步'))
+
+const calls = []
+const subagents = {
+  startActivation: async spec => {
+    calls.push(/Gate phase worker: (\S+)/u.exec(spec.prompt[0].text)?.[1])
+    return {
+      childId: spec.childId,
+      name: 'gate-worker',
+      result: Promise.resolve({ stopReason: 'completed', structured: { ok: true, findings: [] } }),
+      dispose: async () => {},
+    }
+  },
+}
+const second = fakeHost(workspace, subagents)
+const secondAgent = { id: 'session-orchestrate', session: { header: {} } }
+const runSecond = (name, input) => second.commands[name].handler({ agent: secondAgent, rawInput: input, attachments: [] })
+const planned = await runSecond('gate-plan', 'orchestrate-check')
+check('plan command starts', planned.kind === 'success')
+await new Promise(resolve => setTimeout(resolve, 50))
+check('plan workers dispatched', calls.includes('plan') && calls.includes('plan-review'), calls.join(','))
+check('plan returns to discuss', loadState(workspace, secondAgent).phase === 'discuss', JSON.stringify(loadState(workspace, secondAgent)))
+calls.length = 0
+const implemented = await runSecond('gate-implement', 'orchestrate-check')
+check('implement command starts', implemented.kind === 'success')
+await new Promise(resolve => setTimeout(resolve, 50))
+check('implement workers dispatched', calls.includes('implement') && calls.includes('code-review') && calls.includes('verify'), calls.join(','))
+check('implement completes after verify', loadState(workspace, secondAgent).phase === 'complete', JSON.stringify(loadState(workspace, secondAgent)))
 
 if (failures > 0) {
   console.error(`\n${failures} CHECK(S) FAILED`)
