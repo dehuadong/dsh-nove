@@ -30,6 +30,6 @@ gate_record({ node, findings, requiresDiscussion, discussionReason, ok })
 
 The gate does not dispatch workers. It owns phase, write permissions, orchestration protocol, review rounds and blocked/complete.
 
-`requiresDiscussion=true` or a user-owned finding means the main agent calls `gate_record` for the current node with `requiresDiscussion:true`; the gate sets `discuss` and `blockReason=needs-user-decision`. No worker may run in that state.
+`requiresDiscussion=true` or a user-owned finding means the main agent calls `gate_record` for the current node with `requiresDiscussion:true`; the gate sets `discuss` and `blockReason=needs-user-decision`. If the tool is unavailable or fails, the agent asks the user to run `/gate-return-discuss`. No worker may run in `discuss`.
 
 Review loops are capped at five rounds; an exhausted loop becomes `blocked`, never a pass.
