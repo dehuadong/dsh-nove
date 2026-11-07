@@ -2,7 +2,7 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { apply } from './index.js'
+import { apply, PLAN_ORCHESTRATION, IMPLEMENT_ORCHESTRATION } from './index.js'
 import { loadState } from './src/state.js'
 
 let failures = 0
@@ -41,6 +41,8 @@ const exec = (name, args) => handlers['tools/pre-execute']({ name, arguments: ar
 const run = (name, input) => commands[name].handler({ agent, rawInput: input, attachments: [] })
 
 check('docs command registered', typeof commands['gate-docs']?.handler === 'function')
+check('plan protocol dispatches both workers', PLAN_ORCHESTRATION.includes('gate-planning') && PLAN_ORCHESTRATION.includes('gate-plan-review'))
+check('implement protocol dispatches both review axes and verify', IMPLEMENT_ORCHESTRATION.includes('Standards') && IMPLEMENT_ORCHESTRATION.includes('Spec') && IMPLEMENT_ORCHESTRATION.includes('gate-verify'))
 check('status command registered', typeof commands['gate-status']?.handler === 'function')
 check('discuss denies code', (await exec('write', { file_path: 'src/x.ts' })).kind === 'deny')
 check('discuss denies docs', (await exec('write', { file_path: 'docs/x.md' })).kind === 'deny')

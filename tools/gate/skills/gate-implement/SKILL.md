@@ -64,6 +64,6 @@ Implementation is complete when:
 - material Implementation Review findings are resolved
 - the change is ready for final verification
 
-For authorized end-to-end work, continue to the project's Verify stage after these conditions hold; do not wait for another instruction to verify.
+Return the implementation receipt to the gate. The gate owns the verify node; do not advance the workflow or update delivery state here.
 
-Update the identified work item's implementation progress using the project's workflow convention. Leave final delivery completion and decision-record completion updates to the project's Verify stage.
+Update the identified work item's implementation progress using the project's workflow convention. Leave final delivery completion and decision-record completion updates to the gate's verify node.

@@ -45,13 +45,11 @@ Spec 是经评审接受后可直接指导实现与验收的行为合同，覆盖
 
 涉及未解决的产品、业务、兼容性、成本、风险、架构方向或其他价值判断时，交由用户决定，除非用户已经明确委托决定权。
 
-## 3. Plan Review handoff
+## 3. Review findings
 
-Plan Review is a separate `gate-plan-review` worker. Do not run it yourself.
+Plan Review is owned by the gate's `gate-plan-review` worker; do not run it here.
 
-The gate returns its findings. Decide each finding's owner and correct it there: product scope and acceptance 回到工作项或独立 Spec，本次规划的技术设计回到 Agent Note，工作状态与批准证据回到 Proposal 或工作项。引用输入的问题按项目配置反馈其属主，并报告受影响范围。
-
-修订规划后交给 gate 重新派发 Plan Review；不得自行宣称整体通过。
+When the gate returns findings, decide each finding's owner and correct it there: product scope and acceptance回到工作项或独立 Spec，本次规划的技术设计回到 Agent Note，工作状态与批准证据回到 Proposal 或工作项。引用输入的问题按项目配置反馈其属主，并报告受影响范围。不得自行宣称整体通过。
 
 ## 4. 完成与交接
 
@@ -63,6 +61,4 @@ Planning 完成需要同时满足：
 - 所需决定已解决；
 - Plan Review 通过。
 
-若用户只要求规划，交付规划结果与评审证据后结束。端到端任务继续进入项目的 Implementation Gate，并单独核对执行授权。
-
-交付规划结果前，如果 `implement_gate` 可用且当前项目已启用，调用 `implement_gate({action:'end-planning'})` 回到 `discuss`。这样用户收到规划后的普通提问不会解锁 Note 写入；需要修改规划时必须重新取得 planning 授权。
+若用户只要求规划，交付规划结果与评审证据后结束。端到端任务把 receipt 交回 gate；执行授权由 gate 单独核对，不在本 worker 内推进。

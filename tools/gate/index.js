@@ -12,6 +12,25 @@ const SKILL_NAMES = ['gate-planning', 'gate-plan-review', 'gate-implement', 'gat
 const REVIEW_LIMIT = 5
 const MAX_WORKERS = 12
 
+export const PLAN_ORCHESTRATION = `## /gate-plan orchestration
+1. Dispatch the gate-planning worker with the task and planning method.
+2. Dispatch gate-plan-review with the resulting work item/Note; read-only.
+3. If findings are non-empty, dispatch gate-planning as a revise worker with the findings.
+4. Re-run review; stop at five review rounds and mark blocked, never pass.
+5. On an empty review, return to discuss. Do not write code.`
+
+export const IMPLEMENT_ORCHESTRATION = `## /gate-implement orchestration
+1. Dispatch gate-implement with the accepted work item and implementation method.
+2. Dispatch gate-code-review twice: Standards and Spec, both read-only.
+3. If either axis has findings, dispatch gate-implement as revise with those findings.
+4. Re-run both reviews; stop at five code-review rounds and mark blocked, never pass.
+5. On empty findings, dispatch gate-verify.
+6. Verify FAIL routes back to implement-revise; PASS completes.`
+
+export const DOCS_ORCHESTRATION = `## /gate-docs orchestration
+Edit only documents and notes; no planning or implementation skill, no code.
+Return to discuss explicitly.`
+
 function workspaceBoundary(ctx, agent) {
   try {
     const policy = ctx.get('sandboxPolicy')
@@ -37,6 +56,16 @@ function skillText(name) {
   }
 }
 
+function skillResources(name) {
+  try {
+    return readdirSync(path.join(SKILLS, name), { withFileTypes: true })
+      .filter(entry => entry.isFile() && entry.name !== 'SKILL.md')
+      .map(entry => path.join(SKILLS, name, entry.name))
+  } catch {
+    return []
+  }
+}
+
 function jsonOf(result) {
   return result?.structured ?? result?.payload ?? result?.value
 }
@@ -47,7 +76,7 @@ function findingsOf(result) {
   return []
 }
 
-function workerPrompt({ node, task, skill, input, round, write }) {
+function workerPrompt({ node, task, skill, input, round, write, resources }) {
   return [
     `# Gate phase worker: ${node}`,
     `task: ${task}`,
@@ -55,6 +84,7 @@ function workerPrompt({ node, task, skill, input, round, write }) {
     `write: ${write}`,
     'The following skill is the method for this node. Follow it fully.',
     skill,
+    ...(resources.length === 0 ? [] : [`## Supporting method files\n${resources.join('\n')}`]),
     '## Inputs',
     input ?? '(none)',
     '## Output contract',
@@ -97,7 +127,7 @@ async function worker(ctx, gate, parent, state, node, task, skillName, input, wr
       cwd: gate.workspace,
       delivery: 'caller',
       signal: controller.signal,
-      prompt: [{ type: 'text', text: workerPrompt({ node, task, skill: skillText(skillName), input, round, write }) }],
+      prompt: [{ type: 'text', text: workerPrompt({ node, task, skill: skillText(skillName), input, round, write, resources: skillResources(skillName) }) }],
     })
     return await activation.result
   } finally {
@@ -207,7 +237,7 @@ function workItemAllowed(root, task, allowMechanical) {
   return hasProposedNote(root, task)
 }
 
-function command(ctx, agent, rawInput, allowMechanical) {
+function command(ctx, agent, rawInput, allowMechanical, node) {
   const task = String(rawInput ?? '').trim()
   const gate = resolveGate(ctx, agent)
   if (gate.config.kind !== 'ok') return { kind: 'error', text: '当前项目没有启用的 .agents/gate.json' }
@@ -219,7 +249,7 @@ function command(ctx, agent, rawInput, allowMechanical) {
   state.task = task
   state.work = 'active'
   state.blockReason = null
-  state.node = null
+  state.node = node
   state.rounds = { planReview: 0, codeReview: 0 }
   saveState(gate.root, agent, state)
   return { gate, state }
@@ -234,7 +264,14 @@ export function apply(ctx) {
         const gate = resolveGate(ctx, context.agent)
         if (gate.config.kind !== 'ok') return ''
         const state = loadState(gate.root, context.agent)
-        return `## Gate\n${statusText(state)}\nMain agent is orchestrating; do not write code or docs. Report the state block and worker results only.`
+        const protocol = state.phase === 'docs'
+          ? DOCS_ORCHESTRATION
+          : state.node === 'plan'
+            ? PLAN_ORCHESTRATION
+            : state.node === 'implement'
+              ? IMPLEMENT_ORCHESTRATION
+              : ''
+        return [`## Gate`, statusText(state), protocol, 'Main agent is orchestrating; do not write code or docs. Report the state block and worker results only.'].filter(Boolean).join('\n\n')
       },
     })
   })
@@ -285,7 +322,7 @@ export function apply(ctx) {
       handler,
     })
     register('gate-plan', 'Start planning orchestration', async invocation => {
-      const result = command(ctx, invocation.agent, invocation.rawInput, false)
+      const result = command(ctx, invocation.agent, invocation.rawInput, false, 'plan')
       if (result.kind === 'error') return result
       void planRun(ctx, result.gate, invocation.agent, result.state).catch(error => {
         const state = loadState(result.gate.root, invocation.agent)
@@ -295,7 +332,7 @@ export function apply(ctx) {
       return { kind: 'success', text: `已启动 planning：${result.state.task}` }
     })
     register('gate-implement', 'Start implementation orchestration', async invocation => {
-      const result = command(ctx, invocation.agent, invocation.rawInput, true)
+      const result = command(ctx, invocation.agent, invocation.rawInput, true, 'implement')
       if (result.kind === 'error') return result
       void implementRun(ctx, result.gate, invocation.agent, result.state).catch(error => {
         const state = loadState(result.gate.root, invocation.agent)
