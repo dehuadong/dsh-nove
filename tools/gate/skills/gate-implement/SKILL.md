@@ -27,7 +27,7 @@ Implement against the selected work item's scope, acceptance conditions, referen
 
 Use established architecture, conventions, interfaces, and domain language unless the authoritative design explicitly changes them.
 
-If implementation exposes a material unresolved product, domain, architectural, interface, compatibility, or other contract decision, stop affected implementation and call `/gate-return`. Discuss the decision before any new planning or implementation authorization; do not continue the affected code.
+If implementation exposes a material unresolved product, domain, architectural, interface, compatibility, or other contract decision, stop affected implementation and call `gate_record({node:'implement', requiresDiscussion:true, discussionReason})`. Do not call a slash command. Discuss the decision before any new planning or implementation authorization; do not continue the affected code.
 
 ### Implementation-time testing
 
@@ -43,7 +43,7 @@ The gate may return material findings. Resolve each finding by ownership:
 | ----------------------------------------------------------------- | -------------------------------------- |
 | Current implementation is missing or violates the agreed contract | Fix in the current implementation      |
 | Additional execution unit is needed within the same agreed work   | Add or update an implementation ticket |
-| Product or technical contract must change or was never resolved   | Stop affected work, call `/gate-return`, and return to discuss; new planning needs authorization |
+| Product or technical contract must change or was never resolved   | Stop affected work, call `gate_record` with `requiresDiscussion:true`, and return to discuss; new planning needs authorization |
 | Issue is unrelated to the agreed work                             | Do not expand scope automatically      |
 
 There is no "fix it while we're here" path for unrelated work.

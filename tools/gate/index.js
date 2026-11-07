@@ -15,7 +15,7 @@ Main agent dispatches workers; gate does not dispatch.
 1. Dispatch gate-planning with the task, gate-planning method, proposal.md, rfc.md, the global write-agent-notes method, and the canonical proposed template.
 2. Call gate_record({node:'plan'}).
 3. Dispatch gate-plan-review read-only; call gate_record({node:'plan-review',findings,requiresDiscussion}).
-4. If requiresDiscussion: call /gate-return and stop. If findings remain: dispatch gate-planning revise, call gate_record({node:'plan-revise'}), then review again.
+4. If requiresDiscussion: call gate_record for the current node with requiresDiscussion:true and stop. If findings remain: dispatch gate-planning revise, call gate_record({node:'plan-revise'}), then review again.
 5. At five review rounds with findings, gate marks blocked; never claim pass.
 6. Empty review returns to discuss.`
 
@@ -25,7 +25,7 @@ Main agent dispatches workers; gate does not dispatch.
 2. Call gate_record({node:'implement'}).
 3. Dispatch gate-code-review-standards and gate-code-review-spec, both read-only.
 4. Call gate_record({node:'code-review',findings,requiresDiscussion}) with the two-axis result.
-5. If requiresDiscussion: call /gate-return and stop. If findings remain: dispatch gate-implement revise, call gate_record({node:'implement-revise'}), then review again.
+5. If requiresDiscussion: call gate_record for the current node with requiresDiscussion:true and stop. If findings remain: dispatch gate-implement revise, call gate_record({node:'implement-revise'}), then review again.
 6. Empty findings: dispatch gate-verify and call gate_record({node:'verify',ok}).
 7. Verify FAIL routes back to implement-revise; PASS completes. At five rounds, blocked.`
 

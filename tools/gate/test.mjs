@@ -70,6 +70,10 @@ await record({ node: 'plan' })
 const needsDiscussion = await record({ node: 'plan-review', findings: [{ id: 'P1' }], requiresDiscussion: true, discussionReason: 'product choice' })
 check('plan findings can require discussion', needsDiscussion.phase === 'discuss' && loadState(workspace, agent).blockReason === 'needs-user-decision')
 
+await run('gate-implement', 'work')
+const implementationBlocked = await record({ node: 'implement', requiresDiscussion: true, discussionReason: 'contract choice' })
+check('implement can return to discuss through gate_record', implementationBlocked.phase === 'discuss' && loadState(workspace, agent).blockReason === 'needs-user-decision')
+
 await run('gate-plan', 'work')
 await record({ node: 'plan' })
 for (let index = 0; index < 5; index += 1) {

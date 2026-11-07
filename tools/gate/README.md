@@ -7,7 +7,7 @@ Standalone replacement for `implement-gate`: phase state, write gate, `/gate-*` 
 - `/gate-plan <work item>` — enter planning; the main agent dispatches planning and plan review;
 - `/gate-implement <work item>` — enter implementation; the main agent dispatches implement, two review axes, and verify;
 - `/gate-docs <scope>` — docs-only governance;
-- `/gate-return` — return to discuss;
+- `/gate-return` — user-only manual return to discuss; agents use the `gate_record` tool;
 - `/gate-status` — factual state block including review rounds.
 
 ## Marker
@@ -30,6 +30,6 @@ gate_record({ node, findings, requiresDiscussion, discussionReason, ok })
 
 The gate does not dispatch workers. It owns phase, write permissions, orchestration protocol, review rounds and blocked/complete.
 
-`requiresDiscussion=true` or a user-owned finding means the main agent must call `/gate-return` before discussing; the gate sets `discuss` and `blockReason=needs-user-decision`. No worker may run in that state.
+`requiresDiscussion=true` or a user-owned finding means the main agent calls `gate_record` for the current node with `requiresDiscussion:true`; the gate sets `discuss` and `blockReason=needs-user-decision`. No worker may run in that state.
 
 Review loops are capped at five rounds; an exhausted loop becomes `blocked`, never a pass.
