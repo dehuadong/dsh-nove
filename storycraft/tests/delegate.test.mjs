@@ -346,13 +346,13 @@ try {
     () => delegateRole(root, { work: rangeWork.workId, chapter: 1, role: 'reviser', mode: 'rewrite' }, { service: overMaxService, agent, signal }))
 
   const patchService = fakeService([completed({
-    output: [{ type: 'text', text: `<<<CHAPTER ${'字'.repeat(70)} CHAPTER>>>` }],
+    output: [{ type: 'text', text: `<<<CHAPTER ${'字'.repeat(80)} CHAPTER>>>` }],
   })])
   await rejects('a patch over 20% is refused', 'delegation-no-submission',
     () => delegateRole(root, { work: rangeWork.workId, chapter: 1, role: 'reviser', mode: 'patch' }, { service: patchService, agent, signal }))
 
   const polishService = fakeService([completed({
-    output: [{ type: 'text', text: `<<<CHAPTER ${'字'.repeat(75)} CHAPTER>>>` }],
+    output: [{ type: 'text', text: `<<<CHAPTER ${'字'.repeat(90)} CHAPTER>>>` }],
   })])
   await rejects('a polish over 40% is refused', 'delegation-no-submission',
     () => delegateRole(root, { work: rangeWork.workId, chapter: 1, role: 'reviser', mode: 'polish' }, { service: polishService, agent, signal }))

@@ -1062,7 +1062,7 @@ export const DELEGATE_OUTPUT: DshToolOutput = {
       durationMs: { type: 'integer' },
       usage: { type: 'object', additionalProperties: true },
       retries: { type: 'integer' },
-      lastMode: { type: 'string', enum: ['patch', 'polish', 'rewrite', 'deslop'] },
+      lastMode: { type: 'string', enum: ['patch', 'polish', 'rewrite', 'deslop', 'rework', 'anti-detect', 'spot-fix'] },
       wordRange: {
         type: 'object',
         additionalProperties: false,

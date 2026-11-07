@@ -22,10 +22,10 @@ import { materialIndexText, searchTokens } from '../../search-text.ts'
 import { dropSearchDoc, syncSearchDoc } from '../../search-index.ts'
 import { STATE_LIMITS, applyFactOp, applyHookOp, mintHookId, projectState } from '../../state-projection.ts'
 import {
-  StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, WORK_FORMS, chapterNumber, chapterStem, contentVersion, countWords,
+  StoryError, SUMMARY_FIELDS, SUMMARY_MAX_CHARS, WORK_FORMS, chapterNumber, chapterStem, contentVersion, countChapterLength,
   formOf, now, planApprovalPolicy, stageOf, summaryAdmissible, trimSummary, unitOf, workIdOf,
 } from '../../domain.ts'
-import { assertRevisionMode } from '../../revision.ts'
+import { assertRevisionMode, canonicalReviseMode } from '../../revision.ts'
 import { INITIAL_HOOKS_HEADING, assertHookTransition, validateArtifactRecord, validateHook, validateInitialHooks } from '../../artifact-contract.ts'
 import {
   artifactRevision, deleteArtifactOnDb, dropRoleCardsOnDb, FOUNDATION_DOCUMENTS, indexTiersOf, latestRoleCardsOnDb, putArtifactOnDb, remapChapterArtifacts, renderChapterMemo, renderFoundationContent,
@@ -274,12 +274,10 @@ export function reviseChapter(root: string, input: ReviseChapterInput): any {
   const body = String(input.body ?? '')
   if (body.trim() === '') throw new StoryError('empty-body', '正文不能为空')
   const mode = input.mode ?? 'patch'
-  if (!['patch', 'polish', 'rewrite', 'deslop'].includes(mode)) {
-    throw new StoryError('revise-mode-violation', `未知修订模式：${mode}`)
-  }
+  const canonical = canonicalReviseMode(mode)
   const problemIds = Array.isArray((input as any).problemIds) ? (input as any).problemIds.map(String) : []
-  if (mode === 'patch' && problemIds.length === 0) {
-    throw new StoryError('missing-problems', 'patch 模式要指定至少一条问题')
+  if (canonical === 'spot-fix' && problemIds.length === 0) {
+    throw new StoryError('missing-problems', 'spot-fix 模式要指定至少一条问题')
   }
   const workId = String(input.work)
   const db = openWork(root, workId)
@@ -294,7 +292,7 @@ export function reviseChapter(root: string, input: ReviseChapterInput): any {
       if (review === undefined) throw new StoryError('review-required', `第 ${number} 章还没有审稿：先 story_review`)
       // A patch answers the exact revision it read; broader modes may land on
       // the revision the review already saw.
-      if (!reviewCovers(review, entry, mode !== 'patch')) {
+      if (!reviewCovers(review, entry, canonical !== 'spot-fix')) {
         throw new StoryError('review-required', `第 ${number} 章的审稿针对旧版本 r${review.revision}：先重新审稿`)
       }
       const open = openObservations(review).map((observation: any) => observation.id)
@@ -304,7 +302,7 @@ export function reviseChapter(root: string, input: ReviseChapterInput): any {
       if (current!.body === body) throw new StoryError('unchanged-body', '修订后的正文与当前版本相同')
       assertRevisionMode({ mode, chapter: number, oldBody: current!.body, body })
       const revision = entry.current_revision + 1
-      const words = countWords(body)
+      const words = countChapterLength(body)
       const at = now()
       db.prepare('INSERT INTO chapter_versions (number, revision, body, words, created_at) VALUES (?, ?, ?, ?, ?)')
         .run(number, revision, body, words, at)

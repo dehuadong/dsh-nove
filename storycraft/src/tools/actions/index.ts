@@ -329,7 +329,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
           budget: { type: 'integer', description: '可选：本次装配的 token 预算（估算值），缺省用角色默认。' },
           mode: {
             type: 'string',
-            enum: ['patch', 'polish', 'rewrite', 'deslop'],
+            enum: ['patch', 'polish', 'rewrite', 'deslop', 'rework', 'anti-detect', 'spot-fix'],
             description: '仅修订使用，缺省 patch。',
           },
         },
@@ -493,7 +493,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
           },
           mode: {
             type: 'string',
-            enum: ['patch', 'polish', 'rewrite', 'deslop'],
+            enum: ['patch', 'polish', 'rewrite', 'deslop', 'rework', 'anti-detect', 'spot-fix'],
             description: '修订模式：patch 只改点到的地方（字数变化 ≤20%）、polish 润色（≤40%）、rewrite 重写、deslop 去 AI 腔（必须减少命中）。省略为 patch。',
           },
         },
@@ -1353,7 +1353,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
           instruction: { type: 'string', description: '作者本轮要求，会并入子代理任务。' },
           mode: {
             type: 'string',
-            enum: ['patch', 'polish', 'rewrite', 'deslop'],
+            enum: ['patch', 'polish', 'rewrite', 'deslop', 'rework', 'anti-detect', 'spot-fix'],
             description: '仅 reviser 使用；缺省 patch。',
           },
         },

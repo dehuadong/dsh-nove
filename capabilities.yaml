@@ -145,9 +145,9 @@ capabilities:
     reference: inkos:packages/core/src/agents/reviser.ts
     dsh: subagents
     implementation: storycraft/src/roles/reviser/agent.ts
-    consumer: storycraft/tests/revision-adopt.test.mjs
-    realRun: null
-    status: missing
+    consumer: storycraft/tests/revision-modes.test.mjs
+    realRun: artifacts/real-runs/chapter.revise.json
+    status: verified
   - id: chapter.summary
     title: 结构化摘要
     reference: inkos:packages/core/src/pipeline/chapter-persistence.ts
