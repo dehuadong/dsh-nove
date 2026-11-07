@@ -1,0 +1,33 @@
+{
+  "date": "2026-11-07",
+  "sessionId": "session-d68dc3ec-3f70-435d-86fa-bf1438c8af3d",
+  "tests": { "passed": true },
+  "receipts": [
+    {
+      "kind": "review-unavailable",
+      "work": "伏笔回执",
+      "chapter": 1,
+      "round": 1,
+      "artifactId": "review:1:r1:1",
+      "revisionId": "1f1c7d23ba3a",
+      "observations": [{ "code": "review-unavailable", "assessment": "unavailable", "sourceRefs": [] }],
+      "ok": true
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/tests/review-unavailable.test.mjs",
+      "ok": true
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/tests/reviewer-retry.test.mjs",
+      "ok": true
+    },
+    {
+      "kind": "code-check",
+      "command": "node storycraft/scripts/ci.mjs --no-e2e",
+      "ok": true,
+      "unitFiles": 104
+    }
+  ]
+}

@@ -356,7 +356,7 @@ export function validateObservation(value: ArtifactRecord): ArtifactRecord {
     text(ref.sourceId, `${label}.sourceId`)
     text(ref.quote, `${label}.quote`)
     return ref
-  }, { min: 1 })
+  }, { min: input.assessment === 'unavailable' ? 0 : 1 })
   if (input.severity !== undefined) oneOf(input.severity, OBSERVATION_SEVERITIES, 'observation.severity')
   if (input.fix !== undefined) text(input.fix, 'observation.fix')
   if (input.mode !== undefined) oneOf(input.mode, REVISE_MODES, 'observation.mode')

@@ -137,9 +137,9 @@ capabilities:
     reference: inkos:packages/core/src/pipeline/chapter-review.ts
     dsh: subagents
     implementation: storycraft/src/roles/reviewer/agent.ts
-    consumer: storycraft/tests/critique.test.mjs
-    realRun: null
-    status: missing
+    consumer: storycraft/tests/review-unavailable.test.mjs
+    realRun: artifacts/real-runs/chapter.review.json
+    status: verified
   - id: chapter.revise
     title: patch/polish/rewrite/deslop
     reference: inkos:packages/core/src/agents/reviser.ts

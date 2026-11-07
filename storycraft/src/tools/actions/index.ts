@@ -1363,13 +1363,40 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
       async execute(args, exec) {
         const root = workspaceOf(exec)
         const service = typeof ctx?.get === 'function' ? ctx.get('subagents') : undefined
-        return delegateRole(root, args, {
-          service,
-          agent: exec.agent,
-          signal: exec.signal,
-          sessions: typeof ctx?.get === 'function' ? ctx.get('sessions') : undefined,
-          agents: typeof ctx?.get === 'function' ? ctx.get('agents') : undefined,
-        })
+        try {
+          return await delegateRole(root, args, {
+            service,
+            agent: exec.agent,
+            signal: exec.signal,
+            sessions: typeof ctx?.get === 'function' ? ctx.get('sessions') : undefined,
+            agents: typeof ctx?.get === 'function' ? ctx.get('agents') : undefined,
+          })
+        } catch (error: any) {
+          if (args.role !== 'reviewer' || args.chapter === undefined) throw error
+          const message = String(error?.message ?? error).slice(0, 300)
+          const review = writeReview(root, {
+            work: String(args.work),
+            chapter: Number(args.chapter),
+            observations: [{
+              code: 'review-unavailable',
+              summary: `审稿暂不可用：${message}`,
+              evidence: [],
+              category: 'quality',
+              assessment: 'unavailable',
+              sourceRefs: [],
+            }],
+          })
+          return {
+            ok: true,
+            workId: String(args.work),
+            chapter: Number(args.chapter),
+            role: 'reviewer',
+            reviewRound: review.round,
+            problems: { total: 1, open: 0 },
+            warnings: [`审稿失败已记录：${message}`],
+            artifact: { workId: String(args.work), artifactId: review.artifactId, revisionId: review.revisionId, kind: 'review' },
+          }
+        }
       },
     }),
 
