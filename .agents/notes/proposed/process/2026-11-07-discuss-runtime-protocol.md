@@ -38,7 +38,9 @@ Status: proposed
 Phase 为 `discuss` 时注入：
 
 ```text
-## /discuss
+## Discuss
+
+discuss 是默认阶段，不需要命令进入。
 
 只读讨论，不写文件、不派 worker。
 
@@ -50,6 +52,13 @@ Phase 为 `discuss` 时注入：
 6. 汇报：已解决事项、剩余未决事项、建议的下一阶段。
 7. 不自行离开 discuss；离开必须由用户显式授权。
 ```
+
+### 默认态与返回
+
+- discuss 是默认态，不新增 `/discuss` 命令；
+- Agent 需要返回讨论时调用 `gate_record({requiresDiscussion:true})`；
+- 用户手动返回时使用 `/gate-return-discuss`；
+- 进入 planning/implement/review 仍由用户显式命令授权。
 
 ### 2. 修正 system prompt 文案
 
@@ -111,12 +120,14 @@ workflow
 ## Acceptance criteria
 
 1. discuss 注入只读讨论协议；
-2. system prompt 不再在 discuss 说“编排中”；
-3. discuss 拒绝 subagent/subagent_fork/workflow；
-4. discuss 仍拒绝代码/文档写入；
-5. discuss 不写讨论摘要到 state；
-6. 用户命令才能进入 planning/implement；
-7. 测试覆盖协议文案、派发拒绝、phase 转换。
+2. discuss 是默认态，不新增 `/discuss` 命令；
+3. system prompt 不再在 discuss 说“编排中”；
+4. discuss 拒绝 subagent/subagent_fork/workflow；
+5. discuss 仍拒绝代码/文档写入；
+6. discuss 不写讨论摘要到 state；
+7. 用户命令才能进入 planning/implement；
+8. Agent 用 `gate_record` 回 discuss，用户用 `/gate-return-discuss`；
+9. 测试覆盖协议文案、派发拒绝、phase 转换。
 
 ## Plan Review
 
