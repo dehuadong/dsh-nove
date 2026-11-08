@@ -18,6 +18,7 @@
 | 会话／事件 | 自建会话与事件存储 | DSH session log | 对话与调用证据留在 session，作品内容另存 | 一次流水线可在 session 中追溯 |
 | 会话绑定 | `sessionKind` 决定 profile，`bookId` 决定 workId | 按 sessionId 记录当前 workId；profile 由 preset 决定 | DSH 没有 InkOS 的 sessionKind/profile 枚举 | 面板进入、重启 hydrate、跨会话隔离 |
 | 作品存储 | 自建独立存储服务 | DSH storage/session 或既有 SQLite（不新建独立存储服务） | 复用 DSH 文件状态与既有 SQLite，不引入额外存储组件 | 作品数据可读回；两部作品互不串数据 |
+| 运行时 | episode 生命周期 start/execute/finish | bundle/preset 挂载 + registry 注册 + web 路由 | 机制等价：DSH 由 bundle 替代 InkOS 的 runtime 注册器 | `e2e/load.spec.cjs` + 真实会话回执 |
 | 调度 | 队列 + worker | DSH jobs／schedule | 长任务用子代理异步执行，不建队列 | 长任务可断点续跑 |
 | 技能 | 自有技能目录与加载器 | DSH `skills` 服务 + 文件系统 | SKILL.md + references 由运行时加载 | 技能能按角色／动作激活 |
 | 方法注入 | 自建 prompt 拼装 | `systemPrompt.context()` | 不在实现里复制方法正文，只注入受预算约束的片段 | 注入片段可在 trace 中定位 |

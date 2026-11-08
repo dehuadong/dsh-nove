@@ -6,10 +6,10 @@ version: 1
 capabilities:
   - id: runtime.load
     title: 插件／预设加载，注册 story_next，client 骨架可见
-    reference: inkos:packages/core/src/harness/runtime.ts
+    reference: inkos:packages/core/src/harness/production-capabilities.ts
     dsh: bundle/preset + client
-    implementation: storycraft/src/index.ts
-    consumer: storycraft/tests/tools.test.mjs
+    implementation: storycraft/cordis.patch.yml
+    consumer: storycraft/e2e/load.spec.cjs
     realRun: null
     status: missing
   - id: workspace.single-form

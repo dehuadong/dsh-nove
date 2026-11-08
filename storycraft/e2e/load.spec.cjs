@@ -24,12 +24,24 @@ test.describe('故事工坊加载契约', () => {
     // Same origin as the page: the session cookie the GUI handed out is enough.
     // The route names the workspace explicitly, exactly like the panel does.
     const result = await page.evaluate(async (root) => {
-      const response = await fetch(`/api/see-storycraft/works?root=${encodeURIComponent(root)}`)
-      const body = await response.json().catch(() => undefined)
-      return { status: response.status, works: Array.isArray(body?.works) ? body.works.length : -1 }
+      const worksResponse = await fetch(`/api/see-storycraft/works?root=${encodeURIComponent(root)}`)
+      const worksBody = await worksResponse.json().catch(() => undefined)
+      const workId = worksBody?.works?.[0]?.workId ?? worksBody?.works?.[0]?.id
+      const nextResponse = workId === undefined ? undefined : await fetch(
+        `/api/see-storycraft/next?root=${encodeURIComponent(root)}&id=${encodeURIComponent(workId)}`,
+      )
+      const nextBody = nextResponse === undefined ? undefined : await nextResponse.json().catch(() => undefined)
+      return {
+        status: worksResponse.status,
+        works: Array.isArray(worksBody?.works) ? worksBody.works.length : -1,
+        nextStatus: nextResponse?.status,
+        action: nextBody?.next?.action,
+      }
     }, fixtureWorkspace)
     expect(result.status).toBe(200)
     expect(result.works).toBeGreaterThan(0)
+    expect(result.nextStatus).toBe(200)
+    expect(typeof result.action).toBe('string')
     expect(errors).toEqual([])
   })
 })
