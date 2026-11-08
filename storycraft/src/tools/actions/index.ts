@@ -61,7 +61,7 @@ import {
 } from '../runtime.ts'
 
 /** Preset ids that declare one form; future short/script presets join this table. */
-const PRESET_FORM: Record<string, string> = { storycraft: 'longform' }
+const PRESET_FORM: Record<string, string> = { storycraft: 'longform', 'storycraft-short': 'short' }
 
 /** The form asserted by the active session preset; no preset keeps the longform default. */
 function presetFormOf(exec: any): string {

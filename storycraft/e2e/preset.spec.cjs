@@ -40,14 +40,17 @@ function rowBlocks(text) {
 test.describe('故事工坊工作模式', () => {
   test.skip(skip !== false, skip || '')
 
-  test('只有一个故事工坊预设且没有装载失败', async ({ request }) => {
+  test('故事工坊预设已挂载且没有装载失败', async ({ request }) => {
     const response = await request.get(`${base}/api/see-storycraft/roster`)
     expect(response.ok()).toBe(true)
     const roster = await response.json()
     const storycraft = roster.presets.filter(preset => preset.id === 'storycraft')
+    const short = roster.presets.filter(preset => preset.id === 'storycraft-short')
     expect(storycraft).toHaveLength(1)
+    expect(short).toHaveLength(1)
     expect(storycraft[0].broken).toBeNull()
-    expect(roster.presets.filter(preset => preset.id.startsWith('storycraft-'))).toHaveLength(0)
+    expect(short[0].broken).toBeNull()
+    expect(roster.presets.filter(preset => preset.id.startsWith('storycraft-') && preset.id !== 'storycraft-short')).toHaveLength(0)
   })
 
   test('组合继承标准预设的每一行，委派固定为 spawn 且不可再派发', async ({ request }) => {
@@ -62,7 +65,7 @@ test.describe('故事工坊工作模式', () => {
       ? fs.readFileSync(storycraftFile, 'utf8')
       : (await (await request.get(`${base}/api/see-storycraft/document?id=storycraft`)).json()).content)
 
-    expect(storycraft.map(row => row.id).slice(-2)).toEqual(['storycraft-skills', 'storycraft-tools'])
+    expect(storycraft.map(row => row.id).slice(-3)).toEqual(['storycraft-skills', 'storycraft-tools', 'storycraft-commands'])
 
     // Persona text and disabled ask-user are intentional row differences. Inside the
     // delegation group the `tool-subagent` config changes and the fork row is

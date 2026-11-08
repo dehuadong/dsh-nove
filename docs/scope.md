@@ -38,7 +38,7 @@
 
 ### 复刻交付节点（复审后）
 
-复审结论：原 P0–P7 漏掉了 `runtime.session-binding`、`runtime.telemetry`、`runtime.commands`、`runtime.recovery`、`foundation.hooks`、`artifact.identity`、`chapter.reopen`、`chapter.move-delete`、`state.check`、`panel.workbench`、`panel.logs`、`panel.analysis`，并把 `cast.single-authority` 放在 brief 之前。现按源阶段顺序改为 D0–D8，覆盖 `capabilities.yaml` 全部 39 行。
+复审结论：原 P0–P7 漏掉了 `runtime.session-binding`、`runtime.telemetry`、`runtime.commands`、`runtime.recovery`、`foundation.hooks`、`artifact.identity`、`chapter.reopen`、`chapter.move-delete`、`state.check`、`panel.workbench`、`panel.logs`、`panel.analysis`，并把 `cast.single-authority` 放在 brief 之前。现按源阶段顺序改为 D0–D8，覆盖 `capabilities.yaml` 全部 41 行。
 
 每个节点只交付一个能力；阶段名只是分组，不代表一次 PR 交付多个能力。
 
@@ -49,7 +49,7 @@
 - **D4 收尾**：`chapter.summary` → `chapter.settle` → `chapter.finalize`。
 - **D5 重开与维护**：`chapter.reopen` → `chapter.move-delete` → `state.check` → `runtime.recovery`。
 - **D6 导出与面板**：`export.work` → `backup.restore` → `materials.import` → `search.unified` → `panel.workbench` → `panel.logs` → `panel.analysis`。
-- **D7 短篇**：`short.outline` → `short.batch-draft` → `short.review-revise` → `short.package`。
+- **D7 短篇**：`short.preset` → `short.outline` → `short.batch-draft` → `short.review-revise` → `short.package`。
 - **D8 剧本**：`script.spec` → `script.scenes` → `script.scriptset` → `script.review-revise`。
 
 交付节点只决定切片顺序，不重新定义源工程阶段；不得用 D 节点替代源阶段的行为。

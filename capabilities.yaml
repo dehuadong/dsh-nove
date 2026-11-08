@@ -260,6 +260,14 @@ capabilities:
     consumer: storycraft/tests/analysis.test.mjs
     realRun: null
     status: missing
+  - id: short.preset
+    title: 短篇预设入口（thin preset）
+    reference: inkos:packages/core/src/harness/builtin-profiles.ts
+    dsh: preset
+    implementation: storycraft/cordis.patch.yml
+    consumer: storycraft/e2e/preset.spec.cjs
+    realRun: null
+    status: missing
   - id: short.outline
     title: 短篇大纲（v1 后）
     reference: inkos:packages/core/src/pipeline/short-fiction-runner.ts

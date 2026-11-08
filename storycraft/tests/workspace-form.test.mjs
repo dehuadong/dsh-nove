@@ -54,6 +54,14 @@ try {
   check('an unknown preset is refused instead of coerced',
     unknownPreset.ok === false && unknownPreset.error.code === 'preset-form-unknown', JSON.stringify(unknownPreset))
 
+  const shortProposal = await byName.get('story_propose').execute({
+    title: '短篇入口', form: 'short', premise: '短篇入口。',
+  }, exec('s5', 'storycraft-short'))
+  const shortEntry = await byName.get('story_init').execute({ title: '短篇入口', proposal: shortProposal.proposal }, exec('s5', 'storycraft-short'))
+  check('the short preset creates a short work',
+    shortProposal.ok === true && shortEntry.ok === true
+    && s.readManifest(root, shortEntry.workId).form === 'short', JSON.stringify(shortEntry))
+
   const catalog = openCatalog(root, { create: false })
   try {
     check('workspace form table is gone',

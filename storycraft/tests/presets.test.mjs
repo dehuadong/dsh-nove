@@ -30,14 +30,17 @@ const unknown = variables.filter(name => !REGISTERED_VARIABLES.has(name))
 check('persona templates use no unregistered prompt variable', unknown.length === 0, unknown.join(', '))
 
 const presetRows = [...patch.matchAll(/name: '@deepseek-ai\/dsh-agent-preset'/g)].length
-check('one preset declaration (the work mode)', presetRows === 1, String(presetRows))
-check('the studio preset id is `storycraft`', /^\s{8}id: storycraft$/m.test(patch))
+check('two preset declarations (longform and short)', presetRows === 2, String(presetRows))
+check('the longform preset id is `storycraft`', /^\s{8}id: storycraft$/m.test(patch))
+check('the short preset id is `storycraft-short`', /^\s{8}id: storycraft-short$/m.test(patch))
 check('the preset is named 故事工坊', patch.includes('name: 故事工坊'))
+check('the short preset is named 故事工坊·短篇', patch.includes('name: 故事工坊·短篇'))
 check('no role preset survives', !/storycraft-(planner|writer|reviser|reviewer)/.test(patch))
 check('no private delegation action survives', !/story_(review|write|revise|plan|outline)_agent|story_agent_probe/.test(patch))
 
 const toolsRow = patch.indexOf("name: 'see-storycraft/tools'")
-check('the action row is mounted once', toolsRow > 0 && patch.indexOf("name: 'see-storycraft/tools'", toolsRow + 1) === -1)
+const toolsRows = [...patch.matchAll(/name: 'see-storycraft\/tools'/g)].length
+check('the action row is mounted once per preset', toolsRows === 2 && toolsRow > 0, String(toolsRows))
 check('the skill row serves every form', /mode: all/.test(patch))
 check('the delegation tool is the official spawn tool', /provider: spawn\s*\n\s*toolName: subagent\s*\n\s*maxDepth: 1/.test(patch))
 check('delegation never selects a child preset', !/agentPreset:/.test(patch))
@@ -72,8 +75,12 @@ const rowBlocks = (text) => {
     }
   })
 }
-const patchBlocks = rowBlocks(patch)
-check('the patch names its top-level rows', patchBlocks.length > 0)
+const presetStarts = [...patch.matchAll(/^ {4}- id: preset-storycraft(?:-short)?$/gm)].map(match => match.index)
+const longformPatch = patch.slice(presetStarts[0], presetStarts[1] ?? patch.length)
+const shortPatch = presetStarts[1] === undefined ? '' : patch.slice(presetStarts[1])
+const patchBlocks = rowBlocks(longformPatch)
+const shortBlocks = rowBlocks(shortPatch)
+check('the patch names its top-level rows', patchBlocks.length > 0 && shortBlocks.length > 0)
 
 const STANDARD = join(root, '..', 'deepseek-harness', 'packages', 'bundle', 'web-app', 'presets', 'standard.patch.yml')
 const standard = await readFile(STANDARD, 'utf8').catch(() => undefined)
@@ -84,9 +91,12 @@ if (standard === undefined) {
   const expectedOrder = standardBlocks.map(row => row.id)
     .filter(id => id !== 'tool-subagent-fork')
     .concat(['storycraft-skills', 'storycraft-tools', 'storycraft-commands'])
-  check('the preset copies every standard row in order',
+  check('the longform preset copies every standard row in order',
     patchBlocks.map(row => row.id).join(',') === expectedOrder.join(','),
     `expected ${expectedOrder.join(',')}; got ${patchBlocks.map(row => row.id).join(',')}`)
+  check('the short preset copies every standard row in order',
+    shortBlocks.map(row => row.id).join(',') === expectedOrder.join(','),
+    `expected ${expectedOrder.join(',')}; got ${shortBlocks.map(row => row.id).join(',')}`)
 
   // persona text and disabled ask-user are intentional row-level differences. Inside the
   // delegation group the child `tool-subagent` config changes and the fork row
@@ -100,15 +110,18 @@ if (standard === undefined) {
     return [...lines.slice(0, start), ...lines.slice(end)].join('\n').trim()
   }
   const normalize = body => withoutNestedRow(withoutNestedRow(body, 'tool-subagent'), 'tool-subagent-fork')
-  const mismatched = standardBlocks
+  const mismatchedFor = blocks => standardBlocks
     .filter(row => row.id !== 'persona' && row.id !== 'tool-ask-user')
     .filter(row => {
-      const own = patchBlocks.find(candidate => candidate.id === row.id)
+      const own = blocks.find(candidate => candidate.id === row.id)
       return own === undefined || normalize(own.body) !== normalize(row.body)
     })
     .map(row => row.id)
+  const mismatched = mismatchedFor(patchBlocks)
+  const shortMismatched = mismatchedFor(shortBlocks)
   check('storycraft disables ask_user_question', patchBlocks.find(row => row.id === 'tool-ask-user')?.body.includes('disabled: true'))
   check('every inherited row keeps the standard config', mismatched.length === 0, mismatched.join(','))
+  check('the short preset keeps the standard config', shortMismatched.length === 0, shortMismatched.join(','))
 }
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`)
