@@ -2,12 +2,11 @@
  * Human-command entry points for the longform workspace.
  *
  * Commands run in the Session's workspace and never send their payload to the
- * model. `/story-init` initializes a project directory and fixes its form; it is
- * the CLI-equivalent entry beside the model-facing `story_init` action.
+ * model. `/story-init` initializes a project directory; it is the CLI-equivalent
+ * entry beside the model-facing `story_init` action.
  */
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { ensureWorkspaceForm } from './storage.ts'
 
 /** Minimal host context this module needs. */
 export interface CommandContext {
@@ -34,8 +33,7 @@ export async function initializeWorkspace(invocation: any): Promise<{ kind: 'suc
     const name = String(invocation.rawInput ?? '').trim()
     const root = name === '' ? cwd : join(cwd, name)
     await mkdir(root, { recursive: true })
-    ensureWorkspaceForm(root, 'longform', 'storycraft')
-    return { kind: 'success', text: `已初始化长篇工作区：${root}` }
+    return { kind: 'success', text: `已初始化工作区：${root}` }
   } catch (error: any) {
     return { kind: 'error', text: String(error?.message ?? error) }
   }

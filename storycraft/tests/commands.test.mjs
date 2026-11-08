@@ -1,9 +1,9 @@
 // Human command entry: /story-init initializes a longform workspace.
 import { mkdtemp, rm } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { initializeWorkspace, registerStoryCommands } from '../src/commands.ts'
-import { readWorkspaceForm } from '../src/storage.ts'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -19,10 +19,10 @@ try {
   const invocation = { agent: { session: { header: { cwd: root } } }, rawInput: '' }
   const initialized = await initializeWorkspace(invocation)
   check('story-init succeeds', initialized.kind === 'success', JSON.stringify(initialized))
-  check('story-init fixes the longform form', readWorkspaceForm(root)?.form === 'longform', JSON.stringify(readWorkspaceForm(root)))
+  check('story-init creates the workspace directory', existsSync(root), root)
 
   const named = await initializeWorkspace({ ...invocation, rawInput: '第二本' })
-  check('story-init accepts a project name', named.kind === 'success' && readWorkspaceForm(join(root, '第二本'))?.form === 'longform', JSON.stringify(named))
+  check('story-init accepts a project name', named.kind === 'success' && existsSync(join(root, '第二本')), JSON.stringify(named))
 
   const again = await initializeWorkspace(invocation)
   check('re-running on the same workspace is idempotent', again.kind === 'success', JSON.stringify(again))

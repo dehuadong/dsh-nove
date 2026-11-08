@@ -2,7 +2,7 @@
 
 import { createHash } from 'node:crypto'
 import {
-  StoryError, createBackup, deleteWork, ensureWorkspaceForm, exportWork, initWork, nextStep as nextStepFor, 
+  StoryError, createBackup, deleteWork, exportWork, initWork, nextStep as nextStepFor, 
   approveFoundation, approveOutline, approveChapterPlan, finalizeChapter, markStateDraftReady, mergeStateDraft,
   planApprovalPolicy,
   latestReview, readBibleEntry, readChapter, readChapterHistory, readEvents, readEventsText, readManifest, readPlan, readSessionCurrent,
@@ -115,10 +115,8 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
         const form = presetFormOf(exec)
         if (proposal.form !== form) {
           throw new StoryError('workspace-form-mismatch',
-            `提案形态是 ${proposal.form}，当前工作区只接受 ${form}：换工作区或换预设`)
+            `提案形态是 ${proposal.form}，当前预设只接受 ${form}：换会话或换预设`)
         }
-        const preset = (exec?.agent?.session?.header as any)?.agentPreset
-        ensureWorkspaceForm(root, form, typeof preset === 'string' ? preset : undefined)
         const targetId = typeof args.workId === 'string' && args.workId.trim() !== ''
           ? workIdOf(args.workId)
           : workIdOf(args.title)

@@ -1,9 +1,10 @@
-// One workspace carries one form: the first init fixes it, later works must match.
+// One workspace may hold works of different forms; the preset still scopes proposals.
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as tools from '../src/tools/index.ts'
 import * as s from '../src/storage.ts'
+import { openCatalog } from '../src/storage/db.ts'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -22,37 +23,38 @@ const ctx = {
 }
 tools.apply(ctx, { mode: 'longform' })
 const byName = new Map(registered.map(definition => [definition.name, definition]))
-const exec = (sessionId) => ({ agent: { id: sessionId, session: { header: { cwd: root, agentPreset: 'storycraft' } } } })
 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-workspace-form-'))
+const exec = (sessionId) => ({ agent: { id: sessionId, session: { header: { cwd: root, agentPreset: 'storycraft' } } } })
 try {
+  const short = s.initWork(root, { title: '短篇', form: 'short' })
+  check('a short work exists first', s.listWorks(root).some(work => work.workId === short.workId), JSON.stringify(s.listWorks(root)))
+
   const propose = await byName.get('story_propose').execute({
-    title: '第一篇', form: 'longform', premise: '一条前提。',
+    title: '长篇', form: 'longform', premise: '一条前提。',
   }, exec('s1'))
   check('longform proposal accepted', propose.ok === true, JSON.stringify(propose))
-  const first = await byName.get('story_init').execute({ title: '第一篇', proposal: propose.proposal }, exec('s1'))
-  check('first work initialized', first.ok === true, JSON.stringify(first))
-  check('workspace form fixed on first init', s.readWorkspaceForm(root)?.form === 'longform', JSON.stringify(s.readWorkspaceForm(root)))
+  const longform = await byName.get('story_init').execute({ title: '长篇', proposal: propose.proposal }, exec('s1'))
+  check('longform work joins the existing short work', longform.ok === true, JSON.stringify(longform))
+  check('one workspace holds both forms',
+    s.listWorks(root).filter(work => work.trashed !== true).length === 2, JSON.stringify(s.listWorks(root)))
 
-  const proposeTwo = await byName.get('story_propose').execute({
-    title: '第二篇', form: 'longform', premise: '另一条前提。',
-  }, exec('s2'))
-  const second = await byName.get('story_init').execute({ title: '第二篇', proposal: proposeTwo.proposal }, exec('s2'))
-  check('a second longform work is allowed', second.ok === true, JSON.stringify(second))
-  check('one work per database', s.listWorks(root).filter(work => work.trashed !== true).length === 2, JSON.stringify(s.listWorks(root)))
+  const forms = s.listWorks(root).map(work => s.readManifest(root, work.workId).form).sort()
+  check('each work keeps its own form', forms.join(',') === 'longform,short', JSON.stringify(forms))
 
   const badProposal = await byName.get('story_propose').execute({
-    title: '短篇', form: 'short', premise: '错误形态。',
+    title: '错形态', form: 'short', premise: '错误形态。',
   }, exec('s3'))
-  check('cross-form proposal is refused', badProposal.ok === false && badProposal.error.code === 'workspace-form-mismatch', JSON.stringify(badProposal))
+  check('the active preset still refuses another form',
+    badProposal.ok === false && badProposal.error.code === 'workspace-form-mismatch', JSON.stringify(badProposal))
 
-  let storageCode
+  const catalog = openCatalog(root, { create: false })
   try {
-    s.ensureWorkspaceForm(root, 'short', 'storycraft-short')
-  } catch (error) {
-    storageCode = error?.code
+    check('workspace form table is gone',
+      catalog.prepare("SELECT count(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'workspace'").get().n === 0)
+  } finally {
+    catalog?.close()
   }
-  check('workspace form cannot change in storage', storageCode === 'workspace-form-mismatch', String(storageCode))
 } finally {
   await rm(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 })
 }

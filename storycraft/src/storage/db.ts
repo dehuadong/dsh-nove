@@ -94,13 +94,6 @@ CREATE TABLE IF NOT EXISTS session_current (
   work_id TEXT,
   updated_at TEXT NOT NULL
 );
-
-CREATE TABLE IF NOT EXISTS workspace (
-  id INTEGER PRIMARY KEY CHECK (id = 1),
-  form TEXT NOT NULL,
-  preset_id TEXT,
-  created_at TEXT NOT NULL
-);
 `
 
 /** Current artifact registry: canonical artifacts with immutable revisions. */
