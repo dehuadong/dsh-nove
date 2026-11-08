@@ -25,7 +25,7 @@ tools.apply(ctx, { mode: 'longform' })
 const byName = new Map(registered.map(definition => [definition.name, definition]))
 
 const root = await mkdtemp(join(tmpdir(), 'storycraft-workspace-form-'))
-const exec = (sessionId) => ({ agent: { id: sessionId, session: { header: { cwd: root, agentPreset: 'storycraft' } } } })
+const exec = (sessionId, agentPreset = 'storycraft') => ({ agent: { id: sessionId, session: { header: { cwd: root, agentPreset } } } })
 try {
   const short = s.initWork(root, { title: '短篇', form: 'short' })
   check('a short work exists first', s.listWorks(root).some(work => work.workId === short.workId), JSON.stringify(s.listWorks(root)))
@@ -47,6 +47,12 @@ try {
   }, exec('s3'))
   check('the active preset still refuses another form',
     badProposal.ok === false && badProposal.error.code === 'workspace-form-mismatch', JSON.stringify(badProposal))
+
+  const unknownPreset = await byName.get('story_propose').execute({
+    title: '未知预设', form: 'longform', premise: '未知预设。',
+  }, exec('s4', 'unknown-preset'))
+  check('an unknown preset is refused instead of coerced',
+    unknownPreset.ok === false && unknownPreset.error.code === 'preset-form-unknown', JSON.stringify(unknownPreset))
 
   const catalog = openCatalog(root, { create: false })
   try {

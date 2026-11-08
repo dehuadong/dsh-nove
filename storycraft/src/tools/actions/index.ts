@@ -63,10 +63,15 @@ import {
 /** Preset ids that declare one form; future short/script presets join this table. */
 const PRESET_FORM: Record<string, string> = { storycraft: 'longform' }
 
-/** The form asserted by the active session preset; unknown presets keep the longform default. */
+/** The form asserted by the active session preset; no preset keeps the longform default. */
 function presetFormOf(exec: any): string {
   const preset = exec?.agent?.session?.header?.agentPreset
-  return typeof preset === 'string' && PRESET_FORM[preset] !== undefined ? PRESET_FORM[preset] : 'longform'
+  if (typeof preset !== 'string' || preset === '') return 'longform'
+  const form = PRESET_FORM[preset]
+  if (form === undefined) {
+    throw new StoryError('preset-form-unknown', `未知预设没有声明形态：${preset}`)
+  }
+  return form
 }
 
 export /** The long-form action set. */

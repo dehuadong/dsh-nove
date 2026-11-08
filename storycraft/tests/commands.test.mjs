@@ -1,4 +1,4 @@
-// Human command entry: /story-init initializes a longform workspace.
+// Human command entry: /story-init initializes a workspace directory.
 import { mkdtemp, rm } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -19,7 +19,8 @@ try {
   const invocation = { agent: { session: { header: { cwd: root } } }, rawInput: '' }
   const initialized = await initializeWorkspace(invocation)
   check('story-init succeeds', initialized.kind === 'success', JSON.stringify(initialized))
-  check('story-init creates the workspace directory', existsSync(root), root)
+  check('story-init reports the initialized workspace',
+    initialized.kind === 'success' && String(initialized.text).includes('已初始化工作区'), JSON.stringify(initialized))
 
   const named = await initializeWorkspace({ ...invocation, rawInput: '第二本' })
   check('story-init accepts a project name', named.kind === 'success' && existsSync(join(root, '第二本')), JSON.stringify(named))

@@ -7,5 +7,5 @@ test.skip(!runtime.url, 'no instance')
 test('panel story-init', async ({ page }) => {
   await openWorkbench(page, runtime.url)
   await page.getByRole('button', { name: '初始化工作区' }).click()
-  await expect(page.getByText(/已初始化长篇工作区/)).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText(/已初始化工作区/)).toBeVisible({ timeout: 10_000 })
 })
