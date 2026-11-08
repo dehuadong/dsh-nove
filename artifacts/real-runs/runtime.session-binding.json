@@ -1,0 +1,56 @@
+{
+  "date": "2026-11-08",
+  "sessionId": "session-a390231f-bb63-4d69-867d-e9b8f9d5589a",
+  "testedCommit": "d98d0a3",
+  "consumer": "storycraft/tests/session-binding-revalidation.test.mjs",
+  "tests": { "passed": true },
+  "receipts": [
+    {
+      "kind": "binding-cas",
+      "root": "storycraft/.tmp-e2e/binding-SnX6sr",
+      "session": "receipt-session",
+      "from": "绑定甲",
+      "to": "绑定乙",
+      "current": "绑定乙",
+      "ok": true
+    },
+    {
+      "kind": "current-route",
+      "order": "catalog then memory",
+      "conflict": "work-binding-mismatch",
+      "memoryAfterFailure": "unchanged",
+      "ok": true
+    },
+    {
+      "kind": "binding-conflict",
+      "error": "work-binding-conflict",
+      "ok": true
+    },
+    {
+      "kind": "manual-rebind-refused",
+      "error": "work-binding-mismatch",
+      "ok": true
+    },
+    {
+      "kind": "creation-retarget",
+      "action": "story_init",
+      "ok": true
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/tests/session-binding-revalidation.test.mjs",
+      "ok": true
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/tests/tools.test.mjs",
+      "ok": true
+    },
+    {
+      "kind": "code-check",
+      "command": "node storycraft/scripts/ci.mjs --no-e2e",
+      "ok": true,
+      "unitFiles": 107
+    }
+  ]
+}
