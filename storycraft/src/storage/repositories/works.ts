@@ -155,12 +155,18 @@ export function pruneProposals(root: any, ttlMs: any = PROPOSAL_TTL_MS) {
  * @param {string} workId - work identity.
  * @returns {{sessionId: string, workId: string}} stored pointer.
  */
-export function setSessionCurrent(root: any, sessionId: any, workId: any) {
+export function setSessionCurrent(root: any, sessionId: any, workId: any, options: { expectedWorkId?: string | null } = {}) {
   const catalog = requireCatalog(root)
   try {
     const existing = catalog.prepare('SELECT work_id AS workId FROM session_current WHERE session_id = ?')
       .get(sessionId) as { workId: string } | undefined
-    if (existing !== undefined && existing.workId !== workId) {
+    if (options.expectedWorkId !== undefined) {
+      const current = existing?.workId ?? null
+      if (current !== options.expectedWorkId) {
+        throw new StoryError('work-binding-conflict',
+          `会话绑定已变化：期望 ${String(options.expectedWorkId ?? '未绑定')}，实际 ${String(current ?? '未绑定')}`)
+      }
+    } else if (existing !== undefined && existing.workId !== workId) {
       throw new StoryError('work-binding-mismatch',
         `本会话已绑定作品 ${existing.workId}，不能再改绑 ${workId}：请为目标作品打开或新建会话`)
     }
@@ -168,6 +174,11 @@ export function setSessionCurrent(root: any, sessionId: any, workId: any) {
       transaction(catalog, () => {
         catalog.prepare('INSERT INTO session_current (session_id, work_id, updated_at) VALUES (?, ?, ?)')
           .run(sessionId, workId, now())
+      })
+    } else if (existing.workId !== workId) {
+      transaction(catalog, () => {
+        catalog.prepare('UPDATE session_current SET work_id = ?, updated_at = ? WHERE session_id = ?')
+          .run(workId, now(), sessionId)
       })
     }
     return { sessionId, workId }

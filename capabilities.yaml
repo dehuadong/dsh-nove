@@ -25,7 +25,7 @@ capabilities:
     reference: inkos:packages/core/src/harness/session-binding.ts
     dsh: storage + client
     implementation: storycraft/src/current.ts
-    consumer: storycraft/tests/current.test.mjs
+    consumer: storycraft/tests/session-binding-revalidation.test.mjs
     realRun: null
     status: missing
   - id: runtime.commands

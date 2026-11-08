@@ -24,12 +24,13 @@ export function markHydrated(sessionId: unknown, root: unknown): void { if (type
 
 /**
  * Point a session at a work.
+ * `allowRebind` is only for a caller that has already won the catalog CAS.
  */
-export function setCurrent(sessionId: unknown, workId: unknown): void {
+export function setCurrent(sessionId: unknown, workId: unknown, options: { allowRebind?: boolean } = {}): void {
   if (typeof sessionId !== 'string' || sessionId === '') return
   const next = String(workId)
   const existing = current.get(sessionId)
-  if (existing !== undefined && existing !== next) {
+  if (existing !== undefined && existing !== next && options.allowRebind !== true) {
     throw new StoryError('work-binding-mismatch',
       `本会话已绑定作品 ${existing}，不能再改绑 ${next}：请为目标作品打开或新建会话`)
   }
@@ -50,7 +51,6 @@ export function getCurrent(sessionId: unknown): string | undefined {
 export function clearCurrent(sessionId: unknown): void {
   if (typeof sessionId === 'string') { current.delete(sessionId); hydrated.delete(sessionId) }
 }
-
 
 /**
  * Load persisted pointers, keeping newer in-memory entries.

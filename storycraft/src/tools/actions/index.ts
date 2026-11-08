@@ -122,14 +122,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
           throw new StoryError('workspace-form-mismatch',
             `提案形态是 ${proposal.form}，当前预设只接受 ${form}：换会话或换预设`)
         }
-        const targetId = typeof args.workId === 'string' && args.workId.trim() !== ''
-          ? workIdOf(args.workId)
-          : workIdOf(args.title)
         const current = sessionCurrentOf(root, session)
-        if (current !== undefined && current !== targetId) {
-          throw new StoryError('work-mismatch',
-            `本会话当前作品是 ${current}，不能再立项另一部：请新建会话再立项`)
-        }
         const created = await initWork(root, {
           title: args.title,
           form,
@@ -138,12 +131,8 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
           ...(args.wordRange === undefined ? {} : { wordRange: args.wordRange }),
         })
         if (session !== undefined) {
-          setCurrent(session, created.workId)
-          try {
-            setSessionCurrent(root, session, created.workId)
-          } catch (error) {
-            console.warn(`[storycraft] 当前作品指针持久化失败：${error instanceof Error ? error.message : String(error)}`)
-          }
+          setSessionCurrent(root, session, created.workId, { expectedWorkId: current ?? null })
+          setCurrent(session, created.workId, { allowRebind: true })
         }
         await markProposalUsed(root, proposal.id, created.workId).catch(() => {})
         return { ok: true, workId: created.workId }

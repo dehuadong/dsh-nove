@@ -481,8 +481,9 @@ export function apply(ctx: DshContext): void {
               return { current: undefined }
             }
             const manifest = await readManifest(root, workId)
-            setCurrent(sessionId, manifest.workId)
+            if (getCurrent(sessionId) !== manifest.workId) hydrateCurrent(await readCurrentFile(root))
             setSessionCurrent(root, sessionId, manifest.workId)
+            setCurrent(sessionId, manifest.workId, { allowRebind: true })
             return { current: manifest.workId }
           })
           return

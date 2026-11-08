@@ -16,7 +16,7 @@
 | Agent 循环 | 自定义 runner 驱动角色 | DSH agent loop + `subagents` | 角色即子代理，循环与上下文由运行时负责 | 一个阶段能派发子代理并收敛结果 |
 | CLI | 独立 CLI 进程 | DSH command / headless | 不维护第二套入口与参数解析 | `init`、`export` 各有可执行入口 |
 | 会话／事件 | 自建会话与事件存储 | DSH session log | 对话与调用证据留在 session，作品内容另存 | 一次流水线可在 session 中追溯 |
-| 会话绑定 | `sessionKind` 决定 profile，`bookId` 决定 workId | 按 sessionId 记录当前 workId；profile 由 preset 决定 | DSH 没有 InkOS 的 sessionKind/profile 枚举 | 面板进入、重启 hydrate、跨会话隔离 |
+| 会话绑定 | `sessionKind` 决定 profile，`bookId` 决定 workId；创作后 CAS 迁移 | 按 sessionId 记录当前 workId；profile 由 preset 决定 | DSH 没有 InkOS 的 sessionKind/profile 枚举；创作动作 CAS 迁移，手动改绑拒绝 | 绑定迁移/冲突测试、重启 hydrate、跨会话隔离 |
 | 作品存储 | 自建独立存储服务 | DSH storage/session 或既有 SQLite（不新建独立存储服务） | 复用 DSH 文件状态与既有 SQLite，不引入额外存储组件 | 作品数据可读回；两部作品互不串数据 |
 | 运行时 | episode 生命周期 start/execute/finish | bundle/preset 挂载 + registry 注册 + web 路由 | 机制等价：DSH 由 bundle 替代 InkOS 的 runtime 注册器 | `e2e/load.spec.cjs` + 真实会话回执 |
 | 调度 | 队列 + worker | DSH jobs／schedule | 长任务用子代理异步执行，不建队列 | 长任务可断点续跑 |

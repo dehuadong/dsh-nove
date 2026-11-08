@@ -465,15 +465,23 @@ try {
     title: '夜班司机', premise: '夜班司机捡到一盏不肯灭的灯。',
   }, exec)
   const blockedInit = await byName.get('story_init').execute({ title: '夜班司机', proposal: proposalResult.proposal }, exec)
-  check('a second work is refused while another is current', blockedInit.ok === false && blockedInit.error.code === 'work-mismatch', JSON.stringify(blockedInit))
+  check('a creation action retargets the session binding',
+    blockedInit.ok === true && (await s.readSessionCurrent(root))['test-session'] === blockedInit.workId,
+    JSON.stringify(blockedInit))
   check('proposal result declares its keys',
     ['proposal', 'title', 'form'].every(key => Object.keys(byName.get('story_propose').output.schema.properties).includes(key))
     && proposalResult.ok === true, JSON.stringify(proposalResult))
 
   s.setSessionCurrent(root, 'persisted-refusal', work)
-  const blockedPersisted = await byName.get('story_init').execute({ title: '夜班司机', proposal: proposalResult.proposal }, { ...exec, agent: { ...exec.agent, id: 'persisted-refusal' } })
-  check('a persisted-only current work blocks another init', blockedPersisted.ok === false && blockedPersisted.error.code === 'work-mismatch', JSON.stringify(blockedPersisted))
-  check('the refused init created no work', !s.listWorks(root).some(item => item.workId === '夜班司机'))
+  const persistedProposal = await byName.get('story_propose').execute({
+    title: '夜班司机二', premise: '第二盏灯。',
+  }, exec)
+  const persistedInit = await byName.get('story_init').execute({ title: '夜班司机二', proposal: persistedProposal.proposal }, { ...exec, agent: { ...exec.agent, id: 'persisted-refusal' } })
+  check('a persisted-only current work is retargeted',
+    persistedInit.ok === true && (await s.readSessionCurrent(root))['persisted-refusal'] === persistedInit.workId,
+    JSON.stringify(persistedInit))
+  s.setSessionCurrent(root, 'test-session', work, { expectedWorkId: blockedInit.workId })
+  setCurrent('test-session', work, { allowRebind: true })
 
   setCurrent('session-a', work)
   await byName.get('story_status').execute({ work: 'another-book' }, { ...exec, agent: { ...exec.agent, id: 'session-a' } })
