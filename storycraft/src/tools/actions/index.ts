@@ -8,7 +8,7 @@ import {
   latestReview, readBibleEntry, readChapter, readChapterHistory, readEvents, readEventsText, readManifest, readPlan, readSessionCurrent,
   readStateDraft, readSummaryState,
   reopenChapter as reopenChapterFor, renameWork, restoreWork, reviseChapter, setSessionCurrent,
-  status as readStatus, updateSettings, workIdOf, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
+  status as readStatus, updateSettings, writeChapter, writeOutline as writeOutlineFor, writePlan, writeReview,
 } from '../../storage.ts'
 import { listRoleCards, readArtifact, readChapterMemo, readChapterSummary, readFoundationDocument, readRoleCard, readTextArtifact, renderFoundationContent } from '../../artifact-store.ts'
 import {
@@ -83,7 +83,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
       description: '建立一部作品：真值五件与检索表。'
         + ' 先有作者同意的提案，再调用它立项。作品 id 由标题生成；同 id 已存在时拒绝，不覆盖已有作品。'
 
-        + ' 会话没有当前作品时，成功后会把新作品设为当前；已有其他当前作品时拒绝（请新建会话再立项）。',
+        + ' 会话没有当前作品时，成功后会把新作品设为当前；已有其他当前作品时用 CAS 迁移，冲突则拒绝。',
       parameters: {
         type: 'object',
         additionalProperties: false,
@@ -1088,7 +1088,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
     action({
       name: 'story_current',
       description: '只读：本会话当前在做的作品。通常由面板进入时选定；'
-        + ' 会话没有当前作品时，story_init 成功后会设为当前。其他情况模型不能自己切换；'
+        + ' 会话没有当前作品时，story_init 成功后会设为当前；创作动作可用 CAS 迁移，其他动作不能自己切换；'
         + ' 返回 null 时说明还没有进入任何作品，请作者在面板里进入一部。',
       parameters: {
         type: 'object',

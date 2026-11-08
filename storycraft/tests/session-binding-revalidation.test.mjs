@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import * as s from '../src/storage.ts'
 import * as tools from '../src/tools/index.ts'
 import { setCurrent, getCurrent, clearCurrent } from '../src/current.ts'
+import { writeCurrentBinding } from '../src/current-binding.ts'
 
 let failures = 0
 function check(name, condition, detail) {
@@ -36,6 +37,14 @@ try {
   setCurrent('s-mem', b, { allowRebind: true })
   check('memory accepts the catalog-authorized rebind', getCurrent('s-mem') === b)
   clearCurrent('s-mem')
+
+  setCurrent('s-route', a)
+  await writeCurrentBinding(root, 's-route', b).then(
+    () => check('a bound route write is refused', false, 'expected rejection'),
+    error => check('a bound route write is refused', error?.code === 'work-binding-conflict', String(error?.code)),
+  )
+  check('the refused route write leaves the old memory', getCurrent('s-route') === a)
+  clearCurrent('s-route')
 
   const registered = []
   const ctx = {

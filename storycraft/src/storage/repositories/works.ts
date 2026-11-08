@@ -158,30 +158,31 @@ export function pruneProposals(root: any, ttlMs: any = PROPOSAL_TTL_MS) {
 export function setSessionCurrent(root: any, sessionId: any, workId: any, options: { expectedWorkId?: string | null } = {}) {
   const catalog = requireCatalog(root)
   try {
-    const existing = catalog.prepare('SELECT work_id AS workId FROM session_current WHERE session_id = ?')
-      .get(sessionId) as { workId: string } | undefined
-    if (options.expectedWorkId !== undefined) {
-      const current = existing?.workId ?? null
-      if (current !== options.expectedWorkId) {
-        throw new StoryError('work-binding-conflict',
-          `会话绑定已变化：期望 ${String(options.expectedWorkId ?? '未绑定')}，实际 ${String(current ?? '未绑定')}`)
+    return transaction(catalog, () => {
+      const existing = catalog.prepare('SELECT work_id AS workId FROM session_current WHERE session_id = ?')
+        .get(sessionId) as { workId: string } | undefined
+      if (options.expectedWorkId !== undefined) {
+        const current = existing?.workId ?? null
+        if (current !== options.expectedWorkId) {
+          throw new StoryError('work-binding-conflict',
+            `会话绑定已变化：期望 ${String(options.expectedWorkId ?? '未绑定')}，实际 ${String(current ?? '未绑定')}`)
+        }
+      } else if (existing !== undefined && existing.workId !== workId) {
+        throw new StoryError('work-binding-mismatch',
+          `本会话已绑定作品 ${existing.workId}，不能再改绑 ${workId}：请为目标作品打开或新建会话`)
       }
-    } else if (existing !== undefined && existing.workId !== workId) {
-      throw new StoryError('work-binding-mismatch',
-        `本会话已绑定作品 ${existing.workId}，不能再改绑 ${workId}：请为目标作品打开或新建会话`)
-    }
-    if (existing === undefined) {
-      transaction(catalog, () => {
+      if (existing === undefined) {
         catalog.prepare('INSERT INTO session_current (session_id, work_id, updated_at) VALUES (?, ?, ?)')
           .run(sessionId, workId, now())
-      })
-    } else if (existing.workId !== workId) {
-      transaction(catalog, () => {
-        catalog.prepare('UPDATE session_current SET work_id = ?, updated_at = ? WHERE session_id = ?')
-          .run(workId, now(), sessionId)
-      })
-    }
-    return { sessionId, workId }
+      } else if (existing.workId !== workId) {
+        const result = catalog.prepare('UPDATE session_current SET work_id = ?, updated_at = ? WHERE session_id = ? AND work_id = ?')
+          .run(workId, now(), sessionId, existing.workId)
+        if (Number(result.changes) !== 1) {
+          throw new StoryError('work-binding-conflict', '会话绑定在写入前已变化，请重试')
+        }
+      }
+      return { sessionId, workId }
+    })
   } finally {
     catalog.close()
   }

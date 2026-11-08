@@ -22,9 +22,10 @@ import { selfCheck } from './self-check.ts'
 import { rebuildSearchIndex } from './recovery.ts'
 import { acceptChapter, adoptChapterRevision, approveChapterPlan, approveFoundation, approveOutline, createBackup, deleteBackup, deleteChapter, deleteMaterial, readChapterHistory, ensureReconciled, exportWorkAtomic, importMaterial, moveChapter, listMaterials, listTrash, listWorks, nextStep, purgeTrash, readFoundationState, readManifest, restoreBackup, listBackups, readChapter, readReview, readWork, renameMaterial, restoreWork, setMaterialPurpose, status as readStatus, StoryError } from './storage.ts'
 import { critique } from './critique.ts'
-import { clearCurrent, getCurrent, hydrate as hydrateCurrent, setCurrent } from './current.ts'
+import { getCurrent, hydrate as hydrateCurrent } from './current.ts'
+import { clearCurrentBinding, writeCurrentBinding } from './current-binding.ts'
 import { readVolumes } from './volumes.ts'
-import { clearSessionCurrent, readSessionCurrent, setSessionCurrent } from './storage.ts'
+import { readSessionCurrent } from './storage.ts'
 import { assembleBrief, extractStyleSamples, readBible, writeBible } from './bible/index.ts'
 import { listRoleCards, readFoundationDocuments, renderFoundationContent } from './artifact-store.ts'
 import { backupsDir, catalogFile, exportsDir } from './storage/db.ts'
@@ -476,15 +477,11 @@ export function apply(ctx: DshContext): void {
             const workId = typeof body?.workId === 'string' ? body.workId : ''
             const root = await rootOf(ctx, new URLSearchParams({ root: String(body?.root ?? '') }))
             if (workId === '') {
-              clearCurrent(sessionId)
-              clearSessionCurrent(root, sessionId)
+              clearCurrentBinding(root, sessionId)
               return { current: undefined }
             }
-            const manifest = await readManifest(root, workId)
-            if (getCurrent(sessionId) !== manifest.workId) hydrateCurrent(await readCurrentFile(root))
-            setSessionCurrent(root, sessionId, manifest.workId)
-            setCurrent(sessionId, manifest.workId, { allowRebind: true })
-            return { current: manifest.workId }
+            const currentWork = await writeCurrentBinding(root, sessionId, workId)
+            return { current: currentWork }
           })
           return
         }
