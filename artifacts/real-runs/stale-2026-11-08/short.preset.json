@@ -1,0 +1,44 @@
+{
+  "date": "2026-11-08",
+  "sessionId": "session-a390231f-bb63-4d69-867d-e9b8f9d5589a",
+  "testedCommit": "414f1d2",
+  "consumer": "storycraft/e2e/preset.spec.cjs",
+  "tests": { "passed": true },
+  "receipts": [
+    {
+      "kind": "preset-roster",
+      "presets": ["storycraft", "storycraft-short"],
+      "broken": null,
+      "ok": true
+    },
+    {
+      "kind": "short-form-action",
+      "preset": "storycraft-short",
+      "form": "short",
+      "ok": true
+    },
+    {
+      "kind": "mixed-workspace",
+      "forms": ["longform", "short"],
+      "root": "storycraft/tests/workspace-form.test.mjs",
+      "ok": true
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/e2e/preset.spec.cjs",
+      "command": "node storycraft/e2e/run.mjs --grep \"故事工坊工作模式\"",
+      "ok": true
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/tests/workspace-form.test.mjs",
+      "ok": true
+    },
+    {
+      "kind": "code-check",
+      "command": "node storycraft/scripts/ci.mjs --no-e2e",
+      "ok": true,
+      "unitFiles": 106
+    }
+  ]
+}

@@ -161,7 +161,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
         additionalProperties: false,
         properties: {
           title: { type: 'string', description: '作品标题。' },
-          form: { type: 'string', enum: ['longform', 'short', 'script'], description: '形态，缺省长篇。' },
+          form: { type: 'string', enum: ['longform', 'short', 'script'], description: '形态，缺省为当前预设形态。' },
           premise: { type: 'string', description: '一句话前提或核心冲突。' },
           characters: { type: 'string', description: '主要人物与他们的目标（可选）。' },
           conflict: { type: 'string', description: '主要冲突或阻力（可选）。' },

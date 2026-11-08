@@ -43,7 +43,7 @@
 | `search.unified` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |
 | `panel.logs` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |
 | `panel.analysis` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |
-| `short.preset` | `inkos-master/packages/core/src/harness/builtin-profiles.ts:23-29` | 短篇 profile 独立于 longform，form=short；入口预设可创建 short 作品 | `storycraft/cordis.patch.yml`、`storycraft/e2e/preset.spec.cjs` | 保真债 | 当行补齐：thin preset 只有入口，short.outline/batch/review/package 仍 missing |
+| `short.preset` | `inkos-master/packages/core/src/harness/builtin-profiles.ts:23-29` | 短篇 profile 独立于 longform，form=short；入口预设可创建 short 作品 | `storycraft/cordis.patch.yml`、`storycraft/e2e/preset.spec.cjs` | 保真债 | 当行补齐：thin preset 已挂载，但没有真实 storycraft-short 会话；short.outline/batch/review/package 仍 missing |
 | `short.outline` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |
 | `short.batch-draft` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |
 | `short.review-revise` | 待审计 | 待审计 | 待审计 | 未审 | 后续行 |
