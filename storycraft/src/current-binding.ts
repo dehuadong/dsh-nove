@@ -7,7 +7,7 @@ import { clearSessionCurrent, readManifest, readSessionCurrent, setSessionCurren
 export async function writeCurrentBinding(root: string, sessionId: string, workId: string): Promise<string> {
   if (getCurrent(sessionId) === undefined) hydrate(readSessionCurrent(root))
   const manifest = await readManifest(root, workId)
-  setSessionCurrent(root, sessionId, manifest.workId, { expectedWorkId: getCurrent(sessionId) ?? null })
+  setSessionCurrent(root, sessionId, manifest.workId)
   setCurrent(sessionId, manifest.workId, { allowRebind: true })
   return manifest.workId
 }

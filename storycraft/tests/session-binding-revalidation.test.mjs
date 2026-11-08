@@ -38,10 +38,11 @@ try {
   check('memory accepts the catalog-authorized rebind', getCurrent('s-mem') === b)
   clearCurrent('s-mem')
 
+  s.setSessionCurrent(root, 's-route', a)
   setCurrent('s-route', a)
   await writeCurrentBinding(root, 's-route', b).then(
     () => check('a bound route write is refused', false, 'expected rejection'),
-    error => check('a bound route write is refused', error?.code === 'work-binding-conflict', String(error?.code)),
+    error => check('a bound route write is refused', error?.code === 'work-binding-mismatch', String(error?.code)),
   )
   check('the refused route write leaves the old memory', getCurrent('s-route') === a)
   clearCurrent('s-route')
