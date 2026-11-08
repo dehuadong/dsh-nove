@@ -1,6 +1,6 @@
 # Agent Note: Gate 的 discuss 运行时协议
 
-Status: proposed
+Status: rejected — 放弃Gate插件开发
 
 工作项：把 `AGENTS.md` 的 Discuss 要求从语义约定变成 Gate 注入的运行时协议。
 

@@ -1,6 +1,6 @@
 # Agent Note: Gate 对 GATES.md 的剩余能力
 
-Status: proposed
+Status: rejected — 放弃Gate插件开发
 
 工作项：在 `tools/gate` 中补齐 Entry gate、review-only、block/resume、verify evidence，使 Gate 不只承接 phase 和写权限。
 

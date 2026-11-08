@@ -1,6 +1,6 @@
 # Agent Note: gate-planning 与 Agent Note 的整合
 
-Status: proposed
+Status: rejected — 放弃Gate插件开发
 
 工作项：把 `gate-planning` 与 `proposal.md`、`rfc.md`、`write-agent-notes` 整合；工作项与技术设计由同一份 proposed Agent Note 承接。
 
