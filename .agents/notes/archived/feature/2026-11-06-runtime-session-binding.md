@@ -1,6 +1,7 @@
 # Agent Note: 故事工坊：runtime.session-binding 工作项
 
 Status: implemented
+Archived: 2026-11-08
 
 工作项：`capabilities.yaml` 的 `runtime.session-binding`（[账本行](../../../../capabilities.yaml)）。账本行承载能力状态；本 Note 记录决定、证据与后果。
 

@@ -21,13 +21,13 @@ capabilities:
     realRun: null
     status: missing
   - id: runtime.session-binding
-    title: 工作区 form + 预设绑定当前作品；绑定后不可原地改绑
-    reference: inkos:packages/core/src/harness/session-binding.ts
+    title: 会话绑定当前作品；创作动作 CAS 迁移，手动改绑拒绝
+    reference: inkos:packages/core/src/interaction/book-session-store.ts
     dsh: storage + client
     implementation: storycraft/src/current.ts
     consumer: storycraft/tests/session-binding-revalidation.test.mjs
-    realRun: null
-    status: missing
+    realRun: artifacts/real-runs/runtime.session-binding.json
+    status: verified
   - id: runtime.commands
     title: DSH command/headless 入口（init/export 至少一条）
     reference: inkos:packages/cli/src/commands/
