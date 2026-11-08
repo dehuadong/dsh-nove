@@ -51,9 +51,9 @@ node storycraft/tests/workspace-form.test.mjs  # ALL CHECKS PASSED
 node storycraft/tests/commands.test.mjs        # ALL CHECKS PASSED
 node storycraft/e2e/run.mjs --grep "panel story-init"  # 1 passed
 node storycraft/scripts/ci.mjs --no-e2e        # PASS: 106 unit files
-npm run verify                                 # 3 verified / 37 missing
+npm run verify                                 # 2 verified / 38 missing
 ```
 
-真实回执：`artifacts/real-runs/workspace.single-form.json`，testedCommit `fddf021`。
+存储证据：`artifacts/real-runs/stale-2026-11-08/workspace.single-form.json`（混合 form 直接存储证明）。产品 short/script preset 尚未接线，能力保持 `missing`，债归属 `docs/fidelity-audit.md` 的 `workspace.single-form` 行。
 
 [历史快照：故事工坊：workspace.single-form 工作项](../../archived/feature/2026-11-06-workspace-single-form.md)

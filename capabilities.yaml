@@ -18,8 +18,8 @@ capabilities:
     dsh: preset + storage
     implementation: storycraft/src/storage/repositories/catalog.ts
     consumer: storycraft/tests/workspace-form.test.mjs
-    realRun: artifacts/real-runs/workspace.single-form.json
-    status: verified
+    realRun: null
+    status: missing
   - id: runtime.session-binding
     title: 工作区 form + 预设绑定当前作品；绑定后不可原地改绑
     reference: inkos:packages/core/src/harness/session-binding.ts
