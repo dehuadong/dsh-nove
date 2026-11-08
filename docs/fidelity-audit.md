@@ -12,7 +12,7 @@
 | 能力 | 源证据 | 源行为不变量 | 复刻现状 | 判定 | 债/偏差 |
 |---|---|---|---|---|---|
 | `runtime.load` | `inkos-master/packages/core/src/harness/production-capabilities.ts:170-230`、`:464` | bundle/preset 挂载后注册 story_next，页面/路由可调用；真实会话可复核 | `storycraft/cordis.patch.yml`、`storycraft/e2e/load.spec.cjs` | 机制等价 | `docs/dsh-mapping.md` 运行时：bundle 替代 runtime 注册器 |
-| `workspace.single-form` | `inkos-master/packages/core/src/harness/builtin-profiles.ts:15-33` | 工作区只承载一种形态；预设声明 form 并与工作区匹配；一作品一库 | `src/storage/repositories/catalog.ts`、`tests/workspace-form.test.mjs` | 保真债 | 复审缺口：2026-11-07 复审 needs_changes；当行补齐：当前 preset form 是代码表 `PRESET_FORM`，尚未由预设配置声明 |
+| `workspace.single-form` | `inkos-master/packages/core/src/harness/work-store.ts:79-102`、`tools/work-creation.ts:12-22` | 一个 workspace 可共存不同 profile/form 的作品；一作品一库 | `src/storage/repositories/catalog.ts`、`tests/workspace-form.test.mjs` | 保真债 | 当行补齐：workspace 级限制已移除；short/script preset 尚未接线，`PRESET_FORM` 仍为硬编码代码表 |
 | `runtime.session-binding` | `inkos-master/packages/core/src/harness/session-binding.ts:17-25` | 会话绑定 profile 与 workId；绑定后不原地改绑；重启恢复 | `src/current.ts`、`tests/current.test.mjs` | 保真债 | 复审缺口：2026-11-07 复审 needs_changes；`docs/dsh-mapping.md` 会话绑定 |
 | `runtime.commands` | `inkos-master/packages/cli/src/commands/init.ts` | `init [name]` 不经过模型初始化工作区 | `src/commands.ts`、`e2e/commands.spec.cjs` | 保真债 | 复审缺口：2026-11-07 复审 needs_changes；`docs/dsh-mapping.md` 命令入口 |
 | `runtime.telemetry` | `inkos-master/packages/core/src/harness/execution-evidence.ts:4-15` | 每次委派记录 usage/耗时/失败回执 | `src/call-evidence.ts`、`src/telemetry.ts`、`tests/model-calls.test.mjs` | 保真债 | 复审缺口：2026-11-07 复审 needs_changes；后续行：按 process Note 逐项重验 |

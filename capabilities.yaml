@@ -13,13 +13,13 @@ capabilities:
     realRun: artifacts/real-runs/runtime.load.json
     status: verified
   - id: workspace.single-form
-    title: 工作区只承载一种形态，预设声明 form 并校验
-    reference: inkos:packages/core/src/harness/builtin-profiles.ts
+    title: 工作区可承载多种形态
+    reference: inkos:packages/core/src/harness/work-store.ts
     dsh: preset + storage
     implementation: storycraft/src/storage/repositories/catalog.ts
     consumer: storycraft/tests/workspace-form.test.mjs
-    realRun: null
-    status: missing
+    realRun: artifacts/real-runs/workspace.single-form.json
+    status: verified
   - id: runtime.session-binding
     title: 工作区 form + 预设绑定当前作品；绑定后不可原地改绑
     reference: inkos:packages/core/src/harness/session-binding.ts
