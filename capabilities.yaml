@@ -10,8 +10,8 @@ capabilities:
     dsh: bundle/preset + client
     implementation: storycraft/cordis.patch.yml
     consumer: storycraft/e2e/load.spec.cjs
-    realRun: null
-    status: missing
+    realRun: artifacts/real-runs/runtime.load.json
+    status: verified
   - id: workspace.single-form
     title: 工作区只承载一种形态，预设声明 form 并校验
     reference: inkos:packages/core/src/harness/builtin-profiles.ts

@@ -1,6 +1,7 @@
 # Agent Note: 故事工坊：runtime.load 工作项
 
 Status: implemented
+Archived: 2026-11-08
 
 工作项：`capabilities.yaml` 的 `runtime.load`（[账本行](../../../../capabilities.yaml)）。账本行只承载能力映射与状态，本 Note 记录本次决定、证据与后果。
 

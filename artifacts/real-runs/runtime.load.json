@@ -1,0 +1,47 @@
+{
+  "date": "2026-11-08",
+  "sessionId": "session-a390231f-bb63-4d69-867d-e9b8f9d5589a",
+  "testedCommit": "032356b",
+  "consumer": "storycraft/e2e/load.spec.cjs",
+  "sessionLog": "storycraft/.tmp-e2e/home/sessions/--E-dsh-nove-storycraft-.tmp-e2e-workspace--/session-a390231f-bb63-4d69-867d-e9b8f9d5589a/session.v4.jsonl.zstd",
+  "sessionEvidence": "artifacts/real-runs/runtime.load-session.json",
+  "smokeSessionLog": "storycraft/.tmp-smoke/home/sessions/--E-dsh-nove-storycraft-.tmp-smoke-workspace--/session-4df22205-ead9-4614-a803-f865928ce128/session.v4.jsonl.zstd",
+  "tarball": "storycraft/.tmp-smoke/pack/see-storycraft-0.1.0.tgz",
+  "tests": { "passed": true },
+  "receipts": [
+    {
+      "kind": "e2e-load",
+      "command": "node storycraft/e2e/run.mjs --grep \"加载契约\"",
+      "page": "长篇面板 and 故事工坊 visible, no pageerror",
+      "works": ">0",
+      "nextAction": "non-empty string",
+      "ok": true
+    },
+    {
+      "kind": "installed-tools",
+      "package": "see-storycraft-0.1.0",
+      "entry": "lib/tools.js",
+      "registered": "story_next",
+      "ok": true
+    },
+    {
+      "kind": "tarball-smoke",
+      "command": "node storycraft/scripts/ci.mjs --smoke",
+      "package": "see-storycraft-0.1.0.tgz",
+      "mount": "see-storycraft layer installed",
+      "ok": true
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/e2e/load.spec.cjs",
+      "command": "node storycraft/e2e/run.mjs --grep \"加载契约\"",
+      "ok": true
+    },
+    {
+      "kind": "code-check",
+      "command": "node storycraft/scripts/ci.mjs --smoke",
+      "ok": true,
+      "unitFiles": 106
+    }
+  ]
+}
