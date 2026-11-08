@@ -42,7 +42,7 @@ description: 状态对账方法：核对拟写入 story_state 的 hook/fact 操�
 ```
 
 - 最多 8 条，按 `major` 在前排序；没有发现时提交 `{"items":[]}`。
-- `reconciliationRequired` 只在重算投影能解决时填 true；正文矛盾或评审意见填 false；有 finding 但省略时按 true。
+- `reconciliationRequired` 只在重算投影能解决时填 true；正文矛盾或评审意见填 false；有 major finding 但省略时按 true，只有 minor 时按 false。
 - 字段：`where`、`impact`、`fix` 各不超过 120 字，`problem` 不超过 160 字，`evidence` 不超过 240 字。
 - 不要提交 `mode`、评分、改写后的正文或新情节；`fix` 只给方向。
 - 提交成功后最终只回「已提交」；不要把 findings 当最终回答贴回父会话。

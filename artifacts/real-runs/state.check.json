@@ -1,0 +1,52 @@
+{
+  "date": "2026-11-08",
+  "sessionId": "session-d68dc3ec-3f70-435d-86fa-bf1438c8af3d",
+  "testedCommit": "8a2adc0",
+  "consumer": "storycraft/tests/state-check.test.mjs",
+  "tests": { "passed": true },
+  "receipts": [
+    {
+      "kind": "state-check-default-major",
+      "work": "对账回执修复",
+      "chapter": 1,
+      "items": 1,
+      "consistent": false,
+      "reconciliationRequired": true,
+      "ok": true
+    },
+    {
+      "kind": "state-check-review-only",
+      "work": "对账回执修复",
+      "chapter": 1,
+      "items": 1,
+      "consistent": true,
+      "reconciliationRequired": false,
+      "ok": true
+    },
+    {
+      "kind": "state-check-clean",
+      "work": "对账回执修复",
+      "chapter": 1,
+      "items": 0,
+      "consistent": true,
+      "reconciliationRequired": false,
+      "ok": true
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/tests/state-check-output.test.mjs",
+      "ok": true
+    },
+    {
+      "kind": "consumer-test",
+      "path": "storycraft/tests/state-settle.test.mjs",
+      "ok": true
+    },
+    {
+      "kind": "code-check",
+      "command": "node storycraft/scripts/ci.mjs --no-e2e",
+      "ok": true,
+      "unitFiles": 106
+    }
+  ]
+}
