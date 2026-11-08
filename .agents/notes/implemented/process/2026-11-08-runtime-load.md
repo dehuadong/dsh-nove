@@ -21,7 +21,7 @@ Status: implemented
 | `inkos-master/packages/core/src/harness/production-capabilities.ts:170-230`、`:464` | 工具/技能/角色能力在 production capabilities 注册 | 复刻注册在 `storycraft/src/tools/registry.ts`，bundle 由 `cordis.patch.yml` 挂载 |
 | `inkos-master/packages/core/src/harness/runtime.ts:43-234` | episode 的 start/execute/finish 生命周期 | 只作生命周期参考，不当作注册证据 |
 | `inkos-master/packages/core/src/harness/builtin-profiles.ts` | profile 决定能力集合 | 复刻由 preset/bundle 决定挂载 |
-| `packages/studio/src/api/server.ts` 的路由注册 | 宿主把能力暴露为可调用路由 | 复刻由 `src/index.ts` 暴露 web 路由 |
+| `inkos-master/packages/studio/src/api/server.ts` 的路由注册 | 宿主把能力暴露为可调用路由 | 复刻由 `src/index.ts` 暴露 web 路由 |
 
 ## Decision
 
@@ -31,8 +31,9 @@ Status: implemented
   - 页面加载无未捕获错误；
   - 长篇面板与故事工坊标题可见；
   - `/works` 返回作品；
-  - `/next` 返回合法 `action`。
-- 证据是 packed tarball smoke 与临时 `DSH_HOME` 的真实浏览器会话 `session-b4143a9d…`，session log 保留；
+  - `/next` 返回合法 `action`；
+  - 打包后的 `lib/tools.js` 注册 `story_next`。
+- 证据是 packed tarball smoke 与临时 `DSH_HOME` 的真实浏览器会话 `session-a390231f…`，session log 保留；
 - 回执记录 `testedCommit=032356b`、consumer、commands；
 - `docs/dsh-mapping.md` 有“运行时”条目；
 - 旧回执保留在 `artifacts/real-runs/stale-2026-11-07/`，不参与当前证据。
@@ -52,7 +53,7 @@ Status: implemented
 ## Testing
 
 ```text
-node storycraft/e2e/run.mjs --grep "加载契约"  # 1 passed
+node storycraft/e2e/run.mjs --grep "加载契约"  # 2 passed
 node storycraft/scripts/ci.mjs --smoke         # PASS: 106 unit files + tarball smoke
 npm run verify                                 # 2 verified / 38 missing
 ```
