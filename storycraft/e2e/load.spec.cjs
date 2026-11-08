@@ -3,6 +3,8 @@
 // Unlike the workbench specs this does not look at UI details, so it stays the
 // one place that proves "installed package → route answers, page is clean".
 const fs = require('node:fs')
+const path = require('node:path')
+const { pathToFileURL } = require('node:url')
 const { test, expect } = require('@playwright/test')
 const { openWorkbench } = require('./helpers.cjs')
 
@@ -42,6 +44,30 @@ test.describe('故事工坊加载契约', () => {
     expect(result.works).toBeGreaterThan(0)
     expect(result.nextStatus).toBe(200)
     expect(typeof result.action).toBe('string')
+    expect(result.action.length).toBeGreaterThan(0)
     expect(errors).toEqual([])
+  })
+
+  test('打包后的 tools 入口注册 story_next', async () => {
+    const toolsPath = path.join(runtime.home, 'profiles', 'web', 'node_modules', 'see-storycraft', 'lib', 'tools.js')
+    expect(fs.existsSync(toolsPath)).toBe(true)
+    const tools = await import(pathToFileURL(toolsPath).href)
+    const registered = []
+    const ctx = {
+      tools: {
+        guard: () => () => {},
+        register: definition => {
+          registered.push(definition.name)
+          return () => {}
+        },
+      },
+      effect: fn => {
+        const dispose = fn()
+        return () => dispose?.()
+      },
+      get: () => undefined,
+    }
+    tools.apply(ctx)
+    expect(registered).toContain('story_next')
   })
 })
