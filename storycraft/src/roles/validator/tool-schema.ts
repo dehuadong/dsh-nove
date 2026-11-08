@@ -9,6 +9,9 @@ export function validate(payload: any): string | undefined {
       return 'validator reconciliationRequired 必须是布尔值'
     }
     if (payload.items.length > 8) return 'validator items 最多 8 条'
+    if (payload.reconciliationRequired === true && payload.items.length === 0) {
+      return 'validator reconciliationRequired=true 时必须至少一条 finding 说明理由'
+    }
     for (const [index, item] of payload.items.entries()) {
       if (item === null || typeof item !== 'object') return `validator 第 ${index + 1} 条不是对象`
       if (!VALIDATOR_CODES.has(item.code)) return `validator 第 ${index + 1} 条 code 非法`

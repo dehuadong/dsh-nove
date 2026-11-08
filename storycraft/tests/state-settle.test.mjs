@@ -133,6 +133,37 @@ try {
     && minor.warnings.some(warning => warning.startsWith('fact-ambiguous:'))
     && minor.attempts.settler === 1, JSON.stringify(minor))
 
+  const reviewOnlyWork = makeWork('评审意见不阻断')
+  makeChapter(reviewOnlyWork)
+  const reviewOnlyService = fakeService([
+    { payload: factPayload },
+    { payload: { items: [majorFinding], reconciliationRequired: false } },
+  ])
+  const reviewOnly = await settleChapterState(root, { work: reviewOnlyWork, chapter: 1 }, {
+    service: reviewOnlyService, agent, signal,
+  })
+  check('an explicit review-only finding settles without reconciliation',
+    reviewOnly.settled === true && reviewOnly.attempts.validator === 1
+    && reviewOnly.warnings.some(warning => warning.startsWith('fact-unsupported:')),
+    JSON.stringify(reviewOnly))
+
+  const explicitTrueWork = makeWork('显式需要重算')
+  makeChapter(explicitTrueWork)
+  const explicitTrueService = fakeService([
+    { payload: factPayload },
+    { payload: { items: [majorFinding], reconciliationRequired: true } },
+    { payload: factPayload },
+    { payload: { items: [majorFinding], reconciliationRequired: true } },
+  ])
+  const explicitTrue = await settleChapterState(root, { work: explicitTrueWork, chapter: 1 }, {
+    service: explicitTrueService, agent, signal,
+  })
+  check('an explicit reconciliation request stays unsettled',
+    explicitTrue.settled === false && explicitTrue.reason === 'state-reconcile-required'
+    && explicitTrue.attempts.validator === 2, JSON.stringify(explicitTrue))
+
+
+
   const retryWork = makeWork('反馈重算')
   makeChapter(retryWork)
   const retryService = fakeService([

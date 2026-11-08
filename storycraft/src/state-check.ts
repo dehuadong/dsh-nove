@@ -300,7 +300,7 @@ export async function checkChapterState(
     const verified = verifyEvidence(submission.payload.items, body)
     const reconciliationRequired = typeof submission.payload.reconciliationRequired === 'boolean'
       ? submission.payload.reconciliationRequired
-      : verified.items.length > 0
+      : verified.items.some(item => item.severity === 'major')
     if (child.call.callId !== undefined) finishCall(root, work, child.call.callId, { outcome: 'accepted', submissionAttempts: attempts })
     return {
       ok: true,

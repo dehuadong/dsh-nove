@@ -204,9 +204,6 @@ const STATE_SETTLE_TIMEOUT_MS = 300000
 /** Whole settlement budget; a timeout returns a receipt instead of retrying. */
 const SETTLE_TOTAL_TIMEOUT_MS = 600000
 
-/** Severity values that force a second settler attempt. */
-const BLOCKING_SEVERITY = 'major'
-
 /** The manifest entry of one chapter, when the manifest lists it. */
 function entryOf(manifest: ManifestView, number: number): ManifestChapter | undefined {
   return manifest.chapters.find(item => item.number === number)
@@ -499,7 +496,7 @@ export async function settleChapterState(
     if (check.revision !== revision) {
       throw new StoryError('state-settle-stale', `第 ${chapter} 章在结算期间改版：请对当前版本重跑`)
     }
-    const blocking = check.items.filter(item => item.severity === BLOCKING_SEVERITY)
+    const blocking = check.reconciliationRequired ? check.items : []
     if (blocking.length === 0) {
       trace.durationMs = Date.now() - started
       return land(root, {
@@ -544,8 +541,8 @@ function land(root: string, input: LandInput): SettleReceipt {
     findings: input.items,
     ready: true,
   })
-  const minor = input.items.map(item => `${item.code}: ${item.where} — ${item.problem}`)
-  const warnings = [...new Set([...input.warnings, ...minor])]
+  const findings = input.items.map(item => `${item.code}: ${item.where} — ${item.problem}`)
+  const warnings = [...new Set([...input.warnings, ...findings])]
   return {
     ok: true,
     settled: true,

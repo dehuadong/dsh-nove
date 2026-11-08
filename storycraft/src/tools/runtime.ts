@@ -1120,6 +1120,8 @@ export const STATE_CHECK_OUTPUT: DshToolOutput = {
       chapter: { type: 'integer' },
       revision: { type: 'integer' },
       checked: { type: 'boolean' },
+      consistent: { type: 'boolean' },
+      reconciliationRequired: { type: 'boolean' },
       items: { type: 'array', items: STATE_CHECK_ITEM },
       counts: {
         type: 'object',

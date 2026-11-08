@@ -547,7 +547,7 @@ function rawDefinitions(ctx: DshContext): ActionDefinition[] {
       name: 'story_settle',
       mutates: true,
       description: '自动结算本章状态：settler 从正文抽取事实与伏笔 delta，先做确定性预检，再用 R9b 语义检查；'
-        + 'major/确定性 error 带反馈重算一次；对账退回或超时带可用 ops 时写未就绪草案（可接受后定稿），state-invalid 不写库。'
+        + 'reconciliationRequired=true 或确定性 error 带反馈重算一次；显式 false 的 review-only finding 只记 warning，不阻断。对账退回或超时带可用 ops 时写未就绪草案（可接受后定稿），state-invalid 不写库。'
         + '成功时只写状态草案（state:draft），不写事实/伏笔事件、不定稿；作者接受草案或改状态后再 story_finalize。只允许主会话调用。',
       parameters: {
         type: 'object',
